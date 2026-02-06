@@ -15,6 +15,7 @@ import {
   Clock,
   Download,
   Film,
+  Folder,
   FolderOpen,
   Info,
   Loader2,
@@ -33,6 +34,9 @@ import {
   Image as ImageIcon,
   Check,
   Library,
+  HelpCircle,
+  Save,
+  Trash2,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -145,6 +149,8 @@ interface VaultFolder {
   profileId: string;
   profileName?: string;
   isDefault?: boolean;
+  parentId?: string | null;
+  subfolders?: Array<{ id: string }>;
 }
 
 interface GeneratedVideo {
@@ -219,6 +225,29 @@ const IMAGE_MODE_OPTIONS = [
   { value: "normal", label: "Normal", description: "Standard image-to-video" },
   { value: "pro", label: "Pro", description: "Professional quality with enhanced details" },
 ] as const;
+
+// Tooltip content
+const TOOLTIPS = {
+  model: "Choose the AI model version. V1.6 is stable and supports CFG scale. V2.6 is the latest with audio support.",
+  mode: "Standard mode is faster (~2-3 min). Professional mode produces higher quality but takes longer (~4-6 min).",
+  cfgScale: "Controls creativity vs accuracy. Lower values (0-0.4) = more creative and varied. Higher values (0.6-1.0) = more faithful to prompt.",
+  cameraControl: "Add cinematic camera movements like zoom, pan, tilt, or predefined motions to your video.",
+  duration: "5 seconds for quick clips, 10 seconds for extended scenes. Longer duration increases generation time.",
+  sound: "Enable AI-generated audio that matches your video. Only available in Professional mode with V2.6 model.",
+  negativePrompt: "Describe what you want to avoid in the video (e.g., 'blurry, distorted, low quality, text, watermark').",
+  imageMode: "Normal mode for standard conversion. Pro mode for enhanced details and tail image support (start+end frames).",
+} as const;
+
+// Tooltip component - using span instead of button to avoid hydration errors
+const Tooltip = ({ content, children }: { content: string; children: React.ReactNode }) => (
+  <span className="group relative inline-flex cursor-help">
+    {children}
+    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden w-48 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg group-hover:block z-50">
+      {content}
+      <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800" />
+    </span>
+  </span>
+);
 
 export default function KlingImageToVideo() {
   const apiClient = useApiClient();
@@ -413,6 +442,23 @@ export default function KlingImageToVideo() {
   const [pollingStatus, setPollingStatus] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // Toast notifications state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // Advanced settings collapse
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+
+  // Toast notification helper
+  const showErrorToast = (message: string) => {
+    setToastError(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      setTimeout(() => setToastError(null), 300);
+    }, 4000);
+  };
+
   const pauseAllPreviews = () => {
     const previewVideos = document.querySelectorAll<HTMLVideoElement>("video[data-role='preview']");
     previewVideos.forEach((video) => {
@@ -426,17 +472,15 @@ export default function KlingImageToVideo() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setError("Please upload a valid image file");
+      showErrorToast("Please upload a valid image file");
       return;
     }
 
     // Allow larger initial files since we'll compress them
     if (file.size > 20 * 1024 * 1024) {
-      setError("Image must be less than 20MB");
+      showErrorToast("Image must be less than 20MB");
       return;
     }
-
-    setError(null);
     setIsCompressing(true);
     if (!isTailImage) {
       setCompressionInfo(null);
@@ -475,7 +519,7 @@ export default function KlingImageToVideo() {
       }
     } catch (err) {
       console.error("Image compression failed:", err);
-      setError("Failed to process image. Please try a different file.");
+      showErrorToast("Failed to process image. Please try a different file.");
     } finally {
       setIsCompressing(false);
     }
@@ -593,7 +637,7 @@ export default function KlingImageToVideo() {
       const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
       
       if (!proxyResponse.ok) {
-        setError('Failed to load reference image. Please try again.');
+        showErrorToast('Failed to load reference image. Please try again.');
         return;
       }
       
@@ -618,7 +662,7 @@ export default function KlingImageToVideo() {
       fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
     } catch (err) {
       console.error('Error loading reference image:', err);
-      setError('Failed to load reference image. Please try again.');
+      showErrorToast('Failed to load reference image. Please try again.');
     }
 
     setShowReferenceBankSelector(false);
@@ -647,22 +691,80 @@ export default function KlingImageToVideo() {
     }
   }, [apiClient, globalProfileId]);
 
+  // Helper: Get folder path as breadcrumb (e.g., "Parent / Child")
+  const getFolderPath = useCallback((folderId: string): string => {
+    const parts: string[] = [];
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder) break;
+      parts.unshift(folder.name);
+      currentId = folder.parentId || null;
+    }
+    
+    return parts.join(' / ');
+  }, [vaultFolders]);
+
+  // Helper: Get folder depth for indentation
+  const getFolderDepth = useCallback((folderId: string): number => {
+    let depth = 0;
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder || !folder.parentId) break;
+      depth++;
+      currentId = folder.parentId;
+    }
+    
+    return depth;
+  }, [vaultFolders]);
+
+  // Helper: Sort folders by hierarchy (parent before children)
+  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
+    const result: VaultFolder[] = [];
+    const addedIds = new Set<string>();
+    
+    const addFolderAndChildren = (folderId: string) => {
+      if (addedIds.has(folderId)) return;
+      const folder = folders.find(f => f.id === folderId);
+      if (!folder) return;
+      
+      result.push(folder);
+      addedIds.add(folderId);
+      
+      // Add children
+      const children = folders.filter(f => f.parentId === folderId);
+      children.forEach(child => addFolderAndChildren(child.id));
+    };
+    
+    // First add all root folders (no parent)
+    const rootFolders = folders.filter(f => !f.parentId);
+    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
+    
+    return result;
+  }, []);
+
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
     const folder = vaultFolders.find((f) => f.id === targetFolder);
     if (folder) {
+      // Build folder path for nested folders
+      const folderPath = getFolderPath(targetFolder);
+      
       // When viewing all profiles, use folder's profileName
       if (isAllProfiles && folder.profileName) {
-        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+        return `Saving to Vault: ${folder.profileName} / ${folderPath}`;
       }
       // When viewing specific profile, use selectedProfile
       if (selectedProfile) {
         const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+        return `Saving to Vault: ${profileDisplay} / ${folderPath}`;
       }
-      return `Saving to Vault: ${folder.name}`;
+      return `Saving to Vault: ${folderPath}`;
     }
     return "Select a vault folder to save videos";
   };
@@ -776,7 +878,7 @@ export default function KlingImageToVideo() {
           throw new Error("Video generation timed out");
         } catch (err: any) {
           console.error("Polling error:", err);
-          setError(err.message || "Failed to check generation status");
+          showErrorToast(err.message || "Failed to check generation status");
           updateGlobalProgress({
             isGenerating: false,
             progress: 0,
@@ -798,20 +900,19 @@ export default function KlingImageToVideo() {
 
   const handleGenerate = async () => {
     if (!apiClient) {
-      setError("API client not available");
+      showErrorToast("API client not available");
       return;
     }
     if (!targetFolder) {
-      setError("Please select a vault folder to save your video");
+      showErrorToast("Please select a vault folder to save your video");
       return;
     }
     if (!uploadedImage) {
-      setError("Please upload an image first");
+      showErrorToast("Please upload an image first");
       return;
     }
 
     setIsGenerating(true);
-    setError(null);
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
     const localTaskId = `kling-i2v-${Date.now()}`;
@@ -937,7 +1038,7 @@ export default function KlingImageToVideo() {
       }
     } catch (err: any) {
       console.error("Generation error:", err);
-      setError(err.message || "Failed to generate video");
+      showErrorToast(err.message || "Failed to generate video");
       updateGlobalProgress({
         isGenerating: false,
         progress: 0,
@@ -994,7 +1095,6 @@ export default function KlingImageToVideo() {
     setTailImage(null);
     setTailImagePreview(null);
     setTargetFolder("");
-    setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
   };
@@ -1175,20 +1275,6 @@ export default function KlingImageToVideo() {
           </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-400/30 rounded-2xl backdrop-blur">
-            <AlertCircle className="h-5 w-5 text-red-300 flex-shrink-0" />
-            <p className="text-red-100 text-sm flex-1">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="ml-auto p-1 hover:bg-red-500/20 rounded-full transition-colors"
-            >
-              <X className="h-4 w-4 text-red-300" />
-            </button>
-          </div>
-        )}
-
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-[420px_1fr] items-start">
           {/* Left Panel - Controls */}
@@ -1354,357 +1440,380 @@ export default function KlingImageToVideo() {
               </div>
 
               {/* Prompt Section */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-violet-400" />
-                  <h3 className="text-base font-semibold text-white">Prompt (Optional)</h3>
+                  <label className="text-base font-bold text-white">Prompt (Optional)</label>
+                  <Tooltip content={TOOLTIPS.negativePrompt}>
+                    <HelpCircle className="w-4 h-4" />
+                  </Tooltip>
                 </div>
-                <div className="space-y-2">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the motion and scene you want to see in the video..."
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
-                    rows={4}
-                    disabled={isGenerating}
-                  />
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Describe the motion and scene you want to see in the video..."
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-base text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 resize-none"
+                  rows={4}
+                  disabled={isGenerating}
+                />
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Add motion details for better results</span>
+                  <span className={prompt.length > 150 ? 'text-violet-300' : ''}>{prompt.length} chars</span>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-200">
-                    Negative Prompt (Optional)
-                  </label>
-                  <textarea
-                    value={negativePrompt}
-                    onChange={(e) => setNegativePrompt(e.target.value)}
-                    placeholder="What to avoid: blurry, distorted, low quality..."
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
-                    rows={2}
-                    disabled={isGenerating}
-                  />
-                </div>
-              </div>
-
-              {/* Generation Settings */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-violet-400" />
-                  <h3 className="text-base font-semibold text-white">Generation Settings</h3>
-                </div>
-                {/* Model Selection */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-200">
-                    Model Version
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {MODEL_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setModel(option.value);
-                          // Auto-enable sound and pro mode for V2.6 (audio only works in pro mode)
-                          if (option.supportsSound) {
+                {/* Quick Settings - Integrated in prompt section */}
+                <div className="pt-3 border-t border-white/10">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Model Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Model</label>
+                        <Tooltip content={TOOLTIPS.model}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={model}
+                        onChange={(e) => {
+                          const newModel = e.target.value;
+                          setModel(newModel);
+                          const option = MODEL_OPTIONS.find(m => m.value === newModel);
+                          if (option?.supportsSound) {
                             setSound("on");
                             setMode("pro");
                           } else {
-                            // Reset sound if switching to a model that doesn't support it
                             setSound("off");
                           }
-                          // Reset camera control if switching to a model that doesn't support it
-                          if (!option.supportsCameraControl) {
+                          if (!option?.supportsCameraControl) {
                             setUseCameraControl(false);
                           }
                         }}
                         disabled={isGenerating}
-                        className={`p-3 rounded-2xl border-2 transition-all text-left ${
-                          model === option.value
-                            ? "border-violet-400 bg-violet-500/20"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
-                        } disabled:opacity-50`}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm text-white">
-                            {option.label}
-                          </span>
-                          {option.supportsSound && (
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">🔊</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-300 mt-1">
-                          {option.description}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {MODEL_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label} {option.supportsSound ? '🔊' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Sound Toggle (only for V2.6+ in Pro mode) */}
-                {currentModelSupportsSound && (
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-slate-200">
-                      Audio Generation
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setSound("off")}
-                        disabled={isGenerating}
-                        className={`p-3 rounded-2xl border-2 transition-all ${
-                          sound === "off"
-                            ? "border-violet-400 bg-violet-500/20"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
-                        } disabled:opacity-50`}
-                      >
-                        <div className="font-medium text-sm text-white">🔇 No Audio</div>
-                        <div className="text-xs text-slate-300 mt-1">Video only</div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSound("on");
-                          // Sound only works in Pro mode for V2.6
-                          if (mode === "std") {
-                            setMode("pro");
+                    {/* Quality Mode Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Quality</label>
+                        <Tooltip content={TOOLTIPS.mode}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={mode}
+                        onChange={(e) => {
+                          setMode(e.target.value);
+                          if (e.target.value === "std" && sound === "on") {
+                            setSound("off");
                           }
                         }}
-                        disabled={isGenerating}
-                        className={`p-3 rounded-2xl border-2 transition-all ${
-                          sound === "on"
-                            ? "border-emerald-400 bg-emerald-500/20"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
-                        } disabled:opacity-50`}
+                        disabled={isGenerating || (sound === "on" && currentModelSupportsSound)}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
                       >
-                        <div className="font-medium text-sm text-white">🔊 With Audio</div>
-                        <div className="text-xs text-slate-300 mt-1">Pro mode only</div>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Mode Selection */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-200">
-                    Quality Mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {MODE_OPTIONS.map((option) => {
-                      // Standard mode is disabled when sound is on (V2.6 constraint)
-                      const isStdDisabledDueToSound = option.value === "std" && sound === "on" && currentModelSupportsSound;
-                      const isDisabled = isGenerating || isStdDisabledDueToSound;
-                      
-                      return (
-                        <button
-                          key={option.value}
-                          onClick={() => {
-                            setMode(option.value);
-                            // If switching to std mode and sound is on, turn sound off
-                            if (option.value === "std" && sound === "on") {
-                              setSound("off");
-                            }
-                          }}
-                          disabled={isDisabled}
-                          className={`p-3 rounded-2xl border-2 transition-all ${
-                            mode === option.value
-                              ? "border-violet-400 bg-violet-500/20"
-                              : "border-white/10 bg-white/5 hover:border-white/20"
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                          title={isStdDisabledDueToSound ? "Standard mode doesn't support audio generation" : undefined}
-                        >
-                          <div className="font-medium text-sm text-white">
+                        {MODE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
                             {option.label}
-                          </div>
-                          <div className="text-xs text-slate-300 mt-1">
-                            {isStdDisabledDueToSound ? "No audio support" : option.description}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Duration Selection */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-200">
-                    Video Duration
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {DURATION_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setDuration(option.value)}
-                        disabled={isGenerating}
-                        className={`p-3 rounded-2xl border-2 transition-all ${
-                          duration === option.value
-                            ? "border-violet-400 bg-violet-500/20"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
-                        } disabled:opacity-50`}
-                      >
-                        <div className="font-medium text-sm text-white">
-                          {option.label}
-                        </div>
-                        <div className="text-xs text-slate-300 mt-1">
-                          {option.description}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* CFG Scale - Only for V1 models */}
-                {currentModelSupportsCfgScale && (
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-slate-200">
-                      CFG Scale: <span className="text-violet-300">{cfgScale.toFixed(1)}</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={cfgScale}
-                      onChange={(e) => setCfgScale(parseFloat(e.target.value))}
-                      disabled={isGenerating}
-                      className="w-full accent-violet-400"
-                    />
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>More Creative</span>
-                      <span>More Accurate</span>
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
-                )}
 
-                {/* Camera Control - Only for V1.5+ models */}
-                {currentModelSupportsCameraControl && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Camera className="h-4 w-4 text-violet-400" />
-                        <label className="text-sm font-medium text-slate-200">
-                          Camera Control
-                        </label>
+                    {/* Duration Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Duration</label>
+                        <Tooltip content={TOOLTIPS.duration}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
                       </div>
-                      <button
-                        onClick={() => setUseCameraControl(!useCameraControl)}
+                      <select
+                        value={duration}
+                        onChange={(e) => setDuration(e.target.value)}
                         disabled={isGenerating}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          useCameraControl
-                            ? "bg-violet-500"
-                            : "bg-white/10"
-                        } disabled:opacity-50`}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
                       >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            useCameraControl ? "translate-x-6" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                        {DURATION_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    {useCameraControl && (
-                      <div className="space-y-4">
-                        {/* Camera Control Type Selection */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold text-slate-300">Movement Type</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {CAMERA_CONTROL_TYPE_OPTIONS.map((option) => (
-                              <button
-                                key={option.value}
-                                onClick={() => setCameraControlType(option.value)}
-                                disabled={isGenerating}
-                                className={`p-2 rounded-xl border-2 transition-all text-left ${
-                                  cameraControlType === option.value
-                                    ? "border-pink-400 bg-pink-500/20"
-                                    : "border-white/10 bg-white/5 hover:border-white/20"
-                                } disabled:opacity-50`}
-                              >
-                                <div className="font-medium text-xs text-white">
-                                  {option.label}
-                                </div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  {option.description}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
+                    {/* Image Mode Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Image Mode</label>
+                        <Tooltip content={TOOLTIPS.imageMode}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={imageMode}
+                        onChange={(e) => setImageMode(e.target.value)}
+                        disabled={isGenerating}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                      >
+                        {IMAGE_MODE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Negative Prompt */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                  <Tooltip content={TOOLTIPS.negativePrompt}>
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </Tooltip>
+                </div>
+                <textarea
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="What to avoid: blurry, distorted, low quality, watermark, text..."
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
+                  rows={2}
+                  disabled={isGenerating}
+                />
+              </div>
+
+              {/* Collapsible Advanced Settings */}
+              <div className="border-t border-white/10 pt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-violet-300" />
+                    <span className="text-sm font-semibold text-white">Advanced Options</span>
+                    <span className="text-xs text-slate-400">(CFG, Camera, Sound)</span>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showAdvancedSettings && (
+                  <div className="mt-4 space-y-6 animate-in slide-in-from-top">
+              {/* Sound Toggle - Only for V2.6+ in Pro mode */}
+              {currentModelSupportsSound && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
+                    <Tooltip content={TOOLTIPS.sound}>
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </Tooltip>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setSound("off")}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        sound === "off"
+                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">🔇 No Audio</p>
+                      <p className="text-xs text-slate-300">Video only</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSound("on");
+                        // Sound only works in Pro mode for V2.6
+                        if (mode === "std") {
+                          setMode("pro");
+                        }
+                      }}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        sound === "on"
+                          ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">🔊 With Audio</p>
+                      <p className="text-xs text-slate-300">Pro mode only</p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* CFG Scale - Only for V1 models */}
+              {currentModelSupportsCfgScale && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                      <Tooltip content={TOOLTIPS.cfgScale}>
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </Tooltip>
+                    </div>
+                    <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={cfgScale}
+                    onChange={(e) => setCfgScale(Number(e.target.value))}
+                    className="w-full accent-violet-400"
+                    disabled={isGenerating}
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>More Creative</span>
+                    <span>More Accurate</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Camera Control - Only for V1.6+ models */}
+              {currentModelSupportsCameraControl && (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseCameraControl(!useCameraControl)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                      useCameraControl
+                        ? "border-pink-400/70 bg-pink-500/10 text-white shadow-pink-900/30"
+                        : "border-white/10 bg-white/5 text-slate-200"
+                    } disabled:opacity-50`}
+                    disabled={isGenerating}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Camera className="w-5 h-5" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">Camera Control</p>
+                          <Tooltip content={TOOLTIPS.cameraControl}>
+                            <HelpCircle className="w-3.5 h-3.5" />
+                          </Tooltip>
+                        </div>
+                        <p className="text-xs text-slate-300">
+                          {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                {useCameraControl && (
+                  <div className="space-y-4 pl-2">
+                    {/* Camera Control Type Selection */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-200">Movement Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {CAMERA_CONTROL_TYPE_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => setCameraControlType(option.value)}
+                            className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
+                              cameraControlType === option.value
+                                ? "border-pink-400/70 bg-pink-500/10 text-white"
+                                : "border-white/10 bg-white/5 text-slate-200"
+                            } disabled:opacity-50`}
+                            disabled={isGenerating}
+                          >
+                            <p className="text-xs font-semibold">{option.label}</p>
+                            <p className="text-[10px] text-slate-400">{option.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 6-Axis Config (only for simple type) */}
+                    {cameraControlType === "simple" && (
+                      <div className="space-y-3 border-t border-white/10 pt-3">
+                        <label className="text-xs font-semibold text-slate-200">6-Axis Configuration</label>
+                        <p className="text-[10px] text-slate-400">Select one axis and set its value. Only one axis can be non-zero.</p>
+                        
+                        {/* Axis Selection */}
+                        <div className="grid grid-cols-3 gap-1">
+                          {CAMERA_AXIS_OPTIONS.map((axis) => (
+                            <button
+                              key={axis.key}
+                              onClick={() => {
+                                setSelectedCameraAxis(axis.key);
+                                // Reset all other axes to 0
+                                setCameraConfig({
+                                  horizontal: 0,
+                                  vertical: 0,
+                                  pan: 0,
+                                  tilt: 0,
+                                  roll: 0,
+                                  zoom: 0,
+                                  [axis.key]: cameraConfig[axis.key] || 0,
+                                });
+                              }}
+                              className={`rounded-lg border px-2 py-1.5 text-center transition ${
+                                selectedCameraAxis === axis.key
+                                  ? "border-pink-400/70 bg-pink-500/10 text-white"
+                                  : "border-white/10 bg-white/5 text-slate-300"
+                              } disabled:opacity-50`}
+                              disabled={isGenerating}
+                            >
+                              <p className="text-[10px] font-semibold">{axis.label}</p>
+                            </button>
+                          ))}
                         </div>
 
-                        {/* 6-Axis Config (only for simple type) */}
-                        {cameraControlType === "simple" && (
-                          <div className="space-y-3 border-t border-white/10 pt-3">
-                            <label className="text-xs font-semibold text-slate-300">6-Axis Configuration</label>
-                            <p className="text-[10px] text-slate-400">Select one axis and set its value. Only one axis can be non-zero.</p>
-                            
-                            {/* Axis Selection */}
-                            <div className="grid grid-cols-3 gap-1">
-                              {CAMERA_AXIS_OPTIONS.map((axis) => (
-                                <button
-                                  key={axis.key}
-                                  onClick={() => {
-                                    setSelectedCameraAxis(axis.key);
-                                    // Reset all other axes to 0
-                                    setCameraConfig({
-                                      horizontal: 0,
-                                      vertical: 0,
-                                      pan: 0,
-                                      tilt: 0,
-                                      roll: 0,
-                                      zoom: 0,
-                                      [axis.key]: cameraConfig[axis.key] || 0,
-                                    });
-                                  }}
-                                  disabled={isGenerating}
-                                  className={`rounded-lg border px-2 py-1.5 text-center transition ${
-                                    selectedCameraAxis === axis.key
-                                      ? "border-pink-400/70 bg-pink-500/10 text-white"
-                                      : "border-white/10 bg-white/5 text-slate-300"
-                                  } disabled:opacity-50`}
-                                >
-                                  <p className="text-[10px] font-semibold">{axis.label}</p>
-                                </button>
-                              ))}
+                        {/* Selected Axis Slider */}
+                        {selectedCameraAxis && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-300">
+                                {CAMERA_AXIS_OPTIONS.find(a => a.key === selectedCameraAxis)?.description}
+                              </span>
+                              <span className="text-xs font-mono text-pink-300">
+                                {cameraConfig[selectedCameraAxis]?.toFixed(0) || 0}
+                              </span>
                             </div>
-
-                            {/* Selected Axis Slider */}
-                            {selectedCameraAxis && (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-slate-300">
-                                    {CAMERA_AXIS_OPTIONS.find(a => a.key === selectedCameraAxis)?.description}
-                                  </span>
-                                  <span className="text-xs font-mono text-pink-300">
-                                    {cameraConfig[selectedCameraAxis]?.toFixed(0) || 0}
-                                  </span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={-10}
-                                  max={10}
-                                  step={1}
-                                  value={cameraConfig[selectedCameraAxis] || 0}
-                                  onChange={(e) => {
-                                    const newValue = Number(e.target.value);
-                                    setCameraConfig({
-                                      horizontal: 0,
-                                      vertical: 0,
-                                      pan: 0,
-                                      tilt: 0,
-                                      roll: 0,
-                                      zoom: 0,
-                                      [selectedCameraAxis]: newValue,
-                                    });
-                                  }}
-                                  className="w-full accent-pink-400"
-                                  disabled={isGenerating}
-                                />
-                                <div className="flex justify-between text-[10px] text-slate-500">
-                                  <span>-10</span>
-                                  <span>0</span>
-                                  <span>+10</span>
-                                </div>
-                              </div>
-                            )}
+                            <input
+                              type="range"
+                              min={-10}
+                              max={10}
+                              step={1}
+                              value={cameraConfig[selectedCameraAxis] || 0}
+                              onChange={(e) => {
+                                const newValue = Number(e.target.value);
+                                setCameraConfig({
+                                  horizontal: 0,
+                                  vertical: 0,
+                                  pan: 0,
+                                  tilt: 0,
+                                  roll: 0,
+                                  zoom: 0,
+                                  [selectedCameraAxis]: newValue,
+                                });
+                              }}
+                              className="w-full accent-pink-400"
+                              disabled={isGenerating}
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>-10</span>
+                              <span>0</span>
+                              <span>+10</span>
+                            </div>
                           </div>
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+              )}
                   </div>
                 )}
               </div>
@@ -1804,76 +1913,100 @@ export default function KlingImageToVideo() {
                               <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
                                 {profileName}
                               </div>
-                              {folders.map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`
-                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-violet-500/15' 
-                                      : 'hover:bg-white/5'
-                                    }
-                                  `}
-                                >
-                                  <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                      : 'bg-slate-700/50 border border-white/5'
-                                    }
-                                  `}>
-                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                                  </div>
-                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                    {folder.name}
-                                  </span>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
+                              {sortFoldersHierarchically(folders).map((folder) => {
+                                const depth = getFolderDepth(folder.id);
+                                const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                                return (
+                                  <button
+                                    key={folder.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetFolder(folder.id);
+                                      setFolderDropdownOpen(false);
+                                    }}
+                                    className={`
+                                      w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                      ${targetFolder === folder.id 
+                                        ? 'bg-violet-500/15' 
+                                        : 'hover:bg-white/5'
+                                      }
+                                    `}
+                                    style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                                  >
+                                    <div className={`
+                                      w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                      ${targetFolder === folder.id 
+                                        ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                        : 'bg-slate-700/50 border border-white/5'
+                                      }
+                                    `}>
+                                      {hasChildren ? (
+                                        <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      ) : (
+                                        <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      )}
+                                    </div>
+                                    <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                      {folder.name}
+                                    </span>
+                                    {depth > 0 && (
+                                      <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                    )}
+                                    {targetFolder === folder.id && (
+                                      <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
                           ))
                         ) : (
-                          // Single profile view - flat list
-                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
-                            <button
-                              key={folder.id}
-                              type="button"
-                              onClick={() => {
-                                setTargetFolder(folder.id);
-                                setFolderDropdownOpen(false);
-                              }}
-                              className={`
-                                w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                ${targetFolder === folder.id 
-                                  ? 'bg-violet-500/15' 
-                                  : 'hover:bg-white/5'
-                                }
-                              `}
-                            >
-                              <div className={`
-                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                ${targetFolder === folder.id 
-                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                  : 'bg-slate-700/50 border border-white/5'
-                                }
-                              `}>
-                                <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                              </div>
-                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                {folder.name}
-                              </span>
-                              {targetFolder === folder.id && (
-                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                              )}
-                            </button>
-                          ))
+                          // Single profile view - hierarchical list
+                          sortFoldersHierarchically(vaultFolders.filter(f => !f.isDefault)).map((folder) => {
+                            const depth = getFolderDepth(folder.id);
+                            const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                            return (
+                              <button
+                                key={folder.id}
+                                type="button"
+                                onClick={() => {
+                                  setTargetFolder(folder.id);
+                                  setFolderDropdownOpen(false);
+                                }}
+                                className={`
+                                  w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-violet-500/15' 
+                                    : 'hover:bg-white/5'
+                                  }
+                                `}
+                                style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                              >
+                                <div className={`
+                                  w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                    : 'bg-slate-700/50 border border-white/5'
+                                  }
+                                `}>
+                                  {hasChildren ? (
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  ) : (
+                                    <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  )}
+                                </div>
+                                <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                  {folder.name}
+                                </span>
+                                {depth > 0 && (
+                                  <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                )}
+                                {targetFolder === folder.id && (
+                                  <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })
                         )}
                       </div>
 
@@ -2288,6 +2421,27 @@ export default function KlingImageToVideo() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Toast Notification */}
+      {showToast && toastError && typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top">
+            <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-400/30 rounded-2xl backdrop-blur shadow-2xl max-w-md">
+              <AlertCircle className="h-5 w-5 text-red-300 flex-shrink-0" />
+              <p className="text-red-100 text-sm flex-1">{toastError}</p>
+              <button
+                onClick={() => {
+                  setShowToast(false);
+                  setTimeout(() => setToastError(null), 300);
+                }}
+                className="ml-auto p-1 hover:bg-red-500/20 rounded-full transition-colors"
+              >
+                <X className="h-4 w-4 text-red-300" />
+              </button>
             </div>
           </div>,
           document.body

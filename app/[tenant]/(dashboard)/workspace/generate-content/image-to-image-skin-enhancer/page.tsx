@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { useUser } from '@clerk/nextjs';
 import { 
   Upload, 
@@ -26,6 +25,7 @@ import {
 import Image from 'next/image';
 import { useApiClient } from '@/lib/apiClient';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
+import VaultFolderDropdown from '@/components/generate-content/shared/VaultFolderDropdown';
 
 interface JobStatus {
   id: string;
@@ -121,12 +121,10 @@ export default function ImageToImageSkinEnhancerPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [targetFolder, setTargetFolder] = useState<string>('');
+  const [mounted, setMounted] = useState(false);
   
   // Folder selection dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
-  const folderButtonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   // Vault folder states - single list based on selected profile
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -136,42 +134,6 @@ export default function ImageToImageSkinEnhancerPage() {
   const adjustSlider = useCallback((delta: number) => {
     setSliderPosition(prev => Math.max(0, Math.min(100, prev + delta)));
   }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        folderDropdownRef.current && 
-        !folderDropdownRef.current.contains(event.target as Node) &&
-        folderButtonRef.current &&
-        !folderButtonRef.current.contains(event.target as Node)
-      ) {
-        setFolderDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Get display text for the selected folder
-  const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Select a vault folder to save images';
-    
-    const folder = vaultFolders.find(f => f.id === targetFolder);
-    if (folder) {
-      // When viewing all profiles, show the folder's profile name
-      if (isAllProfiles && folder.profileName) {
-        const sharedLabel = !folder.isOwnedProfile && folder.ownerName ? ` (shared by ${folder.ownerName})` : '';
-        return `Saving to: ${folder.profileName}${sharedLabel} / ${folder.name}`;
-      }
-      // When viewing single profile
-      if (selectedProfile && selectedProfile.id !== 'all') {
-        const profileDisplay = (selectedProfile as any).instagramUsername ? `@${(selectedProfile as any).instagramUsername}` : selectedProfile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
-      }
-    }
-    return 'Select a vault folder to save images';
-  };
 
   // Fixed values from your JSON workflow - no user modifications needed
   const FIXED_VALUES = {
@@ -215,6 +177,10 @@ export default function ImageToImageSkinEnhancerPage() {
     // Clear selected folder when profile changes
     setTargetFolder("");
   }, [loadVaultData]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     document.title = 'TastyCreative AI - Image-to-Image Skin Enhancer';
@@ -1392,180 +1358,18 @@ export default function ImageToImageSkinEnhancerPage() {
                 Pick where your enhanced image should live. We only show folders you can edit.
               </p>
               
-              {/* Custom Dropdown */}
-              <div className="relative">
-                <button
-                  ref={folderButtonRef}
-                  type="button"
-                  onClick={() => {
-                    if (!folderDropdownOpen && folderButtonRef.current) {
-                      const rect = folderButtonRef.current.getBoundingClientRect();
-                      setDropdownPosition({
-                        top: rect.bottom + window.scrollY + 8,
-                        left: rect.left + window.scrollX,
-                        width: rect.width,
-                      });
-                    }
-                    setFolderDropdownOpen(!folderDropdownOpen);
-                  }}
-                  disabled={isLoadingVaultData}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-800/50 border-2 border-slate-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner text-sm sm:text-base flex items-center justify-between"
-                >
-                  <span className={`truncate ${!targetFolder ? 'text-slate-400' : 'text-white'}`}>
-                    {getSelectedFolderDisplay()}
-                  </span>
-                  <div className="flex-shrink-0 ml-2">
-                    {isLoadingVaultData ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                    ) : (
-                      <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${folderDropdownOpen ? 'rotate-180' : ''}`} />
-                    )}
-                  </div>
-                </button>
-                
-                {/* Dropdown Menu - Portal */}
-                {folderDropdownOpen && typeof document !== 'undefined' && createPortal(
-                  <div 
-                    ref={folderDropdownRef}
-                    className="fixed z-[9999] bg-slate-800/50 border-2 border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto"
-                    style={{
-                      top: dropdownPosition.top,
-                      left: dropdownPosition.left,
-                      width: dropdownPosition.width,
-                    }}
-                  >
-                    {/* No selection option */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTargetFolder("");
-                        setFolderDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-slate-400 hover:bg-slate-700/50 flex items-center gap-2 border-b border-slate-700/50"
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                      <span>Select a vault folder...</span>
-                    </button>
-                    
-                    {/* Group by owned/shared when isAllProfiles */}
-                    {isAllProfiles ? (
-                      <>
-                        {/* Owned profiles group */}
-                        {vaultFolders.filter(f => !f.isDefault && f.isOwnedProfile).length > 0 && (
-                          <div>
-                            <div className="px-4 py-2 text-xs font-semibold text-purple-400 uppercase tracking-wider bg-gray-900/50">
-                              Your Profiles
-                            </div>
-                            {vaultFolders
-                              .filter(f => !f.isDefault && f.isOwnedProfile)
-                              .map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
-                                    targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
-                                  }`}
-                                >
-                                  <FolderOpen className="w-4 h-4 flex-shrink-0 text-purple-400" />
-                                  <div className="flex-1 min-w-0">
-                                    <span className="block truncate">{folder.name}</span>
-                                    {folder.profileName && (
-                                      <span className="block text-xs text-slate-400 truncate">
-                                        📸 {folder.profileName}
-                                        {folder.profileUsername && ` (@${folder.profileUsername})`}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 flex-shrink-0 text-purple-400" />
-                                  )}
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                        
-                        {/* Shared profiles group */}
-                        {vaultFolders.filter(f => !f.isDefault && !f.isOwnedProfile).length > 0 && (
-                          <div>
-                            <div className="px-4 py-2 text-xs font-semibold text-blue-400 uppercase tracking-wider bg-gray-900/50">
-                              Shared With You
-                            </div>
-                            {vaultFolders
-                              .filter(f => !f.isDefault && !f.isOwnedProfile)
-                              .map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
-                                    targetFolder === folder.id ? 'bg-blue-600/20 text-blue-300' : 'text-white'
-                                  }`}
-                                >
-                                  <FolderOpen className="w-4 h-4 flex-shrink-0 text-blue-400" />
-                                  <div className="flex-1 min-w-0">
-                                    <span className="block truncate">{folder.name}</span>
-                                    {folder.profileName && (
-                                      <span className="block text-xs text-slate-400 truncate">
-                                        📸 {folder.profileName}
-                                        {folder.profileUsername && ` (@${folder.profileUsername})`}
-                                        {folder.ownerName && ` • Shared by ${folder.ownerName}`}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 flex-shrink-0 text-blue-400" />
-                                  )}
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      /* Single profile selected - show folders without grouping */
-                      vaultFolders
-                        .filter(f => !f.isDefault)
-                        .map((folder) => (
-                          <button
-                            key={folder.id}
-                            type="button"
-                            onClick={() => {
-                              setTargetFolder(folder.id);
-                              setFolderDropdownOpen(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
-                              targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
-                            }`}
-                          >
-                            <FolderOpen className="w-4 h-4 flex-shrink-0 text-purple-400" />
-                            <div className="flex-1 min-w-0">
-                              <span className="block truncate">{folder.name}</span>
-                            </div>
-                            {targetFolder === folder.id && (
-                              <Check className="w-4 h-4 flex-shrink-0 text-purple-400" />
-                            )}
-                          </button>
-                        ))
-                    )}
-                    
-                    {/* No folders available */}
-                    {vaultFolders.filter(f => !f.isDefault).length === 0 && !isLoadingVaultData && (
-                      <div className="px-4 py-6 text-center text-slate-400">
-                        <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No folders available</p>
-                        <p className="text-xs mt-1">Select a profile or create folders in the Vault tab</p>
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
+              {/* Vault Folder Dropdown */}
+              <VaultFolderDropdown
+                targetFolder={targetFolder}
+                setTargetFolder={setTargetFolder}
+                folderDropdownOpen={folderDropdownOpen}
+                setFolderDropdownOpen={setFolderDropdownOpen}
+                vaultFolders={vaultFolders}
+                isAllProfiles={isAllProfiles}
+                selectedProfile={selectedProfile}
+                mounted={mounted}
+                accentColor="purple"
+              />
               
               {/* Folder type indicator */}
               <div className="flex items-center gap-2 mt-3">

@@ -52,7 +52,29 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{ 
   return { hasAccess: false, profile: null };
 }
 
-// PATCH /api/vault/folders/[id] - Update folder name
+// Helper: get all descendant folder IDs to prevent circular moves
+async function getDescendantFolderIds(folderId: string): Promise<Set<string>> {
+  const descendants = new Set<string>();
+  const queue = [folderId];
+  
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const children = await prisma.vaultFolder.findMany({
+      where: { parentId: currentId },
+      select: { id: true },
+    });
+    for (const child of children) {
+      if (!descendants.has(child.id)) {
+        descendants.add(child.id);
+        queue.push(child.id);
+      }
+    }
+  }
+  
+  return descendants;
+}
+
+// PATCH /api/vault/folders/[id] - Update folder name and/or parent
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -65,10 +87,11 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name } = body;
+    const { name, parentId } = body;
 
-    if (!name) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
+    // At least one field must be provided
+    if (!name && parentId === undefined) {
+      return NextResponse.json({ error: "name or parentId is required" }, { status: 400 });
     }
 
     // Get the folder to check permissions
@@ -79,7 +102,8 @@ export async function PATCH(
         name: true, 
         isDefault: true, 
         profileId: true, 
-        clerkId: true 
+        clerkId: true,
+        parentId: true,
       },
     });
 
@@ -87,12 +111,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Prevent renaming default folder
-    if (folder.isDefault) {
-      return NextResponse.json(
-        { error: "Cannot rename default folder" },
-        { status: 400 }
-      );
+    // Prevent modifying default folder
+    if (folder.isDefault && (name || parentId !== undefined)) {
+      // Allow moving default folder's parentId but not renaming
+      if (name) {
+        return NextResponse.json(
+          { error: "Cannot rename default folder" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if user has access to the profile this folder belongs to
@@ -105,9 +132,64 @@ export async function PATCH(
       );
     }
 
+    // Build update data
+    const updateData: { name?: string; parentId?: string | null } = {};
+    
+    if (name) {
+      updateData.name = name;
+    }
+
+    // Handle parentId change (move folder)
+    if (parentId !== undefined) {
+      // parentId = null means move to root
+      if (parentId === null) {
+        updateData.parentId = null;
+      } else {
+        // Cannot move folder into itself
+        if (parentId === id) {
+          return NextResponse.json(
+            { error: "Cannot move a folder into itself" },
+            { status: 400 }
+          );
+        }
+
+        // Verify destination folder exists and belongs to a profile the user can access
+        const destinationFolder = await prisma.vaultFolder.findUnique({
+          where: { id: parentId },
+          select: { id: true, profileId: true },
+        });
+
+        if (!destinationFolder) {
+          return NextResponse.json(
+            { error: "Destination folder not found" },
+            { status: 404 }
+          );
+        }
+
+        const { hasAccess: hasDestAccess } = await hasAccessToProfile(userId, destinationFolder.profileId);
+        if (!hasDestAccess) {
+          return NextResponse.json(
+            { error: "Access denied to destination folder" },
+            { status: 403 }
+          );
+        }
+
+        // Prevent circular moves: destination cannot be a descendant of source
+        const descendants = await getDescendantFolderIds(id);
+        if (descendants.has(parentId)) {
+          return NextResponse.json(
+            { error: "Cannot move a folder into one of its own subfolders" },
+            { status: 400 }
+          );
+        }
+
+        updateData.parentId = parentId;
+      }
+    }
+
     const updatedFolder = await prisma.vaultFolder.update({
       where: { id },
-      data: { name },
+      data: updateData,
     });
 
     return NextResponse.json(updatedFolder);

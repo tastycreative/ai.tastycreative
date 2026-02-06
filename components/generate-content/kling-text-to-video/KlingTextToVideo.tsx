@@ -13,6 +13,7 @@ import {
   Clock,
   Download,
   Film,
+  Folder,
   FolderOpen,
   Info,
   Loader2,
@@ -28,6 +29,9 @@ import {
   Wand2,
   Camera,
   Check,
+  HelpCircle,
+  Save,
+  Trash2,
 } from "lucide-react";
 
 interface VaultFolder {
@@ -36,6 +40,8 @@ interface VaultFolder {
   profileId: string;
   profileName?: string;
   isDefault?: boolean;
+  parentId?: string | null;
+  subfolders?: Array<{ id: string }>;
 }
 
 interface GeneratedVideo {
@@ -105,6 +111,92 @@ const CAMERA_AXIS_OPTIONS = [
   { key: "roll", label: "Roll", description: "Clockwise/Counter rotation", min: -10, max: 10 },
   { key: "zoom", label: "Zoom", description: "Focal length change", min: -10, max: 10 },
 ] as const;
+
+// Prompt Templates
+const PROMPT_TEMPLATES = [
+  {
+    name: "Cinematic Landscape",
+    prompt: "A breathtaking cinematic drone shot slowly flying over a vast mountain range at golden hour, warm sunlight casting long shadows, dramatic clouds drifting across the sky, camera smoothly gliding forward",
+    category: "Cinematic"
+  },
+  {
+    name: "Product Showcase",
+    prompt: "Professional product photography of a luxury watch on a minimalist white surface, soft studio lighting, camera slowly rotating around the product, highlighting reflections and details",
+    category: "Commercial"
+  },
+  {
+    name: "Nature Scene",
+    prompt: "Serene forest scene with morning mist filtering through tall trees, gentle breeze rustling leaves, birds flying gracefully, camera slowly panning from left to right",
+    category: "Nature"
+  },
+  {
+    name: "Urban Time-lapse",
+    prompt: "Bustling city street at night, neon lights reflecting on wet pavement, people walking by in motion blur, camera stationary capturing the energy and movement",
+    category: "Urban"
+  },
+  {
+    name: "Social Media Reel",
+    prompt: "Trendy close-up of colorful smoothie bowl being garnished with fresh berries, artistic overhead angle, natural lighting, camera slowly zooming in",
+    category: "Social"
+  },
+  {
+    name: "Abstract Art",
+    prompt: "Abstract flowing liquid colors in vibrant purples and pinks, smooth organic movements, psychedelic patterns emerging and dissolving, camera slowly zooming into the center",
+    category: "Abstract"
+  },
+] as const;
+
+// Default Presets
+const DEFAULT_PRESETS = [
+  {
+    name: "Cinematic Pro",
+    settings: {
+      model: "kling-v1-6",
+      mode: "pro",
+      duration: "10",
+      aspectRatio: "16:9",
+      cfgScale: 0.3,
+      useCameraControl: true,
+      cameraControlType: "forward_up",
+    }
+  },
+  {
+    name: "Quick Social",
+    settings: {
+      model: "kling-v2-5-turbo",
+      mode: "std",
+      duration: "5",
+      aspectRatio: "9:16",
+      cfgScale: 0.5,
+      useCameraControl: false,
+    }
+  },
+  {
+    name: "High Quality",
+    settings: {
+      model: "kling-v2-6",
+      mode: "pro",
+      duration: "10",
+      aspectRatio: "16:9",
+      cfgScale: 0.5,
+      sound: "on",
+      useCameraControl: true,
+      cameraControlType: "simple",
+    }
+  },
+] as const;
+
+// Tooltip content
+const TOOLTIPS = {
+  model: "Choose the AI model version. V1.6 is stable and supports CFG scale. V2.6 is the latest with audio support.",
+  mode: "Standard mode is faster (~2-3 min). Professional mode produces higher quality but takes longer (~4-6 min).",
+  cfgScale: "Controls creativity vs accuracy. Lower values (0-0.4) = more creative and varied. Higher values (0.6-1.0) = more faithful to prompt.",
+  cameraControl: "Add cinematic camera movements like zoom, pan, tilt, or predefined motions to your video.",
+  duration: "5 seconds for quick clips, 10 seconds for extended scenes. Longer duration increases generation time.",
+  aspectRatio: "Video dimensions. Choose 16:9 for landscape (YouTube, HD), 9:16 for portrait (Stories/Reels), or 1:1 for square posts.",
+  sound: "Enable AI-generated audio that matches your video. Only available in Professional mode with V2.6 model.",
+  negativePrompt: "Describe what you want to avoid in the video (e.g., 'blurry, distorted, low quality, text, watermark').",
+} as const;
 
 export default function KlingTextToVideo() {
   const apiClient = useApiClient();
@@ -245,6 +337,50 @@ export default function KlingTextToVideo() {
   const [pollingStatus, setPollingStatus] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // Toast notification state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // Presets state
+  const [userPresets, setUserPresets] = useState<any[]>([]);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+
+  // Load user presets from localStorage
+  useEffect(() => {
+    if (mounted) {
+      try {
+        const saved = localStorage.getItem('kling-t2v-presets');
+        if (saved) {
+          setUserPresets(JSON.parse(saved));
+        }
+      } catch (err) {
+        console.error('Failed to load presets:', err);
+      }
+    }
+  }, [mounted]);
+
+  // Save user presets to localStorage
+  const saveUserPresets = (presets: any[]) => {
+    try {
+      localStorage.setItem('kling-t2v-presets', JSON.stringify(presets));
+      setUserPresets(presets);
+    } catch (err) {
+      console.error('Failed to save presets:', err);
+    }
+  };
+
+  // Show toast notification
+  const showErrorToast = (message: string) => {
+    setToastError(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      setTimeout(() => setToastError(null), 300);
+    }, 5000);
+  };
+
   const pauseAllPreviews = () => {
     const previewVideos = document.querySelectorAll<HTMLVideoElement>("video[data-role='preview']");
     previewVideos.forEach((video) => {
@@ -276,22 +412,80 @@ export default function KlingTextToVideo() {
     }
   }, [apiClient, globalProfileId]);
 
+  // Helper: Get folder path as breadcrumb (e.g., "Parent / Child")
+  const getFolderPath = useCallback((folderId: string): string => {
+    const parts: string[] = [];
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder) break;
+      parts.unshift(folder.name);
+      currentId = folder.parentId || null;
+    }
+    
+    return parts.join(' / ');
+  }, [vaultFolders]);
+
+  // Helper: Get folder depth for indentation
+  const getFolderDepth = useCallback((folderId: string): number => {
+    let depth = 0;
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder || !folder.parentId) break;
+      depth++;
+      currentId = folder.parentId;
+    }
+    
+    return depth;
+  }, [vaultFolders]);
+
+  // Helper: Sort folders by hierarchy (parent before children)
+  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
+    const result: VaultFolder[] = [];
+    const addedIds = new Set<string>();
+    
+    const addFolderAndChildren = (folderId: string) => {
+      if (addedIds.has(folderId)) return;
+      const folder = folders.find(f => f.id === folderId);
+      if (!folder) return;
+      
+      result.push(folder);
+      addedIds.add(folderId);
+      
+      // Add children
+      const children = folders.filter(f => f.parentId === folderId);
+      children.forEach(child => addFolderAndChildren(child.id));
+    };
+    
+    // First add all root folders (no parent)
+    const rootFolders = folders.filter(f => !f.parentId);
+    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
+    
+    return result;
+  }, []);
+
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
     const folder = vaultFolders.find((f) => f.id === targetFolder);
     if (folder) {
+      // Build folder path for nested folders
+      const folderPath = getFolderPath(targetFolder);
+      
       // When viewing all profiles, use folder's profileName
       if (isAllProfiles && folder.profileName) {
-        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+        return `Saving to Vault: ${folder.profileName} / ${folderPath}`;
       }
       // When viewing specific profile, use selectedProfile
       if (selectedProfile) {
         const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+        return `Saving to Vault: ${profileDisplay} / ${folderPath}`;
       }
-      return `Saving to Vault: ${folder.name}`;
+      return `Saving to Vault: ${folderPath}`;
     }
     return "Select a vault folder to save videos";
   };
@@ -420,17 +614,72 @@ export default function KlingTextToVideo() {
     });
   };
 
+  // Apply prompt template
+  const applyPromptTemplate = (template: typeof PROMPT_TEMPLATES[number]) => {
+    setPrompt(template.prompt);
+  };
+
+  // Apply preset
+  const applyPreset = (preset: any) => {
+    const settings = preset.settings;
+    if (settings.model) setModel(settings.model);
+    if (settings.mode) setMode(settings.mode);
+    if (settings.duration) setDuration(settings.duration);
+    if (settings.aspectRatio) setAspectRatio(settings.aspectRatio);
+    if (typeof settings.cfgScale === 'number') setCfgScale(settings.cfgScale);
+    if (settings.sound) setSound(settings.sound);
+    if (typeof settings.useCameraControl === 'boolean') setUseCameraControl(settings.useCameraControl);
+    if (settings.cameraControlType) setCameraControlType(settings.cameraControlType);
+    if (settings.cameraConfig) setCameraConfig(settings.cameraConfig);
+  };
+
+  // Save current settings as preset
+  const saveAsPreset = () => {
+    if (!presetName.trim()) {
+      showErrorToast('Please enter a preset name');
+      return;
+    }
+
+    const newPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      settings: {
+        model,
+        mode,
+        duration,
+        aspectRatio,
+        cfgScale,
+        sound,
+        useCameraControl,
+        cameraControlType,
+        cameraConfig,
+      }
+    };
+
+    const updatedPresets = [...userPresets, newPreset];
+    saveUserPresets(updatedPresets);
+    setPresetName('');
+    setShowPresetModal(false);
+    showErrorToast(`Preset "${newPreset.name}" saved!`);
+  };
+
+  // Delete preset
+  const deletePreset = (presetId: string) => {
+    const updatedPresets = userPresets.filter(p => p.id !== presetId);
+    saveUserPresets(updatedPresets);
+  };
+
   const handleGenerate = async () => {
     if (!apiClient) {
-      setError("API client not available");
+      showErrorToast("API client not available");
       return;
     }
     if (!targetFolder) {
-      setError("Please select a vault folder to save your video");
+      showErrorToast("Please select a vault folder to save your video");
       return;
     }
     if (!prompt.trim()) {
-      setError("Please enter a prompt");
+      showErrorToast("Please enter a prompt");
       return;
     }
 
@@ -529,7 +778,7 @@ export default function KlingTextToVideo() {
       }
     } catch (err: any) {
       console.error("Generation error:", err);
-      setError(err.message || "Failed to generate video");
+      showErrorToast(err.message || "Failed to generate video");
       updateGlobalProgress({
         isGenerating: false,
         progress: 0,
@@ -661,14 +910,59 @@ export default function KlingTextToVideo() {
         setShowVideoModal(false);
         setShowHelpModal(false);
         setShowHistoryModal(false);
+        setShowPresetModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Tooltip component
+  const Tooltip = ({ content, children }: { content: string; children: React.ReactNode }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+
+    return (
+      <div className="relative inline-block">
+        <span
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowTooltip(!showTooltip);
+          }}
+          className="inline-flex items-center text-slate-400 hover:text-violet-300 transition-colors cursor-help"
+        >
+          {children}
+        </span>
+        {showTooltip && (
+          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-slate-100 bg-slate-800 border border-white/10 rounded-lg shadow-xl pointer-events-none">
+            {content}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-slate-800 border-r border-b border-white/10 rotate-45" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      {/* Toast Notification */}
+      {showToast && toastError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-red-400/50 bg-red-500/10 backdrop-blur-xl shadow-2xl max-w-md">
+            <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0" />
+            <span className="text-sm text-red-100">{toastError}</span>
+            <button
+              type="button"
+              onClick={() => setShowToast(false)}
+              className="ml-2 text-red-300 hover:text-red-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-pink-400/10 blur-3xl" />
@@ -770,84 +1064,473 @@ export default function KlingTextToVideo() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr] items-start">
+        <div className="grid gap-6 lg:grid-cols-[480px_1fr] items-start">
           {/* Left Panel - Controls */}
           <div className="space-y-6">
+            {/* Presets Bar - Sticky on mobile */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-4 shadow-2xl shadow-violet-900/40 backdrop-blur lg:sticky lg:top-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="w-4 h-4 text-violet-300" />
+                  <p className="text-sm font-semibold text-white">Quick Presets</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPresetModal(true)}
+                  disabled={isGenerating}
+                  className="text-xs text-violet-300 hover:text-violet-100 transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" />
+                  Save Current
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {DEFAULT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    disabled={isGenerating}
+                    className="px-3 py-1.5 text-xs font-medium rounded-full border border-violet-400/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-400/50 transition-all disabled:opacity-50"
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+                {userPresets.map((preset) => (
+                  <div key={preset.id} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      disabled={isGenerating}
+                      className="px-3 py-1.5 text-xs font-medium rounded-full border border-pink-400/30 bg-pink-500/10 text-pink-200 hover:bg-pink-500/20 hover:border-pink-400/50 transition-all disabled:opacity-50"
+                    >
+                      {preset.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePreset(preset.id);
+                      }}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
-              {/* Prompt Input */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Prompt *</label>
+              {/* Prompt Input with Templates */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="text-base font-bold text-white">Prompt <span className="text-red-400">*</span></label>
+                    <Tooltip content={TOOLTIPS.negativePrompt}>
+                      <HelpCircle className="w-4 h-4" />
+                    </Tooltip>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const template = PROMPT_TEMPLATES.find(t => t.name === e.target.value);
+                      if (template) applyPromptTemplate(template);
+                      e.target.value = '';
+                    }}
+                    disabled={isGenerating}
+                    className="text-xs px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-white hover:bg-slate-750 disabled:opacity-50 cursor-pointer"
+                  >
+                    <option value="">💡 Use template...</option>
+                    {PROMPT_TEMPLATES.map((template) => (
+                      <option key={template.name} value={template.name}>
+                        {template.category}: {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder={
-                    "Describe the video you want to create...\n\nExample: A beautiful sunset over the ocean, golden light reflecting on gentle waves, seabirds flying in slow motion across the sky."
-                  }
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
-                  rows={5}
+                  placeholder="Describe your video in detail... Be specific about the scene, motion, lighting, and camera movement for best results."
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-base text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 resize-none"
+                  rows={6}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Be descriptive for best results. Include motion, style, and atmosphere details.</p>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Be descriptive for best results</span>
+                  <span className={prompt.length > 200 ? 'text-violet-300' : ''}>{prompt.length} chars</span>
+                </div>
+
+                {/* Quick Settings - Integrated in prompt section */}
+                <div className="pt-3 border-t border-white/10">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Model Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Model</label>
+                        <Tooltip content={TOOLTIPS.model}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={model}
+                        onChange={(e) => {
+                          const newModel = e.target.value;
+                          setModel(newModel);
+                          const option = MODEL_OPTIONS.find(m => m.value === newModel);
+                          if (option?.supportsSound) {
+                            setSound("on");
+                            setMode("pro");
+                          } else {
+                            setSound("off");
+                          }
+                          if (!option?.supportsCameraControl) {
+                            setUseCameraControl(false);
+                          }
+                        }}
+                        disabled={isGenerating}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                      >
+                        {MODEL_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label} {option.supportsSound ? '🔊' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Quality Mode Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Quality</label>
+                        <Tooltip content={TOOLTIPS.mode}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={mode}
+                        onChange={(e) => {
+                          setMode(e.target.value);
+                          if (e.target.value === "std" && sound === "on") {
+                            setSound("off");
+                          }
+                        }}
+                        disabled={isGenerating || (sound === "on" && currentModelSupportsSound)}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                      >
+                        {MODE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Duration Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Duration</label>
+                        <Tooltip content={TOOLTIPS.duration}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={duration}
+                        onChange={(e) => setDuration(e.target.value)}
+                        disabled={isGenerating}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                      >
+                        {DURATION_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Aspect Ratio Dropdown */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-slate-300">Aspect Ratio</label>
+                        <Tooltip content={TOOLTIPS.aspectRatio}>
+                          <HelpCircle className="w-3 h-3" />
+                        </Tooltip>
+                      </div>
+                      <select
+                        value={aspectRatio}
+                        onChange={(e) => setAspectRatio(e.target.value)}
+                        disabled={isGenerating}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                      >
+                        {ASPECT_RATIO_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Folder Selection - MOVED UP */}
+              <div className="space-y-3 border-t border-white/10 pt-6">
+                <div className="flex items-center gap-2">
+                  <Archive className="w-5 h-5 text-violet-300" />
+                  <p className="text-base font-bold text-white">Save to Vault <span className="text-red-400">*</span></p>
+                  {isLoadingVaultData && (
+                    <Loader2 className="w-4 h-4 animate-spin text-violet-300" />
+                  )}
+                </div>
+                
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-4
+                      rounded-2xl border-2 transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-violet-400 bg-violet-500/10 ring-2 ring-violet-400/30' 
+                        : targetFolder
+                          ? 'border-violet-400/50 bg-violet-500/5'
+                          : 'border-white/10 bg-slate-800/80 hover:border-violet-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-violet-500/30 to-purple-500/30 border border-violet-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-5 h-5 ${targetFolder ? 'text-violet-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-semibold truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && (
+                          <p className="text-xs text-violet-300/70 truncate">
+                            {isAllProfiles 
+                              ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
+                              : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
+                            }
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden max-h-[300px] overflow-y-auto">
+                      {/* Clear Selection Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-violet-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      {/* Folder Options - Grouped by profile when viewing all profiles */}
+                      {isAllProfiles ? (
+                        // Group folders by profile
+                        Object.entries(
+                          vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                            const profileKey = folder.profileName || 'Unknown Profile';
+                            if (!acc[profileKey]) acc[profileKey] = [];
+                            acc[profileKey].push(folder);
+                            return acc;
+                          }, {} as Record<string, VaultFolder[]>)
+                        ).map(([profileName, folders]) => (
+                          <div key={profileName}>
+                            <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
+                              {profileName}
+                            </div>
+                            {sortFoldersHierarchically(folders).map((folder) => {
+                              const depth = getFolderDepth(folder.id);
+                              const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                              return (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-violet-500/15' 
+                                      : 'hover:bg-white/5'
+                                    }
+                                  `}
+                                  style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    {hasChildren ? (
+                                      <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                    ) : (
+                                      <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                    )}
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {depth > 0 && (
+                                    <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                  )}
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))
+                      ) : (
+                        // Single profile view - hierarchical list
+                        sortFoldersHierarchically(vaultFolders.filter(f => !f.isDefault)).map((folder) => {
+                          const depth = getFolderDepth(folder.id);
+                          const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                          return (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              onClick={() => {
+                                setTargetFolder(folder.id);
+                                setFolderDropdownOpen(false);
+                              }}
+                              className={`
+                                w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                ${targetFolder === folder.id 
+                                  ? 'bg-violet-500/15' 
+                                  : 'hover:bg-white/5'
+                                }
+                              `}
+                              style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                            >
+                              <div className={`
+                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                ${targetFolder === folder.id 
+                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                  : 'bg-slate-700/50 border border-white/5'
+                                }
+                              `}>
+                                {hasChildren ? (
+                                  <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                ) : (
+                                  <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                )}
+                              </div>
+                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                {folder.name}
+                              </span>
+                              {depth > 0 && (
+                                <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                              )}
+                              {targetFolder === folder.id && (
+                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+                    <p className="text-xs text-violet-200 flex-1 truncate">
+                      Videos will be saved to this folder
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Negative Prompt */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                  <Tooltip content={TOOLTIPS.negativePrompt}>
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </Tooltip>
+                </div>
                 <textarea
                   value={negativePrompt}
                   onChange={(e) => setNegativePrompt(e.target.value)}
-                  placeholder="What to avoid: blurry, distorted, low quality..."
+                  placeholder="What to avoid: blurry, distorted, low quality, watermark, text..."
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
                   rows={2}
                   disabled={isGenerating}
                 />
               </div>
 
-              {/* Model Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Model</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {MODEL_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setModel(option.value);
-                        // Auto-enable sound and pro mode for V2.6 (audio only works in pro mode)
-                        if (option.supportsSound) {
-                          setSound("on");
-                          setMode("pro");
-                        } else {
-                          // Reset sound if switching to a model that doesn't support it
-                          setSound("off");
-                        }
-                        // Reset camera control if switching to a model that doesn't support it
-                        if (!option.supportsCameraControl) {
-                          setUseCameraControl(false);
-                        }
-                      }}
-                      className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        model === option.value
-                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
-                          : "border-white/10 bg-white/5 text-slate-100/90"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">{option.label}</p>
-                        {option.supportsSound && (
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">🔊</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Collapsible Advanced Settings */}
+              <div className="border-t border-white/10 pt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-violet-300" />
+                    <span className="text-sm font-semibold text-white">Advanced Options</span>
+                    <span className="text-xs text-slate-400">(CFG, Camera, Sound)</span>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                </button>
 
-              {/* Sound Toggle (only for V2.6+ in Pro mode) */}
+                {showAdvancedSettings && (
+                  <div className="mt-4 space-y-6 animate-in slide-in-from-top">
+              {/* Sound Toggle - Only for V2.6+ in Pro mode */}
               {currentModelSupportsSound && (
                 <div className="space-y-3">
-                  <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
+                    <Tooltip content={TOOLTIPS.sound}>
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </Tooltip>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setSound("off")}
@@ -883,92 +1566,16 @@ export default function KlingTextToVideo() {
                 </div>
               )}
 
-              {/* Mode Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Quality Mode</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {MODE_OPTIONS.map((option) => {
-                    // Standard mode is disabled when sound is on (V2.6 constraint)
-                    const isStdDisabledDueToSound = option.value === "std" && sound === "on" && currentModelSupportsSound;
-                    const isDisabled = isGenerating || isStdDisabledDueToSound;
-                    
-                    return (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setMode(option.value);
-                          // If switching to std mode and sound is on, turn sound off
-                          if (option.value === "std" && sound === "on") {
-                            setSound("off");
-                          }
-                        }}
-                        className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                          mode === option.value
-                            ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
-                            : "border-white/10 bg-white/5 text-slate-100/90"
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        disabled={isDisabled}
-                        title={isStdDisabledDueToSound ? "Standard mode doesn't support audio generation" : undefined}
-                      >
-                        <p className="text-sm font-semibold">{option.label}</p>
-                        <p className="text-xs text-slate-300">
-                          {isStdDisabledDueToSound ? "No audio support" : option.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Duration Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Duration</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {DURATION_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setDuration(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        duration === option.value
-                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Aspect Ratio Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Aspect Ratio</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {ASPECT_RATIO_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setAspectRatio(option.value)}
-                      className={`rounded-xl border px-3 py-2 text-center transition hover:-translate-y-0.5 ${
-                        aspectRatio === option.value
-                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-400">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* CFG Scale - Only for V1 models */}
               {currentModelSupportsCfgScale && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                      <Tooltip content={TOOLTIPS.cfgScale}>
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </Tooltip>
+                    </div>
                     <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
                   </div>
                   <input
@@ -1003,8 +1610,13 @@ export default function KlingTextToVideo() {
                   >
                     <div className="flex items-center gap-3">
                       <Camera className="w-5 h-5" />
-                      <div>
-                        <p className="text-sm font-semibold">Camera Control</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">Camera Control</p>
+                          <Tooltip content={TOOLTIPS.cameraControl}>
+                            <HelpCircle className="w-3.5 h-3.5" />
+                          </Tooltip>
+                        </div>
                         <p className="text-xs text-slate-300">
                           {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
                         </p>
@@ -1117,222 +1729,27 @@ export default function KlingTextToVideo() {
                 )}
               </div>
               )}
-
-              {/* Folder Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-violet-300" />
-                  <p className="text-sm font-semibold text-white">Save to Vault</p>
-                  {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-violet-300" />
-                  )}
-                </div>
-                
-                {/* Modern Custom Dropdown */}
-                <div ref={folderDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
-                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
-                    className={`
-                      w-full flex items-center justify-between gap-3 px-4 py-3.5
-                      rounded-2xl border transition-all duration-200
-                      ${folderDropdownOpen 
-                        ? 'border-violet-400 bg-violet-500/10 ring-2 ring-violet-400/30' 
-                        : 'border-white/10 bg-slate-800/80 hover:border-violet-400/50 hover:bg-slate-800'
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    `}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`
-                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-                        ${targetFolder 
-                          ? 'bg-gradient-to-br from-violet-500/30 to-purple-500/30 border border-violet-400/30' 
-                          : 'bg-slate-700/50 border border-white/5'
-                        }
-                      `}>
-                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-violet-300' : 'text-slate-400'}`} />
-                      </div>
-                      <div className="text-left min-w-0">
-                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
-                          {targetFolder 
-                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
-                            : 'Select a folder...'
-                          }
-                        </p>
-                        {targetFolder && (
-                          <p className="text-[11px] text-violet-300/70 truncate">
-                            {isAllProfiles 
-                              ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
-                              : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
-                            }
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {folderDropdownOpen && mounted && (
-                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
-                      {/* Clear Selection Option */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetFolder('');
-                          setFolderDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
-                          <X className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <span className="text-sm text-slate-400">No folder selected</span>
-                        {!targetFolder && <Check className="w-4 h-4 text-violet-400 ml-auto" />}
-                      </button>
-
-                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
-                        <div className="my-2 mx-3 h-px bg-white/5" />
-                      )}
-
-                      {/* Folder Options - Grouped by profile when viewing all profiles */}
-                      <div className="max-h-[200px] overflow-y-auto">
-                        {isAllProfiles ? (
-                          // Group folders by profile
-                          Object.entries(
-                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
-                              const profileKey = folder.profileName || 'Unknown Profile';
-                              if (!acc[profileKey]) acc[profileKey] = [];
-                              acc[profileKey].push(folder);
-                              return acc;
-                            }, {} as Record<string, VaultFolder[]>)
-                          ).map(([profileName, folders]) => (
-                            <div key={profileName}>
-                              <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
-                                {profileName}
-                              </div>
-                              {folders.map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`
-                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-violet-500/15' 
-                                      : 'hover:bg-white/5'
-                                    }
-                                  `}
-                                >
-                                  <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                      : 'bg-slate-700/50 border border-white/5'
-                                    }
-                                  `}>
-                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                                  </div>
-                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                    {folder.name}
-                                  </span>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          ))
-                        ) : (
-                          // Single profile view - flat list
-                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
-                            <button
-                              key={folder.id}
-                              type="button"
-                              onClick={() => {
-                                setTargetFolder(folder.id);
-                                setFolderDropdownOpen(false);
-                              }}
-                              className={`
-                                w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                ${targetFolder === folder.id 
-                                  ? 'bg-violet-500/15' 
-                                  : 'hover:bg-white/5'
-                                }
-                              `}
-                            >
-                              <div className={`
-                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                ${targetFolder === folder.id 
-                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                  : 'bg-slate-700/50 border border-white/5'
-                                }
-                              `}>
-                                <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                              </div>
-                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                {folder.name}
-                              </span>
-                              {targetFolder === folder.id && (
-                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-
-                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
-                        <div className="px-4 py-6 text-center">
-                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                          <p className="text-sm text-slate-400">No folders available</p>
-                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Status Indicator */}
-                {targetFolder && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
-                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                    <p className="text-xs text-violet-200 flex-1 truncate">
-                      {getSelectedFolderDisplay()}
-                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Error Display */}
-              {error && (
-                <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              {/* Action Buttons - Sticky on mobile */}
+              <div className="flex flex-col sm:flex-row gap-3 sticky bottom-4 sm:static z-10">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
+                  disabled={isGenerating || !prompt.trim() || !targetFolder}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-6 py-4 sm:py-3 text-base sm:text-sm font-bold sm:font-semibold text-white shadow-2xl shadow-violet-900/40 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                   {isGenerating ? "Generating..." : "Generate Video"}
                 </button>
                 <button
                   onClick={handleReset}
                   type="button"
                   disabled={isGenerating}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-4 sm:py-3 text-base sm:text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 backdrop-blur-xl"
                 >
-                  <RotateCcw className="w-4 h-4" /> Reset
+                  <RotateCcw className="w-5 h-5 sm:w-4 sm:h-4" /> Reset
                 </button>
               </div>
             </div>
@@ -1626,6 +2043,88 @@ export default function KlingTextToVideo() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Save Preset Modal */}
+      {showPresetModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur p-4"
+            onClick={() => setShowPresetModal(false)}
+          >
+            <div
+              className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
+                onClick={() => setShowPresetModal(false)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Save className="w-5 h-5 text-violet-400" />
+                  <h3 className="text-xl font-semibold text-white">Save Preset</h3>
+                </div>
+
+                <p className="text-sm text-slate-300">
+                  Save your current settings as a preset for quick access later.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-100">Preset Name</label>
+                  <input
+                    type="text"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="e.g., My Cinematic Style"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        saveAsPreset();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
+                  <p className="text-xs text-slate-400 mb-2">This preset will save:</p>
+                  <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                    <li>Model: {MODEL_OPTIONS.find(m => m.value === model)?.label}</li>
+                    <li>Mode: {mode === "pro" ? "Professional" : "Standard"}</li>
+                    <li>Duration: {duration}s</li>
+                    <li>Aspect Ratio: {aspectRatio}</li>
+                    {currentModelSupportsCfgScale && <li>CFG Scale: {cfgScale}</li>}
+                    {currentModelSupportsSound && <li>Sound: {sound}</li>}
+                    {useCameraControl && <li>Camera Control: {cameraControlType}</li>}
+                  </ul>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPresetModal(false)}
+                    className="flex-1 px-4 py-2 rounded-2xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveAsPreset}
+                    disabled={!presetName.trim()}
+                    className="flex-1 px-4 py-2 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:-translate-y-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Save Preset
+                  </button>
+                </div>
               </div>
             </div>
           </div>,

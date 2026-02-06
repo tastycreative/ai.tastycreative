@@ -278,19 +278,58 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify ownership
+    // Verify profile exists
     const existingProfile = await prisma.instagramProfile.findUnique({
       where: { id },
-      select: { clerkId: true, isDefault: true },
+      select: { 
+        clerkId: true, 
+        isDefault: true,
+        organizationId: true,
+      },
     });
 
     if (!existingProfile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    if (existingProfile.clerkId !== userId) {
+    // Check if user is the owner
+    const isOwner = existingProfile.clerkId === userId;
+    
+    // Check if user has elevated role in the organization (for shared profiles)
+    let canDelete = isOwner;
+    
+    if (!isOwner && existingProfile.organizationId) {
+      // Get user's database ID and current organization
+      const user = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { 
+          id: true,
+          currentOrganizationId: true,
+        },
+      });
+
+      // Verify the profile is in the user's current organization
+      if (user?.currentOrganizationId === existingProfile.organizationId) {
+        // Check user's role in the organization
+        const teamMembership = await prisma.teamMember.findUnique({
+          where: {
+            userId_organizationId: {
+              userId: user.id,
+              organizationId: existingProfile.organizationId,
+            },
+          },
+          select: { role: true },
+        });
+
+        // Allow OWNER, ADMIN, and MANAGER to delete shared profiles
+        const elevatedRoles = ["OWNER", "ADMIN", "MANAGER"];
+        canDelete = teamMembership ? elevatedRoles.includes(teamMembership.role) : false;
+      }
+    }
+
+    if (!canDelete) {
       return NextResponse.json(
-        { error: "You can only delete your own profiles" },
+        { error: "You don't have permission to delete this profile" },
         { status: 403 }
       );
     }
@@ -300,8 +339,8 @@ export async function DELETE(
       where: { id },
     });
 
-    // If this was the default profile, set another one as default
-    if (existingProfile.isDefault) {
+    // If this was the default profile for the owner, set another one as default
+    if (existingProfile.isDefault && isOwner) {
       const anotherProfile = await prisma.instagramProfile.findFirst({
         where: { clerkId: userId },
         orderBy: { createdAt: "asc" },

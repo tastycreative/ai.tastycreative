@@ -15,6 +15,7 @@ import {
   Clock,
   Download,
   Film,
+  Folder,
   FolderOpen,
   Image as ImageIcon,
   Info,
@@ -160,6 +161,8 @@ interface VaultFolder {
   profileId: string;
   profileName?: string;
   isDefault?: boolean;
+  parentId?: string | null;
+  subfolders?: Array<{ id: string }>;
 }
 
 interface GeneratedVideo {
@@ -301,22 +304,80 @@ export default function KlingMotionControl() {
     }
   }, [apiClient, user, globalProfileId]);
 
+  // Helper: Get folder path as breadcrumb (e.g., "Parent / Child")
+  const getFolderPath = useCallback((folderId: string): string => {
+    const parts: string[] = [];
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder) break;
+      parts.unshift(folder.name);
+      currentId = folder.parentId || null;
+    }
+    
+    return parts.join(' / ');
+  }, [vaultFolders]);
+
+  // Helper: Get folder depth for indentation
+  const getFolderDepth = useCallback((folderId: string): number => {
+    let depth = 0;
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder || !folder.parentId) break;
+      depth++;
+      currentId = folder.parentId;
+    }
+    
+    return depth;
+  }, [vaultFolders]);
+
+  // Helper: Sort folders by hierarchy (parent before children)
+  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
+    const result: VaultFolder[] = [];
+    const addedIds = new Set<string>();
+    
+    const addFolderAndChildren = (folderId: string) => {
+      if (addedIds.has(folderId)) return;
+      const folder = folders.find(f => f.id === folderId);
+      if (!folder) return;
+      
+      result.push(folder);
+      addedIds.add(folderId);
+      
+      // Add children
+      const children = folders.filter(f => f.parentId === folderId);
+      children.forEach(child => addFolderAndChildren(child.id));
+    };
+    
+    // First add all root folders (no parent)
+    const rootFolders = folders.filter(f => !f.parentId);
+    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
+    
+    return result;
+  }, []);
+
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder) return "Please select a vault folder to save your video";
 
     const folder = vaultFolders.find((f) => f.id === targetFolder);
     if (folder) {
+      // Build folder path for nested folders
+      const folderPath = getFolderPath(targetFolder);
+      
       // When viewing all profiles, use folder's profileName
       if (isAllProfiles && folder.profileName) {
-        return `Videos save to vault: ${folder.profileName} / ${folder.name}`;
+        return `Videos save to vault: ${folder.profileName} / ${folderPath}`;
       }
       // When viewing specific profile, use selectedProfile
       if (selectedProfile) {
         const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
+        return `Videos save to vault: ${profileDisplay} / ${folderPath}`;
       }
-      return `Videos save to vault: ${folder.name}`;
+      return `Videos save to vault: ${folderPath}`;
     }
     return "Please select a vault folder";
   };
@@ -848,22 +909,26 @@ export default function KlingMotionControl() {
 
   // Poll for task status
   const pollTaskStatus = useCallback((taskId: string, localTaskId: string) => {
-    const maxAttempts = 120;
+    const maxAttempts = 240; // 20 minutes (240 × 5s) - Kling AI can take longer for complex videos
     let attempts = 0;
+    let lastKnownStatus = "unknown";
 
     return new Promise<void>((resolve, reject) => {
       const poll = async () => {
         try {
           attempts++;
           const elapsedSeconds = attempts * 5;
+          const minutes = Math.floor(elapsedSeconds / 60);
+          const seconds = elapsedSeconds % 60;
+          
           setPollingStatus(
-            `Processing... (${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s)`
+            `Processing... (${minutes}m ${seconds}s)`
           );
           updateGlobalProgress({
             isGenerating: true,
-            progress: Math.min(90, attempts * 2),
+            progress: Math.min(90, Math.floor((attempts / maxAttempts) * 85)),
             stage: "processing",
-            message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
+            message: `Generating video... ${minutes}m ${seconds}s`,
             generationType: "image-to-video",
             jobId: localTaskId,
           });
@@ -887,6 +952,10 @@ export default function KlingMotionControl() {
           if (!response.ok) {
             throw new Error(data.error || data.message || "Failed to check task status");
           }
+
+          // Track last known status for better error messages
+          lastKnownStatus = data.status || "unknown";
+          console.log(`[Kling Motion Control] Poll attempt ${attempts}/${maxAttempts} - Status: ${lastKnownStatus}`);
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
             updateGlobalProgress({
@@ -918,17 +987,25 @@ export default function KlingMotionControl() {
               setTimeout(poll, 5000);
               return;
             }
-            throw new Error("Video generation timed out");
+            // Timeout with informative message
+            throw new Error(
+              `Video generation timed out after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
+              `Last status: ${lastKnownStatus}. The video may still be processing - check your history in a few minutes.`
+            );
           }
 
+          // Handle unexpected status
           if (attempts < maxAttempts) {
             setTimeout(poll, 5000);
             return;
           }
 
-          throw new Error("Video generation timed out");
+          throw new Error(
+            `Video generation timed out after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
+            `Last status: ${lastKnownStatus}. Please try again or contact support if the issue persists.`
+          );
         } catch (err: any) {
-          console.error("Polling error:", err);
+          console.error("[Kling Motion Control] Polling error:", err);
           setError(err.message || "Failed to check generation status");
           updateGlobalProgress({
             isGenerating: false,
@@ -1674,34 +1751,47 @@ export default function KlingMotionControl() {
                                 <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
                                   {profileName}
                                 </div>
-                                {folders.map((folder) => (
-                                  <button
-                                    key={folder.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setTargetFolder(folder.id);
-                                      setFolderDropdownOpen(false);
-                                    }}
-                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/10 ${
-                                      targetFolder === folder.id
-                                        ? "bg-violet-500/20 text-violet-200"
-                                        : "text-slate-200"
-                                    }`}
-                                  >
-                                    <FolderOpen className="w-4 h-4 text-violet-300" />
-                                    <span className="flex-1 text-left">{folder.name}</span>
-                                    {targetFolder === folder.id && (
-                                      <Check className="w-4 h-4 text-violet-400" />
-                                    )}
-                                  </button>
-                                ))}
+                                {sortFoldersHierarchically(folders).map((folder) => {
+                                  const depth = getFolderDepth(folder.id);
+                                  const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                                  return (
+                                    <button
+                                      key={folder.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setTargetFolder(folder.id);
+                                        setFolderDropdownOpen(false);
+                                      }}
+                                      className={`w-full flex items-center gap-3 py-2.5 text-sm transition hover:bg-white/10 ${
+                                        targetFolder === folder.id
+                                          ? "bg-violet-500/20 text-violet-200"
+                                          : "text-slate-200"
+                                      }`}
+                                      style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                                    >
+                                      {hasChildren ? (
+                                        <FolderOpen className="w-4 h-4 text-violet-300 flex-shrink-0" />
+                                      ) : (
+                                        <Folder className="w-4 h-4 text-violet-300 flex-shrink-0" />
+                                      )}
+                                      <span className="flex-1 text-left truncate">{folder.name}</span>
+                                      {depth > 0 && (
+                                        <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                      )}
+                                      {targetFolder === folder.id && (
+                                        <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             ))
                           ) : (
-                            // Single profile view - flat list
-                            vaultFolders
-                              .filter((f) => !f.isDefault)
-                              .map((folder) => (
+                            // Single profile view - hierarchical list
+                            sortFoldersHierarchically(vaultFolders.filter((f) => !f.isDefault)).map((folder) => {
+                              const depth = getFolderDepth(folder.id);
+                              const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                              return (
                                 <button
                                   key={folder.id}
                                   type="button"
@@ -1709,19 +1799,28 @@ export default function KlingMotionControl() {
                                     setTargetFolder(folder.id);
                                     setFolderDropdownOpen(false);
                                   }}
-                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/10 ${
+                                  className={`w-full flex items-center gap-3 py-2.5 text-sm transition hover:bg-white/10 ${
                                     targetFolder === folder.id
                                       ? "bg-violet-500/20 text-violet-200"
                                       : "text-slate-200"
                                   }`}
+                                  style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
                                 >
-                                  <FolderOpen className="w-4 h-4 text-violet-300" />
-                                  <span className="flex-1 text-left">{folder.name}</span>
+                                  {hasChildren ? (
+                                    <FolderOpen className="w-4 h-4 text-violet-300 flex-shrink-0" />
+                                  ) : (
+                                    <Folder className="w-4 h-4 text-violet-300 flex-shrink-0" />
+                                  )}
+                                  <span className="flex-1 text-left truncate">{folder.name}</span>
+                                  {depth > 0 && (
+                                    <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                  )}
                                   {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-violet-400" />
+                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
                                   )}
                                 </button>
-                              ))
+                              );
+                            })
                           )}
                         </div>
                       </div>

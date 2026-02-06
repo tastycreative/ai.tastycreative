@@ -144,6 +144,11 @@ export async function GET(request: NextRequest) {
           _count: {
             select: { items: true },
           },
+          subfolders: {
+            select: {
+              id: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -204,6 +209,11 @@ export async function GET(request: NextRequest) {
           _count: {
             select: { items: true },
           },
+          subfolders: {
+            select: {
+              id: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -219,6 +229,11 @@ export async function GET(request: NextRequest) {
       include: {
         _count: {
           select: { items: true },
+        },
+        subfolders: {
+          select: {
+            id: true,
+          },
         },
       },
       orderBy: {
@@ -245,7 +260,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { profileId, name, isDefault } = body;
+    const { profileId, name, isDefault, parentId } = body;
 
     if (!profileId || !name) {
       return NextResponse.json(
@@ -263,6 +278,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If parentId is provided, verify it exists and user has access
+    if (parentId) {
+      const parentFolder = await prisma.vaultFolder.findUnique({
+        where: {
+          id: parentId,
+        },
+      });
+
+      if (!parentFolder) {
+        return NextResponse.json(
+          { error: "Parent folder not found" },
+          { status: 404 }
+        );
+      }
+
+      // Verify user has access to the parent folder's profile
+      const { hasAccess: hasParentAccess } = await hasAccessToProfile(userId, parentFolder.profileId);
+      if (!hasParentAccess) {
+        return NextResponse.json(
+          { error: "Access denied to parent folder" },
+          { status: 403 }
+        );
+      }
+
+      // Verify parent folder is in the same profile
+      if (parentFolder.profileId !== profileId) {
+        return NextResponse.json(
+          { error: "Parent folder must be in the same profile" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Determine the profile owner's clerkId
     // For shared organization profiles, use the profile owner's clerkId
     // For own profiles, use the current user's clerkId
@@ -274,6 +322,7 @@ export async function POST(request: NextRequest) {
         profileId,
         name,
         isDefault: isDefault || false,
+        parentId: parentId || null,
       },
     });
 

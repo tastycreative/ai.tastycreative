@@ -14,7 +14,9 @@ import {
   ChevronDown,
   Clock,
   Download,
+  Folder,
   FolderOpen,
+  HelpCircle,
   Info,
   Loader2,
   Maximize2,
@@ -144,6 +146,8 @@ interface VaultFolder {
   profileId: string;
   profileName?: string;
   isDefault?: boolean;
+  parentId?: string | null;
+  subfolders?: Array<{ id: string }>;
 }
 
 interface GeneratedVideo {
@@ -206,6 +210,27 @@ const ASPECT_RATIO_OPTIONS = [
   { value: "9:16", label: "9:16", description: "Portrait (Stories/Reels)" },
   { value: "1:1", label: "1:1", description: "Square" },
 ] as const;
+
+// Tooltips for technical terms
+const TOOLTIPS = {
+  model: "AI model version used for generation. V1.6 supports multi-image interpolation.",
+  mode: "Standard: Faster generation. Professional: Higher quality with more detail.",
+  duration: "Length of the generated video clip.",
+  aspectRatio: "Video dimensions. Choose based on your platform (16:9 for YouTube, 9:16 for Stories).",
+  negativePrompt: "Words or concepts to avoid in the generation. Helps prevent unwanted elements.",
+  imageCount: "Number of images to interpolate between. 2-4 images supported.",
+};
+
+// Tooltip component - using span instead of button to avoid hydration errors
+const Tooltip = ({ text }: { text: string }) => (
+  <span className="group relative inline-flex cursor-help">
+    <HelpCircle className="w-4 h-4 text-slate-400 transition-colors group-hover:text-violet-300" />
+    <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-48 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-100 opacity-0 shadow-xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+      {text}
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-800" />
+    </span>
+  </span>
+);
 
 export default function KlingMultiImageToVideo() {
   const apiClient = useApiClient();
@@ -347,6 +372,20 @@ export default function KlingMultiImageToVideo() {
   const [pollingStatus, setPollingStatus] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // Toast notification state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // Show error as toast notification
+  const showErrorToast = (message: string) => {
+    setToastError(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      setTimeout(() => setToastError(null), 300);
+    }, 5000);
+  };
+
   const pauseAllPreviews = () => {
     const previewVideos = document.querySelectorAll<HTMLVideoElement>("video[data-role='preview']");
     previewVideos.forEach((video) => {
@@ -378,22 +417,80 @@ export default function KlingMultiImageToVideo() {
     }
   }, [apiClient, globalProfileId]);
 
+  // Helper: Get folder path as breadcrumb (e.g., "Parent / Child")
+  const getFolderPath = useCallback((folderId: string): string => {
+    const parts: string[] = [];
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder) break;
+      parts.unshift(folder.name);
+      currentId = folder.parentId || null;
+    }
+    
+    return parts.join(' / ');
+  }, [vaultFolders]);
+
+  // Helper: Get folder depth for indentation
+  const getFolderDepth = useCallback((folderId: string): number => {
+    let depth = 0;
+    let currentId: string | null = folderId;
+    
+    while (currentId) {
+      const folder = vaultFolders.find(f => f.id === currentId);
+      if (!folder || !folder.parentId) break;
+      depth++;
+      currentId = folder.parentId;
+    }
+    
+    return depth;
+  }, [vaultFolders]);
+
+  // Helper: Sort folders by hierarchy (parent before children)
+  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
+    const result: VaultFolder[] = [];
+    const addedIds = new Set<string>();
+    
+    const addFolderAndChildren = (folderId: string) => {
+      if (addedIds.has(folderId)) return;
+      const folder = folders.find(f => f.id === folderId);
+      if (!folder) return;
+      
+      result.push(folder);
+      addedIds.add(folderId);
+      
+      // Add children
+      const children = folders.filter(f => f.parentId === folderId);
+      children.forEach(child => addFolderAndChildren(child.id));
+    };
+    
+    // First add all root folders (no parent)
+    const rootFolders = folders.filter(f => !f.parentId);
+    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
+    
+    return result;
+  }, []);
+
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
     const folder = vaultFolders.find((f) => f.id === targetFolder);
     if (folder) {
+      // Build folder path for nested folders
+      const folderPath = getFolderPath(targetFolder);
+      
       // When viewing all profiles, use folder's profileName
       if (isAllProfiles && folder.profileName) {
-        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+        return `Saving to Vault: ${folder.profileName} / ${folderPath}`;
       }
       // When viewing specific profile, use selectedProfile
       if (selectedProfile) {
         const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+        return `Saving to Vault: ${profileDisplay} / ${folderPath}`;
       }
-      return `Saving to Vault: ${folder.name}`;
+      return `Saving to Vault: ${folderPath}`;
     }
     return "Select a vault folder to save videos";
   };
@@ -442,18 +539,16 @@ export default function KlingMultiImageToVideo() {
     // Check total count - API supports max 4 images
     const totalImages = uploadedImages.length + validFiles.length;
     if (totalImages > MAX_IMAGES) {
-      setError(`Maximum ${MAX_IMAGES} images allowed`);
+      showErrorToast(`Maximum ${MAX_IMAGES} images allowed`);
       return;
     }
 
     // Check individual file sizes (allow up to 20MB since we compress)
     const oversizedFiles = validFiles.filter(f => f.size > 20 * 1024 * 1024);
     if (oversizedFiles.length > 0) {
-      setError("Each image must be less than 20MB");
+      showErrorToast("Each image must be less than 20MB");
       return;
     }
-
-    setError(null);
     setIsCompressing(true);
 
     try {
@@ -474,7 +569,7 @@ export default function KlingMultiImageToVideo() {
       }
     } catch (err) {
       console.error("Image compression failed:", err);
-      setError("Failed to process one or more images. Please try different files.");
+      showErrorToast("Failed to process one or more images. Please try different files.");
     } finally {
       setIsCompressing(false);
     }
@@ -619,7 +714,7 @@ export default function KlingMultiImageToVideo() {
     const newItems = items.filter(item => !existingReferenceIds.has(item.id));
 
     if (newItems.length === 0) {
-      setError('All selected images are already added');
+      showErrorToast('All selected images are already added');
       setShowReferenceBankSelector(false);
       return;
     }
@@ -627,7 +722,7 @@ export default function KlingMultiImageToVideo() {
     // Check if adding these would exceed the max
     const canAdd = MAX_IMAGES - uploadedImages.length;
     if (canAdd <= 0) {
-      setError(`Maximum ${MAX_IMAGES} images reached`);
+      showErrorToast(`Maximum ${MAX_IMAGES} images reached`);
       setShowReferenceBankSelector(false);
       return;
     }
@@ -679,7 +774,7 @@ export default function KlingMultiImageToVideo() {
     if (loadedImages.length > 0) {
       setUploadedImages(prev => [...prev, ...loadedImages]);
     } else {
-      setError('Failed to load selected images. Please try again.');
+      showErrorToast('Failed to load selected images. Please try again.');
     }
 
     setIsCompressing(false);
@@ -782,7 +877,7 @@ export default function KlingMultiImageToVideo() {
           throw new Error("Video generation timed out");
         } catch (err: any) {
           console.error("Polling error:", err);
-          setError(err.message || "Failed to check generation status");
+          showErrorToast(err.message || "Failed to check generation status");
           updateGlobalProgress({
             isGenerating: false,
             progress: 0,
@@ -804,24 +899,23 @@ export default function KlingMultiImageToVideo() {
 
   const handleGenerate = async () => {
     if (!apiClient) {
-      setError("API client not available");
+      showErrorToast("API client not available");
       return;
     }
     if (!targetFolder) {
-      setError("Please select a vault folder to save your video");
+      showErrorToast("Please select a vault folder to save your video");
       return;
     }
     if (uploadedImages.length < 2) {
-      setError("Please upload at least 2 images");
+      showErrorToast("Please upload at least 2 images");
       return;
     }
     if (!prompt.trim()) {
-      setError("Prompt is required for multi-image video generation");
+      showErrorToast("Prompt is required for multi-image video generation");
       return;
     }
 
     setIsGenerating(true);
-    setError(null);
     setGeneratedVideos([]);
     setPollingStatus("Uploading images...");
     const localTaskId = `kling-multi-i2v-${Date.now()}`;
@@ -916,7 +1010,7 @@ export default function KlingMultiImageToVideo() {
       }
     } catch (err: any) {
       console.error("Generation error:", err);
-      setError(err.message || "Failed to generate video");
+      showErrorToast(err.message || "Failed to generate video");
       updateGlobalProgress({
         isGenerating: false,
         progress: 0,
@@ -957,7 +1051,6 @@ export default function KlingMultiImageToVideo() {
     setAspectRatio("16:9");
     setUploadedImages([]);
     setTargetFolder("");
-    setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
   };
@@ -1000,7 +1093,6 @@ export default function KlingMultiImageToVideo() {
     const sourceUrls = video.sourceImageUrls || video.metadata?.sourceImageUrls || [];
     if (sourceUrls.length > 0) {
       setIsCompressing(true);
-      setError(null);
       
       try {
         // Clear existing images first
@@ -1034,7 +1126,7 @@ export default function KlingMultiImageToVideo() {
         console.log(`[Kling Multi-I2V] Loaded ${loadedImages.length} source images for reuse`);
       } catch (err) {
         console.error("[Kling Multi-I2V] Error loading source images:", err);
-        setError("Failed to load some source images");
+        showErrorToast("Failed to load some source images");
       } finally {
         setIsCompressing(false);
       }
@@ -1293,9 +1385,12 @@ export default function KlingMultiImageToVideo() {
                 )}
               </div>
 
-              {/* Prompt Input */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Prompt <span className="text-red-400">*</span></label>
+              {/* Prompt Input with Integrated Quick Settings */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-slate-100">Prompt <span className="text-red-400">*</span></label>
+                  <Tooltip text="Describe the transition or animation style between images" />
+                </div>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -1304,12 +1399,93 @@ export default function KlingMultiImageToVideo() {
                   rows={3}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Required: Describe the transition style between images.</p>
+
+                {/* Quick Settings - Integrated in Prompt Section */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-medium text-slate-300">Model</label>
+                      <Tooltip text={TOOLTIPS.model} />
+                    </div>
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      disabled={isGenerating}
+                      className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 hover:bg-slate-750 disabled:opacity-50"
+                    >
+                      {MODEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-medium text-slate-300">Quality</label>
+                      <Tooltip text={TOOLTIPS.mode} />
+                    </div>
+                    <select
+                      value={mode}
+                      onChange={(e) => setMode(e.target.value)}
+                      disabled={isGenerating}
+                      className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 hover:bg-slate-750 disabled:opacity-50"
+                    >
+                      {MODE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-medium text-slate-300">Duration</label>
+                      <Tooltip text={TOOLTIPS.duration} />
+                    </div>
+                    <select
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      disabled={isGenerating}
+                      className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 hover:bg-slate-750 disabled:opacity-50"
+                    >
+                      {DURATION_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-medium text-slate-300">Aspect Ratio</label>
+                      <Tooltip text={TOOLTIPS.aspectRatio} />
+                    </div>
+                    <select
+                      value={aspectRatio}
+                      onChange={(e) => setAspectRatio(e.target.value)}
+                      disabled={isGenerating}
+                      className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 hover:bg-slate-750 disabled:opacity-50"
+                    >
+                      {ASPECT_RATIO_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              {/* Negative Prompt */}
+              {/* Negative Prompt - Optional Advanced Setting */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-slate-100">Negative Prompt</label>
+                  <Tooltip text={TOOLTIPS.negativePrompt} />
+                </div>
                 <textarea
                   value={negativePrompt}
                   onChange={(e) => setNegativePrompt(e.target.value)}
@@ -1318,94 +1494,6 @@ export default function KlingMultiImageToVideo() {
                   rows={2}
                   disabled={isGenerating}
                 />
-              </div>
-
-              {/* Model Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Model</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {MODEL_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setModel(option.value)}
-                      className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        model === option.value
-                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
-                          : "border-white/10 bg-white/5 text-slate-100/90"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mode Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Quality Mode</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {MODE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setMode(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        mode === option.value
-                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
-                          : "border-white/10 bg-white/5 text-slate-100/90"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Duration Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Duration</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {DURATION_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setDuration(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        duration === option.value
-                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Aspect Ratio Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-100">Aspect Ratio</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {ASPECT_RATIO_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setAspectRatio(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        aspectRatio === option.value
-                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Folder Selection */}
@@ -1503,76 +1591,100 @@ export default function KlingMultiImageToVideo() {
                               <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
                                 {profileName}
                               </div>
-                              {folders.map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`
-                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-violet-500/15' 
-                                      : 'hover:bg-white/5'
-                                    }
-                                  `}
-                                >
-                                  <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                      : 'bg-slate-700/50 border border-white/5'
-                                    }
-                                  `}>
-                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                                  </div>
-                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                    {folder.name}
-                                  </span>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
+                              {sortFoldersHierarchically(folders).map((folder) => {
+                                const depth = getFolderDepth(folder.id);
+                                const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                                return (
+                                  <button
+                                    key={folder.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetFolder(folder.id);
+                                      setFolderDropdownOpen(false);
+                                    }}
+                                    className={`
+                                      w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                      ${targetFolder === folder.id 
+                                        ? 'bg-violet-500/15' 
+                                        : 'hover:bg-white/5'
+                                      }
+                                    `}
+                                    style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                                  >
+                                    <div className={`
+                                      w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                      ${targetFolder === folder.id 
+                                        ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                        : 'bg-slate-700/50 border border-white/5'
+                                      }
+                                    `}>
+                                      {hasChildren ? (
+                                        <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      ) : (
+                                        <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      )}
+                                    </div>
+                                    <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                      {folder.name}
+                                    </span>
+                                    {depth > 0 && (
+                                      <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                    )}
+                                    {targetFolder === folder.id && (
+                                      <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
                           ))
                         ) : (
-                          // Single profile view - flat list
-                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
-                            <button
-                              key={folder.id}
-                              type="button"
-                              onClick={() => {
-                                setTargetFolder(folder.id);
-                                setFolderDropdownOpen(false);
-                              }}
-                              className={`
-                                w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                ${targetFolder === folder.id 
-                                  ? 'bg-violet-500/15' 
-                                  : 'hover:bg-white/5'
-                                }
-                              `}
-                            >
-                              <div className={`
-                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                ${targetFolder === folder.id 
-                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                  : 'bg-slate-700/50 border border-white/5'
-                                }
-                              `}>
-                                <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
-                              </div>
-                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                {folder.name}
-                              </span>
-                              {targetFolder === folder.id && (
-                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                              )}
-                            </button>
-                          ))
+                          // Single profile view - hierarchical list
+                          sortFoldersHierarchically(vaultFolders.filter(f => !f.isDefault)).map((folder) => {
+                            const depth = getFolderDepth(folder.id);
+                            const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
+                            return (
+                              <button
+                                key={folder.id}
+                                type="button"
+                                onClick={() => {
+                                  setTargetFolder(folder.id);
+                                  setFolderDropdownOpen(false);
+                                }}
+                                className={`
+                                  w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-violet-500/15' 
+                                    : 'hover:bg-white/5'
+                                  }
+                                `}
+                                style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
+                              >
+                                <div className={`
+                                  w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                    : 'bg-slate-700/50 border border-white/5'
+                                  }
+                                `}>
+                                  {hasChildren ? (
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  ) : (
+                                    <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  )}
+                                </div>
+                                <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                  {folder.name}
+                                </span>
+                                {depth > 0 && (
+                                  <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                                )}
+                                {targetFolder === folder.id && (
+                                  <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })
                         )}
                       </div>
 
@@ -1597,14 +1709,6 @@ export default function KlingMultiImageToVideo() {
                   </div>
                 )}
               </div>
-
-              {/* Error Display */}
-              {error && (
-                <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{error}</span>
-                </div>
-              )}
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
@@ -2024,6 +2128,48 @@ export default function KlingMultiImageToVideo() {
           selectedItemIds={uploadedImages.filter(img => img.referenceId).map(img => img.referenceId!)}
         />
       )}
+
+      {/* Toast Notification */}
+      {toastError && showToast && mounted &&
+        createPortal(
+          <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
+            <div className="flex items-start gap-3 rounded-2xl border border-red-400/50 bg-red-500/90 px-4 py-3 text-sm text-white shadow-xl backdrop-blur max-w-md">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <p className="flex-1">{toastError}</p>
+              <button
+                onClick={() => {
+                  setShowToast(false);
+                  setTimeout(() => setToastError(null), 300);
+                }}
+                className="flex-shrink-0 rounded-lg p-1 hover:bg-white/20 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Toast Notifications */}
+      {toastError && showToast && mounted &&
+        createPortal(
+          <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
+            <div className="flex items-start gap-3 rounded-2xl border border-red-400/50 bg-red-500/90 px-4 py-3 text-sm text-white shadow-xl backdrop-blur max-w-md">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <p className="flex-1">{toastError}</p>
+              <button
+                onClick={() => {
+                  setShowToast(false);
+                  setTimeout(() => setToastError(null), 300);
+                }}
+                className="flex-shrink-0 rounded-lg p-1 hover:bg-white/20 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

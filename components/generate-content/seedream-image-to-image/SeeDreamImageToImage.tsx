@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";import { createPortal } from "react-dom";import { useApiClient } from "@/lib/apiClient";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
+import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import {
   ImageIcon,
   Download,
@@ -24,10 +27,10 @@ import {
   Settings,
   User,
   Archive,
-  FolderOpen,
-  Check,
   Library,
   Share2,
+  FolderOpen,
+  Check,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -143,14 +146,6 @@ const compressImage = async (
     reader.readAsDataURL(file);
   });
 };
-
-interface VaultFolder {
-  id: string;
-  name: string;
-  profileId: string;
-  isDefault?: boolean;
-  profileName?: string;
-}
 
 interface GeneratedImage {
   id: string;
@@ -422,18 +417,6 @@ export default function SeeDreamImageToImage() {
 
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
-        setFolderDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Vault Integration State - only folders for the selected profile
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -583,26 +566,6 @@ export default function SeeDreamImageToImage() {
     // Clear selected folder when profile changes
     setTargetFolder("");
   }, [loadVaultData]);
-
-  // Get display text for the selected folder
-  const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder || !globalProfileId) return 'Please select a vault folder to save your images';
-    
-    const folder = vaultFolders.find(f => f.id === targetFolder);
-    if (folder) {
-      // If viewing all profiles, use the folder's profileName
-      if (isAllProfiles && folder.profileName) {
-        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
-      }
-      // Otherwise use the selected profile
-      if (selectedProfile) {
-        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        const sharedIndicator = isSharedProfile ? ' (Shared)' : '';
-        return `Saving to Vault: ${profileDisplay}${sharedIndicator} / ${folder.name}`;
-      }
-    }
-    return 'Please select a vault folder';
-  };
 
   // Save uploaded image to Reference Bank
   const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File, skipIfExists?: boolean): Promise<{ id: string; url: string } | null> => {
@@ -1983,188 +1946,18 @@ export default function SeeDreamImageToImage() {
                 </div>
                 
                 <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
-                {/* Modern Custom Dropdown */}
-                <div ref={folderDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!(!mounted || isLoadingVaultData || isGenerating || !globalProfileId)) {
-                        setFolderDropdownOpen(!folderDropdownOpen);
-                        setShowFolderValidation(false);
-                      }
-                    }}
-                    disabled={!mounted || isLoadingVaultData || isGenerating || !globalProfileId}
-                    className={`
-                      w-full flex items-center justify-between gap-3 px-4 py-3.5
-                      rounded-2xl border transition-all duration-200
-                      ${folderDropdownOpen 
-                        ? 'border-cyan-400 bg-cyan-500/10 ring-2 ring-cyan-400/30' 
-                        : !targetFolder && showFolderValidation
-                        ? 'border-red-400 bg-red-500/10 ring-2 ring-red-400/30 animate-pulse'
-                        : 'border-white/10 bg-slate-800/80 hover:border-cyan-400/50 hover:bg-slate-800'
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    `}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`
-                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-                        ${targetFolder 
-                          ? 'bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-400/30' 
-                          : 'bg-slate-700/50 border border-white/5'
-                        }
-                      `}>
-                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-cyan-300' : 'text-slate-400'}`} />
-                      </div>
-                      <div className="text-left min-w-0">
-                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
-                          {targetFolder 
-                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
-                            : 'Select a folder...'
-                          }
-                        </p>
-                        {targetFolder && selectedProfile && (
-                          <p className="text-[11px] text-cyan-300/70 truncate">
-                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {folderDropdownOpen && mounted && (
-                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
-                      {/* Clear Selection Option */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetFolder('');
-                          setFolderDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
-                          <X className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <span className="text-sm text-slate-400">No folder selected</span>
-                        {!targetFolder && <Check className="w-4 h-4 text-cyan-400 ml-auto" />}
-                      </button>
-
-                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
-                        <div className="my-2 mx-3 h-px bg-white/5" />
-                      )}
-
-                      {/* Folder Options */}
-                      <div className="max-h-[200px] overflow-y-auto">
-                        {isAllProfiles ? (
-                          // Group folders by profile when viewing all profiles
-                          Object.entries(
-                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
-                              const profileName = folder.profileName || 'Unknown Profile';
-                              if (!acc[profileName]) acc[profileName] = [];
-                              acc[profileName].push(folder);
-                              return acc;
-                            }, {} as Record<string, VaultFolder[]>)
-                          ).map(([profileName, folders]) => (
-                            <div key={profileName}>
-                              <div className="px-4 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 border-b border-cyan-500/20">
-                                {profileName}
-                              </div>
-                              {folders.map((folder) => (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`
-                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-cyan-500/15' 
-                                      : 'hover:bg-white/5'
-                                    }
-                                  `}
-                                >
-                                  <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                    ${targetFolder === folder.id 
-                                      ? 'bg-gradient-to-br from-cyan-500/40 to-blue-500/40 border border-cyan-400/40' 
-                                      : 'bg-slate-700/50 border border-white/5'
-                                    }
-                                  `}>
-                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-cyan-300' : 'text-slate-400'}`} />
-                                  </div>
-                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                                    {folder.name}
-                                  </span>
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          ))
-                        ) : (
-                          // Normal folder list for single profile
-                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
-                          <button
-                            key={folder.id}
-                            type="button"
-                            onClick={() => {
-                              setTargetFolder(folder.id);
-                              setFolderDropdownOpen(false);
-                            }}
-                            className={`
-                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                              ${targetFolder === folder.id 
-                                ? 'bg-cyan-500/15' 
-                                : 'hover:bg-white/5'
-                              }
-                            `}
-                          >
-                            <div className={`
-                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                              ${targetFolder === folder.id 
-                                ? 'bg-gradient-to-br from-cyan-500/40 to-blue-500/40 border border-cyan-400/40' 
-                                : 'bg-slate-700/50 border border-white/5'
-                              }
-                            `}>
-                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-cyan-300' : 'text-slate-400'}`} />
-                            </div>
-                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                              {folder.name}
-                            </span>
-                            {targetFolder === folder.id && (
-                              <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                            )}
-                          </button>
-                        ))
-                        )}
-                      </div>
-
-                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
-                        <div className="px-4 py-6 text-center">
-                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                          <p className="text-sm text-slate-400">No folders available</p>
-                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Status Indicator */}
-                {targetFolder && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    <p className="text-xs text-cyan-200 flex-1 truncate">
-                      {getSelectedFolderDisplay()}
-                    </p>
-                  </div>
-                )}
+                <VaultFolderDropdown
+                  targetFolder={targetFolder}
+                  setTargetFolder={setTargetFolder}
+                  folderDropdownOpen={folderDropdownOpen}
+                  setFolderDropdownOpen={setFolderDropdownOpen}
+                  vaultFolders={vaultFolders}
+                  isAllProfiles={isAllProfiles}
+                  selectedProfile={selectedProfile}
+                  mounted={mounted}
+                  accentColor="cyan"
+                  label="Save to Folder"
+                />
               </div>
               </div>
 

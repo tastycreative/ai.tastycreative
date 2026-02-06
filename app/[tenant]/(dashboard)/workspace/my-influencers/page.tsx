@@ -317,6 +317,19 @@ export default function MyInfluencersPage() {
     return false;
   };
 
+  const canDeleteProfile = (profile: InfluencerProfile) => {
+    // Owner can always delete
+    if (isOwnProfile(profile)) return true;
+    
+    // Check if user has elevated role in the organization for shared profiles
+    if (profile.organizationId && profile.currentUserOrgRole) {
+      const elevatedRoles = ["OWNER", "ADMIN", "MANAGER"];
+      return elevatedRoles.includes(profile.currentUserOrgRole);
+    }
+    
+    return false;
+  };
+
   const getOwnerDisplayName = (profile: InfluencerProfile) => {
     if (!profile.user) return "Unknown";
     if (profile.user.name) return profile.user.name;
@@ -520,13 +533,20 @@ export default function MyInfluencersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {sortedProfiles.map((profile) => (
-              <ProfileCard key={profile.id} profile={profile} isOwn={isOwnProfile(profile)} canEdit={canEditProfile(profile)} ownerName={getOwnerDisplayName(profile)}
+              <ProfileCard 
+                key={profile.id} 
+                profile={profile} 
+                isOwn={isOwnProfile(profile)} 
+                canEdit={canEditProfile(profile)} 
+                canDelete={canDeleteProfile(profile)}
+                ownerName={getOwnerDisplayName(profile)}
                 onEdit={() => { setSelectedProfile(profile); setShowEditModal(true); }}
                 onDelete={() => { setSelectedProfile(profile); setShowDeleteModal(true); }}
                 onView={() => { setSelectedProfile(profile); setShowDetailsModal(true); }}
                 onSetDefault={() => handleSetDefault(profile.id)}
                 onToggleShare={() => handleToggleShare(profile)}
-                onToggleFavorite={() => handleToggleFavorite(profile.id)} />
+                onToggleFavorite={() => handleToggleFavorite(profile.id)} 
+              />
             ))}
           </div>
         )}
@@ -540,8 +560,8 @@ export default function MyInfluencersPage() {
   );
 }
 
-function ProfileCard({ profile, isOwn, canEdit, ownerName, onEdit, onDelete, onView, onSetDefault, onToggleShare, onToggleFavorite }: {
-  profile: InfluencerProfile; isOwn: boolean; canEdit: boolean; ownerName: string; onEdit: () => void; onDelete: () => void; onView: () => void; onSetDefault: () => void; onToggleShare: () => void; onToggleFavorite: () => void;
+function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, onDelete, onView, onSetDefault, onToggleShare, onToggleFavorite }: {
+  profile: InfluencerProfile; isOwn: boolean; canEdit: boolean; canDelete: boolean; ownerName: string; onEdit: () => void; onDelete: () => void; onView: () => void; onSetDefault: () => void; onToggleShare: () => void; onToggleFavorite: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -601,7 +621,7 @@ function ProfileCard({ profile, isOwn, canEdit, ownerName, onEdit, onDelete, onV
                     <Share2 className="w-4 h-4 text-zinc-400" />{profile.organizationId ? "Unshare" : "Share with Org"}
                   </button>
                 )}
-                {isOwn && (
+                {canDelete && (
                   <>
                     <div className="border-t border-zinc-100 dark:border-zinc-800" />
                     <button onClick={() => { onDelete(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-3 transition-colors">
@@ -1078,18 +1098,28 @@ function DeleteProfileModal({ profile, onClose, onSuccess }: { profile: Influenc
   const [deleting, setDeleting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const apiClient = useApiClient();
+  const { user: clerkUser } = useUser();
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+
+  // Determine if this is a shared profile being deleted
+  const isOwnProfile = profile.clerkId === clerkUser?.id;
+  const isSharedProfile = !isOwnProfile && !!profile.organizationId;
 
   const handleDelete = async () => {
     if (!apiClient) return;
     setDeleting(true);
     try {
       const response = await apiClient.delete(`/api/instagram-profiles/${profile.id}`);
-      if (!response.ok) throw new Error("Failed to delete profile");
-      toast.success("Profile deleted");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete profile");
+      }
+      toast.success(isSharedProfile ? "Shared profile removed from organization" : "Profile deleted");
       onSuccess();
-    } catch { toast.error("Failed to delete profile"); }
+    } catch (error) { 
+      toast.error(error instanceof Error ? error.message : "Failed to delete profile"); 
+    }
     finally { setDeleting(false); }
   };
 
@@ -1099,8 +1129,16 @@ function DeleteProfileModal({ profile, onClose, onSuccess }: { profile: Influenc
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-200 dark:border-zinc-800">
         <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center mx-auto mb-5"><Trash2 className="w-7 h-7 text-red-600 dark:text-red-400" /></div>
-        <h3 className="text-xl font-semibold text-zinc-900 dark:text-white text-center mb-2">Delete Profile</h3>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-6">Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This action cannot be undone.</p>
+        <h3 className="text-xl font-semibold text-zinc-900 dark:text-white text-center mb-2">
+          {isSharedProfile ? "Delete Shared Profile" : "Delete Profile"}
+        </h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-6">
+          {isSharedProfile ? (
+            <>Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This will remove the profile from your organization. The profile owner will still have access to their profile.</>
+          ) : (
+            <>Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This action cannot be undone and will permanently delete the profile and all associated data.</>
+          )}
+        </p>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors">Cancel</button>
           <button onClick={handleDelete} disabled={deleting} className="flex-1 px-5 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
