@@ -1566,39 +1566,6 @@ model pricing_history {
   @@index([changedById])
 }
 
-model BillingTransaction {
-  id                      String            @id
-  organizationId          String
-  type                    TransactionType
-  status                  TransactionStatus @default(PENDING)
-  amount                  Float
-  currency                String            @default("usd")
-  description             String
-  stripeInvoiceId         String?
-  stripePaymentIntentId   String?
-  stripeCheckoutSessionId String?
-  creditsAdded            Int?
-  planName                String?
-  billingPeriodStart      DateTime?
-  billingPeriodEnd        DateTime?
-  metadata                Json?
-  failureReason           String?
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime
-  userId                  String?
-  organizations           Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  users                   User?             @relation(fields: [userId], references: [id])
-
-  @@index([createdAt])
-  @@index([organizationId, createdAt])
-  @@index([organizationId])
-  @@index([status])
-  @@index([stripeInvoiceId])
-  @@index([type])
-  @@index([userId])
-  @@map("billing_transactions")
-}
-
 model FeatureCreditPricing {
   id          String   @id @default(cuid())
   featureKey  String   @unique
