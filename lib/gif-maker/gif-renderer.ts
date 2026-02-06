@@ -514,3 +514,18 @@ export function exportCanvasAsPng(
     }
   }, "image/png");
 }
+
+/**
+ * Export canvas as JPG
+ */
+export function exportCanvasAsJpg(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  quality: number = 0.92
+): void {
+  canvas.toBlob((blob) => {
+    if (blob) {
+      downloadBlob(blob, filename);
+    }
+  }, "image/jpeg", quality);
+}

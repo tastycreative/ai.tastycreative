@@ -31,6 +31,18 @@ export function createDefaultTextOverlay(
     textAlign: "center",
     animation: "fade-in",
     animationDurationFrames: 15,
+    letterSpacing: 0,
+    lineHeight: 1.3,
+    textTransform: "none",
+    opacity: 1,
+    borderRadius: 4,
+    backgroundOpacity: 0.5,
+    strokeWidth: 0,
+    strokeColor: "#000000",
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    shadowBlur: 0,
+    shadowColor: "rgba(0,0,0,0.5)",
     ...partial,
   };
 }
@@ -74,6 +86,10 @@ export function createDefaultStickerOverlay(
     isEmoji: true,
     rotation: 0,
     opacity: 1,
+    animation: "none",
+    animationDurationFrames: 30,
+    flipH: false,
+    flipV: false,
     ...partial,
   };
 }

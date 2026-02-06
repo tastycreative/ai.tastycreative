@@ -1,4 +1,4 @@
-import type { VideoClip, Transition } from "./types";
+import type { Clip, Transition } from "./types";
 
 /**
  * Convert a frame number to a time string (MM:SS:FF)
@@ -28,7 +28,10 @@ export function framesToSeconds(frames: number, fps: number): number {
 /**
  * Get the trimmed duration of a clip in frames
  */
-export function getClipTrimmedDuration(clip: VideoClip): number {
+export function getClipTrimmedDuration(clip: Clip): number {
+  if (clip.type === "image") {
+    return clip.displayDurationInFrames;
+  }
   return clip.trimEndFrame - clip.trimStartFrame;
 }
 
@@ -55,61 +58,96 @@ export function snapToNearest(
 }
 
 /**
- * Recompute clip startFrames based on array order and transitions.
- * Clips are sequential; transitions cause overlap.
+ * Group clips by slotIndex. Clips without a slotIndex go to slot 0.
  */
-export function computeClipStartFrames(
-  clips: VideoClip[],
-  transitions: Transition[]
-): VideoClip[] {
-  if (clips.length === 0) return [];
-
-  const updated = clips.map((c) => ({ ...c }));
-  updated[0].startFrame = 0;
-
-  for (let i = 1; i < updated.length; i++) {
-    const prevClip = updated[i - 1];
-    const prevDuration = getClipTrimmedDuration(prevClip);
-
-    // Find transition between prev and current
-    const transition = transitions.find(
-      (t) => t.clipAId === prevClip.id && t.clipBId === updated[i].id
-    );
-
-    const overlap = transition ? transition.durationInFrames : 0;
-    updated[i].startFrame = prevClip.startFrame + prevDuration - overlap;
+export function groupClipsBySlot(clips: Clip[]): Map<number, Clip[]> {
+  const groups = new Map<number, Clip[]>();
+  for (const clip of clips) {
+    const slot = clip.slotIndex ?? 0;
+    const group = groups.get(slot) || [];
+    group.push(clip);
+    groups.set(slot, group);
   }
-
-  return updated;
+  return groups;
 }
 
 /**
- * Compute total timeline duration from clips and transitions
+ * Recompute clip startFrames based on array order and transitions.
+ * Clips on the SAME track are sequential; different tracks play simultaneously.
+ */
+export function computeClipStartFrames(
+  clips: Clip[],
+  transitions: Transition[]
+): Clip[] {
+  if (clips.length === 0) return [];
+
+  const groups = groupClipsBySlot(clips);
+  const updatedMap = new Map<string, Clip>();
+
+  for (const [, slotClips] of groups) {
+    const updated = slotClips.map((c) => ({ ...c }));
+    updated[0].startFrame = 0;
+
+    for (let i = 1; i < updated.length; i++) {
+      const prevClip = updated[i - 1];
+      const prevDuration = getClipTrimmedDuration(prevClip);
+
+      // Find transition between prev and current (only within same slot)
+      const transition = transitions.find(
+        (t) => t.clipAId === prevClip.id && t.clipBId === updated[i].id
+      );
+
+      const overlap = transition ? transition.durationInFrames : 0;
+      updated[i].startFrame = prevClip.startFrame + prevDuration - overlap;
+    }
+
+    for (const clip of updated) {
+      updatedMap.set(clip.id, clip);
+    }
+  }
+
+  // Preserve original array order
+  return clips.map((c) => updatedMap.get(c.id) || c);
+}
+
+/**
+ * Compute total timeline duration — max across all tracks (not sum).
  */
 export function computeTotalDuration(
-  clips: VideoClip[],
+  clips: Clip[],
   transitions: Transition[]
 ): number {
   if (clips.length === 0) return 0;
 
-  let total = 0;
-  for (let i = 0; i < clips.length; i++) {
-    total += getClipTrimmedDuration(clips[i]);
+  const groups = groupClipsBySlot(clips);
+  let maxDuration = 0;
+
+  for (const [, slotClips] of groups) {
+    let slotTotal = 0;
+    for (const clip of slotClips) {
+      slotTotal += getClipTrimmedDuration(clip);
+    }
+
+    // Subtract overlap from transitions within this slot
+    for (const t of transitions) {
+      const hasA = slotClips.some((c) => c.id === t.clipAId);
+      const hasB = slotClips.some((c) => c.id === t.clipBId);
+      if (hasA && hasB) {
+        slotTotal -= t.durationInFrames;
+      }
+    }
+
+    maxDuration = Math.max(maxDuration, slotTotal);
   }
 
-  // Subtract overlap from transitions
-  for (const t of transitions) {
-    total -= t.durationInFrames;
-  }
-
-  return Math.max(1, total);
+  return Math.max(1, maxDuration);
 }
 
 /**
- * Get snap points for the timeline (clip boundaries, overlay boundaries)
+ * Get snap points for the timeline (clip boundaries from all tracks)
  */
 export function getTimelineSnapPoints(
-  clips: VideoClip[],
+  clips: Clip[],
   fps: number
 ): number[] {
   const points: number[] = [0];

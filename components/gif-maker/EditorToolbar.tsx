@@ -8,12 +8,15 @@ import {
 } from "@/lib/gif-maker/types";
 import {
   captureVideoWithBlur,
+  captureCanvasAnimation,
   renderFramesToGif,
   downloadBlob,
+  exportCanvasAsPng,
   type BlurRegionDef,
 } from "@/lib/gif-maker/gif-renderer";
 import type { PreviewPlayerRef } from "./PreviewPlayer";
 import {
+  Camera,
   Download,
   Loader2,
   Magnet,
@@ -40,6 +43,55 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   const exportState = useVideoEditorStore((s) => s.exportState);
   const setExportState = useVideoEditorStore((s) => s.setExportState);
 
+  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
+
+  // Check if timeline needs canvas-based export (images, collage, or multi-slot)
+  const hasImageClips = clips.some((c) => c.type === "image");
+  const hasCollage = activeCollageLayout !== null;
+  const needsCanvasExport = hasImageClips || hasCollage;
+
+  const handleCaptureFrame = useCallback(async () => {
+    if (!playerRef.current) return;
+    const player = playerRef.current;
+    player.pause();
+
+    // Wait a moment for the frame to render
+    await new Promise((r) => setTimeout(r, 100));
+
+    const canvas = player.getCanvas();
+    if (!canvas) {
+      setExportState({
+        isExporting: false,
+        progress: 0,
+        phase: "error",
+        message: "Could not capture frame — no canvas found",
+      });
+      return;
+    }
+
+    // Create output canvas at full resolution
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = settings.width;
+    outCanvas.height = settings.height;
+    const ctx = outCanvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(canvas, 0, 0, settings.width, settings.height);
+    }
+
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, 19);
+    exportCanvasAsPng(outCanvas, `frame-${timestamp}.png`);
+
+    setExportState({
+      isExporting: false,
+      progress: 100,
+      phase: "done",
+      message: "Frame captured!",
+    });
+  }, [playerRef, settings, setExportState]);
+
   const handleExportGif = useCallback(async () => {
     if (!playerRef.current || clips.length === 0) return;
 
@@ -57,39 +109,61 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       const totalFrames = totalDurationInFrames;
       const everyNthFrame = 2;
 
-      // Convert blur overlays to BlurRegionDef for canvas-based blur
-      const blurRegions: BlurRegionDef[] = overlays
-        .filter((o) => o.type === "blur")
-        .map((o) => ({
-          x: o.x,
-          y: o.y,
-          width: o.width,
-          height: o.height,
-          intensity: (o as { intensity?: number }).intensity || 20,
-          shape: (o as { shape?: "rectangle" | "ellipse" | "rounded-rect" }).shape || "rectangle",
-          borderRadius: (o as { borderRadius?: number }).borderRadius,
-          blurMode: (o as { blurMode?: "gaussian" | "heavy" | "pixelate" | "solid" }).blurMode,
-          fillColor: (o as { fillColor?: string }).fillColor,
-        }));
+      let frames: HTMLCanvasElement[];
 
-      const frames = await captureVideoWithBlur(
-        () => player.getVideoElement(),
-        (frame) => player.seekToFrame(frame),
-        {
-          totalFrames,
-          width: settings.width,
-          height: settings.height,
-          everyNthFrame,
-          blurRegions,
-          fps: settings.fps,
-        },
-        (progress) =>
-          setExportState({
-            progress: progress.progress * 0.5,
-            phase: "capturing",
-            message: `Capturing... ${Math.round(progress.progress)}%`,
-          })
-      );
+      if (needsCanvasExport) {
+        // Mixed timeline or image-only: use canvas-based capture (works with <Img>)
+        frames = await captureCanvasAnimation(
+          () => player.getCanvas(),
+          (frame) => player.seekToFrame(frame),
+          {
+            totalFrames,
+            width: settings.width,
+            height: settings.height,
+            everyNthFrame,
+          },
+          (progress) =>
+            setExportState({
+              progress: progress.progress * 0.5,
+              phase: "capturing",
+              message: `Capturing... ${Math.round(progress.progress)}%`,
+            })
+        );
+      } else {
+        // Video-only timeline: use fast video-to-canvas capture
+        const blurRegions: BlurRegionDef[] = overlays
+          .filter((o) => o.type === "blur")
+          .map((o) => ({
+            x: o.x,
+            y: o.y,
+            width: o.width,
+            height: o.height,
+            intensity: (o as { intensity?: number }).intensity || 20,
+            shape: (o as { shape?: "rectangle" | "ellipse" | "rounded-rect" }).shape || "rectangle",
+            borderRadius: (o as { borderRadius?: number }).borderRadius,
+            blurMode: (o as { blurMode?: "gaussian" | "heavy" | "pixelate" | "solid" }).blurMode,
+            fillColor: (o as { fillColor?: string }).fillColor,
+          }));
+
+        frames = await captureVideoWithBlur(
+          () => player.getVideoElement(),
+          (frame) => player.seekToFrame(frame),
+          {
+            totalFrames,
+            width: settings.width,
+            height: settings.height,
+            everyNthFrame,
+            blurRegions,
+            fps: settings.fps,
+          },
+          (progress) =>
+            setExportState({
+              progress: progress.progress * 0.5,
+              phase: "capturing",
+              message: `Capturing... ${Math.round(progress.progress)}%`,
+            })
+        );
+      }
 
       if (frames.length === 0) throw new Error("No frames captured");
 
@@ -139,7 +213,7 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           error instanceof Error ? error.message : "Export failed",
       });
     }
-  }, [playerRef, clips, overlays, totalDurationInFrames, settings, setExportState]);
+  }, [playerRef, clips, overlays, totalDurationInFrames, settings, setExportState, needsCanvasExport]);
 
   return (
     <div className="flex items-center gap-1 px-3 h-11 bg-[#141524] border-b border-[#252640] flex-shrink-0">
@@ -240,6 +314,21 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           {exportState.message}
         </span>
       )}
+
+      {/* Capture Frame Button */}
+      <button
+        onClick={handleCaptureFrame}
+        disabled={clips.length === 0 || exportState.isExporting}
+        className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-all duration-150 ${
+          clips.length === 0 || exportState.isExporting
+            ? "bg-[#252640] text-[#4d5578] cursor-not-allowed"
+            : "text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038]"
+        }`}
+        title="Capture current frame as PNG"
+      >
+        <Camera className="h-4 w-4" />
+        Frame
+      </button>
 
       {/* Export Button */}
       <button

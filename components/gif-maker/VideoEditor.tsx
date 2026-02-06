@@ -150,10 +150,11 @@ export function VideoEditor() {
 // ─── Left Panel Tabs ─────────────────────────────────
 
 import { useState } from "react";
-import { Film, Layers } from "lucide-react";
+import { Film, Layers, LayoutGrid } from "lucide-react";
+import { LayoutPicker } from "./panels/LayoutPicker";
 
 function LeftPanelTabs() {
-  const [activeTab, setActiveTab] = useState<"clips" | "overlays">("clips");
+  const [activeTab, setActiveTab] = useState<"clips" | "overlays" | "layout">("clips");
 
   return (
     <>
@@ -186,9 +187,29 @@ function LeftPanelTabs() {
             <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("layout")}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors duration-150 relative ${
+            activeTab === "layout"
+              ? "text-cyan-400"
+              : "text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038]"
+          }`}
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          Layout
+          {activeTab === "layout" && (
+            <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" />
+          )}
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {activeTab === "clips" ? <ClipPanel /> : <OverlayPanel />}
+        {activeTab === "clips" ? (
+          <ClipPanel />
+        ) : activeTab === "overlays" ? (
+          <OverlayPanel />
+        ) : (
+          <LayoutPicker />
+        )}
       </div>
     </>
   );

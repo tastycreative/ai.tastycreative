@@ -34,6 +34,7 @@ export const RemotionRoot: React.FC = () => {
           clips: [],
           transitions: [],
           overlays: [],
+          activeCollageLayout: null,
         }}
       />
     </>

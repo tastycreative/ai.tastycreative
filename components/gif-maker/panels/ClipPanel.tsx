@@ -12,9 +12,12 @@ import {
   ChevronLeft,
   Loader2,
   Video as VideoIcon,
+  Image as ImageIcon,
   HardDrive,
 } from "lucide-react";
 import { getClipTrimmedDuration } from "@/lib/gif-maker/timeline-utils";
+import type { Clip } from "@/lib/gif-maker/types";
+import { COLLAGE_PRESETS } from "@/lib/gif-maker/types";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 
 interface VaultFolderWithCount {
@@ -51,7 +54,12 @@ export function ClipPanel() {
   const selectClip = useVideoEditorStore((s) => s.selectClip);
   const reorderClips = useVideoEditorStore((s) => s.reorderClips);
   const fps = useVideoEditorStore((s) => s.settings.fps);
+  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const collagePreset = activeCollageLayout ? COLLAGE_PRESETS[activeCollageLayout] : null;
+  // Which slot to add new clips to — defaults to 0
+  const [addToSlot, setAddToSlot] = useState<number>(0);
 
   const { profiles, isAllProfiles } = useInstagramProfile();
 
@@ -88,8 +96,10 @@ export function ClipPanel() {
       if (!response.ok) throw new Error("Failed to fetch items");
       const data = await response.json();
       const allItems: VaultItem[] = Array.isArray(data) ? data : data.items || [];
-      // Filter to only video items
-      setItems(allItems.filter((item) => item.fileType?.startsWith("video/")));
+      // Filter to video and image items
+      setItems(allItems.filter((item) =>
+        item.fileType?.startsWith("video/") || item.fileType?.startsWith("image/")
+      ));
     } catch (error) {
       console.error("Error fetching vault items:", error);
     } finally {
@@ -110,64 +120,101 @@ export function ClipPanel() {
 
       Array.from(files).forEach((file) => {
         const url = URL.createObjectURL(file);
-        const video = document.createElement("video");
-        video.preload = "metadata";
-        video.onloadedmetadata = () => {
-          const durationInFrames = Math.round(video.duration * fps);
+        const clipId = `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+        if (file.type.startsWith("image/")) {
           addClip({
-            id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: "image",
+            id: clipId,
             src: url,
             name: file.name,
-            durationInFrames,
-            trimStartFrame: 0,
-            trimEndFrame: durationInFrames,
-            volume: 1,
+            displayDurationInFrames: fps * 3, // 3 seconds default
+            objectFit: "contain",
+            slotIndex: addToSlot,
           });
           setView("clips");
-        };
-        video.src = url;
+        } else {
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.onloadedmetadata = () => {
+            const durationInFrames = Math.round(video.duration * fps);
+            addClip({
+              type: "video",
+              id: clipId,
+              src: url,
+              name: file.name,
+              durationInFrames,
+              trimStartFrame: 0,
+              trimEndFrame: durationInFrames,
+              volume: 1,
+              slotIndex: addToSlot,
+            });
+            setView("clips");
+          };
+          video.src = url;
+        }
       });
 
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [addClip, fps]
+    [addClip, fps, addToSlot]
   );
 
   // Add a vault item as a clip
   const handleAddVaultItem = useCallback(
     (item: VaultItem) => {
       setAddingItemId(item.id);
+      const clipId = `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+      if (item.fileType?.startsWith("image/")) {
+        addClip({
+          type: "image",
+          id: clipId,
+          src: item.awsS3Url,
+          name: item.fileName,
+          displayDurationInFrames: fps * 3, // 3 seconds default
+          objectFit: "contain",
+          slotIndex: addToSlot,
+        });
+        setAddingItemId(null);
+        return;
+      }
+
       const video = document.createElement("video");
       video.preload = "metadata";
       video.crossOrigin = "anonymous";
       video.onloadedmetadata = () => {
         const durationInFrames = Math.round(video.duration * fps);
         addClip({
-          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: "video",
+          id: clipId,
           src: item.awsS3Url,
           name: item.fileName,
           durationInFrames,
           trimStartFrame: 0,
           trimEndFrame: durationInFrames,
           volume: 1,
+          slotIndex: addToSlot,
         });
         setAddingItemId(null);
       };
       video.onerror = () => {
         addClip({
-          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: "video",
+          id: clipId,
           src: item.awsS3Url,
           name: item.fileName,
           durationInFrames: fps * 5,
           trimStartFrame: 0,
           trimEndFrame: fps * 5,
           volume: 1,
+          slotIndex: addToSlot,
         });
         setAddingItemId(null);
       };
       video.src = item.awsS3Url;
     },
-    [addClip, fps]
+    [addClip, fps, addToSlot]
   );
 
   // Drag and drop for clips
@@ -273,9 +320,9 @@ export function ClipPanel() {
               >
                 <Upload className="h-5 w-5 text-[#4d5578] group-hover:text-blue-400 transition-colors" />
                 <span className="text-xs text-[#8490b0] group-hover:text-[#e6e8f0] transition-colors">
-                  Upload video
+                  Upload media
                 </span>
-                <span className="text-[10px] text-[#4d5578]">MP4, WebM, MOV</span>
+                <span className="text-[10px] text-[#4d5578]">MP4, WebM, MOV, JPG, PNG, WebP</span>
               </button>
               <button
                 onClick={() => setView("vault-folders")}
@@ -291,9 +338,24 @@ export function ClipPanel() {
             <>
               {/* Add Buttons */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#252640]/60">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">
-                  {clips.length} clip{clips.length !== 1 ? "s" : ""}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">
+                    {clips.length} clip{clips.length !== 1 ? "s" : ""}
+                  </span>
+                  {/* Slot selector for adding new clips */}
+                  {collagePreset && (
+                    <select
+                      value={addToSlot}
+                      onChange={(e) => setAddToSlot(Number(e.target.value))}
+                      className="h-5 px-1.5 bg-[#1a1b2e] border border-[#252640] rounded text-[10px] text-[#8490b0] outline-none"
+                      title="Add clips to this slot"
+                    >
+                      {collagePreset.slots.map((_, i) => (
+                        <option key={i} value={i}>Slot {i + 1}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setView("vault-folders")}
@@ -330,15 +392,22 @@ export function ClipPanel() {
                     }`}
                   >
                     <GripVertical className="h-3.5 w-3.5 text-[#4d5578] cursor-grab flex-shrink-0" />
-                    <div className="w-10 h-7 rounded bg-[#252640] flex items-center justify-center overflow-hidden flex-shrink-0">
-                      <span className="text-[8px] text-[#4d5578]">VID</span>
+                    <div className={`w-10 h-7 rounded flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                      clip.type === "image" ? "bg-emerald-500/15" : "bg-[#252640]"
+                    }`}>
+                      <span className={`text-[8px] ${
+                        clip.type === "image" ? "text-emerald-400" : "text-[#4d5578]"
+                      }`}>{clip.type === "image" ? "IMG" : "VID"}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="truncate text-xs font-medium text-[#e6e8f0]">
+                      <div className="truncate text-xs font-medium text-[#e6e8f0] flex items-center gap-1.5">
                         {clip.name}
                       </div>
                       <div className="text-[10px] text-[#4d5578]">
                         {(getClipTrimmedDuration(clip) / fps).toFixed(1)}s
+                        {collagePreset && (
+                          <span className="text-blue-400/70 ml-1">S{(clip.slotIndex ?? 0) + 1}</span>
+                        )}
                       </div>
                     </div>
                     <button
@@ -473,7 +542,7 @@ export function ClipPanel() {
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-center p-4">
                 <VideoIcon className="h-6 w-6 text-[#252640] mb-2" />
-                <p className="text-xs text-[#4d5578]">No videos in this folder</p>
+                <p className="text-xs text-[#4d5578]">No media in this folder</p>
               </div>
             ) : (
               <div className="py-1">
@@ -494,15 +563,25 @@ export function ClipPanel() {
                       }`}
                     >
                       <div className="w-10 h-7 rounded bg-[#252640] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
-                        <video
-                          src={item.awsS3Url}
-                          className="w-full h-full object-cover"
-                          muted
-                          preload="metadata"
-                        />
+                        {item.fileType?.startsWith("image/") ? (
+                          <img
+                            src={item.awsS3Url}
+                            className="w-full h-full object-cover"
+                            alt={item.fileName}
+                          />
+                        ) : (
+                          <video
+                            src={item.awsS3Url}
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
+                        )}
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                           {isAdding ? (
                             <Loader2 className="w-3 h-3 text-white animate-spin" />
+                          ) : item.fileType?.startsWith("image/") ? (
+                            <ImageIcon className="w-3 h-3 text-white" />
                           ) : (
                             <VideoIcon className="w-3 h-3 text-white" />
                           )}
@@ -531,7 +610,7 @@ export function ClipPanel() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/mp4,video/webm,video/quicktime"
+        accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp,image/gif"
         multiple
         onChange={handleFileSelect}
         className="hidden"

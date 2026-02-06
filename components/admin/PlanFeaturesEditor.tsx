@@ -16,6 +16,7 @@ const FEATURE_GROUPS = [
     icon: Layers,
     features: [
       'hasGenerateTab',
+      'hasContentTab',
       'hasVaultTab',
       'hasTrainingTab',
       'hasInstagramTab',

@@ -1,10 +1,10 @@
 import React from "react";
-import { Sequence, Video, getRemotionEnvironment } from "remotion";
-import type { BlurOverlay, VideoClip } from "@/lib/gif-maker/types";
+import { Img, Sequence, Video, getRemotionEnvironment } from "remotion";
+import type { BlurOverlay, Clip } from "@/lib/gif-maker/types";
 
 interface BlurOverlayRendererProps {
   overlay: BlurOverlay;
-  clips: VideoClip[];
+  clips: Clip[];
 }
 
 /**
@@ -128,7 +128,9 @@ export const BlurOverlayRenderer: React.FC<BlurOverlayRendererProps> = ({
       <div style={containerStyle}>
         <div style={innerStyle}>
           {clips.map((clip) => {
-            const clipDuration = clip.trimEndFrame - clip.trimStartFrame;
+            const clipDuration = clip.type === "image"
+              ? clip.displayDurationInFrames
+              : clip.trimEndFrame - clip.trimStartFrame;
             const relativeFrom = clip.startFrame - overlay.startFrame;
 
             return (
@@ -139,17 +141,28 @@ export const BlurOverlayRenderer: React.FC<BlurOverlayRendererProps> = ({
                 layout="none"
               >
                 {clip.src ? (
-                  <Video
-                    src={clip.src}
-                    startFrom={clip.trimStartFrame}
-                    volume={0}
-                    crossOrigin="anonymous"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
+                  clip.type === "image" ? (
+                    <Img
+                      src={clip.src}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: clip.objectFit,
+                      }}
+                    />
+                  ) : (
+                    <Video
+                      src={clip.src}
+                      startFrom={clip.trimStartFrame}
+                      volume={0}
+                      crossOrigin="anonymous"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
+                    />
+                  )
                 ) : null}
               </Sequence>
             );
