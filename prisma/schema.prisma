@@ -28,6 +28,7 @@ model User {
   avatarUrl                String?
   lastLoginAt              DateTime?
   isAdmin                  Boolean                   @default(false)
+  billingTransactions      BillingTransaction[]
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -48,7 +49,6 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
-  billingTransactions      BillingTransaction[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -480,8 +480,6 @@ model InstagramProfile {
   modelBible             Json?
   isFavorite             Boolean               @default(false)
   tags                   String[]              @default([])
-  isFavorite             Boolean               @default(false)
-  tags                   String[]              @default([])
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -882,19 +880,23 @@ model HashtagSet {
 }
 
 model VaultFolder {
-  id        String             @id @default(cuid())
-  clerkId   String
-  profileId String
-  name      String
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  isDefault Boolean            @default(false)
-  shares    VaultFolderShare[]
-  items     VaultItem[]
+  id                  String             @id @default(cuid())
+  clerkId             String
+  profileId           String
+  name                String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  isDefault           Boolean            @default(false)
+  parentId            String?
+  shares              VaultFolderShare[]
+  vault_folders       VaultFolder?       @relation("vault_foldersTovault_folders", fields: [parentId], references: [id], onDelete: Cascade)
+  other_vault_folders VaultFolder[]      @relation("vault_foldersTovault_folders")
+  items               VaultItem[]
 
   @@index([clerkId])
   @@index([profileId])
   @@index([clerkId, profileId])
+  @@index([parentId])
   @@map("vault_folders")
 }
 
@@ -1057,6 +1059,7 @@ model Organization {
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
   availableCredits     Int                           @default(0)
+  transactions         BillingTransaction[]
   customPermissions    CustomOrganizationPermission?
   gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
@@ -1064,7 +1067,6 @@ model Organization {
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
-  transactions         BillingTransaction[]
   usageLogs            UsageLog[]
   workspaces           Workspace[]
 
@@ -1170,7 +1172,7 @@ model WorkspaceMember {
 model UsageLog {
   id             String       @id @default(cuid())
   organizationId String
-  userId         String
+  userId         String?
   workspaceId    String?
   action         String
   resource       String
@@ -1189,7 +1191,6 @@ model UsageLog {
 model BillingTransaction {
   id                      String            @id @default(cuid())
   organizationId          String
-  userId                  String?
   type                    TransactionType
   status                  TransactionStatus @default(PENDING)
   amount                  Float
@@ -1206,8 +1207,9 @@ model BillingTransaction {
   failureReason           String?
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
+  userId                  String?
   organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user                    User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user                    User?             @relation(fields: [userId], references: [id])
 
   @@index([organizationId])
   @@index([organizationId, createdAt])
@@ -1280,7 +1282,6 @@ model reference_items {
   awsS3Key     String
   awsS3Url     String
   thumbnailUrl String?
-  fileHash     String?
   tags         String[]           @default([])
   usageCount   Int                @default(0)
   lastUsedAt   DateTime?
@@ -1565,40 +1566,21 @@ model pricing_history {
   @@index([changedById])
 }
 
-model gallery_items {
-  id               String        @id
-  organizationId   String?
-  previewUrl       String
-  thumbnailUrl     String?
-  originalAssetUrl String?
-  title            String?
-  contentType      String
-  tags             String[]      @default([])
-  platform         String
-  pricingAmount    Decimal?      @db.Decimal(10, 2)
-  modelId          String?
-  pipelineItemId   String?       @unique
-  captionUsed      String?
-  revenue          Decimal       @default(0) @db.Decimal(12, 2)
-  salesCount       Int           @default(0)
-  conversionRate   Decimal?      @db.Decimal(5, 4)
-  viewCount        Int           @default(0)
-  postedAt         DateTime
-  origin           String?
-  sourceId         String?
-  isArchived       Boolean       @default(false)
-  archivedAt       DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime
-  createdBy        String?
-  of_models        of_models?    @relation(fields: [modelId], references: [id])
-  organizations    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model FeatureCreditPricing {
+  id          String   @id @default(cuid())
+  featureKey  String   @unique
+  featureName String
+  category    String
+  credits     Int
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@index([contentType])
-  @@index([modelId])
-  @@index([organizationId])
-  @@index([platform])
-  @@index([postedAt])
+  @@index([featureKey])
+  @@index([category])
+  @@index([isActive])
+  @@map("feature_credit_pricing")
 }
 
 enum SyncStatus {
