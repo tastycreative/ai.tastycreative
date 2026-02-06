@@ -7,6 +7,10 @@ import { TimelineTrack } from "./TimelineTrack";
 import { TimelinePlayhead } from "./TimelinePlayhead";
 import { TimelineControls } from "./TimelineControls";
 import { framesToPixels, pixelsToFrames } from "@/lib/gif-maker/timeline-utils";
+import { Film, Layers, LayoutGrid } from "lucide-react";
+import type { TrackType } from "@/lib/gif-maker/types";
+
+const SLOT_COLORS = ["text-blue-400", "text-cyan-400", "text-emerald-400", "text-amber-400", "text-rose-400", "text-purple-400"];
 
 interface TimelineProps {
   onFrameChange: (frame: number) => void;
@@ -15,13 +19,15 @@ interface TimelineProps {
 
 export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const tracks = useVideoEditorStore((s) => s.tracks);
+  const getEffectiveTracks = useVideoEditorStore((s) => s.getEffectiveTracks);
   const totalDurationInFrames = useVideoEditorStore(
     (s) => s.totalDurationInFrames
   );
   const currentFrame = useVideoEditorStore((s) => s.currentFrame);
   const settings = useVideoEditorStore((s) => s.settings);
   const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
+
+  const effectiveTracks = getEffectiveTracks();
 
   const [isScrubbing, setIsScrubbing] = useState(false);
   const zoom = settings.timelineZoom;
@@ -95,13 +101,13 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
         <div className="w-32 min-w-[128px] flex-shrink-0 bg-[#141524] border-r border-[#252640] flex flex-col">
           {/* Ruler spacer */}
           <div className="h-7 border-b border-[#252640] flex-shrink-0" />
-          {tracks.map((track) => (
+          {effectiveTracks.map((track, i) => (
             <div
               key={track.id}
               className="h-10 flex items-center gap-2 px-3 border-b border-[#252640]/60 group hover:bg-[#1a1b2e] transition-colors duration-100"
             >
-              <TrackIcon type={track.type} />
-              <span className="text-[11px] font-medium text-[#8490b0] whitespace-nowrap overflow-hidden text-ellipsis">
+              <TrackIcon type={track.type} slotIndex={track.type === "slot" ? i : undefined} />
+              <span className="text-[11px] font-medium text-[#8490b0] whitespace-nowrap overflow-hidden text-ellipsis flex-1">
                 {track.label}
               </span>
             </div>
@@ -127,7 +133,7 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
               className="relative cursor-crosshair"
               onClick={handleTimelineClick}
             >
-              {tracks.map((track) => (
+              {effectiveTracks.map((track) => (
                 <TimelineTrack
                   key={track.id}
                   track={track}
@@ -139,7 +145,7 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
               <TimelinePlayhead
                 frame={currentFrame}
                 zoom={zoom}
-                height={tracks.length * trackHeight}
+                height={effectiveTracks.length * trackHeight}
               />
             </div>
           </div>
@@ -151,10 +157,11 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
 
 // ─── Track Icon ──────────────────────────────────────
 
-import { Film, Layers } from "lucide-react";
-import type { TrackType } from "@/lib/gif-maker/types";
-
-function TrackIcon({ type }: { type: TrackType }) {
+function TrackIcon({ type, slotIndex }: { type: TrackType; slotIndex?: number }) {
+  if (type === "slot") {
+    const colorClass = SLOT_COLORS[slotIndex ?? 0] || "text-blue-400";
+    return <LayoutGrid className={`h-3.5 w-3.5 flex-shrink-0 ${colorClass}`} />;
+  }
   if (type === "video") {
     return <Film className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />;
   }

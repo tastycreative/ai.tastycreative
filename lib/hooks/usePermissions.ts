@@ -7,6 +7,7 @@ import { useOrganization } from './useOrganization';
 export interface Permissions {
   // Tab Access
   hasGenerateTab: boolean;
+  hasContentTab: boolean;
   hasVaultTab: boolean;
   hasTrainingTab: boolean;
   hasInstagramTab: boolean;
@@ -104,6 +105,7 @@ interface UsePermissionsReturn {
 const LOADING_PERMISSIONS: Permissions = {
   // No tabs while loading
   hasGenerateTab: false,
+  hasContentTab: false,
   hasVaultTab: false,
   hasTrainingTab: false,
   hasInstagramTab: false,
@@ -174,6 +176,7 @@ const LOADING_PERMISSIONS: Permissions = {
 const DEFAULT_SOLO_PERMISSIONS: Permissions = {
   // No feature tabs for solo users
   hasGenerateTab: false,
+  hasContentTab: false,
   hasVaultTab: false,
   hasTrainingTab: false,
   hasInstagramTab: false,

@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
         permissions: {
           // No feature tabs for users without organization
           hasGenerateTab: false,
+          hasContentTab: false,
           hasVaultTab: false,
           hasTrainingTab: false,
           hasInstagramTab: false,

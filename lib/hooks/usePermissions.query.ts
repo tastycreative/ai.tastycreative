@@ -7,6 +7,7 @@ import { useOrganization } from './useOrganization.query';
 export interface Permissions {
   // Tab Access
   hasGenerateTab: boolean;
+  hasContentTab: boolean;
   hasVaultTab: boolean;
   hasTrainingTab: boolean;
   hasInstagramTab: boolean;
@@ -127,6 +128,7 @@ async function fetchPermissions(): Promise<PermissionsResponse> {
 // Loading permissions - all features disabled while loading
 const LOADING_PERMISSIONS: Permissions = {
   hasGenerateTab: false,
+  hasContentTab: false,
   hasVaultTab: false,
   hasTrainingTab: false,
   hasInstagramTab: false,

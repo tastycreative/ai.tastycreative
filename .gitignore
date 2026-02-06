@@ -88,3 +88,4 @@ extra_model_paths.yaml
 .cursor/
 .gemini/
 .opencode/
+CLAUDE.md

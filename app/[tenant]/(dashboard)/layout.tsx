@@ -117,27 +117,31 @@ export default function DashboardLayout({
       href: `/${tenant}/workspace/my-influencers`,
       icon: Users,
     },
-    {
-      name: "Content Ops",
-      collapsible: true,
-      items: [
-        {
-          name: "OF Models",
-          href: `/${tenant}/of-models`,
-          icon: UserCheck,
-        },
-        {
-          name: "Gallery",
-          href: `/${tenant}/gallery`,
-          icon: ImageIcon,
-        },
-        {
-          name: "GIF Maker",
-          href: `/${tenant}/gif-maker`,
-          icon: Film,
-        },
-      ],
-    },
+    ...(permissions.hasContentTab
+      ? [
+          {
+            name: "Content Ops",
+            collapsible: true,
+            items: [
+              {
+                name: "OF Models",
+                href: `/${tenant}/of-models`,
+                icon: UserCheck,
+              },
+              {
+                name: "Gallery",
+                href: `/${tenant}/gallery`,
+                icon: ImageIcon,
+              },
+              {
+                name: "GIF Maker",
+                href: `/${tenant}/gif-maker`,
+                icon: Film,
+              },
+            ],
+          },
+        ]
+      : []),
     {
       name: "Vault",
       href: `/${tenant}/workspace/vault`,
