@@ -1886,7 +1886,6 @@ enum PricingItemType {
   MINIMUM
 }
 
-<<<<<<< HEAD
 enum TransactionStatus {
   PENDING
   COMPLETED
