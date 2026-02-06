@@ -108,6 +108,11 @@ export default function AdminLayout({
       href: `/${tenant}/admin/plans`,
       icon: CreditCard,
     },
+    {
+      name: "Feature Pricing",
+      href: `/${tenant}/admin/feature-pricing`,
+      icon: Zap,
+    },
   ] : [];
 
   // Common navigation items

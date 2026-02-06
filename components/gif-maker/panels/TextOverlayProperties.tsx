@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import type { TextOverlay, TextAnimation } from "@/lib/gif-maker/types";
 
@@ -7,12 +8,171 @@ const TEXT_ANIMATIONS: { value: TextAnimation; label: string }[] = [
   { value: "none", label: "None" },
   { value: "fade-in", label: "Fade In" },
   { value: "slide-up", label: "Slide Up" },
+  { value: "slide-down", label: "Slide Down" },
+  { value: "slide-left", label: "Slide Left" },
+  { value: "slide-right", label: "Slide Right" },
   { value: "typewriter", label: "Typewriter" },
   { value: "scale-in", label: "Scale In" },
+  { value: "bounce", label: "Bounce" },
+  { value: "blur-in", label: "Blur In" },
+  { value: "glow", label: "Glow" },
+  { value: "pop", label: "Pop" },
+];
+
+const FONT_FAMILIES = [
+  { value: "system-ui", label: "System" },
+  { value: "Inter", label: "Inter" },
+  { value: "Arial", label: "Arial" },
+  { value: "Georgia", label: "Georgia" },
+  { value: "Times New Roman", label: "Times" },
+  { value: "Courier New", label: "Courier" },
+  { value: "Impact", label: "Impact" },
+  { value: "Comic Sans MS", label: "Comic Sans" },
+  { value: "Trebuchet MS", label: "Trebuchet" },
+  { value: "Verdana", label: "Verdana" },
+  { value: "Palatino", label: "Palatino" },
+  { value: "Futura", label: "Futura" },
+];
+
+interface TextStylePreset {
+  id: string;
+  label: string;
+  props: Partial<TextOverlay>;
+}
+
+const TEXT_STYLE_PRESETS: TextStylePreset[] = [
+  {
+    id: "classic",
+    label: "Classic",
+    props: {
+      fontFamily: "system-ui",
+      fontWeight: 700,
+      color: "#ffffff",
+      backgroundColor: "rgba(0,0,0,0.5)",
+      backgroundOpacity: 0.5,
+      strokeWidth: 0,
+      shadowBlur: 0,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      borderRadius: 4,
+    },
+  },
+  {
+    id: "neon",
+    label: "Neon",
+    props: {
+      color: "#39FF14",
+      backgroundColor: "transparent",
+      backgroundOpacity: 0,
+      strokeWidth: 0,
+      shadowColor: "#39FF14",
+      shadowBlur: 20,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+    },
+  },
+  {
+    id: "bold",
+    label: "Bold",
+    props: {
+      fontWeight: 900,
+      fontSize: 64,
+      color: "#ffffff",
+      backgroundColor: "transparent",
+      backgroundOpacity: 0,
+      strokeWidth: 3,
+      strokeColor: "#000000",
+      shadowBlur: 0,
+    },
+  },
+  {
+    id: "outline",
+    label: "Outline",
+    props: {
+      color: "transparent",
+      strokeWidth: 3,
+      strokeColor: "#ffffff",
+      backgroundColor: "transparent",
+      backgroundOpacity: 0,
+      shadowBlur: 0,
+    },
+  },
+  {
+    id: "shadow",
+    label: "Shadow",
+    props: {
+      color: "#ffffff",
+      backgroundColor: "transparent",
+      backgroundOpacity: 0,
+      strokeWidth: 0,
+      shadowOffsetX: 3,
+      shadowOffsetY: 3,
+      shadowBlur: 0,
+      shadowColor: "#000000",
+    },
+  },
+  {
+    id: "retro",
+    label: "Retro",
+    props: {
+      fontFamily: "Georgia",
+      color: "#FFD700",
+      backgroundColor: "#8B0000",
+      backgroundOpacity: 1,
+      borderRadius: 0,
+      strokeWidth: 0,
+      shadowBlur: 0,
+    },
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    props: {
+      fontWeight: 300,
+      fontSize: 36,
+      color: "#ffffff",
+      backgroundColor: "transparent",
+      backgroundOpacity: 0,
+      strokeWidth: 0,
+      shadowBlur: 0,
+    },
+  },
+  {
+    id: "tag",
+    label: "Tag",
+    props: {
+      fontSize: 24,
+      fontWeight: 600,
+      backgroundColor: "#3b82f6",
+      backgroundOpacity: 1,
+      color: "#ffffff",
+      borderRadius: 20,
+      strokeWidth: 0,
+      shadowBlur: 0,
+    },
+  },
 ];
 
 const inputClass =
   "w-full h-7 px-2 bg-[#1a1b2e] border border-[#252640] rounded text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-[#3b82f6] focus:ring-1 focus:ring-[rgba(59,130,246,0.3)] outline-none transition-all duration-150";
+
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-t border-[#252640] pt-2.5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-[#4d5578] hover:text-[#8490b0] transition-colors"
+      >
+        {title}
+        <svg className={`w-3 h-3 transition-transform ${open ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && <div className="mt-2 space-y-2.5">{children}</div>}
+    </div>
+  );
+}
 
 interface TextOverlayPropertiesProps {
   overlay: TextOverlay;
@@ -25,10 +185,32 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
     updateOverlay(overlay.id, updates);
   };
 
+  // Resolve optional fields with defaults
+  const letterSpacing = overlay.letterSpacing ?? 0;
+  const lineHeight = overlay.lineHeight ?? 1.3;
+  const textTransform = overlay.textTransform ?? "none";
+  const opacity = overlay.opacity ?? 1;
+  const borderRadius = overlay.borderRadius ?? 4;
+  const backgroundOpacity = overlay.backgroundOpacity ?? 0.5;
+  const strokeWidth = overlay.strokeWidth ?? 0;
+  const strokeColor = overlay.strokeColor ?? "#000000";
+  const shadowOffsetX = overlay.shadowOffsetX ?? 0;
+  const shadowOffsetY = overlay.shadowOffsetY ?? 0;
+  const shadowBlur = overlay.shadowBlur ?? 0;
+  const shadowColor = overlay.shadowColor ?? "rgba(0,0,0,0.5)";
+
+  // Extract hex from shadowColor for color input
+  const shadowColorHex = shadowColor.startsWith("rgba")
+    ? "#000000"
+    : shadowColor.startsWith("#")
+      ? shadowColor
+      : "#000000";
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h4 className="text-sm font-medium text-[#e6e8f0]">Text Overlay</h4>
 
+      {/* Text Input */}
       <div className="space-y-1.5">
         <label className="text-xs text-[#8490b0]">Text</label>
         <textarea
@@ -39,54 +221,265 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
         />
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Font Size: {overlay.fontSize}px</label>
-        <input
-          type="range"
-          min={12}
-          max={120}
-          value={overlay.fontSize}
-          onChange={(e) => update({ fontSize: Number(e.target.value) })}
-          className="w-full h-1.5 accent-[#3b82f6]"
-        />
-      </div>
+      {/* Style Presets */}
+      <Section title="Style Presets" defaultOpen={true}>
+        <div className="flex flex-wrap gap-1">
+          {TEXT_STYLE_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              onClick={() => update(preset.props)}
+              className="px-2 py-1 rounded text-[10px] font-medium bg-[#1a1b2e] text-[#8490b0] hover:bg-[#1e2038] hover:text-[#e6e8f0] border border-[#252640] hover:border-[#354065] transition-all duration-150"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </Section>
 
-      <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Weight: {overlay.fontWeight}</label>
-        <input
-          type="range"
-          min={100}
-          max={900}
-          step={100}
-          value={overlay.fontWeight}
-          onChange={(e) => update({ fontWeight: Number(e.target.value) })}
-          className="w-full h-1.5 accent-[#3b82f6]"
-        />
-      </div>
+      {/* Font */}
+      <Section title="Font" defaultOpen={true}>
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Family</label>
+          <select
+            value={overlay.fontFamily}
+            onChange={(e) => update({ fontFamily: e.target.value })}
+            className={inputClass}
+          >
+            {FONT_FAMILIES.map((f) => (
+              <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className="text-xs text-[#8490b0]">Color</label>
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Size: {overlay.fontSize}px</label>
           <input
-            type="color"
-            value={overlay.color}
-            onChange={(e) => update({ color: e.target.value })}
-            className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            type="range"
+            min={12}
+            max={120}
+            value={overlay.fontSize}
+            onChange={(e) => update({ fontSize: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-xs text-[#8490b0]">Background</label>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Weight: {overlay.fontWeight}</label>
           <input
-            type="color"
-            value={overlay.backgroundColor.startsWith("rgba") ? "#000000" : overlay.backgroundColor}
-            onChange={(e) => update({ backgroundColor: e.target.value })}
-            className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            type="range"
+            min={100}
+            max={900}
+            step={100}
+            value={overlay.fontWeight}
+            onChange={(e) => update({ fontWeight: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
           />
         </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Align</label>
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Transform</label>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              { value: "none", label: "Aa" },
+              { value: "uppercase", label: "AA" },
+              { value: "lowercase", label: "aa" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => update({ textTransform: opt.value })}
+                className={`px-2 py-1.5 text-xs rounded transition-colors duration-150 ${
+                  textTransform === opt.value
+                    ? "bg-[#3b82f6] text-white"
+                    : "bg-[#1a1b2e] text-[#8490b0] hover:bg-[#1e2038] hover:text-[#e6e8f0] border border-[#252640]"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* Spacing */}
+      <Section title="Spacing" defaultOpen={false}>
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Letter Spacing: {letterSpacing}px</label>
+          <input
+            type="range"
+            min={-5}
+            max={20}
+            step={0.5}
+            value={letterSpacing}
+            onChange={(e) => update({ letterSpacing: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Line Height: {lineHeight.toFixed(1)}</label>
+          <input
+            type="range"
+            min={0.8}
+            max={3}
+            step={0.1}
+            value={lineHeight}
+            onChange={(e) => update({ lineHeight: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+      </Section>
+
+      {/* Color */}
+      <Section title="Color" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-[#8490b0]">Text</label>
+            <input
+              type="color"
+              value={overlay.color === "transparent" ? "#000000" : overlay.color}
+              onChange={(e) => update({ color: e.target.value })}
+              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[#8490b0]">Background</label>
+            <input
+              type="color"
+              value={
+                overlay.backgroundColor === "transparent"
+                  ? "#000000"
+                  : overlay.backgroundColor.startsWith("rgba")
+                    ? "#000000"
+                    : overlay.backgroundColor
+              }
+              onChange={(e) => update({ backgroundColor: e.target.value })}
+              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Bg Opacity: {Math.round(backgroundOpacity * 100)}%</label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={backgroundOpacity}
+            onChange={(e) => update({ backgroundOpacity: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+      </Section>
+
+      {/* Effects */}
+      <Section title="Effects" defaultOpen={false}>
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Stroke Width: {strokeWidth}px</label>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.5}
+            value={strokeWidth}
+            onChange={(e) => update({ strokeWidth: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+
+        {strokeWidth > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs text-[#8490b0]">Stroke Color</label>
+            <input
+              type="color"
+              value={strokeColor}
+              onChange={(e) => update({ strokeColor: e.target.value })}
+              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            />
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Shadow</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="space-y-0.5">
+              <label className="text-[9px] text-[#4d5578]">X</label>
+              <input
+                type="number"
+                min={-20}
+                max={20}
+                value={shadowOffsetX}
+                onChange={(e) => update({ shadowOffsetX: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-0.5">
+              <label className="text-[9px] text-[#4d5578]">Y</label>
+              <input
+                type="number"
+                min={-20}
+                max={20}
+                value={shadowOffsetY}
+                onChange={(e) => update({ shadowOffsetY: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-0.5">
+              <label className="text-[9px] text-[#4d5578]">Blur</label>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={shadowBlur}
+                onChange={(e) => update({ shadowBlur: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+          </div>
+        </div>
+
+        {(shadowOffsetX !== 0 || shadowOffsetY !== 0 || shadowBlur !== 0) && (
+          <div className="space-y-1">
+            <label className="text-xs text-[#8490b0]">Shadow Color</label>
+            <input
+              type="color"
+              value={shadowColorHex}
+              onChange={(e) => update({ shadowColor: e.target.value })}
+              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            />
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Opacity: {Math.round(opacity * 100)}%</label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={opacity}
+            onChange={(e) => update({ opacity: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-[#8490b0]">Border Radius: {borderRadius}px</label>
+          <input
+            type="range"
+            min={0}
+            max={40}
+            value={borderRadius}
+            onChange={(e) => update({ borderRadius: Number(e.target.value) })}
+            className="w-full h-1.5 accent-[#3b82f6]"
+          />
+        </div>
+      </Section>
+
+      {/* Alignment */}
+      <Section title="Alignment" defaultOpen={true}>
         <div className="grid grid-cols-3 gap-1">
           {(["left", "center", "right"] as const).map((align) => (
             <button
@@ -102,43 +495,44 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             </button>
           ))}
         </div>
-      </div>
+      </Section>
 
-      <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Animation</label>
-        <select
-          value={overlay.animation}
-          onChange={(e) => update({ animation: e.target.value as TextAnimation })}
-          className={inputClass}
-        >
-          {TEXT_ANIMATIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {overlay.animation !== "none" && (
+      {/* Animation */}
+      <Section title="Animation" defaultOpen={true}>
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">
-            Animation Duration: {overlay.animationDurationFrames}f
-          </label>
-          <input
-            type="range"
-            min={5}
-            max={60}
-            value={overlay.animationDurationFrames}
-            onChange={(e) => update({ animationDurationFrames: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
-          />
+          <label className="text-xs text-[#8490b0]">Type</label>
+          <select
+            value={overlay.animation}
+            onChange={(e) => update({ animation: e.target.value as TextAnimation })}
+            className={inputClass}
+          >
+            {TEXT_ANIMATIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
 
-      <div className="space-y-2.5 pt-3 border-t border-[#252640]">
-        <h5 className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">
-          Timing
-        </h5>
+        {overlay.animation !== "none" && (
+          <div className="space-y-1.5">
+            <label className="text-xs text-[#8490b0]">
+              Duration: {overlay.animationDurationFrames}f
+            </label>
+            <input
+              type="range"
+              min={5}
+              max={60}
+              value={overlay.animationDurationFrames}
+              onChange={(e) => update({ animationDurationFrames: Number(e.target.value) })}
+              className="w-full h-1.5 accent-[#3b82f6]"
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* Timing */}
+      <Section title="Timing" defaultOpen={true}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-[10px] text-[#4d5578]">Start Frame</label>
@@ -161,7 +555,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             />
           </div>
         </div>
-      </div>
+      </Section>
     </div>
   );
 }

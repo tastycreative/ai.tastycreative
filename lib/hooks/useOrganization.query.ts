@@ -11,6 +11,7 @@ export interface Organization {
   subscriptionPlanId?: string;
   subscriptionStatus: string;
   role: string;
+  availableCredits?: number;
 }
 
 interface OrganizationsResponse {

@@ -93,7 +93,7 @@ export function DraggableOverlay({
       className={`absolute cursor-move transition-shadow duration-150 ${
         isSelected
           ? "ring-2 ring-blue-400 shadow-[0_0_16px_rgba(99,102,241,0.4)]"
-          : "ring-1 ring-white/20 hover:ring-white/50"
+          : "hover:ring-1 hover:ring-white/50"
       }`}
       style={{
         left: `${overlay.x}%`,
