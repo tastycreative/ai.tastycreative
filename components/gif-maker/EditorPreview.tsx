@@ -4,7 +4,7 @@ import { forwardRef, useMemo, useCallback } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { PreviewPlayer, type PreviewPlayerRef } from "./PreviewPlayer";
 import { CanvasOverlayLayer } from "./overlays/CanvasOverlayLayer";
-import type { VideoClip, Transition, Overlay } from "@/lib/gif-maker/types";
+import type { Clip, Transition, Overlay, CollageLayout } from "@/lib/gif-maker/types";
 
 interface EditorPreviewProps {
   width: number;
@@ -14,9 +14,10 @@ interface EditorPreviewProps {
 }
 
 export interface ClipEditorInputProps {
-  clips: VideoClip[];
+  clips: Clip[];
   transitions: Transition[];
   overlays: Overlay[];
+  activeCollageLayout?: CollageLayout | null;
 }
 
 export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
@@ -24,6 +25,7 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
     const clips = useVideoEditorStore((s) => s.clips);
     const transitions = useVideoEditorStore((s) => s.transitions);
     const overlays = useVideoEditorStore((s) => s.overlays);
+    const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
     const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
     const setPlaying = useVideoEditorStore((s) => s.setPlaying);
 
@@ -48,8 +50,9 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
         clips,
         transitions,
         overlays,
+        activeCollageLayout,
       }),
-      [clips, transitions, overlays]
+      [clips, transitions, overlays, activeCollageLayout]
     );
 
     return (

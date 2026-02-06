@@ -30,6 +30,14 @@ export const PLAN_FEATURES: FeatureDefinition[] = [
     defaultValue: true,
   },
   {
+    key: 'hasContentTab',
+    label: 'Content Ops',
+    description: 'OF Models, Gallery & GIF Maker for content team',
+    category: 'tab',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
     key: 'hasVaultTab',
     label: 'Workspace (Vault)',
     description: 'Media storage & organization',

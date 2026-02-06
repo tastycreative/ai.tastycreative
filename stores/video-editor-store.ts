@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type {
   VideoClip,
+  ImageClip,
+  Clip,
+  CollageLayout,
   Transition,
   Overlay,
   Track,
@@ -9,7 +12,7 @@ import type {
   TransitionType,
   PlatformPreset,
 } from "@/lib/gif-maker/types";
-import { PLATFORM_DIMENSIONS } from "@/lib/gif-maker/types";
+import { PLATFORM_DIMENSIONS, COLLAGE_PRESETS } from "@/lib/gif-maker/types";
 import {
   computeClipStartFrames,
   computeTotalDuration,
@@ -17,7 +20,7 @@ import {
 
 interface VideoEditorState {
   // Data
-  clips: VideoClip[];
+  clips: Clip[];
   transitions: Transition[];
   overlays: Overlay[];
   tracks: Track[];
@@ -39,9 +42,9 @@ interface VideoEditorState {
   exportState: ExportState;
 
   // ─── Clip Actions ──────────────────
-  addClip: (clip: Omit<VideoClip, "startFrame">) => void;
+  addClip: (clip: Omit<VideoClip, "startFrame"> | Omit<ImageClip, "startFrame">) => void;
   removeClip: (clipId: string) => void;
-  updateClip: (clipId: string, updates: Partial<VideoClip>) => void;
+  updateClip: (clipId: string, updates: Partial<VideoClip> | Partial<ImageClip>) => void;
   reorderClips: (fromIndex: number, toIndex: number) => void;
 
   // ─── Transition Actions ────────────
@@ -62,6 +65,11 @@ interface VideoEditorState {
   addTrack: (track: Track) => void;
   removeTrack: (trackId: string) => void;
   updateTrack: (trackId: string, updates: Partial<Track>) => void;
+
+  // ─── Collage Actions ────────────────
+  setCollageLayout: (layout: CollageLayout | null) => void;
+  moveClipToSlot: (clipId: string, slotIndex: number) => void;
+  getEffectiveTracks: () => Track[];
 
   // ─── Playback Actions ──────────────
   setPlaying: (playing: boolean) => void;
@@ -94,6 +102,7 @@ const DEFAULT_SETTINGS: EditorSettings = {
   timelineZoom: 2,
   snapEnabled: true,
   snapThresholdFrames: 5,
+  activeCollageLayout: null,
 };
 
 const DEFAULT_EXPORT_STATE: ExportState = {
@@ -151,11 +160,11 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
   // ─── Clip Actions ──────────────────
 
   addClip: (clip) => {
-    const newClip: VideoClip = {
-      ...clip,
-      id: clip.id || generateClipId(),
-      startFrame: 0, // will be recalculated
-    };
+    const id = clip.id || generateClipId();
+    const slotIndex = clip.slotIndex ?? 0;
+    const newClip: Clip = clip.type === "image"
+      ? { ...clip, id, startFrame: 0, slotIndex } as ImageClip
+      : { ...clip, type: "video" as const, id, startFrame: 0, slotIndex } as VideoClip;
     set((state) => ({
       clips: [...state.clips, newClip],
     }));
@@ -177,7 +186,7 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
   updateClip: (clipId, updates) => {
     set((state) => ({
       clips: state.clips.map((c) =>
-        c.id === clipId ? { ...c, ...updates } : c
+        c.id === clipId ? ({ ...c, ...updates } as Clip) : c
       ),
     }));
     get().recalculateTimeline();
@@ -278,6 +287,47 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
         t.id === trackId ? { ...t, ...updates } : t
       ),
     }));
+  },
+
+  // ─── Collage Actions ────────────────
+
+  setCollageLayout: (layout) => {
+    set((state) => ({
+      settings: { ...state.settings, activeCollageLayout: layout },
+    }));
+    // When switching to null (no layout), move all clips to slot 0
+    if (layout === null) {
+      set((state) => ({
+        clips: state.clips.map((c) => ({ ...c, slotIndex: 0 }) as Clip),
+      }));
+    }
+    get().recalculateTimeline();
+  },
+
+  moveClipToSlot: (clipId, slotIndex) => {
+    set((state) => ({
+      clips: state.clips.map((c) =>
+        c.id === clipId ? { ...c, slotIndex } as Clip : c
+      ),
+    }));
+    get().recalculateTimeline();
+  },
+
+  getEffectiveTracks: () => {
+    const { settings, tracks } = get();
+    if (settings.activeCollageLayout) {
+      const preset = COLLAGE_PRESETS[settings.activeCollageLayout];
+      const slotTracks: Track[] = preset.slots.map((_, i) => ({
+        id: `slot-${i}`,
+        type: "slot" as const,
+        label: `Slot ${i + 1}`,
+        locked: false,
+        visible: true,
+      }));
+      const overlayTracks = tracks.filter((t) => t.type === "overlay");
+      return [...slotTracks, ...overlayTracks];
+    }
+    return tracks;
   },
 
   // ─── Playback Actions ──────────────

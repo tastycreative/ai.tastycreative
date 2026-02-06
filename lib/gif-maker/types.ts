@@ -31,7 +31,7 @@ export interface BlurRegion {
 }
 
 // Output format options
-export type OutputFormat = "gif";
+export type OutputFormat = "gif" | "png" | "jpg";
 
 // Render request schema
 export const RenderRequestSchema = z.object({
@@ -56,7 +56,162 @@ export interface RenderResponse {
 
 // ─── Video Editor Types ─────────────────────────────────────────────
 
+// Position for clips in collage slots (percentage-based)
+export interface ClipPosition {
+  x: number; // 0-100 percentage
+  y: number; // 0-100 percentage
+  width: number; // 0-100 percentage
+  height: number; // 0-100 percentage
+}
+
+// ─── Collage Layout System ──────────────────────────────────────────
+
+export type CollageLayout =
+  | "split-h-50"
+  | "split-v-50"
+  | "split-h-70-30"
+  | "split-h-30-70"
+  | "3-col"
+  | "1-top-2-bottom"
+  | "2-left-1-right"
+  | "grid-2x2"
+  | "pip-top-left"
+  | "pip-top-right"
+  | "pip-bottom-left"
+  | "pip-bottom-right";
+
+export interface CollagePreset {
+  label: string;
+  category: "split" | "grid" | "pip";
+  slotCount: number;
+  slots: ClipPosition[];
+}
+
+export const COLLAGE_PRESETS: Record<CollageLayout, CollagePreset> = {
+  // 2-slot splits
+  "split-h-50": {
+    label: "Split H 50/50",
+    category: "split",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 50, height: 100 },
+      { x: 50, y: 0, width: 50, height: 100 },
+    ],
+  },
+  "split-v-50": {
+    label: "Split V 50/50",
+    category: "split",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 50 },
+      { x: 0, y: 50, width: 100, height: 50 },
+    ],
+  },
+  "split-h-70-30": {
+    label: "Split H 70/30",
+    category: "split",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 70, height: 100 },
+      { x: 70, y: 0, width: 30, height: 100 },
+    ],
+  },
+  "split-h-30-70": {
+    label: "Split H 30/70",
+    category: "split",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 30, height: 100 },
+      { x: 30, y: 0, width: 70, height: 100 },
+    ],
+  },
+
+  // 3-slot layouts
+  "3-col": {
+    label: "3 Columns",
+    category: "grid",
+    slotCount: 3,
+    slots: [
+      { x: 0, y: 0, width: 33.33, height: 100 },
+      { x: 33.33, y: 0, width: 33.34, height: 100 },
+      { x: 66.67, y: 0, width: 33.33, height: 100 },
+    ],
+  },
+  "1-top-2-bottom": {
+    label: "1 Top, 2 Bottom",
+    category: "grid",
+    slotCount: 3,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 50 },
+      { x: 0, y: 50, width: 50, height: 50 },
+      { x: 50, y: 50, width: 50, height: 50 },
+    ],
+  },
+  "2-left-1-right": {
+    label: "2 Left, 1 Right",
+    category: "grid",
+    slotCount: 3,
+    slots: [
+      { x: 0, y: 0, width: 50, height: 50 },
+      { x: 0, y: 50, width: 50, height: 50 },
+      { x: 50, y: 0, width: 50, height: 100 },
+    ],
+  },
+
+  // 4-slot grid
+  "grid-2x2": {
+    label: "Grid 2x2",
+    category: "grid",
+    slotCount: 4,
+    slots: [
+      { x: 0, y: 0, width: 50, height: 50 },
+      { x: 50, y: 0, width: 50, height: 50 },
+      { x: 0, y: 50, width: 50, height: 50 },
+      { x: 50, y: 50, width: 50, height: 50 },
+    ],
+  },
+
+  // PiP (2-slot, slot 0 = full, slot 1 = small)
+  "pip-top-left": {
+    label: "PiP Top Left",
+    category: "pip",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 100 },
+      { x: 3, y: 3, width: 30, height: 30 },
+    ],
+  },
+  "pip-top-right": {
+    label: "PiP Top Right",
+    category: "pip",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 100 },
+      { x: 67, y: 3, width: 30, height: 30 },
+    ],
+  },
+  "pip-bottom-left": {
+    label: "PiP Bottom Left",
+    category: "pip",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 100 },
+      { x: 3, y: 67, width: 30, height: 30 },
+    ],
+  },
+  "pip-bottom-right": {
+    label: "PiP Bottom Right",
+    category: "pip",
+    slotCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 100, height: 100 },
+      { x: 67, y: 67, width: 30, height: 30 },
+    ],
+  },
+};
+
 export interface VideoClip {
+  type: "video";
   id: string;
   src: string; // video URL or blob URL
   name: string;
@@ -65,7 +220,21 @@ export interface VideoClip {
   trimEndFrame: number; // trim end (relative to clip)
   startFrame: number; // computed position on timeline
   volume: number; // 0-1
+  slotIndex?: number; // which collage slot (0-based). undefined = slot 0
 }
+
+export interface ImageClip {
+  type: "image";
+  id: string;
+  src: string; // image URL or blob URL
+  name: string;
+  displayDurationInFrames: number; // how long to show the image
+  startFrame: number; // computed position on timeline
+  objectFit: "contain" | "cover";
+  slotIndex?: number; // which collage slot (0-based). undefined = slot 0
+}
+
+export type Clip = VideoClip | ImageClip;
 
 export type TransitionType = "none" | "fade" | "slide-left" | "slide-right" | "wipe" | "crossfade";
 
@@ -79,7 +248,21 @@ export interface Transition {
 
 export type OverlayType = "text" | "blur" | "sticker" | "shape";
 
-export type TextAnimation = "none" | "fade-in" | "slide-up" | "typewriter" | "scale-in";
+export type TextAnimation =
+  | "none"
+  | "fade-in"
+  | "slide-up"
+  | "slide-down"
+  | "slide-left"
+  | "slide-right"
+  | "typewriter"
+  | "scale-in"
+  | "bounce"
+  | "blur-in"
+  | "glow"
+  | "pop";
+
+export type StickerAnimation = "none" | "bounce" | "spin" | "pulse" | "wobble" | "float";
 
 export interface OverlayBase {
   id: string;
@@ -104,6 +287,18 @@ export interface TextOverlay extends OverlayBase {
   textAlign: "left" | "center" | "right";
   animation: TextAnimation;
   animationDurationFrames: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase";
+  opacity?: number;
+  borderRadius?: number;
+  backgroundOpacity?: number;
+  strokeWidth?: number;
+  strokeColor?: string;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowBlur?: number;
+  shadowColor?: string;
 }
 
 export type BlurMode = "gaussian" | "pixelate" | "solid" | "heavy";
@@ -126,6 +321,10 @@ export interface StickerOverlay extends OverlayBase {
   isEmoji: boolean;
   rotation: number; // degrees
   opacity: number; // 0-1
+  animation?: StickerAnimation;
+  animationDurationFrames?: number;
+  flipH?: boolean;
+  flipV?: boolean;
 }
 
 export type ShapeType = "rect" | "circle" | "line" | "arrow";
@@ -142,7 +341,7 @@ export interface ShapeOverlay extends OverlayBase {
 
 export type Overlay = TextOverlay | BlurOverlay | StickerOverlay | ShapeOverlay;
 
-export type TrackType = "video" | "overlay";
+export type TrackType = "video" | "slot" | "overlay";
 
 export interface Track {
   id: string;
@@ -160,6 +359,7 @@ export interface EditorSettings {
   timelineZoom: number; // pixels per frame
   snapEnabled: boolean;
   snapThresholdFrames: number;
+  activeCollageLayout: CollageLayout | null; // null = no layout (single full-screen)
 }
 
 export interface ExportState {
