@@ -31,6 +31,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
   '/api/webhook(.*)', // ✅ Add singular webhook routes (fps-boost, flux-kontext, etc.)
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
+  '/api/billing/webhook', // ✅ Stripe billing webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
   '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler
   '/api/influencers/training-complete(.*)', // ✅ Add training complete endpoint for RunPod handler
@@ -89,8 +90,18 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
   
-  // Handle remaining API routes that need auth
+  // Handle API routes
   if (req.nextUrl.pathname.startsWith('/api/')) {
+    // Skip middleware auth for truly public API routes (including webhooks)
+    if (isPublicApiRoute(req)) {
+      return;
+    }
+
+    // Skip middleware auth for routes that handle their own authentication
+    if (isCustomAuthApiRoute(req)) {
+      return;
+    }
+
     // For other API routes, check auth but don't call protect() to avoid method issues
     if (!userId) {
       return NextResponse.json(

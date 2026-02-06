@@ -88,6 +88,7 @@ export interface SubscriptionInfo {
   monthlyCredits: number;
   currentStorageGB: number;
   creditsUsedThisMonth: number;
+  availableCredits: number;
   trialEndsAt?: Date;
   currentPeriodEnd?: Date;
 }
@@ -299,7 +300,7 @@ export function usePermissions(): UsePermissionsReturn {
       case 'storage':
         return subscriptionInfo.currentStorageGB >= subscriptionInfo.maxStorageGB;
       case 'credits':
-        return subscriptionInfo.creditsUsedThisMonth >= subscriptionInfo.monthlyCredits;
+        return subscriptionInfo.availableCredits <= 0;
       // For members, profiles, workspaces - would need separate API calls to check current counts
       default:
         return false;

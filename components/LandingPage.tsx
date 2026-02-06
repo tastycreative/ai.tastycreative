@@ -18,6 +18,7 @@ import { AuthButtons } from "@/components/auth/auth-buttons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Link from "next/link";
 import { SignInButton } from "@clerk/nextjs";
+import { PRICING_PLANS } from "@/lib/pricing-data";
 
 export default function LandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -574,66 +575,7 @@ export default function LandingPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-8">
-          {[
-            {
-              name: "STARTER PLAN",
-              price: "$79",
-              period: "/month",
-              credits: "125 Credits included",
-              features: [
-                "1 custom character",
-                "Basic AI content generation",
-                "Standard support",
-                "Basic analytics",
-                "Social media optimization",
-                "Content calendar access",
-              ],
-            },
-            {
-              name: "GROWTH PLAN",
-              price: "$299",
-              period: "/month",
-              credits: "750 Credits included",
-              badge: "Save 15% compared to Starter",
-              features: [
-                "3 custom characters",
-                "Advanced AI content generation",
-                "Priority support",
-                "Advanced analytics",
-                "Enhanced social media optimization",
-                "Advanced content calendar",
-              ],
-            },
-            {
-              name: "PRO PLAN",
-              price: "$699",
-              period: "/month",
-              credits: "1500 Credits included",
-              badge: "Save 30% compared to Starter",
-              features: [
-                "10 custom characters",
-                "Premium AI content generation",
-                "24/7 priority support",
-                "Advanced analytics & insights",
-                "Full social media optimization",
-                "Advanced content calendar",
-                "Custom branding & templates",
-              ],
-            },
-            {
-              name: "ENTERPRISE PLAN",
-              price: "Custom",
-              period: "",
-              credits:
-                "Need a tailored solution for your organization? Let's build something amazing together.",
-              features: [
-                "Customized for your needs",
-                "Scalable solutions",
-                "Dedicated support team",
-              ],
-              cta: "Get in Touch",
-            },
-          ].map((plan, index) => (
+          {PRICING_PLANS.map((plan, index) => (
             <div
               key={index}
               className="bg-gray-100/40 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-800 rounded-2xl p-6 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-300 relative overflow-visible shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col"
@@ -647,7 +589,7 @@ export default function LandingPage() {
               )}
               <div className="text-center mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  {plan.name}
+                  {plan.displayName || plan.name}
                 </h3>
                 <div className="mb-2">
                   <span className="text-3xl font-bold text-gray-900 dark:text-white">

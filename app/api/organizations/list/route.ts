@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
             logoUrl: true,
             subscriptionStatus: true,
             subscriptionPlanId: true,
+            availableCredits: true,
           },
         },
       },
@@ -78,6 +79,7 @@ export async function GET(req: NextRequest) {
       logoUrl: membership.organization.logoUrl,
       subscriptionStatus: membership.organization.subscriptionStatus,
       role: membership.role,
+      availableCredits: membership.organization.availableCredits,
     }));
 
     // Get current organization details
@@ -95,6 +97,7 @@ export async function GET(req: NextRequest) {
           logoUrl: currentMembership.organization.logoUrl,
           subscriptionStatus: currentMembership.organization.subscriptionStatus,
           role: currentMembership.role,
+          availableCredits: currentMembership.organization.availableCredits,
         };
       }
     }

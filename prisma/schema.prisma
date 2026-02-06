@@ -28,6 +28,7 @@ model User {
   avatarUrl                String?
   lastLoginAt              DateTime?
   isAdmin                  Boolean                   @default(false)
+  billingTransactions      BillingTransaction[]
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -495,8 +496,8 @@ model InstagramProfile {
   @@index([clerkId])
   @@index([clerkId, isDefault])
   @@index([organizationId])
-  @@index([tags])
   @@index([isFavorite])
+  @@index([tags])
   @@map("instagram_profiles")
 }
 
@@ -879,19 +880,23 @@ model HashtagSet {
 }
 
 model VaultFolder {
-  id        String             @id @default(cuid())
-  clerkId   String
-  profileId String
-  name      String
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  isDefault Boolean            @default(false)
-  shares    VaultFolderShare[]
-  items     VaultItem[]
+  id                  String             @id @default(cuid())
+  clerkId             String
+  profileId           String
+  name                String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  isDefault           Boolean            @default(false)
+  parentId            String?
+  shares              VaultFolderShare[]
+  vault_folders       VaultFolder?       @relation("vault_foldersTovault_folders", fields: [parentId], references: [id], onDelete: Cascade)
+  other_vault_folders VaultFolder[]      @relation("vault_foldersTovault_folders")
+  items               VaultItem[]
 
   @@index([clerkId])
   @@index([profileId])
   @@index([clerkId, profileId])
+  @@index([parentId])
   @@map("vault_folders")
 }
 
@@ -1054,6 +1059,7 @@ model Organization {
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
   availableCredits     Int                           @default(0)
+  transactions         BillingTransaction[]
   customPermissions    CustomOrganizationPermission?
   gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
@@ -1166,7 +1172,7 @@ model WorkspaceMember {
 model UsageLog {
   id             String       @id @default(cuid())
   organizationId String
-  userId         String
+  userId         String?
   workspaceId    String?
   action         String
   resource       String
@@ -1180,6 +1186,39 @@ model UsageLog {
   @@index([organizationId, createdAt])
   @@index([createdAt])
   @@map("usage_logs")
+}
+
+model BillingTransaction {
+  id                      String            @id @default(cuid())
+  organizationId          String
+  type                    TransactionType
+  status                  TransactionStatus @default(PENDING)
+  amount                  Float
+  currency                String            @default("usd")
+  description             String
+  stripeInvoiceId         String?
+  stripePaymentIntentId   String?
+  stripeCheckoutSessionId String?
+  creditsAdded            Int?
+  planName                String?
+  billingPeriodStart      DateTime?
+  billingPeriodEnd        DateTime?
+  metadata                Json?
+  failureReason           String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  userId                  String?
+  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                    User?             @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([stripeInvoiceId])
+  @@index([createdAt])
+  @@map("billing_transactions")
 }
 
 model ai_voice_accounts {
@@ -1243,7 +1282,6 @@ model reference_items {
   awsS3Key     String
   awsS3Url     String
   thumbnailUrl String?
-  fileHash     String?
   tags         String[]           @default([])
   usageCount   Int                @default(0)
   lastUsedAt   DateTime?
@@ -1251,6 +1289,7 @@ model reference_items {
   updatedAt    DateTime           @updatedAt
   folderId     String?
   isFavorite   Boolean            @default(false)
+  fileHash     String?
   user         User               @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   folder       reference_folders? @relation(fields: [folderId], references: [id])
 
@@ -1527,6 +1566,23 @@ model pricing_history {
   @@index([changedById])
 }
 
+model FeatureCreditPricing {
+  id          String   @id @default(cuid())
+  featureKey  String   @unique
+  featureName String
+  category    String
+  credits     Int
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([featureKey])
+  @@index([category])
+  @@index([isActive])
+  @@map("feature_credit_pricing")
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -1795,4 +1851,20 @@ enum PricingItemType {
   FIXED
   RANGE
   MINIMUM
+}
+
+enum TransactionType {
+  SUBSCRIPTION_PAYMENT
+  SUBSCRIPTION_REFUND
+  CREDIT_PURCHASE
+  CREDIT_REFUND
+  PLAN_CHANGE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
 }

@@ -487,16 +487,26 @@ export default function DashboardLayout({
       href: `/${tenant}/settings`,
       icon: Settings,
     },
-    {
-      name: "Billing",
-      href: `/${tenant}/billing`,
-      icon: CreditCard,
-    },
-    {
-      name: "Team",
-      href: `/${tenant}/team`,
-      icon: UserCheck,
-    },
+    // Billing - only show to OWNER and ADMIN
+    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN'
+      ? [
+          {
+            name: "Billing",
+            href: `/${tenant}/billing`,
+            icon: CreditCard,
+          },
+        ]
+      : []),
+    // Team - only show to OWNER, ADMIN, and MANAGER
+    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN' || currentOrganization?.role === 'MANAGER'
+      ? [
+          {
+            name: "Team",
+            href: `/${tenant}/team`,
+            icon: UserCheck,
+          },
+        ]
+      : []),
   ];
 
   // Get user's first name or fallback
@@ -1237,13 +1247,15 @@ export default function DashboardLayout({
                 </div>
                 <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
                   <CreditCard className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                  <span className="text-sm font-semibold text-white/80">
+                    {currentOrganization?.availableCredits ?? 0} Credits
+                  </span>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <ThemeToggle />
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
@@ -1345,7 +1357,9 @@ export default function DashboardLayout({
               <ThemeToggle />
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5">
                 <CreditCard className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                <span className="text-sm font-semibold text-white/80">
+                  {currentOrganization?.availableCredits ?? 0} Credits
+                </span>
               </div>
             </div>
           </div>
@@ -1430,13 +1444,15 @@ export default function DashboardLayout({
                           <Settings className="w-4 h-4" />
                           Settings
                         </Link>
-                        <Link
-                          href={`/${tenant}/billing`}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          Billing
-                        </Link>
+                        {(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN') && (
+                          <Link
+                            href={`/${tenant}/billing`}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            Billing
+                          </Link>
+                        )}
                         {isAdmin && (
                           <Link
                             href={`/${tenant}/admin`}
