@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
+import { deductCredits } from '@/lib/credits';
 
 // Vercel function configuration - extend timeout for image generation
 export const runtime = 'nodejs';
@@ -113,6 +114,38 @@ export async function POST(request: NextRequest) {
     console.log('📐 Size:', size);
     console.log('🎭 Batch mode:', sequential_image_generation);
     console.log('🔢 Batch options:', sequential_image_generation_options);
+
+    // Get user's organization for credit deduction
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: 'User organization not found' },
+        { status: 400 }
+      );
+    }
+
+    // Dynamically determine feature key from URL path
+    const featureKey = 'seedream_text_to_image';
+
+    // Deduct credits before making the API call
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        error: creditResult.error || 'Failed to deduct credits',
+        insufficientCredits: creditResult.error?.includes('Insufficient credits')
+      }, { status: 400 });
+    }
+
+    console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
     // Build request payload
     const payload: any = {

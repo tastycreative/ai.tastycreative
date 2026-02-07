@@ -1,4 +1,8 @@
+'use client';
+
 import { Plus, CreditCard, Users, FileText, ChevronRight } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import SearchBar from './SearchBar';
 
 interface DashboardInfluencer {
@@ -36,6 +40,18 @@ export default function DashboardContent({
   totalContentGenerated,
   influencers,
 }: DashboardContentProps) {
+  const router = useRouter();
+  const params = useParams();
+  const tenant = params.tenant as string;
+  const { currentOrganization, loading } = useOrganization();
+
+  const availableCredits = currentOrganization?.availableCredits ?? 0;
+
+  const handleAddCredits = () => {
+    // Navigate to billing page and scroll to credits section
+    router.push(`/${tenant}/billing?scrollTo=credits`);
+  };
+
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Welcome Section */}
@@ -71,13 +87,22 @@ export default function DashboardContent({
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <h3 className="text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Credits</h3>
-              <p className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent mt-2">25</p>
+              {loading ? (
+                <div className="h-10 w-20 bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg mt-2" />
+              ) : (
+                <p className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent mt-2">
+                  {availableCredits.toLocaleString()}
+                </p>
+              )}
             </div>
             <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg">
               <CreditCard className="w-5 h-5 text-white" />
             </div>
           </div>
-          <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105">
+          <button
+            onClick={handleAddCredits}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+          >
             Add Credits
           </button>
         </div>

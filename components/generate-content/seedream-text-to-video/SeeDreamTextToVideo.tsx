@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import {
   AlertCircle,
@@ -101,6 +103,7 @@ export default function SeeDreamTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { refreshCredits } = useCredits();
 
   const [prompt, setPrompt] = useState("");
   const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
@@ -430,6 +433,8 @@ export default function SeeDreamTextToVideo() {
           const data = await response.json();
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
+            // Refresh credit balance in the UI after successful generation
+            refreshCredits();
             updateGlobalProgress({
               isGenerating: false,
               progress: 100,
@@ -556,6 +561,8 @@ export default function SeeDreamTextToVideo() {
 
       const data = await response.json();
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
+        // Refresh credit balance in the UI after successful generation
+        refreshCredits();
         updateGlobalProgress({
           isGenerating: false,
           progress: 100,
@@ -1588,6 +1595,23 @@ export default function SeeDreamTextToVideo() {
         </div>,
         document.body
       )}
+
+      {/* Floating Credit Calculator */}
+      <CreditCalculator
+        modifiers={[
+          ...(resolution === '1080p' ? [{
+            label: '1080p Resolution',
+            multiplier: 1.3,
+            description: '1080p costs 30% more credits than 720p'
+          }] : []),
+          ...(duration > 4 ? [{
+            label: `Extended Duration (${duration}s)`,
+            multiplier: duration / 4,
+            description: 'Longer videos cost more credits proportionally'
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }

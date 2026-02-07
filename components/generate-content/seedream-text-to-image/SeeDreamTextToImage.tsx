@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import {
   ImageIcon,
@@ -75,6 +77,7 @@ export default function SeeDreamTextToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { refreshCredits } = useCredits();
 
   // Form State
   const [prompt, setPrompt] = useState("");
@@ -480,7 +483,10 @@ export default function SeeDreamTextToImage() {
       }
 
       const data = await response.json();
-      
+
+      // Refresh credit balance in the UI after successful generation
+      refreshCredits();
+
       updateGlobalProgress({
         isGenerating: false,
         progress: 100,
@@ -1634,6 +1640,23 @@ export default function SeeDreamTextToImage() {
         </div>,
         document.body
       )}
+
+      {/* Floating Credit Calculator */}
+      <CreditCalculator
+        modifiers={[
+          ...(selectedResolution === '4K' ? [{
+            label: '4K Resolution',
+            multiplier: 1.5,
+            description: '4K resolution costs 50% more credits than 2K'
+          }] : []),
+          ...(maxImages > 1 ? [{
+            label: `Batch (${maxImages} images)`,
+            multiplier: maxImages,
+            description: `Generating ${maxImages} images in one batch`
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }
