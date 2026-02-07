@@ -38,6 +38,8 @@ export interface Transaction {
   description: string;
   creditsAdded: number | null;
   planName: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
   createdAt: string;
   user?: {
     id: string;
