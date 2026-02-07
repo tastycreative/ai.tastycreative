@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { memo, useRef, useCallback } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { framesToPixels, pixelsToFrames } from "@/lib/gif-maker/timeline-utils";
 import type { Overlay } from "@/lib/gif-maker/types";
@@ -40,7 +40,7 @@ interface TimelineOverlayItemProps {
   zoom: number;
 }
 
-export function TimelineOverlayItem({ overlay, zoom }: TimelineOverlayItemProps) {
+export const TimelineOverlayItem = memo(function TimelineOverlayItem({ overlay, zoom }: TimelineOverlayItemProps) {
   const selectedOverlayId = useVideoEditorStore((s) => s.selectedOverlayId);
   const selectOverlay = useVideoEditorStore((s) => s.selectOverlay);
   const updateOverlay = useVideoEditorStore((s) => s.updateOverlay);
@@ -142,4 +142,4 @@ export function TimelineOverlayItem({ overlay, zoom }: TimelineOverlayItemProps)
       </div>
     </div>
   );
-}
+});

@@ -38,30 +38,30 @@ export function TimelineControls({ onFrameChange, onTogglePlayback }: TimelineCo
   };
 
   return (
-    <div className="flex items-center gap-1 px-3 h-10 bg-[#1a1b2e] border-b border-[#252640] flex-shrink-0">
+    <div className="flex items-center gap-1 px-3 h-10 bg-[#161925] border-b border-[#2d3142] flex-shrink-0">
       {/* Transport Buttons */}
-      <div className="flex items-center bg-[#141524] rounded-lg overflow-hidden">
+      <div className="flex items-center gap-1">
         <button
           onClick={handleSkipBack}
-          className="h-8 w-8 flex items-center justify-center text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038] active:bg-[#1e2038] transition-colors duration-100"
+          className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800 active:bg-slate-700 rounded-md transition-colors duration-100"
           title="Go to start (Home)"
         >
           <SkipBack className="h-4 w-4" />
         </button>
         <button
           onClick={onTogglePlayback}
-          className="h-8 w-10 flex items-center justify-center text-[#e6e8f0] hover:text-white hover:bg-blue-500/15 active:bg-blue-500/25 transition-colors duration-100"
+          className="h-8 w-8 flex items-center justify-center bg-indigo-500 text-white rounded-full hover:bg-indigo-400 active:bg-indigo-600 transition-colors duration-100"
           title="Play/Pause (Space)"
         >
           {isPlaying ? (
-            <Pause className="h-5 w-5" />
+            <Pause className="h-4 w-4" />
           ) : (
-            <Play className="h-5 w-5" />
+            <Play className="h-4 w-4" />
           )}
         </button>
         <button
           onClick={handleSkipForward}
-          className="h-8 w-8 flex items-center justify-center text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038] active:bg-[#1e2038] transition-colors duration-100"
+          className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800 active:bg-slate-700 rounded-md transition-colors duration-100"
           title="Go to end (End)"
         >
           <SkipForward className="h-4 w-4" />
@@ -73,28 +73,28 @@ export function TimelineControls({ onFrameChange, onTogglePlayback }: TimelineCo
         onClick={() => setLoopEnabled(!loopEnabled)}
         className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors duration-100 ${
           loopEnabled
-            ? "text-purple-400 bg-purple-500/12"
-            : "text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038]"
+            ? "text-indigo-400 bg-indigo-500/12"
+            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
         }`}
         title="Loop"
       >
         <Repeat className="h-4 w-4" />
       </button>
 
-      <div className="w-px h-5 bg-[#252640] mx-1" />
+      <div className="w-px h-5 bg-[#2d3142] mx-1" />
 
       {/* Timecode Display */}
-      <div className="flex items-center gap-1.5 px-3 h-8 bg-[#141524] rounded-lg font-mono text-xs select-none">
-        <span className="text-[#e6e8f0] tabular-nums">
+      <div className="flex items-center gap-1.5 px-3 h-8 bg-[#0f111a] rounded-lg font-mono text-xs select-none border border-[#2d3142]">
+        <span className="text-indigo-400 tabular-nums">
           {framesToTime(currentFrame, fps)}
         </span>
-        <span className="text-[#354065]">/</span>
-        <span className="text-[#4d5578] tabular-nums">
+        <span className="text-[#2d3142]">/</span>
+        <span className="text-slate-500 tabular-nums">
           {framesToTime(totalDurationInFrames, fps)}
         </span>
       </div>
 
-      <span className="text-[10px] font-mono text-[#4d5578] ml-1 tabular-nums">
+      <span className="text-[10px] font-mono text-slate-500 ml-1 tabular-nums">
         F{currentFrame}
       </span>
 
@@ -110,11 +110,11 @@ export function TimelineControls({ onFrameChange, onTogglePlayback }: TimelineCo
 
 function ShortcutHint({ keys, label }: { keys: string[]; label: string }) {
   return (
-    <div className="flex items-center gap-1 text-[10px] text-[#4d5578]">
+    <div className="flex items-center gap-1 text-[10px] text-slate-500">
       {keys.map((key) => (
         <kbd
           key={key}
-          className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded bg-[#252640] text-[9px] font-mono text-[#8490b0]"
+          className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded border border-[#2d3142] bg-[#161925] text-[9px] font-mono text-slate-400"
         >
           {key}
         </kbd>

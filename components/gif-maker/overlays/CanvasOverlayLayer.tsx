@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { DraggableOverlay } from "./DraggableOverlay";
 
@@ -17,10 +18,14 @@ export function CanvasOverlayLayer({
   const clearSelection = useVideoEditorStore((s) => s.clearSelection);
 
   // Only show overlays that are active at the current frame
-  const visibleOverlays = overlays.filter(
-    (o) =>
-      currentFrame >= o.startFrame &&
-      currentFrame < o.startFrame + o.durationInFrames
+  const visibleOverlays = useMemo(
+    () =>
+      overlays.filter(
+        (o) =>
+          currentFrame >= o.startFrame &&
+          currentFrame < o.startFrame + o.durationInFrames
+      ),
+    [overlays, currentFrame]
   );
 
   return (

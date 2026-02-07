@@ -154,15 +154,15 @@ const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 ];
 
 const inputClass =
-  "w-full h-7 px-2 bg-[#1a1b2e] border border-[#252640] rounded text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-[#3b82f6] focus:ring-1 focus:ring-[rgba(59,130,246,0.3)] outline-none transition-all duration-150";
+  "w-full h-7 px-2 bg-slate-900 border border-[#2d3142] rounded-md text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150";
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-t border-[#252640] pt-2.5">
+    <div className="border-t border-[#2d3142] pt-2.5">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-[#4d5578] hover:text-[#8490b0] transition-colors"
+        className="w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-400 transition-colors"
       >
         {title}
         <svg className={`w-3 h-3 transition-transform ${open ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -208,11 +208,11 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-medium text-[#e6e8f0]">Text Overlay</h4>
+      <h4 className="text-sm font-medium text-slate-100">Text Overlay</h4>
 
       {/* Text Input */}
       <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Text</label>
+        <label className="text-xs text-slate-400">Text</label>
         <textarea
           value={overlay.text}
           onChange={(e) => update({ text: e.target.value })}
@@ -228,7 +228,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             <button
               key={preset.id}
               onClick={() => update(preset.props)}
-              className="px-2 py-1 rounded text-[10px] font-medium bg-[#1a1b2e] text-[#8490b0] hover:bg-[#1e2038] hover:text-[#e6e8f0] border border-[#252640] hover:border-[#354065] transition-all duration-150"
+              className="px-2 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142] hover:border-slate-600 transition-all duration-150"
             >
               {preset.label}
             </button>
@@ -239,7 +239,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       {/* Font */}
       <Section title="Font" defaultOpen={true}>
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Family</label>
+          <label className="text-xs text-slate-400">Family</label>
           <select
             value={overlay.fontFamily}
             onChange={(e) => update({ fontFamily: e.target.value })}
@@ -254,19 +254,19 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Size: {overlay.fontSize}px</label>
+          <label className="text-xs text-slate-400">Size: {overlay.fontSize}px</label>
           <input
             type="range"
             min={12}
             max={120}
             value={overlay.fontSize}
             onChange={(e) => update({ fontSize: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Weight: {overlay.fontWeight}</label>
+          <label className="text-xs text-slate-400">Weight: {overlay.fontWeight}</label>
           <input
             type="range"
             min={100}
@@ -274,12 +274,12 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={100}
             value={overlay.fontWeight}
             onChange={(e) => update({ fontWeight: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Transform</label>
+          <label className="text-xs text-slate-400">Transform</label>
           <div className="grid grid-cols-3 gap-1">
             {([
               { value: "none", label: "Aa" },
@@ -291,8 +291,8 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
                 onClick={() => update({ textTransform: opt.value })}
                 className={`px-2 py-1.5 text-xs rounded transition-colors duration-150 ${
                   textTransform === opt.value
-                    ? "bg-[#3b82f6] text-white"
-                    : "bg-[#1a1b2e] text-[#8490b0] hover:bg-[#1e2038] hover:text-[#e6e8f0] border border-[#252640]"
+                    ? "bg-indigo-500 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142]"
                 }`}
               >
                 {opt.label}
@@ -305,7 +305,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       {/* Spacing */}
       <Section title="Spacing" defaultOpen={false}>
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Letter Spacing: {letterSpacing}px</label>
+          <label className="text-xs text-slate-400">Letter Spacing: {letterSpacing}px</label>
           <input
             type="range"
             min={-5}
@@ -313,12 +313,12 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={0.5}
             value={letterSpacing}
             onChange={(e) => update({ letterSpacing: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Line Height: {lineHeight.toFixed(1)}</label>
+          <label className="text-xs text-slate-400">Line Height: {lineHeight.toFixed(1)}</label>
           <input
             type="range"
             min={0.8}
@@ -326,7 +326,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={0.1}
             value={lineHeight}
             onChange={(e) => update({ lineHeight: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
       </Section>
@@ -335,16 +335,16 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       <Section title="Color" defaultOpen={true}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-xs text-[#8490b0]">Text</label>
+            <label className="text-xs text-slate-400">Text</label>
             <input
               type="color"
               value={overlay.color === "transparent" ? "#000000" : overlay.color}
               onChange={(e) => update({ color: e.target.value })}
-              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+              className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-[#8490b0]">Background</label>
+            <label className="text-xs text-slate-400">Background</label>
             <input
               type="color"
               value={
@@ -355,13 +355,13 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
                     : overlay.backgroundColor
               }
               onChange={(e) => update({ backgroundColor: e.target.value })}
-              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+              className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
             />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Bg Opacity: {Math.round(backgroundOpacity * 100)}%</label>
+          <label className="text-xs text-slate-400">Bg Opacity: {Math.round(backgroundOpacity * 100)}%</label>
           <input
             type="range"
             min={0}
@@ -369,7 +369,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={0.05}
             value={backgroundOpacity}
             onChange={(e) => update({ backgroundOpacity: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
       </Section>
@@ -377,7 +377,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       {/* Effects */}
       <Section title="Effects" defaultOpen={false}>
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Stroke Width: {strokeWidth}px</label>
+          <label className="text-xs text-slate-400">Stroke Width: {strokeWidth}px</label>
           <input
             type="range"
             min={0}
@@ -385,27 +385,27 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={0.5}
             value={strokeWidth}
             onChange={(e) => update({ strokeWidth: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
 
         {strokeWidth > 0 && (
           <div className="space-y-1">
-            <label className="text-xs text-[#8490b0]">Stroke Color</label>
+            <label className="text-xs text-slate-400">Stroke Color</label>
             <input
               type="color"
               value={strokeColor}
               onChange={(e) => update({ strokeColor: e.target.value })}
-              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+              className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
             />
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Shadow</label>
+          <label className="text-xs text-slate-400">Shadow</label>
           <div className="grid grid-cols-3 gap-1.5">
             <div className="space-y-0.5">
-              <label className="text-[9px] text-[#4d5578]">X</label>
+              <label className="text-[9px] text-slate-500">X</label>
               <input
                 type="number"
                 min={-20}
@@ -416,7 +416,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
               />
             </div>
             <div className="space-y-0.5">
-              <label className="text-[9px] text-[#4d5578]">Y</label>
+              <label className="text-[9px] text-slate-500">Y</label>
               <input
                 type="number"
                 min={-20}
@@ -427,7 +427,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
               />
             </div>
             <div className="space-y-0.5">
-              <label className="text-[9px] text-[#4d5578]">Blur</label>
+              <label className="text-[9px] text-slate-500">Blur</label>
               <input
                 type="number"
                 min={0}
@@ -442,18 +442,18 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
 
         {(shadowOffsetX !== 0 || shadowOffsetY !== 0 || shadowBlur !== 0) && (
           <div className="space-y-1">
-            <label className="text-xs text-[#8490b0]">Shadow Color</label>
+            <label className="text-xs text-slate-400">Shadow Color</label>
             <input
               type="color"
               value={shadowColorHex}
               onChange={(e) => update({ shadowColor: e.target.value })}
-              className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+              className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
             />
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Opacity: {Math.round(opacity * 100)}%</label>
+          <label className="text-xs text-slate-400">Opacity: {Math.round(opacity * 100)}%</label>
           <input
             type="range"
             min={0}
@@ -461,19 +461,19 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             step={0.05}
             value={opacity}
             onChange={(e) => update({ opacity: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Border Radius: {borderRadius}px</label>
+          <label className="text-xs text-slate-400">Border Radius: {borderRadius}px</label>
           <input
             type="range"
             min={0}
             max={40}
             value={borderRadius}
             onChange={(e) => update({ borderRadius: Number(e.target.value) })}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full h-1.5 pro-slider"
           />
         </div>
       </Section>
@@ -487,8 +487,8 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
               onClick={() => update({ textAlign: align })}
               className={`px-2 py-1.5 text-xs rounded transition-colors duration-150 ${
                 overlay.textAlign === align
-                  ? "bg-[#3b82f6] text-white"
-                  : "bg-[#1a1b2e] text-[#8490b0] hover:bg-[#1e2038] hover:text-[#e6e8f0] border border-[#252640]"
+                  ? "bg-indigo-500 text-white"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142]"
               }`}
             >
               {align.charAt(0).toUpperCase() + align.slice(1)}
@@ -500,7 +500,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       {/* Animation */}
       <Section title="Animation" defaultOpen={true}>
         <div className="space-y-1.5">
-          <label className="text-xs text-[#8490b0]">Type</label>
+          <label className="text-xs text-slate-400">Type</label>
           <select
             value={overlay.animation}
             onChange={(e) => update({ animation: e.target.value as TextAnimation })}
@@ -516,7 +516,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
 
         {overlay.animation !== "none" && (
           <div className="space-y-1.5">
-            <label className="text-xs text-[#8490b0]">
+            <label className="text-xs text-slate-400">
               Duration: {overlay.animationDurationFrames}f
             </label>
             <input
@@ -525,7 +525,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
               max={60}
               value={overlay.animationDurationFrames}
               onChange={(e) => update({ animationDurationFrames: Number(e.target.value) })}
-              className="w-full h-1.5 accent-[#3b82f6]"
+              className="w-full h-1.5 pro-slider"
             />
           </div>
         )}
@@ -535,7 +535,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
       <Section title="Timing" defaultOpen={true}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-[10px] text-[#4d5578]">Start Frame</label>
+            <label className="text-[10px] text-slate-500">Start Frame</label>
             <input
               type="number"
               min={0}
@@ -545,7 +545,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] text-[#4d5578]">Duration</label>
+            <label className="text-[10px] text-slate-500">Duration</label>
             <input
               type="number"
               min={1}

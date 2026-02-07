@@ -1,10 +1,11 @@
 "use client";
 
+import { memo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { COLLAGE_PRESETS, type CollageLayout } from "@/lib/gif-maker/types";
 import { X } from "lucide-react";
 
-const SLOT_COLORS = ["#3b82f6", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#a855f7"];
+const SLOT_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#a855f7"];
 
 const CATEGORIES: { key: string; label: string; layouts: CollageLayout[] }[] = [
   {
@@ -24,15 +25,15 @@ const CATEGORIES: { key: string; label: string; layouts: CollageLayout[] }[] = [
   },
 ];
 
-function MiniPreview({ layout, isActive }: { layout: CollageLayout; isActive: boolean }) {
+const MiniPreview = memo(function MiniPreview({ layout, isActive }: { layout: CollageLayout; isActive: boolean }) {
   const preset = COLLAGE_PRESETS[layout];
 
   return (
     <div
       className={`w-full aspect-[3/4] rounded-md border-2 relative overflow-hidden transition-all duration-150 ${
         isActive
-          ? "border-blue-400 bg-blue-500/10 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
-          : "border-[#252640] bg-[#0e0f1a] hover:border-[#354065]"
+          ? "border-indigo-400 bg-indigo-500/10 shadow-[0_0_8px_rgba(99,102,241,0.3)]"
+          : "border-[#2d3142] bg-[#0f111a] hover:border-slate-600"
       }`}
     >
       {preset.slots.map((slot, i) => (
@@ -58,7 +59,7 @@ function MiniPreview({ layout, isActive }: { layout: CollageLayout; isActive: bo
       ))}
     </div>
   );
-}
+});
 
 export function LayoutPicker() {
   const activeLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
@@ -72,13 +73,13 @@ export function LayoutPicker() {
           onClick={() => setCollageLayout(null)}
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
             activeLayout === null
-              ? "bg-blue-500/15 text-blue-400 border border-blue-400/30"
-              : "text-[#8490b0] hover:text-[#e6e8f0] hover:bg-[#1e2038] border border-transparent"
+              ? "bg-indigo-500/15 text-indigo-400 border border-indigo-400/30"
+              : "text-slate-400 hover:text-slate-100 hover:bg-slate-800 border border-transparent"
           }`}
         >
           <X className="h-3.5 w-3.5" />
           No Layout
-          <span className="text-[10px] text-[#4d5578] ml-auto">Single track</span>
+          <span className="text-[10px] text-slate-500 ml-auto">Single track</span>
         </button>
       </div>
 
@@ -86,7 +87,7 @@ export function LayoutPicker() {
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {CATEGORIES.map((cat) => (
           <div key={cat.key} className="mb-4">
-            <h4 className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578] mb-2">
+            <h4 className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
               {cat.label}
             </h4>
             <div className="grid grid-cols-2 gap-2">
@@ -102,7 +103,7 @@ export function LayoutPicker() {
                     <MiniPreview layout={layoutKey} isActive={isActive} />
                     <span
                       className={`text-[9px] font-medium transition-colors ${
-                        isActive ? "text-blue-400" : "text-[#4d5578] group-hover:text-[#8490b0]"
+                        isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-400"
                       }`}
                     >
                       {preset.label}

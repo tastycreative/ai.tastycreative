@@ -57,7 +57,7 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
 
     return (
       <div
-        className="relative rounded-lg overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-[#252640]"
+        className="relative rounded-lg overflow-hidden shadow-2xl ring-1 ring-white/10"
         style={{
           maxWidth: "100%",
           maxHeight: "100%",
@@ -68,7 +68,7 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
         }}
       >
         {/* Resolution badge */}
-        <div className="absolute top-2 right-2 z-20 px-2 py-0.5 rounded text-[10px] font-mono bg-black/60 text-[#8490b0] backdrop-blur-sm pointer-events-none select-none">
+        <div className="absolute top-2 right-2 z-20 px-2 py-0.5 rounded text-[10px] font-mono bg-black/50 text-slate-400 backdrop-blur-md border border-white/10 pointer-events-none select-none">
           {width} x {height}
         </div>
 

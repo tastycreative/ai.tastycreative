@@ -267,6 +267,66 @@ export async function captureVideoWithBlur(
   }
 
   try {
+    // Pre-compute blur region pixel coordinates and allocate reusable canvases
+    const precomputedRegions = blurRegions.map((region) => {
+      const rx = (region.x / 100) * width;
+      const ry = (region.y / 100) * height;
+      const rw = (region.width / 100) * width;
+      const rh = (region.height / 100) * height;
+      const intensity = region.blurMode === "heavy"
+        ? region.intensity * 3
+        : region.blurMode === "pixelate"
+        ? Math.max(8, region.intensity * 1.2)
+        : region.intensity;
+      const scale = Math.max(1, Math.min(intensity / 2, 10));
+      const smallW = Math.max(1, Math.floor(rw / scale));
+      const smallH = Math.max(1, Math.floor(rh / scale));
+
+      // Pre-allocate reusable canvases for non-solid regions
+      let smallCanvas: HTMLCanvasElement | null = null;
+      let smallCtx: CanvasRenderingContext2D | null = null;
+      let blurCanvas: HTMLCanvasElement | null = null;
+      let blurCtx: CanvasRenderingContext2D | null = null;
+
+      if (!(region.blurMode === "solid" && region.fillColor) && rw > 0 && rh > 0) {
+        smallCanvas = document.createElement("canvas");
+        smallCanvas.width = smallW;
+        smallCanvas.height = smallH;
+        smallCtx = smallCanvas.getContext("2d");
+
+        blurCanvas = document.createElement("canvas");
+        blurCanvas.width = Math.ceil(rw);
+        blurCanvas.height = Math.ceil(rh);
+        blurCtx = blurCanvas.getContext("2d");
+        if (blurCtx) {
+          blurCtx.filter = `blur(${Math.max(2, intensity / 4)}px)`;
+        }
+      }
+
+      return {
+        ...region, rx, ry, rw, rh, intensity, scale, smallW, smallH,
+        smallCanvas, smallCtx, blurCanvas, blurCtx,
+      };
+    });
+
+    // Pre-compute video aspect ratio (constant across all frames)
+    let drawWidth = width, drawHeight = height, drawX = 0, drawY = 0;
+    if (videoToCapture.videoWidth > 0) {
+      const videoAspect = videoToCapture.videoWidth / videoToCapture.videoHeight;
+      const canvasAspect = width / height;
+      if (videoAspect > canvasAspect) {
+        drawWidth = width;
+        drawHeight = width / videoAspect;
+        drawX = 0;
+        drawY = (height - drawHeight) / 2;
+      } else {
+        drawHeight = height;
+        drawWidth = height * videoAspect;
+        drawX = (width - drawWidth) / 2;
+        drawY = 0;
+      }
+    }
+
     for (let frame = 0; frame < options.totalFrames; frame += step) {
       // Seek both videos to keep them in sync
       seekToFrame(frame);
@@ -302,36 +362,16 @@ export async function captureVideoWithBlur(
       const ctx = canvas.getContext("2d");
       if (!ctx) continue;
 
-      // Calculate video dimensions to maintain aspect ratio (contain)
-      const videoAspect = videoToCapture.videoWidth / videoToCapture.videoHeight;
-      const canvasAspect = width / height;
-      let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
-
-      if (videoAspect > canvasAspect) {
-        drawWidth = width;
-        drawHeight = width / videoAspect;
-        drawX = 0;
-        drawY = (height - drawHeight) / 2;
-      } else {
-        drawHeight = height;
-        drawWidth = height * videoAspect;
-        drawX = (width - drawWidth) / 2;
-        drawY = 0;
-      }
-
       // Fill background
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
-      // Draw video frame
+      // Draw video frame (using pre-computed aspect ratio)
       ctx.drawImage(videoToCapture, drawX, drawY, drawWidth, drawHeight);
 
-      // Apply blur regions
-      for (const region of blurRegions) {
-        const rx = (region.x / 100) * width;
-        const ry = (region.y / 100) * height;
-        const rw = (region.width / 100) * width;
-        const rh = (region.height / 100) * height;
+      // Apply blur regions using pre-computed coordinates and reusable canvases
+      for (const region of precomputedRegions) {
+        const { rx, ry, rw, rh } = region;
 
         // Skip invalid regions
         if (rw <= 0 || rh <= 0) continue;
@@ -347,41 +387,19 @@ export async function captureVideoWithBlur(
             ctx.fillRect(rx, ry, rw, rh);
           }
         } else {
-          // Calculate blur intensity
-          const intensity = region.blurMode === "heavy"
-            ? region.intensity * 3
-            : region.blurMode === "pixelate"
-            ? Math.max(8, region.intensity * 1.2)
-            : region.intensity;
+          const { smallCanvas, smallCtx, blurCanvas, blurCtx, smallW, smallH } = region;
+          if (!smallCtx || !blurCtx || !smallCanvas || !blurCanvas) continue;
 
-          // Use StackBlur-like approach: draw scaled down then scaled up
-          const scale = Math.max(1, Math.min(intensity / 2, 10));
-          const smallW = Math.max(1, Math.floor(rw / scale));
-          const smallH = Math.max(1, Math.floor(rh / scale));
-
-          // Create small canvas
-          const smallCanvas = document.createElement("canvas");
-          smallCanvas.width = smallW;
-          smallCanvas.height = smallH;
-          const smallCtx = smallCanvas.getContext("2d");
-          if (!smallCtx) continue;
-
-          // Draw scaled down (this blurs via downsampling)
+          // Clear and draw scaled down (this blurs via downsampling)
+          smallCtx.clearRect(0, 0, smallW, smallH);
           smallCtx.drawImage(
             canvas,
             rx, ry, rw, rh,
             0, 0, smallW, smallH
           );
 
-          // Apply additional CSS blur for smoother result
-          const blurCanvas = document.createElement("canvas");
-          blurCanvas.width = Math.ceil(rw);
-          blurCanvas.height = Math.ceil(rh);
-          const blurCtx = blurCanvas.getContext("2d");
-          if (!blurCtx) continue;
-
-          // Scale back up with blur filter
-          blurCtx.filter = `blur(${Math.max(2, intensity / 4)}px)`;
+          // Clear and scale back up with blur filter (filter already set on ctx)
+          blurCtx.clearRect(0, 0, rw, rh);
           blurCtx.drawImage(smallCanvas, 0, 0, smallW, smallH, 0, 0, rw, rh);
 
           // Draw blurred result back to main canvas with shape clipping

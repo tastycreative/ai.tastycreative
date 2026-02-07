@@ -44,15 +44,15 @@ export function TransitionProperties({
   };
 
   return (
-    <div className="space-y-2.5 pt-3 border-t border-[#252640]">
-      <h5 className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">
+    <div className="space-y-2.5 pt-3 border-t border-[#2d3142]">
+      <h5 className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
         Transition
       </h5>
 
       <select
         value={currentType}
         onChange={(e) => handleTypeChange(e.target.value as TransitionType)}
-        className="w-full h-7 px-2 bg-[#1a1b2e] border border-[#252640] rounded text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-[#3b82f6] focus:ring-1 focus:ring-[rgba(59,130,246,0.3)] outline-none transition-all duration-150"
+        className="w-full h-7 px-2 bg-slate-900 border border-[#2d3142] rounded-md text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150"
       >
         {TRANSITION_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -63,7 +63,7 @@ export function TransitionProperties({
 
       {currentType !== "none" && (
         <div className="space-y-1">
-          <label className="text-xs text-[#8490b0]">
+          <label className="text-xs text-slate-400">
             Duration: {currentDuration} frames
           </label>
           <input
@@ -72,7 +72,7 @@ export function TransitionProperties({
             max={60}
             value={currentDuration}
             onChange={(e) => handleDurationChange(Number(e.target.value))}
-            className="w-full h-1.5 accent-[#3b82f6]"
+            className="w-full pro-slider"
           />
         </div>
       )}

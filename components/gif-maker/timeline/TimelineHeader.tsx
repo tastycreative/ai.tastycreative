@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { framesToTime } from "@/lib/gif-maker/timeline-utils";
 
 interface TimelineHeaderProps {
@@ -9,21 +10,23 @@ interface TimelineHeaderProps {
   onMouseDown?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-export function TimelineHeader({ totalWidth, zoom, fps, onMouseDown }: TimelineHeaderProps) {
-  const framesPerMarker = zoom >= 4 ? fps / 2 : zoom >= 2 ? fps : fps * 2;
-  const markerCount = Math.ceil(totalWidth / (framesPerMarker * zoom));
-
-  const markers: { frame: number; x: number; isMajor: boolean }[] = [];
-  for (let i = 0; i <= markerCount; i++) {
-    const frame = i * framesPerMarker;
-    const x = frame * zoom;
-    const isMajor = frame % fps === 0;
-    markers.push({ frame, x, isMajor });
-  }
+export const TimelineHeader = memo(function TimelineHeader({ totalWidth, zoom, fps, onMouseDown }: TimelineHeaderProps) {
+  const markers = useMemo(() => {
+    const framesPerMarker = zoom >= 4 ? fps / 2 : zoom >= 2 ? fps : fps * 2;
+    const markerCount = Math.ceil(totalWidth / (framesPerMarker * zoom));
+    const result: { frame: number; x: number; isMajor: boolean }[] = [];
+    for (let i = 0; i <= markerCount; i++) {
+      const frame = i * framesPerMarker;
+      const x = frame * zoom;
+      const isMajor = frame % fps === 0;
+      result.push({ frame, x, isMajor });
+    }
+    return result;
+  }, [totalWidth, zoom, fps]);
 
   return (
     <div
-      className="h-7 border-b border-[#252640] relative bg-[#141524] select-none cursor-crosshair"
+      className="h-7 border-b border-[#2d3142] relative bg-[#161925] select-none cursor-crosshair"
       style={{ width: totalWidth }}
       onMouseDown={onMouseDown}
     >
@@ -35,11 +38,11 @@ export function TimelineHeader({ totalWidth, zoom, fps, onMouseDown }: TimelineH
         >
           <div
             className={`absolute bottom-0 w-px ${
-              isMajor ? "h-3 bg-[#4d5578]" : "h-1.5 bg-[#252640]"
+              isMajor ? "h-3 bg-slate-500" : "h-1.5 bg-[#2d3142]"
             }`}
           />
           {isMajor && (
-            <span className="absolute top-1 left-1.5 text-[10px] font-mono text-[#4d5578] whitespace-nowrap pointer-events-none">
+            <span className="absolute top-1 left-1.5 text-[10px] font-mono text-slate-500 whitespace-nowrap pointer-events-none">
               {framesToTime(frame, fps)}
             </span>
           )}
@@ -47,4 +50,4 @@ export function TimelineHeader({ totalWidth, zoom, fps, onMouseDown }: TimelineH
       ))}
     </div>
   );
-}
+});
