@@ -4,7 +4,7 @@ import { prisma } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -12,6 +12,9 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Await the params
+    const { transactionId } = await params;
 
     // Get user's current organization
     const user = await prisma.user.findUnique({
@@ -26,7 +29,7 @@ export async function GET(
     // Fetch the transaction
     const transaction = await prisma.billingTransaction.findFirst({
       where: {
-        id: params.transactionId,
+        id: transactionId,
         organizationId: user.currentOrganizationId,
       },
       include: {

@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       const searchLower = search.toLowerCase();
       filteredLogs = creditUsageLogs.filter(log =>
         log.resource.toLowerCase().includes(searchLower) ||
-        (log.metadata?.featureName && log.metadata.featureName.toLowerCase().includes(searchLower)) ||
+        ((log.metadata as any)?.featureName && (log.metadata as any).featureName.toLowerCase().includes(searchLower)) ||
         log.user?.firstName?.toLowerCase().includes(searchLower) ||
         log.user?.lastName?.toLowerCase().includes(searchLower) ||
         log.user?.email?.toLowerCase().includes(searchLower)
