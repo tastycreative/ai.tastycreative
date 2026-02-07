@@ -23,9 +23,9 @@ export function PropertiesPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-2 px-4 h-9 bg-[#1a1b2e] border-b border-[#252640] sticky top-0 z-10 flex-shrink-0">
-        <Settings2 className="h-3.5 w-3.5 text-[#8490b0]" />
-        <h3 className="text-[10px] font-semibold uppercase tracking-widest text-[#8490b0]">
+      <div className="flex items-center gap-2 px-4 h-9 bg-[#161925] border-b border-[#2d3142] sticky top-0 z-10 flex-shrink-0">
+        <Settings2 className="h-3.5 w-3.5 text-slate-400" />
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
           Properties
         </h3>
       </div>
@@ -41,8 +41,8 @@ export function PropertiesPanel() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 py-16 px-6">
-            <MousePointerClick className="h-8 w-8 text-[#354065]" />
-            <p className="text-xs text-[#4d5578] text-center">
+            <MousePointerClick className="h-8 w-8 text-[#2d3142]" />
+            <p className="text-xs text-slate-500 text-center">
               Select a clip or overlay to edit its properties
             </p>
           </div>

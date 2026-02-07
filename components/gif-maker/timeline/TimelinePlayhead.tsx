@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { framesToPixels } from "@/lib/gif-maker/timeline-utils";
 
 interface TimelinePlayheadProps {
@@ -8,7 +9,7 @@ interface TimelinePlayheadProps {
   height: number;
 }
 
-export function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps) {
+export const TimelinePlayhead = memo(function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps) {
   const x = framesToPixels(frame, zoom);
 
   return (
@@ -16,7 +17,7 @@ export function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps)
       className="absolute top-0 pointer-events-none z-30"
       style={{ left: x, height }}
     >
-      {/* Playhead notch */}
+      {/* Playhead notch — diamond shape */}
       <svg
         width="14"
         height="22"
@@ -25,8 +26,8 @@ export function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps)
       >
         <defs>
           <linearGradient id="playhead-grad" x1="0" y1="0" x2="14" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#a855f7" />
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#818cf8" />
           </linearGradient>
         </defs>
         <path d="M0 0H14L7 8Z" fill="url(#playhead-grad)" />
@@ -38,7 +39,7 @@ export function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps)
         className="w-px h-full -translate-x-1/2"
         style={{
           background:
-            "linear-gradient(180deg, #7c3aed 0%, rgba(124,58,237,0.2) 100%)",
+            "linear-gradient(180deg, #6366f1 0%, rgba(99,102,241,0.2) 100%)",
         }}
       />
 
@@ -47,9 +48,9 @@ export function TimelinePlayhead({ frame, zoom, height }: TimelinePlayheadProps)
         className="absolute top-0 -translate-x-1/2 w-6 h-full pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, rgba(124,58,237,0.12) 0%, transparent 50%)",
+            "linear-gradient(180deg, rgba(99,102,241,0.12) 0%, transparent 50%)",
         }}
       />
     </div>
   );
-}
+});

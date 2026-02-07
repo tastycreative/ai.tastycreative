@@ -36,7 +36,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
       <select
         value={clip.slotIndex ?? 0}
         onChange={(e) => moveClipToSlot(clip.id, Number(e.target.value))}
-        className="w-full h-8 px-2.5 bg-[#1a1b2e] border border-[#252640] rounded-lg text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 outline-none transition-all duration-150"
+        className="w-full h-8 px-2.5 bg-slate-800 border border-[#2d3142] rounded-lg text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150"
       >
         {collagePreset.slots.map((_, i) => (
           <option key={i} value={i}>Slot {i + 1}</option>
@@ -51,10 +51,10 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
     return (
       <div className="space-y-4">
         <div>
-          <h4 className="text-sm font-medium text-[#e6e8f0] mb-0.5">{clip.name}</h4>
+          <h4 className="text-sm font-medium text-slate-100 mb-0.5">{clip.name}</h4>
           <p className="text-[10px] text-emerald-400/80">
             Image clip
-            {collagePreset && <span className="text-blue-400 ml-1">· Slot {(clip.slotIndex ?? 0) + 1}</span>}
+            {collagePreset && <span className="text-indigo-400 ml-1">· Slot {(clip.slotIndex ?? 0) + 1}</span>}
           </p>
         </div>
 
@@ -68,7 +68,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
             onChange={(e) =>
               updateClip(clip.id, { displayDurationInFrames: Number(e.target.value) })
             }
-            className="w-full h-1.5 accent-emerald-500"
+            className="w-full pro-slider"
           />
         </PropertySection>
 
@@ -79,7 +79,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
             onChange={(e) =>
               updateClip(clip.id, { objectFit: e.target.value as "contain" | "cover" })
             }
-            className="w-full h-8 px-2.5 bg-[#1a1b2e] border border-[#252640] rounded-lg text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 outline-none transition-all duration-150"
+            className="w-full h-8 px-2.5 bg-slate-800 border border-[#2d3142] rounded-lg text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150"
           >
             <option value="contain">Contain (fit inside)</option>
             <option value="cover">Cover (fill frame)</option>
@@ -107,10 +107,10 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-medium text-[#e6e8f0] mb-0.5">{clip.name}</h4>
-        <p className="text-[10px] text-[#4d5578]">
+        <h4 className="text-sm font-medium text-slate-100 mb-0.5">{clip.name}</h4>
+        <p className="text-[10px] text-slate-500">
           {totalSec.toFixed(1)}s total / {clip.durationInFrames} frames
-          {collagePreset && <span className="text-blue-400 ml-1">· Slot {(clip.slotIndex ?? 0) + 1}</span>}
+          {collagePreset && <span className="text-indigo-400 ml-1">· Slot {(clip.slotIndex ?? 0) + 1}</span>}
         </p>
       </div>
 
@@ -124,7 +124,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
           onChange={(e) =>
             updateClip(clip.id, { trimStartFrame: Number(e.target.value) })
           }
-          className="w-full h-1.5 accent-[#3b82f6]"
+          className="w-full h-1.5 pro-slider"
         />
       </PropertySection>
 
@@ -138,7 +138,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
           onChange={(e) =>
             updateClip(clip.id, { trimEndFrame: Number(e.target.value) })
           }
-          className="w-full h-1.5 accent-[#3b82f6]"
+          className="w-full h-1.5 pro-slider"
         />
       </PropertySection>
 
@@ -153,7 +153,7 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
           onChange={(e) =>
             updateClip(clip.id, { volume: Number(e.target.value) })
           }
-          className="w-full h-1.5 accent-[#3b82f6]"
+          className="w-full h-1.5 pro-slider"
         />
       </PropertySection>
 
@@ -180,7 +180,7 @@ function PropertySection({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs text-[#8490b0]">{label}</label>
+      <label className="text-xs text-slate-400">{label}</label>
       {children}
     </div>
   );

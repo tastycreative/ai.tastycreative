@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import {
   Plus,
@@ -77,11 +77,14 @@ export function ClipPanel() {
     setLoadingFolders(true);
     try {
       const response = await fetch("/api/vault/folders?profileId=all");
-      if (!response.ok) throw new Error("Failed to fetch folders");
+      if (!response.ok) {
+        setFolders([]);
+        return;
+      }
       const data = await response.json();
       setFolders(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching vault folders:", error);
+    } catch {
+      setFolders([]);
     } finally {
       setLoadingFolders(false);
     }
@@ -251,44 +254,45 @@ export function ClipPanel() {
     setItems([]);
   };
 
-  // Group folders by profile
-  const groupedFolders = folders.reduce<
-    Record<string, { profile: { id: string; name: string; username: string | null; isOwned: boolean; ownerName: string | null }; folders: VaultFolderWithCount[] }>
-  >((acc, folder) => {
-    const profileId = folder.profileId;
-    if (!acc[profileId]) {
-      acc[profileId] = {
-        profile: {
-          id: profileId,
-          name: folder.profileName || profiles.find((p) => p.id === profileId)?.name || "Unknown",
-          username: folder.profileUsername || profiles.find((p) => p.id === profileId)?.instagramUsername || null,
-          isOwned: folder.isOwnedProfile !== false,
-          ownerName: folder.ownerName || null,
-        },
-        folders: [],
-      };
-    }
-    acc[profileId].folders.push(folder);
-    return acc;
-  }, {});
+  // Group folders by profile — memoized to avoid recomputing on every render
+  const sortedProfileGroups = useMemo(() => {
+    const grouped = folders.reduce<
+      Record<string, { profile: { id: string; name: string; username: string | null; isOwned: boolean; ownerName: string | null }; folders: VaultFolderWithCount[] }>
+    >((acc, folder) => {
+      const profileId = folder.profileId;
+      if (!acc[profileId]) {
+        acc[profileId] = {
+          profile: {
+            id: profileId,
+            name: folder.profileName || profiles.find((p) => p.id === profileId)?.name || "Unknown",
+            username: folder.profileUsername || profiles.find((p) => p.id === profileId)?.instagramUsername || null,
+            isOwned: folder.isOwnedProfile !== false,
+            ownerName: folder.ownerName || null,
+          },
+          folders: [],
+        };
+      }
+      acc[profileId].folders.push(folder);
+      return acc;
+    }, {});
 
-  // Sort: owned profiles first
-  const sortedProfileGroups = Object.values(groupedFolders).sort((a, b) => {
-    if (a.profile.isOwned && !b.profile.isOwned) return -1;
-    if (!a.profile.isOwned && b.profile.isOwned) return 1;
-    return a.profile.name.localeCompare(b.profile.name);
-  });
+    return Object.values(grouped).sort((a, b) => {
+      if (a.profile.isOwned && !b.profile.isOwned) return -1;
+      if (!a.profile.isOwned && b.profile.isOwned) return 1;
+      return a.profile.name.localeCompare(b.profile.name);
+    });
+  }, [folders, profiles]);
 
   return (
     <div className="flex flex-col h-full">
       {/* Tab Bar */}
-      <div className="flex items-center border-b border-[#252640]/60">
+      <div className="flex items-center border-b border-[#2d3142]">
         <button
           onClick={() => setView("clips")}
           className={`flex-1 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
             view === "clips"
-              ? "text-blue-400 border-b-2 border-blue-400"
-              : "text-[#4d5578] hover:text-[#8490b0]"
+              ? "text-indigo-400 border-b-2 border-indigo-400"
+              : "text-slate-500 hover:text-slate-400"
           }`}
         >
           Clips{clips.length > 0 ? ` (${clips.length})` : ""}
@@ -297,8 +301,8 @@ export function ClipPanel() {
           onClick={() => setView(selectedFolder ? "vault-items" : "vault-folders")}
           className={`flex-1 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
             view === "vault-folders" || view === "vault-items"
-              ? "text-violet-400 border-b-2 border-violet-400"
-              : "text-[#4d5578] hover:text-[#8490b0]"
+              ? "text-indigo-400 border-b-2 border-indigo-400"
+              : "text-slate-500 hover:text-slate-400"
           }`}
         >
           Vault
@@ -311,25 +315,25 @@ export function ClipPanel() {
           {clips.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4">
               <div className="text-center">
-                <VideoIcon className="h-8 w-8 text-[#252640] mx-auto mb-2" />
-                <p className="text-xs text-[#4d5578] mb-3">No clips added yet</p>
+                <VideoIcon className="h-8 w-8 text-[#2d3142] mx-auto mb-2" />
+                <p className="text-xs text-slate-500 mb-3">No clips added yet</p>
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-4 border-2 border-dashed border-[#252640] rounded-xl flex flex-col items-center gap-1.5 hover:border-blue-500/60 hover:bg-blue-500/5 transition-all duration-200 cursor-pointer group"
+                className="w-full py-4 border-2 border-dashed border-[#2d3142] rounded-xl flex flex-col items-center gap-1.5 hover:border-indigo-500/60 hover:bg-indigo-500/5 transition-all duration-200 cursor-pointer group"
               >
-                <Upload className="h-5 w-5 text-[#4d5578] group-hover:text-blue-400 transition-colors" />
-                <span className="text-xs text-[#8490b0] group-hover:text-[#e6e8f0] transition-colors">
+                <Upload className="h-5 w-5 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+                <span className="text-xs text-slate-400 group-hover:text-slate-100 transition-colors">
                   Upload media
                 </span>
-                <span className="text-[10px] text-[#4d5578]">MP4, WebM, MOV, JPG, PNG, WebP</span>
+                <span className="text-[10px] text-slate-500">MP4, WebM, MOV, JPG, PNG, WebP</span>
               </button>
               <button
                 onClick={() => setView("vault-folders")}
-                className="w-full py-3 border-2 border-dashed border-[#252640] rounded-xl flex flex-col items-center gap-1 hover:border-violet-500/60 hover:bg-violet-500/5 transition-all duration-200 cursor-pointer group/vault"
+                className="w-full py-3 border-2 border-dashed border-[#2d3142] rounded-xl flex flex-col items-center gap-1 hover:border-violet-500/60 hover:bg-violet-500/5 transition-all duration-200 cursor-pointer group/vault"
               >
-                <HardDrive className="h-4 w-4 text-[#4d5578] group-hover/vault:text-violet-400 transition-colors" />
-                <span className="text-xs text-[#8490b0] group-hover/vault:text-[#e6e8f0] transition-colors">
+                <HardDrive className="h-4 w-4 text-slate-500 group-hover/vault:text-violet-400 transition-colors" />
+                <span className="text-xs text-slate-400 group-hover/vault:text-slate-100 transition-colors">
                   Browse Vault
                 </span>
               </button>
@@ -337,9 +341,9 @@ export function ClipPanel() {
           ) : (
             <>
               {/* Add Buttons */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-[#252640]/60">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d3142]/60">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
                     {clips.length} clip{clips.length !== 1 ? "s" : ""}
                   </span>
                   {/* Slot selector for adding new clips */}
@@ -347,7 +351,7 @@ export function ClipPanel() {
                     <select
                       value={addToSlot}
                       onChange={(e) => setAddToSlot(Number(e.target.value))}
-                      className="h-5 px-1.5 bg-[#1a1b2e] border border-[#252640] rounded text-[10px] text-[#8490b0] outline-none"
+                      className="h-5 px-1.5 bg-slate-800 border border-[#2d3142] rounded text-[10px] text-slate-400 outline-none"
                       title="Add clips to this slot"
                     >
                       {collagePreset.slots.map((_, i) => (
@@ -359,14 +363,14 @@ export function ClipPanel() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setView("vault-folders")}
-                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-[#1e2038] text-[#8490b0] hover:text-[#e6e8f0] transition-colors duration-150"
+                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors duration-150"
                     title="Add from Vault"
                   >
                     <HardDrive className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-[#1e2038] text-[#8490b0] hover:text-[#e6e8f0] transition-colors duration-150"
+                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors duration-150"
                     title="Upload clip"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -387,26 +391,26 @@ export function ClipPanel() {
                     onClick={() => selectClip(clip.id)}
                     className={`flex items-center gap-2.5 px-3 py-2 mx-1.5 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 ${
                       selectedClipId === clip.id
-                        ? "bg-[rgba(59,130,246,0.12)] border border-[rgba(59,130,246,0.25)]"
-                        : "hover:bg-[#1e2038] border border-transparent"
+                        ? "bg-indigo-500/10 border border-indigo-500/30"
+                        : "hover:bg-slate-800 border border-transparent"
                     }`}
                   >
-                    <GripVertical className="h-3.5 w-3.5 text-[#4d5578] cursor-grab flex-shrink-0" />
+                    <GripVertical className="h-3.5 w-3.5 text-slate-500 cursor-grab flex-shrink-0" />
                     <div className={`w-10 h-7 rounded flex items-center justify-center overflow-hidden flex-shrink-0 ${
-                      clip.type === "image" ? "bg-emerald-500/15" : "bg-[#252640]"
+                      clip.type === "image" ? "bg-emerald-500/15" : "bg-[#2d3142]"
                     }`}>
                       <span className={`text-[8px] ${
-                        clip.type === "image" ? "text-emerald-400" : "text-[#4d5578]"
+                        clip.type === "image" ? "text-emerald-400" : "text-slate-500"
                       }`}>{clip.type === "image" ? "IMG" : "VID"}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="truncate text-xs font-medium text-[#e6e8f0] flex items-center gap-1.5">
+                      <div className="truncate text-xs font-medium text-slate-100 flex items-center gap-1.5">
                         {clip.name}
                       </div>
-                      <div className="text-[10px] text-[#4d5578]">
+                      <div className="text-[10px] text-slate-500">
                         {(getClipTrimmedDuration(clip) / fps).toFixed(1)}s
                         {collagePreset && (
-                          <span className="text-blue-400/70 ml-1">S{(clip.slotIndex ?? 0) + 1}</span>
+                          <span className="text-indigo-400/70 ml-1">S{(clip.slotIndex ?? 0) + 1}</span>
                         )}
                       </div>
                     </div>
@@ -415,7 +419,7 @@ export function ClipPanel() {
                         e.stopPropagation();
                         removeClip(clip.id);
                       }}
-                      className="p-1 rounded hover:bg-red-500/10 hover:text-red-400 text-[#4d5578] transition-colors duration-150 flex-shrink-0"
+                      className="p-1 rounded hover:bg-red-500/10 hover:text-red-400 text-slate-500 transition-colors duration-150 flex-shrink-0"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -436,8 +440,8 @@ export function ClipPanel() {
             </div>
           ) : sortedProfileGroups.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-center p-4">
-              <HardDrive className="h-6 w-6 text-[#252640] mb-2" />
-              <p className="text-xs text-[#4d5578]">No vault folders found</p>
+              <HardDrive className="h-6 w-6 text-[#2d3142] mb-2" />
+              <p className="text-xs text-slate-500">No vault folders found</p>
             </div>
           ) : (
             <div className="py-1">
@@ -458,11 +462,11 @@ export function ClipPanel() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-[#8490b0] truncate">
+                        <span className="text-xs font-medium text-slate-400 truncate">
                           {profile.name}
                         </span>
                         {profile.username && (
-                          <span className="text-[10px] text-[#4d5578] flex-shrink-0">
+                          <span className="text-[10px] text-slate-500 flex-shrink-0">
                             @{profile.username}
                           </span>
                         )}
@@ -483,13 +487,13 @@ export function ClipPanel() {
                         <button
                           key={folder.id}
                           onClick={() => handleOpenFolder(folder)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5 text-[#8490b0] hover:text-[#e6e8f0] transition-all cursor-pointer group"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-100 transition-all cursor-pointer group"
                         >
-                          <FolderClosed className="w-3.5 h-3.5 text-[#4d5578] group-hover:text-violet-400 transition-colors flex-shrink-0" />
+                          <FolderClosed className="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors flex-shrink-0" />
                           <span className="flex-1 text-xs font-medium text-left truncate">
                             {folder.name}
                           </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-[#4d5578] min-w-[20px] text-center">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-slate-500 min-w-[20px] text-center">
                             {itemCount}
                           </span>
                         </button>
@@ -500,13 +504,13 @@ export function ClipPanel() {
               ))}
 
               {/* Upload option at bottom */}
-              <div className="px-3 pt-3 pb-2 mt-1 border-t border-[#252640]/60">
+              <div className="px-3 pt-3 pb-2 mt-1 border-t border-[#2d3142]/60">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3 border-2 border-dashed border-[#252640] rounded-xl flex flex-col items-center gap-1 hover:border-blue-500/60 hover:bg-blue-500/5 transition-all duration-200 cursor-pointer group"
+                  className="w-full py-3 border-2 border-dashed border-[#2d3142] rounded-xl flex flex-col items-center gap-1 hover:border-indigo-500/60 hover:bg-indigo-500/5 transition-all duration-200 cursor-pointer group"
                 >
-                  <Upload className="h-4 w-4 text-[#4d5578] group-hover:text-blue-400 transition-colors" />
-                  <span className="text-[10px] text-[#4d5578] group-hover:text-[#8490b0] transition-colors">
+                  <Upload className="h-4 w-4 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+                  <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
                     Upload from device
                   </span>
                 </button>
@@ -520,15 +524,15 @@ export function ClipPanel() {
       {view === "vault-items" && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Folder Header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[#252640]/60">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-[#2d3142]/60">
             <button
               onClick={handleBackToFolders}
-              className="p-1 rounded hover:bg-[#1e2038] text-[#8490b0] hover:text-[#e6e8f0] transition-colors"
+              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <FolderOpen className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
-            <span className="text-xs font-medium text-[#e6e8f0] truncate flex-1">
+            <span className="text-xs font-medium text-slate-100 truncate flex-1">
               {selectedFolder?.name}
             </span>
           </div>
@@ -541,8 +545,8 @@ export function ClipPanel() {
               </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-center p-4">
-                <VideoIcon className="h-6 w-6 text-[#252640] mb-2" />
-                <p className="text-xs text-[#4d5578]">No media in this folder</p>
+                <VideoIcon className="h-6 w-6 text-[#2d3142] mb-2" />
+                <p className="text-xs text-slate-500">No media in this folder</p>
               </div>
             ) : (
               <div className="py-1">
@@ -562,7 +566,7 @@ export function ClipPanel() {
                           : "hover:bg-violet-500/10 cursor-pointer group"
                       }`}
                     >
-                      <div className="w-10 h-7 rounded bg-[#252640] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                      <div className="w-10 h-7 rounded bg-[#2d3142] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
                         {item.fileType?.startsWith("image/") ? (
                           <img
                             src={item.awsS3Url}
@@ -588,15 +592,15 @@ export function ClipPanel() {
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="truncate text-xs font-medium text-[#e6e8f0]">
+                        <div className="truncate text-xs font-medium text-slate-100">
                           {item.fileName}
                         </div>
-                        <div className="text-[10px] text-[#4d5578]">
+                        <div className="text-[10px] text-slate-500">
                           {isAlreadyAdded ? "Already added" : "Click to add"}
                         </div>
                       </div>
                       {!isAlreadyAdded && !isAdding && (
-                        <Plus className="w-3.5 h-3.5 text-[#4d5578] opacity-0 group-hover:opacity-100 group-hover:text-violet-400 transition-all flex-shrink-0" />
+                        <Plus className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 group-hover:text-violet-400 transition-all flex-shrink-0" />
                       )}
                     </button>
                   );

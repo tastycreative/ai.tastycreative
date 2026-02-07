@@ -313,8 +313,18 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
     get().recalculateTimeline();
   },
 
+  // Cached effective tracks — only recomputed when layout or tracks change
+  _cachedEffectiveTracks: null as Track[] | null,
+  _cachedEffectiveTracksKey: "" as string,
+
   getEffectiveTracks: () => {
     const { settings, tracks } = get();
+    const cacheKey = `${settings.activeCollageLayout ?? "none"}:${tracks.map((t) => t.id).join(",")}`;
+    const state = get() as VideoEditorState & { _cachedEffectiveTracks: Track[] | null; _cachedEffectiveTracksKey: string };
+    if (state._cachedEffectiveTracks && state._cachedEffectiveTracksKey === cacheKey) {
+      return state._cachedEffectiveTracks;
+    }
+    let result: Track[];
     if (settings.activeCollageLayout) {
       const preset = COLLAGE_PRESETS[settings.activeCollageLayout];
       const slotTracks: Track[] = preset.slots.map((_, i) => ({
@@ -325,9 +335,14 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
         visible: true,
       }));
       const overlayTracks = tracks.filter((t) => t.type === "overlay");
-      return [...slotTracks, ...overlayTracks];
+      result = [...slotTracks, ...overlayTracks];
+    } else {
+      result = tracks;
     }
-    return tracks;
+    // Store in cache without triggering re-render (mutate directly)
+    state._cachedEffectiveTracks = result;
+    state._cachedEffectiveTracksKey = cacheKey;
+    return result;
   },
 
   // ─── Playback Actions ──────────────

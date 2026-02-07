@@ -11,7 +11,7 @@ const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
 ];
 
 const inputClass =
-  "w-full h-7 px-2 bg-[#1a1b2e] border border-[#252640] rounded text-xs text-[#e6e8f0] hover:border-[#354065] focus:border-[#3b82f6] focus:ring-1 focus:ring-[rgba(59,130,246,0.3)] outline-none transition-all duration-150";
+  "w-full h-7 px-2 bg-slate-900 border border-[#2d3142] rounded-md text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150";
 
 interface ShapeOverlayPropertiesProps {
   overlay: ShapeOverlay;
@@ -26,10 +26,10 @@ export function ShapeOverlayProperties({ overlay }: ShapeOverlayPropertiesProps)
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-medium text-[#e6e8f0]">Shape</h4>
+      <h4 className="text-sm font-medium text-slate-100">Shape</h4>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Type</label>
+        <label className="text-xs text-slate-400">Type</label>
         <select
           value={overlay.shapeType}
           onChange={(e) => update({ shapeType: e.target.value as ShapeType })}
@@ -43,49 +43,49 @@ export function ShapeOverlayProperties({ overlay }: ShapeOverlayPropertiesProps)
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-[#8490b0]">Fill</label>
+          <label className="text-xs text-slate-400">Fill</label>
           <input
             type="color"
             value={overlay.fill.startsWith("rgba") ? "#ff0000" : overlay.fill}
             onChange={(e) => update({ fill: e.target.value })}
-            className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-[#8490b0]">Stroke</label>
+          <label className="text-xs text-slate-400">Stroke</label>
           <input
             type="color"
             value={overlay.stroke}
             onChange={(e) => update({ stroke: e.target.value })}
-            className="w-full h-7 rounded cursor-pointer bg-[#1a1b2e] border border-[#252640]"
+            className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
           />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Stroke Width: {overlay.strokeWidth}</label>
-        <input type="range" min={0} max={10} value={overlay.strokeWidth} onChange={(e) => update({ strokeWidth: Number(e.target.value) })} className="w-full h-1.5 accent-[#3b82f6]" />
+        <label className="text-xs text-slate-400">Stroke Width: {overlay.strokeWidth}</label>
+        <input type="range" min={0} max={10} value={overlay.strokeWidth} onChange={(e) => update({ strokeWidth: Number(e.target.value) })} className="w-full h-1.5 pro-slider" />
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Rotation: {overlay.rotation}°</label>
-        <input type="range" min={-180} max={180} value={overlay.rotation} onChange={(e) => update({ rotation: Number(e.target.value) })} className="w-full h-1.5 accent-[#3b82f6]" />
+        <label className="text-xs text-slate-400">Rotation: {overlay.rotation}°</label>
+        <input type="range" min={-180} max={180} value={overlay.rotation} onChange={(e) => update({ rotation: Number(e.target.value) })} className="w-full h-1.5 pro-slider" />
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-[#8490b0]">Opacity: {Math.round(overlay.opacity * 100)}%</label>
-        <input type="range" min={0} max={1} step={0.05} value={overlay.opacity} onChange={(e) => update({ opacity: Number(e.target.value) })} className="w-full h-1.5 accent-[#3b82f6]" />
+        <label className="text-xs text-slate-400">Opacity: {Math.round(overlay.opacity * 100)}%</label>
+        <input type="range" min={0} max={1} step={0.05} value={overlay.opacity} onChange={(e) => update({ opacity: Number(e.target.value) })} className="w-full h-1.5 pro-slider" />
       </div>
 
-      <div className="space-y-2.5 pt-3 border-t border-[#252640]">
-        <h5 className="text-[10px] font-semibold uppercase tracking-widest text-[#4d5578]">Timing</h5>
+      <div className="space-y-2.5 pt-3 border-t border-[#2d3142]">
+        <h5 className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Timing</h5>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-[10px] text-[#4d5578]">Start Frame</label>
+            <label className="text-[10px] text-slate-500">Start Frame</label>
             <input type="number" min={0} value={overlay.startFrame} onChange={(e) => update({ startFrame: Math.max(0, Number(e.target.value)) })} className={inputClass} />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] text-[#4d5578]">Duration</label>
+            <label className="text-[10px] text-slate-500">Duration</label>
             <input type="number" min={1} value={overlay.durationInFrames} onChange={(e) => update({ durationInFrames: Math.max(1, Number(e.target.value)) })} className={inputClass} />
           </div>
         </div>

@@ -1,17 +1,26 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
+import { memo, useRef, useCallback, useState, useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { framesToPixels, pixelsToFrames } from "@/lib/gif-maker/timeline-utils";
 import { getClipTrimmedDuration } from "@/lib/gif-maker/timeline-utils";
 import type { Clip } from "@/lib/gif-maker/types";
+
+const SLOT_COLOR_DEFS = [
+  { r: 99, g: 102, b: 241 },   // indigo (slot 0)
+  { r: 6, g: 182, b: 212 },    // cyan (slot 1)
+  { r: 16, g: 185, b: 129 },   // emerald (slot 2)
+  { r: 245, g: 158, b: 11 },   // amber (slot 3)
+  { r: 244, g: 63, b: 94 },    // rose (slot 4)
+  { r: 168, g: 85, b: 247 },   // purple (slot 5)
+] as const;
 
 interface TimelineClipItemProps {
   clip: Clip;
   zoom: number;
 }
 
-export function TimelineClipItem({ clip, zoom }: TimelineClipItemProps) {
+export const TimelineClipItem = memo(function TimelineClipItem({ clip, zoom }: TimelineClipItemProps) {
   const selectedClipId = useVideoEditorStore((s) => s.selectedClipId);
   const selectClip = useVideoEditorStore((s) => s.selectClip);
   const updateClip = useVideoEditorStore((s) => s.updateClip);
@@ -95,32 +104,36 @@ export function TimelineClipItem({ clip, zoom }: TimelineClipItemProps) {
     setIsResizing(false);
   }, []);
 
-  // Color by slot index
+  // Color by slot index — memoized to avoid recalculating styles every render
   const slotIdx = clip.slotIndex ?? 0;
-  const SLOT_COLOR_DEFS = [
-    { r: 59, g: 130, b: 246 },   // blue (slot 0)
-    { r: 6, g: 182, b: 212 },    // cyan (slot 1)
-    { r: 16, g: 185, b: 129 },   // emerald (slot 2)
-    { r: 245, g: 158, b: 11 },   // amber (slot 3)
-    { r: 244, g: 63, b: 94 },    // rose (slot 4)
-    { r: 168, g: 85, b: 247 },   // purple (slot 5)
-  ];
-  const sc = SLOT_COLOR_DEFS[slotIdx % SLOT_COLOR_DEFS.length];
-  const rgba = (a: number) => `rgba(${sc.r},${sc.g},${sc.b},${a})`;
+  const clipStyles = useMemo(() => {
+    const sc = SLOT_COLOR_DEFS[slotIdx % SLOT_COLOR_DEFS.length];
+    const rgba = (a: number) => `rgba(${sc.r},${sc.g},${sc.b},${a})`;
+    return {
+      borderSelected: rgba(0.6),
+      borderDefault: rgba(0.3),
+      bgFromSelected: rgba(0.45),
+      bgFromDefault: rgba(0.3),
+      bgToSelected: rgba(0.35),
+      bgToDefault: rgba(0.2),
+      ringColor: rgba(0.4),
+      shadowColor: rgba(0.25),
+      decorationImage: isImage
+        ? `repeating-linear-gradient(90deg, ${rgba(0.25)} 0px, ${rgba(0.25)} 2px, transparent 2px, transparent 6px)`
+        : `repeating-linear-gradient(90deg, ${rgba(0.3)} 0px, ${rgba(0.3)} 1px, transparent 1px, transparent 3px)`,
+    };
+  }, [slotIdx, isImage]);
 
-  // Image clips get a hatched decoration pattern
   const colorClasses = isSelected
-    ? `border shadow-[0_0_8px_${rgba(0.25)}] ring-1`
+    ? "border ring-1"
     : "border hover:border-opacity-50";
 
-  const borderColor = isSelected ? rgba(0.6) : rgba(0.3);
-  const bgFrom = isSelected ? rgba(0.45) : rgba(0.3);
-  const bgTo = isSelected ? rgba(0.35) : rgba(0.2);
-  const ringColor = isSelected ? rgba(0.4) : "transparent";
+  const borderColor = isSelected ? clipStyles.borderSelected : clipStyles.borderDefault;
+  const bgFrom = isSelected ? clipStyles.bgFromSelected : clipStyles.bgFromDefault;
+  const bgTo = isSelected ? clipStyles.bgToSelected : clipStyles.bgToDefault;
+  const ringColor = isSelected ? clipStyles.ringColor : "transparent";
 
-  const decorationBg = isImage
-    ? `repeating-linear-gradient(90deg, ${rgba(0.25)} 0px, ${rgba(0.25)} 2px, transparent 2px, transparent 6px)`
-    : `repeating-linear-gradient(90deg, ${rgba(0.3)} 0px, ${rgba(0.3)} 1px, transparent 1px, transparent 3px)`;
+  const decorationBg = clipStyles.decorationImage;
 
   // HTML5 drag for cross-track movement
   const handleDragStart = useCallback(
@@ -141,7 +154,7 @@ export function TimelineClipItem({ clip, zoom }: TimelineClipItemProps) {
         width: Math.max(width, 4),
         background: `linear-gradient(to bottom, ${bgFrom}, ${bgTo})`,
         borderColor,
-        boxShadow: isSelected ? `0 0 8px ${rgba(0.25)}` : undefined,
+        boxShadow: isSelected ? `0 0 8px ${clipStyles.shadowColor}` : undefined,
         ringColor,
       } as React.CSSProperties}
       onClick={(e) => {
@@ -185,4 +198,4 @@ export function TimelineClipItem({ clip, zoom }: TimelineClipItemProps) {
       </div>
     </div>
   );
-}
+});

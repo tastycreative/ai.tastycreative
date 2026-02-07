@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { memo, useState, useCallback, useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { TimelineClipItem } from "./TimelineClipItem";
 import { TimelineOverlayItem } from "./TimelineOverlayItem";
@@ -11,31 +11,32 @@ interface TimelineTrackProps {
   zoom: number;
 }
 
-export function TimelineTrack({ track, zoom }: TimelineTrackProps) {
+export const TimelineTrack = memo(function TimelineTrack({ track, zoom }: TimelineTrackProps) {
   const clips = useVideoEditorStore((s) => s.clips);
   const overlays = useVideoEditorStore((s) => s.overlays);
   const moveClipToSlot = useVideoEditorStore((s) => s.moveClipToSlot);
 
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const trackOverlays = overlays.filter((o) => o.trackId === track.id);
-
-  // For slot tracks, extract slotIndex from track ID (e.g. "slot-0" → 0)
-  // For the single video track, all clips belong to slot 0
   const isSlotTrack = track.type === "slot";
   const isVideoTrack = track.type === "video";
   const isClipTrack = isSlotTrack || isVideoTrack;
 
-  const trackClips = clips.filter((c) => {
+  const trackOverlays = useMemo(
+    () => overlays.filter((o) => o.trackId === track.id),
+    [overlays, track.id]
+  );
+
+  const trackClips = useMemo(() => {
     if (isSlotTrack) {
       const slotIndex = parseInt(track.id.replace("slot-", ""), 10);
-      return (c.slotIndex ?? 0) === slotIndex;
+      return clips.filter((c) => (c.slotIndex ?? 0) === slotIndex);
     }
     if (isVideoTrack) {
-      return true; // single-track mode — show all clips
+      return clips; // single-track mode — show all clips
     }
-    return false;
-  });
+    return [];
+  }, [clips, isSlotTrack, isVideoTrack, track.id]);
 
   // Drop handler — accept clips dragged between slots
   const handleDragOver = useCallback(
@@ -74,10 +75,10 @@ export function TimelineTrack({ track, zoom }: TimelineTrackProps) {
   const bgClass = isDragOver
     ? "bg-cyan-500/10 border-cyan-500/40"
     : isSlotTrack
-    ? "bg-[#0e0f1a] border-[#252640]/40"
+    ? "bg-[#12141e] border-[#2d3142]/40"
     : isVideoTrack
-    ? "bg-[#0e0f1a] border-[#252640]/40"
-    : "bg-[#111220] border-[#252640]/40";
+    ? "bg-[#12141e] border-[#2d3142]/40"
+    : "bg-[#131520] border-[#2d3142]/40";
 
   return (
     <div
@@ -100,4 +101,4 @@ export function TimelineTrack({ track, zoom }: TimelineTrackProps) {
         ))}
     </div>
   );
-}
+});

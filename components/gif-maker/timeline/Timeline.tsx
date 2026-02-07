@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { TimelineHeader } from "./TimelineHeader";
 import { TimelineTrack } from "./TimelineTrack";
@@ -10,7 +10,7 @@ import { framesToPixels, pixelsToFrames } from "@/lib/gif-maker/timeline-utils";
 import { Film, Layers, LayoutGrid } from "lucide-react";
 import type { TrackType } from "@/lib/gif-maker/types";
 
-const SLOT_COLORS = ["text-blue-400", "text-cyan-400", "text-emerald-400", "text-amber-400", "text-rose-400", "text-purple-400"];
+const SLOT_COLORS = ["text-indigo-400", "text-cyan-400", "text-emerald-400", "text-amber-400", "text-rose-400", "text-purple-400"];
 
 interface TimelineProps {
   onFrameChange: (frame: number) => void;
@@ -24,13 +24,22 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
     (s) => s.totalDurationInFrames
   );
   const currentFrame = useVideoEditorStore((s) => s.currentFrame);
-  const settings = useVideoEditorStore((s) => s.settings);
+  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
+  const timelineZoom = useVideoEditorStore((s) => s.settings.timelineZoom);
+  const snapEnabled = useVideoEditorStore((s) => s.settings.snapEnabled);
+  const fps = useVideoEditorStore((s) => s.settings.fps);
+  const tracks = useVideoEditorStore((s) => s.tracks);
   const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
 
-  const effectiveTracks = getEffectiveTracks();
+  // Memoize effective tracks — only recompute when layout or tracks change
+  const effectiveTracks = useMemo(
+    () => getEffectiveTracks(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeCollageLayout, tracks]
+  );
 
   const [isScrubbing, setIsScrubbing] = useState(false);
-  const zoom = settings.timelineZoom;
+  const zoom = timelineZoom;
   const totalWidth = framesToPixels(
     Math.max(totalDurationInFrames + 60, 300),
     zoom
@@ -91,23 +100,23 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
   const trackHeight = 40; // h-10
 
   return (
-    <div className="flex flex-col h-full bg-[#0e0f1a]">
+    <div className="flex flex-col h-full bg-[#0f111a]">
       {/* Timeline Controls */}
       <TimelineControls onFrameChange={onFrameChange} onTogglePlayback={onTogglePlayback} />
 
       {/* Scrollable Timeline Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Track Labels */}
-        <div className="w-32 min-w-[128px] flex-shrink-0 bg-[#141524] border-r border-[#252640] flex flex-col">
+        <div className="w-32 min-w-[128px] flex-shrink-0 bg-[#161925] border-r border-[#2d3142] flex flex-col">
           {/* Ruler spacer */}
-          <div className="h-7 border-b border-[#252640] flex-shrink-0" />
+          <div className="h-7 border-b border-[#2d3142] flex-shrink-0" />
           {effectiveTracks.map((track, i) => (
             <div
               key={track.id}
-              className="h-10 flex items-center gap-2 px-3 border-b border-[#252640]/60 group hover:bg-[#1a1b2e] transition-colors duration-100"
+              className="h-10 flex items-center gap-2 px-3 border-b border-[#2d3142]/60 group hover:bg-slate-800 transition-colors duration-100"
             >
               <TrackIcon type={track.type} slotIndex={track.type === "slot" ? i : undefined} />
-              <span className="text-[11px] font-medium text-[#8490b0] whitespace-nowrap overflow-hidden text-ellipsis flex-1">
+              <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis flex-1">
                 {track.label}
               </span>
             </div>
@@ -124,7 +133,7 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
             <TimelineHeader
               totalWidth={totalWidth}
               zoom={zoom}
-              fps={settings.fps}
+              fps={fps}
               onMouseDown={handleScrubStart}
             />
 
@@ -159,11 +168,11 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
 
 function TrackIcon({ type, slotIndex }: { type: TrackType; slotIndex?: number }) {
   if (type === "slot") {
-    const colorClass = SLOT_COLORS[slotIndex ?? 0] || "text-blue-400";
+    const colorClass = SLOT_COLORS[slotIndex ?? 0] || "text-indigo-400";
     return <LayoutGrid className={`h-3.5 w-3.5 flex-shrink-0 ${colorClass}`} />;
   }
   if (type === "video") {
-    return <Film className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />;
+    return <Film className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0" />;
   }
   return <Layers className="h-3.5 w-3.5 text-purple-400 flex-shrink-0" />;
 }

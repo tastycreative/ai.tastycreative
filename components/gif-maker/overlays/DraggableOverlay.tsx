@@ -92,7 +92,7 @@ export function DraggableOverlay({
     <div
       className={`absolute cursor-move transition-shadow duration-150 ${
         isSelected
-          ? "ring-2 ring-blue-400 shadow-[0_0_16px_rgba(99,102,241,0.4)]"
+          ? "ring-2 ring-indigo-400 shadow-[0_0_16px_rgba(99,102,241,0.4)]"
           : "hover:ring-1 hover:ring-white/50"
       }`}
       style={{
@@ -113,7 +113,7 @@ export function DraggableOverlay({
       {/* Resize handle (bottom-right corner) */}
       {isSelected && (
         <div
-          className="absolute -right-1 -bottom-1 w-3 h-3 bg-gradient-to-br from-blue-400 to-purple-500 rounded-sm cursor-nwse-resize z-10 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+          className="absolute -right-1 -bottom-1 w-3 h-3 bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-sm cursor-nwse-resize z-10 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
           onPointerDown={(e) => handlePointerDown(e, "resize")}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

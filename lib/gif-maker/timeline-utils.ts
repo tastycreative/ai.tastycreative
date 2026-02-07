@@ -74,6 +74,8 @@ export function groupClipsBySlot(clips: Clip[]): Map<number, Clip[]> {
 /**
  * Recompute clip startFrames based on array order and transitions.
  * Clips on the SAME track are sequential; different tracks play simultaneously.
+ * Optimized: only creates new clip objects when startFrame actually changes,
+ * and uses a transition Map for O(1) lookup.
  */
 export function computeClipStartFrames(
   clips: Clip[],
@@ -81,37 +83,46 @@ export function computeClipStartFrames(
 ): Clip[] {
   if (clips.length === 0) return [];
 
+  // Build transition lookup: "clipAId:clipBId" → durationInFrames
+  const transitionMap = new Map<string, number>();
+  for (const t of transitions) {
+    transitionMap.set(`${t.clipAId}:${t.clipBId}`, t.durationInFrames);
+  }
+
   const groups = groupClipsBySlot(clips);
   const updatedMap = new Map<string, Clip>();
 
   for (const [, slotClips] of groups) {
-    const updated = slotClips.map((c) => ({ ...c }));
-    updated[0].startFrame = 0;
+    let prevDuration = getClipTrimmedDuration(slotClips[0]);
 
-    for (let i = 1; i < updated.length; i++) {
-      const prevClip = updated[i - 1];
-      const prevDuration = getClipTrimmedDuration(prevClip);
-
-      // Find transition between prev and current (only within same slot)
-      const transition = transitions.find(
-        (t) => t.clipAId === prevClip.id && t.clipBId === updated[i].id
-      );
-
-      const overlap = transition ? transition.durationInFrames : 0;
-      updated[i].startFrame = prevClip.startFrame + prevDuration - overlap;
+    // First clip always starts at 0
+    if (slotClips[0].startFrame !== 0) {
+      updatedMap.set(slotClips[0].id, { ...slotClips[0], startFrame: 0 });
     }
 
-    for (const clip of updated) {
-      updatedMap.set(clip.id, clip);
+    for (let i = 1; i < slotClips.length; i++) {
+      const prevClip = updatedMap.get(slotClips[i - 1].id) || slotClips[i - 1];
+      const overlap = transitionMap.get(`${prevClip.id}:${slotClips[i].id}`) || 0;
+      const newStartFrame = prevClip.startFrame + prevDuration - overlap;
+
+      if (slotClips[i].startFrame !== newStartFrame) {
+        updatedMap.set(slotClips[i].id, { ...slotClips[i], startFrame: newStartFrame });
+      }
+
+      prevDuration = getClipTrimmedDuration(slotClips[i]);
     }
   }
 
-  // Preserve original array order
+  // If nothing changed, return original array (preserves reference equality)
+  if (updatedMap.size === 0) return clips;
+
+  // Preserve original array order, only replace changed clips
   return clips.map((c) => updatedMap.get(c.id) || c);
 }
 
 /**
  * Compute total timeline duration — max across all tracks (not sum).
+ * Optimized: builds a clip→slot lookup set to avoid O(n²) .some() calls.
  */
 export function computeTotalDuration(
   clips: Clip[],
@@ -120,19 +131,24 @@ export function computeTotalDuration(
   if (clips.length === 0) return 0;
 
   const groups = groupClipsBySlot(clips);
+
+  // Build clip-id → slot lookup for O(1) transition matching
+  const clipSlotMap = new Map<string, number>();
+  for (const clip of clips) {
+    clipSlotMap.set(clip.id, clip.slotIndex ?? 0);
+  }
+
   let maxDuration = 0;
 
-  for (const [, slotClips] of groups) {
+  for (const [slot, slotClips] of groups) {
     let slotTotal = 0;
     for (const clip of slotClips) {
       slotTotal += getClipTrimmedDuration(clip);
     }
 
-    // Subtract overlap from transitions within this slot
+    // Subtract overlap from transitions within this slot (O(1) lookup per transition)
     for (const t of transitions) {
-      const hasA = slotClips.some((c) => c.id === t.clipAId);
-      const hasB = slotClips.some((c) => c.id === t.clipBId);
-      if (hasA && hasB) {
+      if (clipSlotMap.get(t.clipAId) === slot && clipSlotMap.get(t.clipBId) === slot) {
         slotTotal -= t.durationInFrames;
       }
     }
