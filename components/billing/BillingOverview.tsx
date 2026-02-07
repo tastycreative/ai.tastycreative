@@ -11,7 +11,7 @@ interface BillingOverviewProps {
   onManageSubscription: (action: 'cancel' | 'resume' | 'cancel_now') => void;
   processingPlan: string | null;
   processingCredits: string | null;
-  creditsRef: React.RefObject<HTMLDivElement>;
+  creditsRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function BillingOverview({
