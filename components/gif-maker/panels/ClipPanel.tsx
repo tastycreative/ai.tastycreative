@@ -77,11 +77,14 @@ export function ClipPanel() {
     setLoadingFolders(true);
     try {
       const response = await fetch("/api/vault/folders?profileId=all");
-      if (!response.ok) throw new Error("Failed to fetch folders");
+      if (!response.ok) {
+        setFolders([]);
+        return;
+      }
       const data = await response.json();
       setFolders(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching vault folders:", error);
+    } catch {
+      setFolders([]);
     } finally {
       setLoadingFolders(false);
     }
