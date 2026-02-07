@@ -1,5 +1,7 @@
 # Creative Ink AI - Development Guidelines
 
+**No Need to add another guidelines unless stated**
+
 **CRITICAL: Always reference these guidelines when creating or updating UI components.**
 
 ---

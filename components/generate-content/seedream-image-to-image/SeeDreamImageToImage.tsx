@@ -11,6 +11,7 @@ import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
   ImageIcon,
   Download,
@@ -2684,6 +2685,23 @@ export default function SeeDreamImageToImage() {
         </div>,
         document.body
       )}
+
+      {/* Floating Credit Calculator */}
+      <CreditCalculator
+        modifiers={[
+          ...(selectedResolution === '4K' ? [{
+            label: '4K Resolution',
+            multiplier: 1.5,
+            description: '4K resolution costs 50% more credits than 2K'
+          }] : []),
+          ...(maxImages > 1 ? [{
+            label: `Batch (${maxImages} images)`,
+            multiplier: maxImages,
+            description: `Generating ${maxImages} images in one batch`
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }
