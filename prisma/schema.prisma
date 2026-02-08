@@ -50,6 +50,7 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
+  contentSubmissions       ContentSubmission[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -889,9 +890,9 @@ model VaultFolder {
   updatedAt  DateTime           @updatedAt
   isDefault  Boolean            @default(false)
   parentId   String?
+  shares     VaultFolderShare[]
   parent     VaultFolder?       @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   subfolders VaultFolder[]      @relation("FolderHierarchy")
-  shares     VaultFolderShare[]
   items      VaultItem[]
 
   @@index([clerkId])
@@ -1061,6 +1062,7 @@ model Organization {
   updatedAt            DateTime                      @default(now()) @updatedAt
   availableCredits     Int                           @default(0)
   transactions         BillingTransaction[]
+  creditUsageLogs      CreditUsageLog[]
   customPermissions    CustomOrganizationPermission?
   gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
@@ -1068,8 +1070,8 @@ model Organization {
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
-  creditUsageLogs      CreditUsageLog[]
   workspaces           Workspace[]
+  contentSubmissions   ContentSubmission[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -1181,7 +1183,7 @@ model CreditUsageLog {
   metadata       Json?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId])
   @@index([userId])
@@ -1869,4 +1871,172 @@ enum TransactionType {
   CREDIT_PURCHASE
   CREDIT_REFUND
   PLAN_CHANGE
+}
+
+// ==========================================
+// CONTENT SUBMISSION MODELS
+// ==========================================
+
+model ContentSubmission {
+  id             String   @id @default(cuid())
+  organizationId String
+  clerkId        String
+
+  // Submission Basics
+  submissionType String
+  contentStyle   String
+  status         SubmissionStatus @default(DRAFT)
+
+  // Content Details
+  modelId         String?
+  modelName       String?
+  priority        String   @default("normal")
+  caption         String?  @db.Text
+  driveLink       String?
+  contentType     String?
+  contentCount    Int?
+  contentLength   String?
+
+  // Tags & Categorization
+  contentTags          String[]  @default([])
+  externalCreatorTags  String?
+  internalModelTags    String[]  @default([])
+
+  // Additional Metadata
+  platform    String?  @default("onlyfans")
+  notes       String?  @db.Text
+  metadata    Json?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organization      Organization                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user              User                               @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  releaseSchedule   ContentSubmissionReleaseSchedule?
+  pricing           ContentSubmissionPricing?
+  files             ContentSubmissionFile[]
+
+  @@index([organizationId])
+  @@index([clerkId])
+  @@index([organizationId, clerkId])
+  @@index([organizationId, status])
+  @@index([submissionType])
+  @@index([contentStyle])
+  @@index([status])
+  @@index([createdAt])
+  @@map("content_submissions")
+}
+
+model ContentSubmissionReleaseSchedule {
+  id           String   @id @default(cuid())
+  submissionId String   @unique
+
+  // Release date/time
+  releaseDate     DateTime
+  releaseTime     String?
+  timezone        String    @default("UTC")
+
+  // Computed timestamp
+  releaseDateTime DateTime?
+
+  // Metadata
+  isScheduled     Boolean  @default(true)
+  scheduledBy     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  submission ContentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([releaseDate])
+  @@index([releaseDateTime])
+  @@index([submissionId])
+  @@map("content_submission_release_schedules")
+}
+
+model ContentSubmissionPricing {
+  id           String   @id @default(cuid())
+  submissionId String   @unique
+
+  // Pricing details
+  minimumPrice    Float?
+  suggestedPrice  Float?
+  finalPrice      Float?
+  currency        String    @default("usd")
+
+  // Pricing type
+  pricingType     String?
+  priceRangeMin   Float?
+  priceRangeMax   Float?
+
+  // Metadata
+  pricingNotes    String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  submission ContentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([minimumPrice])
+  @@map("content_submission_pricing")
+}
+
+model ContentSubmissionFile {
+  id           String   @id @default(cuid())
+  submissionId String
+
+  // S3 Storage
+  awsS3Key     String
+  awsS3Url     String
+  awsS3Bucket  String?
+
+  // File metadata
+  fileName     String
+  fileSize     Int
+  fileType     String
+  fileCategory String
+
+  // Media-specific
+  width        Int?
+  height       Int?
+  duration     Float?
+  thumbnailUrl String?
+
+  // Upload tracking
+  uploadStatus String   @default("pending")
+  uploadError  String?  @db.Text
+
+  // Organization
+  order        Int      @default(0)
+
+  // Metadata
+  uploadedBy   String?
+  uploadedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  submission ContentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([submissionId, order])
+  @@index([fileCategory])
+  @@index([uploadStatus])
+  @@index([awsS3Key])
+  @@map("content_submission_files")
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
 }
