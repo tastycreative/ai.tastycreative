@@ -3,8 +3,14 @@ import { router, publicProcedure, protectedProcedure } from '../lib/trpc';
 import { createTrainingJobSchema, trainingStatusSchema } from '../lib/validations/training';
 import { TrainingJobsDB } from '../lib/trainingJobsDB';
 import { runpodTrainingClient, RunPodTrainingClient } from '../lib/runpodTrainingClient';
+import { contentSubmissionRouter } from './routers/content-submission';
+import { submissionFilesRouter } from './routers/submission-files';
 
 export const appRouter = router({
+  // Content Submission routes
+  contentSubmission: contentSubmissionRouter,
+  submissionFiles: submissionFilesRouter,
+
   // Public procedures
   hello: publicProcedure
     .input(z.object({ name: z.string() }))
