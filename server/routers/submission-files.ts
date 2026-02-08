@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '../../lib/trpc';
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/database';
 import {
   fileUploadInputSchema,
   getPresignedUrlInputSchema,
