@@ -8,6 +8,8 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
   AlertCircle,
   Archive,
@@ -205,6 +207,7 @@ export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { refreshCredits } = useCredits();
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
   
   // Check if "All Profiles" is selected
@@ -1152,6 +1155,9 @@ export default function KlingMotionControl() {
       }
 
       setCurrentTaskId(data.taskId);
+
+      // Refresh credits after successful task submission
+      refreshCredits();
 
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
         updateGlobalProgress({
@@ -2278,6 +2284,19 @@ export default function KlingMotionControl() {
           profileId={globalProfileId}
         />
       )}
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="kling-motion-control"
+        modifiers={[
+          ...(mode === 'pro' ? [{
+            label: 'Professional Mode',
+            multiplier: 2,
+            description: 'Pro mode costs 2x more credits for higher quality'
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }

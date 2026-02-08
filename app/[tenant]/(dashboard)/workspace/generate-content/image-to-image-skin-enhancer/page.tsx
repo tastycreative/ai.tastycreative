@@ -26,6 +26,8 @@ import Image from 'next/image';
 import { useApiClient } from '@/lib/apiClient';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import VaultFolderDropdown from '@/components/generate-content/shared/VaultFolderDropdown';
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from '@/components/credits/CreditCalculator';
 
 interface JobStatus {
   id: string;
@@ -102,7 +104,8 @@ const formatDuration = (milliseconds: number) => {
 export default function ImageToImageSkinEnhancerPage() {
   const { user } = useUser();
   const apiClient = useApiClient();
-  
+  const { refreshCredits } = useCredits();
+
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
   
@@ -1077,6 +1080,9 @@ export default function ImageToImageSkinEnhancerPage() {
           }
           setIsProcessing(false);
 
+          // Refresh credits after successful completion
+          refreshCredits();
+
           const jobId = currentJob.id;
           console.log("🖼️ Calling fetchJobImages for job:", jobId);
           const images = await fetchJobImages(jobId);
@@ -1910,6 +1916,13 @@ export default function ImageToImageSkinEnhancerPage() {
           </div>
         </div>
       )}
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="image-to-image-skin-enhancer"
+        modifiers={[]}
+        position="bottom-right"
+      />
     </div>
   );
 }
