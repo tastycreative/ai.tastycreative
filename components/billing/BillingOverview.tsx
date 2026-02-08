@@ -29,22 +29,22 @@ export default function BillingOverview({
       ACTIVE: {
         icon: <CheckCircle className="w-4 h-4" />,
         text: 'Active',
-        className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
       },
       TRIAL: {
         icon: <AlertCircle className="w-4 h-4" />,
         text: 'Trial',
-        className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+        className: 'bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue',
       },
       PAST_DUE: {
         icon: <AlertCircle className="w-4 h-4" />,
         text: 'Past Due',
-        className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
       },
       CANCELED: {
         icon: <XCircle className="w-4 h-4" />,
         text: 'Canceled',
-        className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+        className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
       },
     };
 
@@ -76,7 +76,7 @@ export default function BillingOverview({
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
           <div
             className={`h-2 rounded-full transition-all duration-300 ${
-              isNearLimit ? 'bg-red-500' : 'bg-blue-600'
+              isNearLimit ? 'bg-rose-500' : 'bg-brand-blue'
             }`}
             style={{ width: `${percentage}%` }}
           />
@@ -89,7 +89,7 @@ export default function BillingOverview({
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-mid-pink mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading billing information...</p>
         </div>
       </div>
@@ -101,12 +101,12 @@ export default function BillingOverview({
       {/* Current Subscription Status */}
       {billingInfo && (
         <div className="mb-12">
-          <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8">
+          <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold mb-2">Current Plan</h2>
+                <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink dark:text-brand-light-pink">Current Plan</h2>
                 <div className="flex items-center space-x-3">
-                  <span className="text-xl font-semibold text-blue-600 dark:text-blue-400">
+                  <span className="text-xl font-semibold text-brand-mid-pink dark:text-brand-light-pink">
                     {billingInfo.plan?.displayName || 'No Plan'}
                   </span>
                   {getStatusBadge(billingInfo.organization.subscriptionStatus)}
@@ -130,18 +130,18 @@ export default function BillingOverview({
 
             {/* Subscription Actions */}
             {billingInfo.organization.subscriptionStatus === 'ACTIVE' && (
-              <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-wrap gap-3 pt-6 border-t border-brand-mid-pink/20 dark:border-brand-mid-pink/30">
                 {!billingInfo.organization.cancelAtPeriodEnd ? (
                   <button
                     onClick={() => onManageSubscription('cancel')}
-                    className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium"
+                    className="px-4 py-2 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors font-medium"
                   >
                     Cancel Subscription
                   </button>
                 ) : (
                   <button
                     onClick={() => onManageSubscription('resume')}
-                    className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-medium"
+                    className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors font-medium"
                   >
                     Resume Subscription
                   </button>
@@ -150,8 +150,8 @@ export default function BillingOverview({
             )}
 
             {billingInfo.organization.cancelAtPeriodEnd && (
-              <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              <div className="mt-4 p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   Your subscription will be canceled on{' '}
                   {billingInfo.organization.currentPeriodEnd &&
                     new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
@@ -166,9 +166,9 @@ export default function BillingOverview({
       {/* Usage Statistics */}
       {billingInfo && (
         <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6">Usage This Month</h2>
+          <h2 className="text-2xl font-bold mb-6 text-brand-mid-pink dark:text-brand-light-pink">Usage This Month</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <UsageBar
                 label="Team Members"
                 current={billingInfo.usage.members.current}
@@ -176,7 +176,7 @@ export default function BillingOverview({
                 icon={Users}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <UsageBar
                 label="Content Profiles"
                 current={billingInfo.usage.profiles.current}
@@ -184,7 +184,7 @@ export default function BillingOverview({
                 icon={CreditCard}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <UsageBar
                 label="Storage (GB)"
                 current={Math.round(billingInfo.usage.storage.current * 10) / 10}
@@ -192,7 +192,7 @@ export default function BillingOverview({
                 icon={HardDrive}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <UsageBar
                 label="AI Credits"
                 current={billingInfo.usage.credits.used}
@@ -209,7 +209,7 @@ export default function BillingOverview({
 
       {/* Pricing Plans */}
       <div className="mb-12">
-        <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center">Available Plans</h2>
+        <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center text-brand-mid-pink dark:text-brand-light-pink">Available Plans</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {PRICING_PLANS.map((plan, index) => {
             const isCurrentPlan = billingInfo?.plan?.name === plan.name;
@@ -221,28 +221,28 @@ export default function BillingOverview({
                 key={index}
                 className={`bg-white dark:bg-gray-900/30 border rounded-2xl p-6 transition-all duration-300 relative overflow-visible shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
                   isCurrentPlan
-                    ? 'border-blue-500 ring-2 ring-blue-500'
-                    : 'border-gray-300 dark:border-gray-800 hover:border-blue-400 dark:hover:border-blue-500'
+                    ? 'border-brand-mid-pink ring-2 ring-brand-mid-pink'
+                    : 'border-brand-mid-pink/20 dark:border-brand-mid-pink/30 hover:border-brand-mid-pink/50 dark:hover:border-brand-mid-pink/60'
                 }`}
               >
                 {plan.badge && isCurrentPlan ? (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10 flex flex-col gap-1 items-center">
-                    <span className="bg-blue-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="bg-brand-mid-pink text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       {plan.badge}
                     </span>
-                    <span className="bg-green-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="bg-emerald-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       Current Plan
                     </span>
                   </div>
                 ) : plan.badge ? (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-blue-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="bg-brand-mid-pink text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       {plan.badge}
                     </span>
                   </div>
                 ) : isCurrentPlan ? (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-green-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="bg-emerald-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       Current Plan
                     </span>
                   </div>
@@ -269,20 +269,20 @@ export default function BillingOverview({
                       key={featureIndex}
                       className="text-sm text-gray-600 dark:text-gray-400 flex items-start"
                     >
-                      <span className="text-green-500 mr-2">✓</span>
+                      <span className="text-brand-mid-pink mr-2">✓</span>
                       {feature}
                     </li>
                   ))}
                 </ul>
                 <div className="mt-auto">
                   {plan.price === 'Custom' ? (
-                    <button className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                    <button className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium shadow-md">
                       {plan.cta || 'Contact Sales'}
                     </button>
                   ) : isCurrentPlan ? (
                     <button
                       disabled
-                      className="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed"
+                      className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed shadow-md"
                     >
                       Active Subscription
                     </button>
@@ -290,7 +290,7 @@ export default function BillingOverview({
                     <button
                       onClick={() => onSubscribe(plan.name)}
                       disabled={isProcessing}
-                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-brand-mid-pink text-white py-2 px-4 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                     >
                       {isProcessing ? 'Processing...' : hasActiveSubscription ? 'Change to This Plan' : 'Subscribe'}
                     </button>
@@ -305,7 +305,7 @@ export default function BillingOverview({
       {/* Credit Packages */}
       <div ref={creditsRef} className="mb-12 scroll-mt-24">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Need More Credits?</h2>
+          <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink dark:text-brand-light-pink">Need More Credits?</h2>
           <p className="text-gray-600 dark:text-gray-400">Purchase additional credits anytime. Credits never expire and stack with your plan.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -318,20 +318,20 @@ export default function BillingOverview({
                 key={pkg.id}
                 className={`bg-white dark:bg-gray-900/30 border rounded-2xl p-6 transition-all duration-300 relative shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
                   pkg.popular
-                    ? 'border-purple-500 ring-2 ring-purple-500'
-                    : 'border-gray-300 dark:border-gray-800 hover:border-purple-400 dark:hover:border-purple-500'
+                    ? 'border-brand-mid-pink ring-2 ring-brand-mid-pink'
+                    : 'border-brand-mid-pink/20 dark:border-brand-mid-pink/30 hover:border-brand-mid-pink/50 dark:hover:border-brand-mid-pink/60'
                 }`}
               >
                 {pkg.popular && (
                   <div className="absolute -top-3 right-4 z-10">
-                    <span className="bg-purple-600 text-white text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                    <span className="bg-brand-mid-pink text-white text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap shadow-md">
                       Popular
                     </span>
                   </div>
                 )}
                 <div className="text-center mb-4">
-                  <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Plus className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                  <div className="w-12 h-12 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Plus className="w-6 h-6 text-brand-mid-pink" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                     {pkg.name}
@@ -342,11 +342,11 @@ export default function BillingOverview({
                     </span>
                   </div>
                   <div className="text-sm">
-                    <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                    <span className="text-brand-mid-pink dark:text-brand-light-pink font-semibold">
                       {totalCredits.toLocaleString()} Credits
                     </span>
                     {pkg.bonus && (
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                         +{pkg.bonus} Bonus Credits
                       </div>
                     )}
@@ -356,7 +356,7 @@ export default function BillingOverview({
                   <button
                     onClick={() => onPurchaseCredits(pkg.id)}
                     disabled={isProcessing}
-                    className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-brand-mid-pink text-white py-2 px-4 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   >
                     {isProcessing ? 'Processing...' : 'Purchase Credits'}
                   </button>
@@ -372,14 +372,14 @@ export default function BillingOverview({
 
       {/* Help Section */}
       <div className="text-center">
-        <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-2xl p-8">
-          <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+        <div className="bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-8 shadow-sm">
+          <h3 className="text-2xl font-bold mb-4 text-brand-mid-pink dark:text-brand-light-pink">
             Need help choosing a plan?
           </h3>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
             Our team is here to help you find the perfect plan for your content creation needs.
           </p>
-          <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+          <button className="bg-brand-mid-pink text-white px-6 py-3 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium shadow-md">
             Contact Sales
           </button>
         </div>

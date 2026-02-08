@@ -91,29 +91,34 @@ export default function Invoices() {
     return `INV-${startPrefix}-${endPrefix}-GROUPED`;
   };
 
+  // Calculate grand totals
+  const grandTotalAmount = invoiceTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const grandTotalCredits = invoiceTransactions.reduce((sum, t) => sum + (t.creditsAdded || 0), 0);
+  const totalInvoiceCount = invoiceTransactions.length;
+
   return (
     <div className="space-y-6">
       {/* Filters Section */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+      <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Filter Invoices</h2>
+            <h2 className="text-xl font-bold text-brand-mid-pink dark:text-brand-light-pink">Filter Invoices</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Search and filter your invoices
             </p>
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               showFilters
-                ? 'bg-brand-blue text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                ? 'bg-brand-mid-pink text-white shadow-md'
+                : 'bg-brand-light-pink/10 dark:bg-brand-light-pink/20 text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/20 dark:hover:bg-brand-light-pink/30'
             }`}
           >
             <Filter className="w-4 h-4" />
             {showFilters ? 'Hide Filters' : 'Show Filters'}
             {hasActiveFilters && (
-              <span className="bg-white dark:bg-gray-900 text-brand-blue px-2 py-0.5 rounded-full text-xs font-semibold">
+              <span className="bg-white dark:bg-gray-900 text-brand-mid-pink px-2 py-0.5 rounded-full text-xs font-semibold">
                 Active
               </span>
             )}
@@ -174,7 +179,7 @@ export default function Invoices() {
               <div className="flex items-center justify-end pt-2">
                 <button
                   onClick={resetFilters}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/20 rounded-lg transition-colors font-medium"
                 >
                   <X className="w-4 h-4" />
                   Clear All Filters
@@ -185,15 +190,65 @@ export default function Invoices() {
         )}
       </div>
 
+      {/* Grand Total Summary */}
+      {!isLoading && invoiceTransactions.length > 0 && (
+        <div className="bg-brand-mid-pink dark:bg-brand-mid-pink/90 border border-brand-light-pink/50 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold">Invoice Summary</h3>
+            </div>
+            {hasActiveFilters && (
+              <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">
+                Filtered Results
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Total Invoices */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+              <p className="text-sm text-white/80 mb-1">Total Invoices</p>
+              <p className="text-3xl font-bold">{totalInvoiceCount}</p>
+              <p className="text-xs text-white/70 mt-1">
+                {shouldGroupInvoices ? 'Grouped Statement' : 'Individual Invoices'}
+              </p>
+            </div>
+
+            {/* Grand Total Amount */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+              <p className="text-sm text-white/80 mb-1">Grand Total</p>
+              <p className="text-3xl font-bold">${grandTotalAmount.toFixed(2)}</p>
+              <p className="text-xs text-white/70 mt-1">USD</p>
+            </div>
+
+            {/* Total Credits */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+              <p className="text-sm text-white/80 mb-1">Total Credits Added</p>
+              <p className="text-3xl font-bold">
+                {grandTotalCredits > 0 ? `+${grandTotalCredits.toLocaleString()}` : '0'}
+              </p>
+              <p className="text-xs text-white/70 mt-1">
+                {grandTotalCredits > 0 ? 'Credits' : 'No credits'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoices List */}
       {isLoading ? (
         <div className="p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-mid-pink mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading invoices...</p>
         </div>
       ) : invoiceTransactions.length === 0 ? (
-        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-12 text-center">
-          <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl p-12 text-center shadow-sm">
+          <div className="p-4 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+            <FileText className="w-12 h-12 text-brand-mid-pink" />
+          </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             {hasActiveFilters ? 'No invoices match your filters' : 'No invoices yet'}
           </h3>
@@ -206,7 +261,7 @@ export default function Invoices() {
           {hasActiveFilters && (
             <button
               onClick={resetFilters}
-              className="px-4 py-2 text-sm text-brand-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/20 rounded-lg transition-colors"
             >
               Clear filters
             </button>
@@ -214,13 +269,13 @@ export default function Invoices() {
         </div>
       ) : shouldGroupInvoices && groupedInvoice ? (
         // Grouped Invoice for Date Range
-        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+        <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow">
           {/* Grouped Invoice Header */}
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-brand-blue/10 rounded-lg">
-                  <FileText className="w-6 h-6 text-brand-blue" />
+                <div className="p-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-lg">
+                  <FileText className="w-6 h-6 text-brand-mid-pink" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -286,8 +341,8 @@ export default function Invoices() {
                 <div className="col-span-2 text-right">
                   <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                     transaction.type === 'SUBSCRIPTION_PAYMENT'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                      : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                      ? 'bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue dark:text-brand-blue'
+                      : 'bg-brand-light-pink/10 dark:bg-brand-light-pink/20 text-brand-dark-pink dark:text-brand-light-pink'
                   }`}>
                     {transaction.type === 'SUBSCRIPTION_PAYMENT' ? 'Subscription' : 'Credits'}
                   </span>
@@ -304,10 +359,10 @@ export default function Invoices() {
 
           {/* Summary */}
           {groupedInvoice.totalCredits > 0 && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div className="mb-6 p-4 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Credits Added</span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                <span className="text-lg font-bold text-brand-mid-pink dark:text-brand-light-pink">
                   +{groupedInvoice.totalCredits.toLocaleString()}
                 </span>
               </div>
@@ -350,14 +405,14 @@ export default function Invoices() {
           {invoiceTransactions.map((transaction) => (
             <div
               key={transaction.id}
-              className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 hover:shadow-lg transition-shadow"
+              className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl p-6 hover:shadow-lg hover:border-brand-light-pink/50 dark:hover:border-brand-light-pink/60 transition-all"
             >
               {/* Invoice Header */}
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-brand-blue/10 rounded-lg">
-                      <FileText className="w-6 h-6 text-brand-blue" />
+                    <div className="p-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-lg">
+                      <FileText className="w-6 h-6 text-brand-mid-pink" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -401,10 +456,10 @@ export default function Invoices() {
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Status</p>
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
                       transaction.status === 'COMPLETED'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                         : transaction.status === 'PENDING'
-                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
                     }`}>
                       {transaction.status}
                     </span>
@@ -447,8 +502,8 @@ export default function Invoices() {
                 </div>
 
                 {transaction.creditsAdded && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
-                    <span className="text-green-600 dark:text-green-400 font-semibold">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 px-3 py-2 rounded-lg">
+                    <span className="text-brand-mid-pink dark:text-brand-light-pink font-semibold">
                       +{transaction.creditsAdded.toLocaleString()} credits added
                     </span>
                   </div>

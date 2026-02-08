@@ -86,26 +86,26 @@ export default function BillingTransactions() {
   return (
     <div className="space-y-8">
       {/* Unified Filters Section */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
+      <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Filters</h2>
+            <h2 className="text-xl font-bold text-brand-mid-pink dark:text-brand-light-pink">Filters</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Apply filters to both billing and usage data
             </p>
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               showFilters
-                ? 'bg-brand-blue text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                ? 'bg-brand-mid-pink text-white shadow-md'
+                : 'bg-brand-light-pink/10 dark:bg-brand-light-pink/20 text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/20 dark:hover:bg-brand-light-pink/30'
             }`}
           >
             <Filter className="w-4 h-4" />
             {showFilters ? 'Hide Filters' : 'Show Filters'}
             {hasActiveFilters && (
-              <span className="bg-white dark:bg-gray-900 text-brand-blue px-2 py-0.5 rounded-full text-xs font-semibold">
+              <span className="bg-white dark:bg-gray-900 text-brand-mid-pink px-2 py-0.5 rounded-full text-xs font-semibold">
                 Active
               </span>
             )}
@@ -188,7 +188,7 @@ export default function BillingTransactions() {
                 </span>
                 <button
                   onClick={resetFilters}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/20 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4" />
                   Clear All Filters
@@ -200,29 +200,38 @@ export default function BillingTransactions() {
       </div>
 
       {/* Subscription & Credit Purchases */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Billing Summary</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Overview of your subscription and credit purchases
-          </p>
+      <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-brand-mid-pink/20 dark:border-brand-mid-pink/30 bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-lg">
+              <Receipt className="w-5 h-5 text-brand-mid-pink" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Billing Summary</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Overview of your subscription and credit purchases
+              </p>
+            </div>
+          </div>
         </div>
 
         {loadingTransactions ? (
           <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-mid-pink mx-auto"></div>
             <p className="mt-4 text-gray-600 dark:text-gray-400">Loading billing data...</p>
           </div>
         ) : filteredTransactions.length === 0 ? (
-          <div className="p-8 text-center">
-            <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <div className="p-12 text-center">
+            <div className="p-4 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <Receipt className="w-10 h-10 text-brand-mid-pink" />
+            </div>
             <p className="text-gray-600 dark:text-gray-400">
               {hasActiveFilters ? 'No results match your filters' : 'No billing history yet'}
             </p>
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="mt-3 text-sm text-brand-blue hover:underline"
+                className="mt-3 px-4 py-2 text-sm font-medium text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/20 rounded-lg transition-colors"
               >
                 Clear filters
               </button>
@@ -231,7 +240,7 @@ export default function BillingTransactions() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <thead className="bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
@@ -277,7 +286,7 @@ export default function BillingTransactions() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {transaction.creditsAdded ? (
-                        <span className="text-green-600 dark:text-green-400 font-semibold">
+                        <span className="text-brand-dark-pink dark:text-brand-light-pink font-semibold">
                           +{transaction.creditsAdded.toLocaleString()}
                         </span>
                       ) : (
@@ -309,29 +318,38 @@ export default function BillingTransactions() {
       </div>
 
       {/* Credit Usage Breakdown */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Credit Usage</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Detailed breakdown of how your credits were used
-          </p>
+      <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/30 dark:border-brand-mid-pink/40 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-brand-mid-pink/20 dark:border-brand-mid-pink/30 bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-lg">
+              <Zap className="w-5 h-5 text-brand-mid-pink" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Credit Usage</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Detailed breakdown of how your credits were used
+              </p>
+            </div>
+          </div>
         </div>
 
         {loadingUsage ? (
           <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-mid-pink mx-auto"></div>
             <p className="mt-4 text-gray-600 dark:text-gray-400">Loading usage data...</p>
           </div>
         ) : usageLogs.length === 0 ? (
-          <div className="p-8 text-center">
-            <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <div className="p-12 text-center">
+            <div className="p-4 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <Zap className="w-10 h-10 text-brand-mid-pink" />
+            </div>
             <p className="text-gray-600 dark:text-gray-400">
               {hasActiveFilters ? 'No results match your filters' : 'No credit usage yet'}
             </p>
             {hasActiveFilters ? (
               <button
                 onClick={resetFilters}
-                className="mt-3 text-sm text-brand-blue hover:underline"
+                className="mt-3 px-4 py-2 text-sm font-medium text-brand-dark-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/20 rounded-lg transition-colors"
               >
                 Clear filters
               </button>
@@ -344,7 +362,7 @@ export default function BillingTransactions() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <thead className="bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date & Time
