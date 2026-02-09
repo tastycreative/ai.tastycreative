@@ -8,6 +8,8 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
   AlertCircle,
   Archive,
@@ -236,6 +238,7 @@ export default function KlingMultiImageToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { refreshCredits } = useCredits();
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
@@ -992,6 +995,10 @@ export default function KlingMultiImageToVideo() {
       }
 
       const data = await response.json();
+
+      // Refresh credits after successful task submission
+      refreshCredits();
+
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
         updateGlobalProgress({
           isGenerating: false,
@@ -2170,6 +2177,29 @@ export default function KlingMultiImageToVideo() {
           </div>,
           document.body
         )}
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="kling-multi-image-to-video"
+        modifiers={[
+          ...(mode === 'pro' ? [{
+            label: 'Professional Mode',
+            multiplier: 2,
+            description: 'Pro mode costs 2x more credits for higher quality'
+          }] : []),
+          ...(duration === '10' ? [{
+            label: 'Extended Duration (10s)',
+            multiplier: 2,
+            description: '10s videos cost 2x more than 5s videos'
+          }] : []),
+          ...(model === 'kling-v1-6' ? [{
+            label: 'V1.6 Model',
+            multiplier: 1.2,
+            description: 'Latest model costs 20% more credits'
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }

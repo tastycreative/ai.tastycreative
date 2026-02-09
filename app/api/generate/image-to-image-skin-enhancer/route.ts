@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
+import { prisma } from '@/lib/database';
+import { deductCredits } from '@/lib/credits';
 
 // Validation schema for the image-to-image skin enhancer request
 const ImageToImageSkinEnhancerSchema = z.object({
@@ -47,12 +49,42 @@ export async function POST(request: NextRequest) {
     
     // Validate request data
     const validatedData = ImageToImageSkinEnhancerSchema.parse(body);
-    
+
     console.log('✅ Request validated:', {
       userId,
       paramsKeys: Object.keys(validatedData.params),
       workflowNodeCount: Object.keys(validatedData.workflow).length,
     });
+
+    // Get user's organization for credit deduction
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: 'User organization not found' },
+        { status: 400 }
+      );
+    }
+
+    // Deduct credits before processing
+    const featureKey = 'image_to_image_skin_enhancer';
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        error: creditResult.error || 'Failed to deduct credits',
+        insufficientCredits: creditResult.error?.includes('Insufficient credits')
+      }, { status: 400 });
+    }
+
+    console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
     // Get RunPod configuration
     const RUNPOD_API_URL = process.env.RUNPOD_IMAGE_TO_IMAGE_SKIN_ENHANCER_ENDPOINT_URL;

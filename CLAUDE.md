@@ -170,16 +170,33 @@ This project uses **Tailwind CSS v4** with CSS-based configuration (NO `tailwind
 
 ## 🌓 Dark Mode Support
 
-Always add dark mode variants when creating UI:
+Always add dark mode variants using brand colors:
 
 ```tsx
-<div className="bg-white dark:bg-gray-900">
-<p className="text-gray-900 dark:text-white">
-<div className="border-gray-200 dark:border-gray-800">
+// Use brand colors for dark backgrounds
+<div className="bg-white dark:bg-brand-dark-pink/10">
+<p className="text-gray-900 dark:text-brand-off-white">
+<div className="border-gray-200 dark:border-brand-mid-pink/30">
 
-// Gradient overlays
-<div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10
-                dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5">
+// Brand color accents in dark mode
+<button className="bg-brand-light-pink hover:bg-brand-mid-pink dark:bg-brand-dark-pink dark:hover:bg-brand-mid-pink">
+<span className="text-brand-blue dark:text-brand-light-pink">
+
+// Gradient overlays with brand colors
+<div className="bg-gradient-to-r from-brand-light-pink/10 via-brand-blue/10 to-brand-dark-pink/10
+                dark:from-brand-dark-pink/5 dark:via-brand-blue/5 dark:to-brand-mid-pink/5">
+
+// Cards and surfaces
+<div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20">
+<div className="bg-gray-50 dark:bg-brand-dark-pink/5">
 ```
+
+### Dark Mode Brand Color Usage
+
+- **Backgrounds**: Use `brand-dark-pink/10` or `brand-dark-pink/5` for subtle brand presence
+- **Accents**: Use `brand-light-pink`, `brand-mid-pink`, `brand-blue` for interactive elements
+- **Text**: Use `brand-off-white` for primary text, `brand-light-pink` for highlights
+- **Borders**: Use `brand-mid-pink/20` or `brand-mid-pink/30` for subtle definition
+- **Gradients**: Combine brand colors with low opacity for ambient effects
 
 ---

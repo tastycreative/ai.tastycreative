@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
 import { v4 as uuidv4 } from "uuid";
+import { deductCredits } from '@/lib/credits';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = 'nodejs';
@@ -55,6 +56,38 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
+
+    // Get user's organization for credit deduction
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: 'User organization not found' },
+        { status: 400 }
+      );
+    }
+
+    // Dynamically determine feature key from URL path
+    const featureKey = 'seedream_text_to_video';
+
+    // Deduct credits before making the API call
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        error: creditResult.error || 'Failed to deduct credits',
+        insufficientCredits: creditResult.error?.includes('Insufficient credits')
+      }, { status: 400 });
+    }
+
+    console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
     // Build content array for text-to-video
     const content = [

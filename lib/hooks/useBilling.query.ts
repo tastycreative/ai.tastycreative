@@ -38,6 +38,8 @@ export interface Transaction {
   description: string;
   creditsAdded: number | null;
   planName: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
   createdAt: string;
   user?: {
     id: string;
@@ -67,6 +69,12 @@ interface TransactionsResponse {
 
 interface UsageLogsResponse {
   usageLogs: UsageLog[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
 }
 
 async function fetchBillingInfo(): Promise<BillingInfo> {
@@ -77,16 +85,48 @@ async function fetchBillingInfo(): Promise<BillingInfo> {
   return response.json();
 }
 
-async function fetchTransactions(): Promise<TransactionsResponse> {
-  const response = await fetch('/api/billing/transactions');
+interface TransactionFilters {
+  search?: string;
+  type?: 'all' | 'subscription' | 'credits';
+  startDate?: string;
+  endDate?: string;
+}
+
+interface UsageFilters {
+  search?: string;
+  feature?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+async function fetchTransactions(filters?: TransactionFilters): Promise<TransactionsResponse> {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append('search', filters.search);
+  if (filters?.type && filters.type !== 'all') params.append('type', filters.type);
+  if (filters?.startDate) params.append('startDate', filters.startDate);
+  if (filters?.endDate) params.append('endDate', filters.endDate);
+
+  const url = `/api/billing/transactions${params.toString() ? `?${params.toString()}` : ''}`;
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch transactions');
   }
   return response.json();
 }
 
-async function fetchUsageLogs(): Promise<UsageLogsResponse> {
-  const response = await fetch('/api/billing/usage-logs');
+async function fetchUsageLogs(filters?: UsageFilters): Promise<UsageLogsResponse> {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append('search', filters.search);
+  if (filters?.feature && filters.feature !== 'all') params.append('feature', filters.feature);
+  if (filters?.startDate) params.append('startDate', filters.startDate);
+  if (filters?.endDate) params.append('endDate', filters.endDate);
+  if (filters?.page) params.append('page', filters.page.toString());
+  if (filters?.limit) params.append('limit', filters.limit.toString());
+
+  const url = `/api/billing/usage-logs${params.toString() ? `?${params.toString()}` : ''}`;
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch usage logs');
   }
@@ -116,12 +156,12 @@ export function useBillingInfo() {
   });
 }
 
-export function useTransactions(enabled: boolean = true) {
+export function useTransactions(filters?: TransactionFilters, enabled: boolean = true) {
   const { user } = useUser();
 
   return useQuery({
-    queryKey: ['billing', 'transactions', user?.id],
-    queryFn: fetchTransactions,
+    queryKey: ['billing', 'transactions', user?.id, filters],
+    queryFn: () => fetchTransactions(filters),
     enabled: !!user && enabled,
     staleTime: 1000 * 60 * 2, // 2 minutes
     gcTime: 1000 * 60 * 5, // 5 minutes
@@ -129,12 +169,12 @@ export function useTransactions(enabled: boolean = true) {
   });
 }
 
-export function useUsageLogs(enabled: boolean = true) {
+export function useUsageLogs(filters?: UsageFilters, enabled: boolean = true) {
   const { user } = useUser();
 
   return useQuery({
-    queryKey: ['billing', 'usage-logs', user?.id],
-    queryFn: fetchUsageLogs,
+    queryKey: ['billing', 'usage-logs', user?.id, filters],
+    queryFn: () => fetchUsageLogs(filters),
     enabled: !!user && enabled,
     staleTime: 1000 * 60 * 2, // 2 minutes
     gcTime: 1000 * 60 * 5, // 5 minutes

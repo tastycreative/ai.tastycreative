@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
 
@@ -20,11 +20,41 @@ export async function GET() {
       return NextResponse.json({ error: 'No organization found' }, { status: 400 });
     }
 
-    // Fetch transactions for the organization
+    // Get filter parameters from query string
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
+    const type = searchParams.get('type');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // Build where clause
+    const where: any = {
+      organizationId: user.currentOrganizationId,
+    };
+
+    // Type filter
+    if (type && type !== 'all') {
+      if (type === 'subscription') {
+        where.type = 'SUBSCRIPTION_PAYMENT';
+      } else if (type === 'credits') {
+        where.type = 'CREDIT_PURCHASE';
+      }
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(endDate);
+      }
+    }
+
+    // Fetch transactions
     const transactions = await prisma.billingTransaction.findMany({
-      where: {
-        organizationId: user.currentOrganizationId,
-      },
+      where,
       include: {
         user: {
           select: {
@@ -38,10 +68,23 @@ export async function GET() {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50, // Limit to last 50 transactions
+      take: 100, // Increased limit
     });
 
-    return NextResponse.json({ transactions });
+    // Client-side search filter (for searching across multiple fields)
+    let filteredTransactions = transactions;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredTransactions = transactions.filter(t =>
+        t.description.toLowerCase().includes(searchLower) ||
+        t.planName?.toLowerCase().includes(searchLower) ||
+        t.user?.firstName?.toLowerCase().includes(searchLower) ||
+        t.user?.lastName?.toLowerCase().includes(searchLower) ||
+        t.user?.email?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return NextResponse.json({ transactions: filteredTransactions });
   } catch (error: unknown) {
     console.error('Error fetching transactions:', error);
     return NextResponse.json(
