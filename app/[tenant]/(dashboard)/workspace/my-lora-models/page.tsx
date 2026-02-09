@@ -998,7 +998,7 @@ export default function MyLoRAModelsPage() {
                 setShowUploadModal(true);
                 checkComfyUIStatus();
               }}
-              className="flex items-center justify-center space-x-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-blue-600 hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full sm:w-auto text-sm sm:text-base"
+              className="flex items-center justify-center space-x-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-[#5DC3F8] hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full sm:w-auto text-sm sm:text-base"
             >
               <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>Add LoRA Model</span>
@@ -1024,7 +1024,7 @@ export default function MyLoRAModelsPage() {
             onClick={() => setActiveView('my-loras')}
             className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
               activeView === 'my-loras'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg sm:scale-105'
+                ? 'bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white shadow-lg sm:scale-105'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
@@ -1033,7 +1033,7 @@ export default function MyLoRAModelsPage() {
             <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
               activeView === 'my-loras'
                 ? 'bg-white/20'
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                : 'bg-[#5DC3F8]/20 text-[#5DC3F8]'
             }`}>
               {ownedModels.length}
             </span>
@@ -1043,7 +1043,7 @@ export default function MyLoRAModelsPage() {
             onClick={() => setActiveView('shared')}
             className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
               activeView === 'shared'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg sm:scale-105'
+                ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg sm:scale-105'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
@@ -1052,7 +1052,7 @@ export default function MyLoRAModelsPage() {
             <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
               activeView === 'shared'
                 ? 'bg-white/20'
-                : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'bg-[#EC67A1]/20 text-[#EC67A1]'
             }`}>
               {sharedModels.length}
             </span>
@@ -1062,13 +1062,13 @@ export default function MyLoRAModelsPage() {
 
       {/* Empty State */}
       {loraModels.length === 0 ? (
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl shadow-sm border-2 border-dashed border-blue-200 dark:border-blue-800 p-12 text-center">
+        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-sm border-2 border-dashed border-[#5DC3F8]/30 p-12 text-center">
           <div className="flex flex-col items-center space-y-6">
             <div className="relative">
-              <div className="p-6 bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-800/50 dark:to-cyan-800/50 rounded-2xl">
-                <Box className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+              <div className="p-6 bg-gradient-to-br from-[#5DC3F8]/20 to-[#EC67A1]/20 rounded-2xl">
+                <Box className="w-12 h-12 text-[#5DC3F8]" />
               </div>
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center">
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-[#EC67A1] rounded-full flex items-center justify-center">
                 <Plus className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -1086,14 +1086,14 @@ export default function MyLoRAModelsPage() {
                   setShowUploadModal(true);
                   checkComfyUIStatus();
                 }}
-                className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
+                className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-xl text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg"
               >
                 <Upload className="w-5 h-5" />
                 <span>Upload Your First LoRA Model</span>
                 <Sparkles className="w-5 h-5" />
               </button>
 
-              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+              <p className="text-xs text-[#5DC3F8] font-medium">
                 ✨ Supports .safetensors, .pt, .ckpt • Up to 2GB • Direct network volume storage
               </p>
             </div>
@@ -1123,10 +1123,10 @@ export default function MyLoRAModelsPage() {
                   return (
                     <div
                       key={model.id}
-                      className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-md rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
+                      className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 shadow-md rounded-xl border-2 border-[#5DC3F8]/30 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
                     >
                       <div className="space-y-2 sm:space-y-2.5">
-                        <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/30 flex items-center justify-center">
+                        <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700/40 dark:to-gray-800/40 flex items-center justify-center">
                           {model.thumbnailUrl ? (
                             <img
                               src={model.thumbnailUrl}
@@ -1134,7 +1134,7 @@ export default function MyLoRAModelsPage() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <Box className="w-12 h-12 text-blue-400" />
+                            <Box className="w-12 h-12 text-[#5DC3F8]" />
                           )}
 
                           {isThumbnailUploading && (
@@ -1144,7 +1144,7 @@ export default function MyLoRAModelsPage() {
                           )}
 
                           {model.usageCount > 0 && (
-                            <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                            <div className="absolute top-1.5 left-1.5 bg-[#5DC3F8] text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
                               {model.usageCount} uses
                             </div>
                           )}
@@ -1202,7 +1202,7 @@ export default function MyLoRAModelsPage() {
                                   setThumbnailOptionsModalOpen(true);
                                 }}
                                 disabled={isThumbnailUploading}
-                                className={`flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-sm transition-all active:scale-95 ${
+                                className={`flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg text-white shadow-sm transition-all active:scale-95 ${
                                   isThumbnailUploading ? "opacity-70 cursor-not-allowed" : ""
                                 }`}
                               >
@@ -1246,7 +1246,7 @@ export default function MyLoRAModelsPage() {
                               <button
                                 type="button"
                                 onClick={() => handleShareLoRA(model)}
-                                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors"
+                                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#EC67A1]/20 text-[#EC67A1] hover:bg-[#EC67A1]/30 transition-colors"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                                 <span>{model.hasShares ? 'Shared' : 'Share'}</span>
@@ -1289,10 +1289,10 @@ export default function MyLoRAModelsPage() {
                     return (
                       <div
                         key={model.id}
-                        className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 shadow-lg rounded-xl border-2 border-purple-300 dark:border-purple-700 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300 relative"
+                        className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 shadow-lg rounded-xl border-2 border-[#EC67A1]/50 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300 relative"
                       >
                         <div className="absolute top-2 right-2 z-10">
-                          <div className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full shadow-sm">
+                          <div className="flex items-center gap-1 px-2 py-1 bg-[#EC67A1] text-white text-xs font-semibold rounded-full shadow-sm">
                             <Users className="w-3 h-3" />
                             <span>Shared</span>
                           </div>

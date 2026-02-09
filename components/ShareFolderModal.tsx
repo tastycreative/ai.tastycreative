@@ -257,27 +257,27 @@ export default function ShareFolderModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-modal-overlay-bg backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto"
+        className="bg-modal-bg rounded-2xl shadow-2xl max-w-2xl w-full mx-4 border border-modal-border max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-modal-border">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-modal-foreground">
                 Share Folder: {folderName}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-header-muted mt-1">
                 Share this folder with other users. They will be able to view all contents in this folder.
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="text-header-muted hover:text-modal-foreground transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -287,11 +287,11 @@ export default function ShareFolderModal({
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Share with new user */}
-          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="font-medium text-gray-900 dark:text-white">Share with new user</h4>
+          <div className="space-y-4 p-4 bg-modal-section-bg rounded-lg border border-modal-border">
+            <h4 className="font-medium text-modal-foreground">Share with new user</h4>
             
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-header-muted mb-1">
                 Select User
               </label>
               <div className="relative user-dropdown-container">
@@ -305,7 +305,7 @@ export default function ShareFolderModal({
                   }}
                   onFocus={() => setShowUserDropdown(true)}
                   disabled={isLoading || isLoadingUsers}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-modal-input-border rounded-lg bg-modal-input-bg text-modal-foreground placeholder-header-muted focus:ring-2 focus:ring-[#5DC3F8]/30 focus:border-[#5DC3F8] disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 {isLoadingUsers && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -315,7 +315,7 @@ export default function ShareFolderModal({
                 
                 {/* User dropdown */}
                 {showUserDropdown && !isLoadingUsers && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-dropdown-bg border border-dropdown-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {availableUsers
                       .filter(u => {
                         const query = userSearchQuery.toLowerCase();
@@ -333,13 +333,13 @@ export default function ShareFolderModal({
                             setUserSearchQuery('');
                             setShowUserDropdown(false);
                           }}
-                          className="w-full px-4 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          className="w-full px-4 py-2.5 text-left hover:bg-dropdown-hover-bg hover:border-l-2 hover:border-l-dropdown-selected-text transition-colors border-b border-dropdown-separator last:border-b-0"
                         >
-                          <div className="font-medium text-gray-900 dark:text-white">
+                          <div className="font-medium text-dropdown-foreground">
                             {u.displayName}
                           </div>
                           {u.email && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                            <div className="text-sm text-header-muted">
                               {u.email}
                             </div>
                           )}
@@ -352,7 +352,7 @@ export default function ShareFolderModal({
                         (u.email && u.email.toLowerCase().includes(query))
                       );
                     }).length === 0 && (
-                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      <div className="px-4 py-3 text-sm text-header-muted text-center">
                         No users found
                       </div>
                     )}
@@ -362,29 +362,28 @@ export default function ShareFolderModal({
               
               {/* Selected user display */}
               {selectedUser && (
-                <div className="mt-2 flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <div className="mt-2 flex items-center justify-between p-3 bg-dropdown-selected-bg border border-dropdown-selected-text/20 rounded-lg">
                   <div>
-                    <div className="font-medium text-purple-900 dark:text-purple-100">
+                    <div className="font-medium text-dropdown-selected-text">
                       {selectedUser.displayName}
                     </div>
                     {selectedUser.email && (
-                      <div className="text-sm text-purple-700 dark:text-purple-300">
+                      <div className="text-sm text-header-muted">
                         {selectedUser.email}
                       </div>
                     )}
                   </div>
                   <button
                     onClick={() => setSelectedUser(null)}
-                    className="p-1 hover:bg-purple-200 dark:hover:bg-purple-800 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    className="p-1 hover:bg-dropdown-hover-bg rounded transition-colors">
+                    <X className="w-4 h-4 text-dropdown-selected-text" />
                   </button>
                 </div>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-header-muted mb-2">
                 Permission Level
               </label>
               <div className="grid grid-cols-2 gap-3">

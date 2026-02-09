@@ -131,7 +131,7 @@ export default function StyleTransferPrompts() {
       {/* Header */}
       <div className="bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
         <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-          <div className="p-1.5 sm:p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+          <div className="p-1.5 sm:p-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-lg">
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
           </div>
           <div>
@@ -159,7 +159,7 @@ export default function StyleTransferPrompts() {
             value={triggerWord}
             onChange={(e) => setTriggerWord(e.target.value)}
             placeholder="e.g., person, model, character"
-            className="w-full px-2.5 xs:px-3 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent text-xs xs:text-sm"
+            className="w-full px-2.5 xs:px-3 py-1.5 xs:py-2 border-2 border-[#5DC3F8]/30 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] text-xs xs:text-sm"
           />
         </div>
       </div>
@@ -211,7 +211,7 @@ export default function StyleTransferPrompts() {
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-3 xs:px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs xs:text-sm sm:text-base active:scale-95"
+                className="w-full bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-3 xs:px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs xs:text-sm sm:text-base active:scale-95"
               >
                 {isAnalyzing ? (
                   <>
@@ -331,7 +331,7 @@ export default function StyleTransferPrompts() {
             <div className="flex space-x-1.5 sm:space-x-2">
               <button
                 onClick={handleCopyPrompt}
-                className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 rounded-lg transition-colors text-xs xs:text-sm active:scale-95"
+                className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg text-white px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 rounded-lg transition-colors text-xs xs:text-sm active:scale-95"
               >
                 <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Copy</span>

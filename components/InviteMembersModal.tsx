@@ -121,27 +121,27 @@ export function InviteMembersModal({
         }
       }}
     >
-      <div className="bg-slate-900 rounded-lg shadow-2xl w-full max-w-2xl mx-4 border border-slate-700 animate-in zoom-in-95 duration-200">
+      <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl mx-4 border border-border animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <Mail className="w-5 h-5 text-blue-500" />
+            <div className="p-2 bg-[#EC67A1]/10 rounded-lg">
+              <Mail className="w-5 h-5 text-[#EC67A1]" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white">
+              <h2 className="text-xl font-semibold text-foreground">
                 Invite Members
               </h2>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 to {organizationName}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 hover:bg-accent rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -209,13 +209,13 @@ export function InviteMembersModal({
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setResult(null)}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#F774B9] hover:to-[#EC67A1] text-white rounded-lg transition-all shadow-md shadow-[#EC67A1]/25"
                 >
                   Invite More
                 </button>
                 <button
                   onClick={handleClose}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 text-foreground border border-border rounded-lg transition-colors"
                 >
                   Done
                 </button>
@@ -225,34 +225,34 @@ export function InviteMembersModal({
             // Invite Form
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Email Addresses
                 </label>
                 <textarea
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   placeholder="Enter email addresses (comma, space, or new line separated)&#10;&#10;Example:&#10;user1@example.com&#10;user2@example.com, user3@example.com"
-                  className="w-full h-32 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full h-32 px-4 py-3 bg-accent border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:border-transparent resize-none transition-all"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   You can paste multiple emails separated by commas, spaces, or new lines
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Role
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as "MEMBER" | "ADMIN")}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent transition-all"
                 >
                   <option value="MEMBER">Member</option>
                   <option value="ADMIN">Admin</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Members can access resources. Admins can manage organization settings.
                 </p>
               </div>
@@ -261,7 +261,7 @@ export function InviteMembersModal({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 text-foreground border border-border rounded-lg transition-colors"
                   disabled={loading}
                 >
                   Cancel
@@ -269,7 +269,7 @@ export function InviteMembersModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#F774B9] hover:to-[#EC67A1] text-white rounded-lg transition-all shadow-md shadow-[#EC67A1]/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>

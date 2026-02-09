@@ -660,14 +660,14 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30">
-              <Clock className="w-7 h-7 text-blue-400" />
+          <h2 className="text-3xl font-bold text-foreground flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-[var(--color-brand-mid-pink)]/20 border border-[var(--color-brand-blue)]/30">
+              <Clock className="w-7 h-7 text-[var(--color-brand-blue)]" />
             </div>
             Stories Planner
           </h2>
-          <p className="text-gray-400 mt-2">
-            {isAllProfiles && <span className="text-pink-400">All Profiles • </span>}
+          <p className="text-muted-foreground mt-2">
+            {isAllProfiles && <span className="text-[var(--color-brand-mid-pink)]">All Profiles • </span>}
             Plan your Instagram stories throughout the day with interactive elements
           </p>
         </div>
@@ -677,7 +677,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={openCreateModal}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold flex items-center gap-2"
+          className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:from-[var(--color-brand-blue)]/90 hover:to-[var(--color-brand-mid-pink)]/90 text-white rounded-xl transition-all shadow-lg shadow-[var(--color-brand-blue)]/30 font-semibold flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">Add Story</span>
@@ -686,32 +686,32 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
       {/* All Profiles Notice */}
       {isAllProfiles && (
-        <div className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/30 rounded-xl">
-          <Users className="w-5 h-5 text-pink-400 shrink-0" />
-          <p className="text-sm text-pink-300">
+        <div className="flex items-center gap-3 p-3 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-xl">
+          <Users className="w-5 h-5 text-[var(--color-brand-mid-pink)] shrink-0" />
+          <p className="text-sm text-[var(--color-brand-mid-pink)]">
             Viewing stories from all profiles. Select a profile when creating a new story.
           </p>
         </div>
       )}
 
       {/* Date Navigator */}
-      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
+      <div className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <motion.button
             whileHover={{ scale: 1.1, x: -2 }}
             whileTap={{ scale: 0.9 }}
             onClick={handlePrevDay}
-            className="p-3 hover:bg-blue-600/20 rounded-xl transition-colors border border-transparent hover:border-blue-500/30"
+            className="p-3 hover:bg-[var(--color-brand-blue)]/20 rounded-xl transition-colors border border-transparent hover:border-[var(--color-brand-blue)]/30"
           >
-            <ChevronLeft className="w-6 h-6 text-blue-400" />
+            <ChevronLeft className="w-6 h-6 text-[var(--color-brand-blue)]" />
           </motion.button>
 
           <div className="flex items-center gap-4">
             <div className="text-center">
-              <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <div className="text-3xl font-bold bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] bg-clip-text text-transparent">
                 {format(selectedDate, "EEEE")}
               </div>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-sm text-muted-foreground mt-1">
                 {format(selectedDate, "MMMM d, yyyy")}
               </div>
             </div>
@@ -720,7 +720,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleToday}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold"
+              className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:from-[var(--color-brand-blue)]/90 hover:to-[var(--color-brand-mid-pink)]/90 text-white rounded-xl transition-all shadow-lg shadow-[var(--color-brand-blue)]/30 font-semibold"
             >
               Today
             </motion.button>
@@ -730,9 +730,9 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
             whileHover={{ scale: 1.1, x: 2 }}
             whileTap={{ scale: 0.9 }}
             onClick={handleNextDay}
-            className="p-3 hover:bg-blue-600/20 rounded-xl transition-colors border border-transparent hover:border-blue-500/30"
+            className="p-3 hover:bg-[var(--color-brand-blue)]/20 rounded-xl transition-colors border border-transparent hover:border-[var(--color-brand-blue)]/30"
           >
-            <ChevronRight className="w-6 h-6 text-blue-400" />
+            <ChevronRight className="w-6 h-6 text-[var(--color-brand-blue)]" />
           </motion.button>
         </div>
       </div>
@@ -745,25 +745,25 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="inline-block"
           >
-            <Clock className="w-12 h-12 text-blue-400" />
+            <Clock className="w-12 h-12 text-[var(--color-brand-blue)]" />
           </motion.div>
-          <p className="text-gray-400 mt-4">Loading story slots...</p>
+          <p className="text-muted-foreground mt-4">Loading story slots...</p>
         </div>
       ) : sortedStorySlots.length === 0 ? (
         <div className="text-center py-16">
           <motion.div
             animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="inline-block p-6 rounded-2xl bg-gradient-to-br from-blue-600/10 to-purple-600/10 mb-4"
+            className="inline-block p-6 rounded-2xl bg-gradient-to-br from-[var(--color-brand-blue)]/10 to-[var(--color-brand-mid-pink)]/10 mb-4"
           >
-            <Clock className="w-16 h-16 text-blue-400" />
+            <Clock className="w-16 h-16 text-[var(--color-brand-blue)]" />
           </motion.div>
-          <p className="text-gray-400 text-lg mb-6">No stories planned for this day</p>
+          <p className="text-muted-foreground text-lg mb-6">No stories planned for this day</p>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={openCreateModal}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold flex items-center gap-2 mx-auto"
+            className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:from-[var(--color-brand-blue)]/90 hover:to-[var(--color-brand-mid-pink)]/90 text-white rounded-xl transition-all shadow-lg shadow-[var(--color-brand-blue)]/30 font-semibold flex items-center gap-2 mx-auto"
           >
             <Plus className="w-5 h-5" />
             Add Your First Story
@@ -777,15 +777,15 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               whileHover={{ y: -4 }}
-              className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-5 hover:border-blue-500/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-blue-600/10"
+              className="bg-card border-2 border-border rounded-2xl p-5 hover:border-[var(--color-brand-blue)]/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-[var(--color-brand-blue)]/10"
             >
               {/* Time Header */}
-              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#2a2a2a]">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-border">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-blue-600/20">
-                    <Clock className="w-5 h-5 text-blue-400" />
+                  <div className="p-1.5 rounded-lg bg-[var(--color-brand-blue)]/20">
+                    <Clock className="w-5 h-5 text-[var(--color-brand-blue)]" />
                   </div>
-                  <span className="font-bold text-white text-lg">
+                  <span className="font-bold text-foreground text-lg">
                     {slot.timeSlot ? format(new Date(slot.timeSlot), "h:mm a") : "No time set"}
                   </span>
                 </div>
@@ -810,7 +810,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                   {slot.isPosted ? (
                     <CheckCircle className="w-5 h-5 text-green-400" />
                   ) : (
-                    <Circle className="w-5 h-5 text-gray-400" />
+                    <Circle className="w-5 h-5 text-muted-foreground" />
                   )}
                 </motion.button>
               </div>
@@ -819,42 +819,42 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
               <div className="space-y-4">
                 {/* Profile Badge - shown when viewing All Profiles */}
                 {isAllProfiles && slot.profileName && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-xl border border-pink-500/30">
-                    <User className="w-4 h-4 text-pink-400" />
-                    <span className="text-sm font-medium text-pink-300">{slot.profileName}</span>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20 rounded-xl border border-[var(--color-brand-mid-pink)]/30">
+                    <User className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
+                    <span className="text-sm font-medium text-[var(--color-brand-mid-pink)]">{slot.profileName}</span>
                   </div>
                 )}
 
-                <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
-                  <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Story Type</div>
-                  <div className="text-white font-semibold text-base">
+                <div className="bg-muted rounded-xl p-3 border border-border">
+                  <div className="text-xs font-bold text-[var(--color-brand-blue)] mb-1.5 uppercase tracking-wide">Story Type</div>
+                  <div className="text-foreground font-semibold text-base">
                     {getStoryTypeLabel(slot.storyType)}
                   </div>
                 </div>
 
                 {slot.interactiveElement && slot.interactiveElement !== "NONE" && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-purple-500/10">
-                    <div className="text-xs font-bold text-purple-400 mb-1.5 uppercase tracking-wide">
+                  <div className="bg-muted rounded-xl p-3 border border-border">
+                    <div className="text-xs font-bold text-[var(--color-brand-mid-pink)] mb-1.5 uppercase tracking-wide">
                       Interactive
                     </div>
-                    <div className="text-white font-medium">
+                    <div className="text-foreground font-medium">
                       {getInteractiveLabel(slot.interactiveElement)}
                     </div>
                   </div>
                 )}
 
                 {slot.notes && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-gray-500/10">
-                    <div className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Notes</div>
-                    <div className="text-white text-sm line-clamp-2">
+                  <div className="bg-muted rounded-xl p-3 border border-border">
+                    <div className="text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">Notes</div>
+                    <div className="text-foreground text-sm line-clamp-2">
                       {slot.notes}
                     </div>
                   </div>
                 )}
 
                 {(slot.awsS3Url || slot.linkedPost?.awsS3Url) && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
-                    <div className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                  <div className="bg-muted rounded-xl p-3 border border-border">
+                    <div className="text-xs font-bold text-[var(--color-brand-blue)] mb-2 uppercase tracking-wide flex items-center gap-1.5">
                       {(slot.fileName || slot.linkedPost?.fileName)?.match(/\.(mp4|mov|webm)$/i) ? (
                         <Video className="w-3.5 h-3.5" />
                       ) : (
@@ -862,7 +862,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                       )}
                       Content
                     </div>
-                    <div className="flex items-center justify-center bg-[#1a1a1a] rounded-lg p-2" style={{ maxHeight: '240px' }}>
+                    <div className="flex items-center justify-center bg-background rounded-lg p-2" style={{ maxHeight: '240px' }}>
                       {(slot.fileName || slot.linkedPost?.fileName)?.match(/\.(mp4|mov|webm)$/i) ? (
                         <video
                           src={slot.awsS3Url || slot.linkedPost?.awsS3Url}
@@ -887,7 +887,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openEditModal(slot)}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#2a2a2a] to-[#252525] hover:from-blue-600/20 hover:to-purple-600/20 text-white rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-transparent hover:border-blue-500/30"
+                    className="flex-1 px-4 py-2.5 bg-muted hover:bg-[var(--color-brand-blue)]/20 text-foreground rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-border hover:border-[var(--color-brand-blue)]/30"
                   >
                     <Edit className="w-4 h-4" />
                     Edit
@@ -914,12 +914,12 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-blue-600/20"
+            className="bg-card border-2 border-border rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-[var(--color-brand-blue)]/20"
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30">
-                  <Clock className="w-6 h-6 text-blue-400" />
+              <h3 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-[var(--color-brand-mid-pink)]/20 border border-[var(--color-brand-blue)]/30">
+                  <Clock className="w-6 h-6 text-[var(--color-brand-blue)]" />
                 </div>
                 {editingSlot ? "Edit Story Slot" : "Add Story Slot"}
               </h3>
@@ -927,9 +927,9 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-[#2a2a2a] rounded-xl transition-colors"
+                className="p-2 hover:bg-muted rounded-xl transition-colors"
               >
-                <X className="w-6 h-6 text-gray-400" />
+                <X className="w-6 h-6 text-muted-foreground" />
               </motion.button>
             </div>
 
@@ -937,13 +937,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
               {/* Profile Selector - shown when viewing All Profiles */}
               {isAllProfiles && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-300 mb-2">
+                  <label className="block text-sm font-bold text-foreground mb-2">
                     👤 Profile *
                   </label>
                   {loadingProfiles ? (
-                    <div className="flex items-center gap-2 px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl">
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                      <span className="text-gray-400">Loading profiles...</span>
+                    <div className="flex items-center gap-2 px-4 py-3 bg-muted border-2 border-border rounded-xl">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      <span className="text-muted-foreground">Loading profiles...</span>
                     </div>
                   ) : (
                     <select
@@ -965,7 +965,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                           fetchCaptionsBank(newProfileId);
                         }
                       }}
-                      className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                      className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-mid-pink)] focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]/20 transition-all"
                     >
                       <option value="">Select a profile...</option>
                       {profiles.map((profile) => (
@@ -975,7 +975,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                       ))}
                     </select>
                   )}
-                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                     <span>ℹ️</span>
                     Select which profile this story belongs to
                   </p>
@@ -984,18 +984,18 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Time Input */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   ⏰ Time *
                 </label>
                 
                 <div className="grid grid-cols-3 gap-3">
                   {/* Hour Dropdown */}
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Hour</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Hour</label>
                     <select
                       value={timeInput.hour}
                       onChange={(e) => setTimeInput({ ...timeInput, hour: e.target.value })}
-                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      className="w-full px-3 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] focus:ring-2 focus:ring-[var(--color-brand-blue)]/20 transition-all"
                     >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
                         <option key={hour} value={hour}>
@@ -1007,11 +1007,11 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
                   {/* Minute Dropdown */}
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Minute</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Minute</label>
                     <select
                       value={timeInput.minute}
                       onChange={(e) => setTimeInput({ ...timeInput, minute: e.target.value })}
-                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      className="w-full px-3 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] focus:ring-2 focus:ring-[var(--color-brand-blue)]/20 transition-all"
                     >
                       {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                         <option key={minute} value={String(minute).padStart(2, "0")}>
@@ -1023,11 +1023,11 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
                   {/* AM/PM Dropdown */}
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Period</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Period</label>
                     <select
                       value={timeInput.period}
                       onChange={(e) => setTimeInput({ ...timeInput, period: e.target.value })}
-                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      className="w-full px-3 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] focus:ring-2 focus:ring-[var(--color-brand-blue)]/20 transition-all"
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -1035,7 +1035,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   <span>ℹ️</span>
                   Select hour (1-12), minute (0-59), and AM/PM
                 </p>
@@ -1043,7 +1043,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* File Upload */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   📸 Content Source
                 </label>
                 
@@ -1055,7 +1055,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
                       uploadMode === "upload"
                         ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                        : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a]"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
                   >
                     📤 Upload New
@@ -1078,7 +1078,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
                       uploadMode === "vault"
                         ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                        : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
                     }`}
                   >
                     🗄️ From Vault
@@ -1089,7 +1089,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                   <>
                     {/* Upload mode - show preview or upload interface */}
                     {selectedVaultItem || uploadedFile ? (
-                      <div className="relative w-full h-64 bg-[#1a1a1a] rounded-xl overflow-hidden">
+                      <div className="relative w-full h-64 bg-muted rounded-xl overflow-hidden">
                         {(selectedVaultItem?.fileType || uploadedFile?.type)?.startsWith('video/') ? (
                           <video
                             src={selectedVaultItem?.awsS3Url || uploadPreviewUrl || ''}
@@ -1114,7 +1114,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                         </motion.button>
                       </div>
                     ) : (
-                      <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-[#3a3a3a] rounded-xl hover:border-blue-500/50 transition-all cursor-pointer bg-[#2a2a2a] hover:bg-[#252525]">
+                      <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-border rounded-xl hover:border-[var(--color-brand-blue)]/50 transition-all cursor-pointer bg-muted hover:bg-muted/80">
                         <div className="flex flex-col items-center justify-center pt-5 pb-6">
                           <motion.div
                             whileHover={{ scale: 1.1 }}
@@ -1122,13 +1122,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                           >
                             <Upload className="w-10 h-10 text-blue-400" />
                           </motion.div>
-                          <p className="mb-2 text-sm text-gray-300 font-semibold">
+                          <p className="mb-2 text-sm text-foreground font-semibold">
                             <span className="font-bold">Click to upload</span> or drag and drop
                           </p>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-muted-foreground">
                             Image (JPEG, PNG, GIF, WebP) or Video (MP4, MOV, WebM)
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-muted-foreground/70 mt-1">
                             Max file size: 50MB
                           </p>
                         </div>
@@ -1148,7 +1148,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     <div className="mb-3">
                       <div className="flex items-center gap-2 mb-2">
                         <FolderOpen className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-medium text-gray-300">Select Folder</span>
+                        <span className="text-sm font-medium text-foreground">Select Folder</span>
                       </div>
                       <select
                         value={selectedVaultFolder}
@@ -1160,7 +1160,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                           fetchVaultItems(e.target.value, targetProfileId || undefined);
                         }}
                         disabled={loadingFolders}
-                        className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                        className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                       >
                         <option value="all">📁 All Media</option>
                         {vaultFolders
@@ -1174,13 +1174,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     </div>
 
                     {/* Vault Items Grid */}
-                    <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#3a3a3a] p-4 max-h-[400px] overflow-y-auto">
+                    <div className="bg-muted rounded-xl border-2 border-border p-4 max-h-[400px] overflow-y-auto">
                       {loadingVault || loadingFolders ? (
                         <div className="flex items-center justify-center py-12">
                           <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
                         </div>
                       ) : vaultItems.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">
+                        <div className="text-center py-12 text-muted-foreground">
                           <p>No vault items found for this profile</p>
                           <p className="text-sm mt-2">Upload media to your vault first</p>
                         </div>
@@ -1254,7 +1254,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Story Type */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   📱 Story Type *
                 </label>
                 <select
@@ -1262,7 +1262,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                   onChange={(e) =>
                     setFormData({ ...formData, storyType: e.target.value })
                   }
-                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 >
                   {STORY_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
@@ -1274,7 +1274,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Interactive Element */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   ✨ Interactive Element
                 </label>
                 <select
@@ -1285,7 +1285,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                       interactiveElement: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
                 >
                   {INTERACTIVE_ELEMENTS.map((elem) => (
                     <option key={elem.value} value={elem.value}>
@@ -1297,7 +1297,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Caption */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   💬 Caption
                 </label>
                 
@@ -1309,7 +1309,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
                       captionMode === "custom"
                         ? "bg-blue-600 text-white"
-                        : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
                   >
                     ✍️ Write Your Own
@@ -1320,7 +1320,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
                       captionMode === "bank"
                         ? "bg-purple-600 text-white"
-                        : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
                   >
                     🏦 Select from Bank
@@ -1334,26 +1334,26 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                       setFormData({ ...formData, caption: e.target.value })
                     }
                     rows={3}
-                    className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none transition-all"
+                    className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none transition-all"
                     placeholder="Story caption..."
                   />
                 ) : (
                   <div className="space-y-3">
                     {/* Search and Filters */}
-                    <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] p-4 space-y-3">
+                    <div className="bg-muted rounded-xl border-2 border-border p-4 space-y-3">
                       <input
                         type="text"
                         placeholder="🔍 Search captions..."
                         value={captionSearchQuery}
                         onChange={(e) => setCaptionSearchQuery(e.target.value)}
-                        className="w-full px-4 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white focus:outline-none focus:border-purple-500"
+                        className="w-full px-4 py-2 bg-background border-2 border-border rounded-lg text-foreground focus:outline-none focus:border-purple-500"
                       />
                       
                       <div className="grid grid-cols-3 gap-2">
                         <select
                           value={captionCategoryFilter}
                           onChange={(e) => setCaptionCategoryFilter(e.target.value)}
-                          className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                         >
                           <option value="All">All Categories</option>
                           <option value="Dick rating">Dick rating</option>
@@ -1379,7 +1379,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                         <select
                           value={captionTypeFilter}
                           onChange={(e) => setCaptionTypeFilter(e.target.value)}
-                          className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                         >
                           <option value="All">All Types</option>
                           <option value="Bundle Unlocks">Bundle Unlocks</option>
@@ -1426,7 +1426,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                         <select
                           value={captionBankFilter}
                           onChange={(e) => setCaptionBankFilter(e.target.value)}
-                          className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                         >
                           <option value="All">All Banks</option>
                           <option value="Main Porn Caption Bank">Main Porn Caption Bank</option>
@@ -1441,7 +1441,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     </div>
 
                     {/* Captions List */}
-                    <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] max-h-[300px] overflow-y-auto">
+                    <div className="bg-muted rounded-xl border-2 border-border max-h-[300px] overflow-y-auto">
                       {loadingCaptions ? (
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
@@ -1456,12 +1456,12 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                         });
 
                         return filteredCaptions.length === 0 ? (
-                          <div className="text-center py-8 text-gray-500">
+                          <div className="text-center py-8 text-muted-foreground">
                             <p>No captions found</p>
                             <p className="text-sm mt-1">Try adjusting your filters</p>
                           </div>
                         ) : (
-                          <div className="divide-y divide-[#3a3a3a]">
+                          <div className="divide-y divide-border">
                             {filteredCaptions.map((caption: any) => (
                               <button
                                 key={caption.id}
@@ -1470,9 +1470,9 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                                   setFormData({ ...formData, caption: caption.caption });
                                   setCaptionMode("custom");
                                 }}
-                                className="w-full text-left px-4 py-3 hover:bg-[#333] transition-colors"
+                                className="w-full text-left px-4 py-3 hover:bg-muted/80 transition-colors"
                               >
-                                <div className="text-white text-sm line-clamp-2 mb-2">
+                                <div className="text-foreground text-sm line-clamp-2 mb-2">
                                   {caption.caption}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
@@ -1498,7 +1498,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2">
                   📝 Notes
                 </label>
                 <textarea
@@ -1507,19 +1507,19 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     setFormData({ ...formData, notes: e.target.value })
                   }
                   rows={3}
-                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 resize-none transition-all"
+                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 resize-none transition-all"
                   placeholder="Planning notes, ideas, reminders..."
                 />
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-4 mt-8 pt-6 border-t-2 border-[#2a2a2a]">
+            <div className="flex gap-4 mt-8 pt-6 border-t-2 border-border">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowModal(false)}
-                className="flex-1 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all font-semibold"
+                className="flex-1 px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all font-semibold"
               >
                 Cancel
               </motion.button>

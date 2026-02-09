@@ -474,20 +474,21 @@ export default function MyProfile() {
             {currentIndex > 0 && (
               <button
                 onClick={goToPrevious}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-all z-10"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white dark:bg-gray-900 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 hover:ring-2 hover:ring-[#5DC3F8] transition-all z-10"
               >
-                <ChevronLeft className="w-6 h-6 text-gray-800 dark:text-white" />
+                <ChevronLeft className="w-6 h-6 text-black dark:text-white" />
               </button>
             )}
             {currentIndex < images.length - 1 && (
               <button
                 onClick={goToNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-all z-10"
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white dark:bg-gray-900 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 hover:ring-2 hover:ring-[#5DC3F8] transition-all z-10"
               >
-                <ChevronRight className="w-6 h-6 text-gray-800 dark:text-white" />
+                <ChevronRight className="w-6 h-6 text-black dark:text-white" />
               </button>
             )}
 
+            {/* Carousel pagination dots with brand accent */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
               {images.map((_, index) => (
                 <button
@@ -495,8 +496,8 @@ export default function MyProfile() {
                   onClick={() => setCurrentImageIndexes(prev => ({ ...prev, [postId]: index }))}
                   className={`transition-all duration-300 rounded-full ${
                     index === currentIndex
-                      ? 'w-8 h-2 bg-white shadow-lg'
-                      : 'w-2 h-2 bg-white/60 hover:bg-white/80'
+                      ? 'w-8 h-2 bg-[#5DC3F8] shadow-lg'
+                      : 'w-2 h-2 bg-white/60 hover:bg-[#EC67A1]/80'
                   }`}
                 />
               ))}
@@ -513,20 +514,20 @@ export default function MyProfile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      <div className="min-h-screen bg-[#F8F8F8] dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5DC3F8]" />
       </div>
     );
   }
 
   if (isAllProfiles) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F8F8F8] dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center p-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-            <User className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white dark:bg-gray-900 border-2 border-[#5DC3F8] flex items-center justify-center">
+            <User className="w-10 h-10 text-[#5DC3F8]" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Select a Profile</h3>
+          <h3 className="text-xl font-bold text-black dark:text-white mb-2">Select a Profile</h3>
           <p className="text-gray-600 dark:text-gray-400">Please select a specific profile from the sidebar to view</p>
         </div>
       </div>
@@ -535,7 +536,7 @@ export default function MyProfile() {
 
   if (!selectedProfile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F8F8F8] dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600 dark:text-gray-400">No profile selected</p>
         </div>
@@ -546,16 +547,17 @@ export default function MyProfile() {
   const displayName = selectedProfile.instagramUsername || selectedProfile.name;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-purple-50/40 dark:from-gray-950 dark:via-blue-950/20 dark:to-purple-950/20">
+    /* Theme-aware main container - light: off-white, dark: near-black */
+    <div className="min-h-screen bg-[#F8F8F8] dark:bg-gray-950">
       <div className="overflow-y-auto">
         <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6">
           {loadingPosts ? (
-              /* Skeleton Loading */
+              /* Theme-aware skeleton loading */
               <>
                 {/* Cover Skeleton */}
                 <div className="relative h-48 sm:h-64 md:h-80 rounded-2xl overflow-hidden shadow-xl mb-6 bg-gray-200 dark:bg-gray-800 animate-pulse" />
 
-                {/* Profile Info Skeleton */}
+                {/* Profile Info Skeleton - theme-aware */}
                 <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 -mt-20 relative z-10 border border-gray-200 dark:border-gray-800">
                   <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6">
                     {/* Profile Picture Skeleton */}
@@ -592,42 +594,42 @@ export default function MyProfile() {
               </>
             ) : (
               <>
-            {/* Cover Photo - Animated Gradient */}
+            {/* Cover Photo - Theme-aware with brand accent */}
             <div className="relative h-32 sm:h-48 md:h-64 lg:h-80 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl mb-4 sm:mb-6 group">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-gradient-x" />
+              {/* Brand gradient accent background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#5DC3F8] via-[#EC67A1] to-[#F774B9] animate-gradient-x" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-              {/* Floating shapes */}
+              {/* Floating accent shapes */}
               <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-3xl animate-pulse" />
-              <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-700" />
-              {/* Animated overlay on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/0 to-pink-600/0 group-hover:from-purple-600/20 group-hover:to-pink-600/20 transition-all duration-700" />
+              <div className="absolute bottom-10 right-10 w-40 h-40 bg-[#F774B9]/10 rounded-full blur-3xl animate-pulse delay-700" />
+              {/* Hover effect with brand accent */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#5DC3F8]/0 to-[#F774B9]/0 group-hover:from-[#5DC3F8]/20 group-hover:to-[#F774B9]/20 transition-all duration-700" />
             </div>
 
-            {/* Profile Info */}
-            <div className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 lg:p-8 -mt-16 sm:-mt-20 z-10 border border-gray-200/50 dark:border-gray-800/50">
-              {/* Animated background gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-blue-500/5 rounded-3xl" />
+            {/* Profile Info Card - Theme-aware white/dark backgrounds */}
+            <div className="relative bg-white dark:bg-gray-900 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 lg:p-8 -mt-16 sm:-mt-20 z-10 border border-gray-200 dark:border-gray-800">
               
               <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6">
-                {/* Profile Picture with story ring */}
+                {/* Profile Picture with brand accent ring */}
                 <div className="relative -mt-16 sm:-mt-20 lg:-mt-24">
                   <div className="relative">
-                    {/* Story ring */}
-                    <div className="absolute inset-0 -m-1 rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500 p-1 animate-pulse">
+                    {/* Brand gradient ring for avatar */}
+                    <div className="absolute inset-0 -m-1 rounded-full bg-gradient-to-tr from-[#5DC3F8] via-[#EC67A1] to-[#F774B9] p-1 animate-pulse">
                       <div className="w-full h-full rounded-full bg-white dark:bg-gray-900" />
                     </div>
                     {selectedProfile.profileImageUrl ? (
                       <img
                         src={selectedProfile.profileImageUrl}
                         alt={displayName}
-                        className="relative w-24 h-24 sm:w-32 sm:h-32 lg:w-44 lg:h-44 rounded-full object-cover border-4 border-white dark:border-gray-900 shadow-2xl shadow-purple-500/20 hover:scale-105 transition-transform duration-300"
+                        className="relative w-24 h-24 sm:w-32 sm:h-32 lg:w-44 lg:h-44 rounded-full object-cover border-4 border-white dark:border-gray-900 shadow-2xl hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
-                      <div className="relative w-24 h-24 sm:w-32 sm:h-32 lg:w-44 lg:h-44 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 flex items-center justify-center border-4 border-white dark:border-gray-900 shadow-2xl shadow-purple-500/20 hover:scale-105 transition-transform duration-300">
+                      <div className="relative w-24 h-24 sm:w-32 sm:h-32 lg:w-44 lg:h-44 rounded-full bg-gradient-to-br from-[#5DC3F8] via-[#EC67A1] to-[#F774B9] flex items-center justify-center border-4 border-white dark:border-gray-900 shadow-2xl hover:scale-105 transition-transform duration-300">
                         <User className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 text-white" />
                       </div>
                     )}
-                    <label className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-lg cursor-pointer hover:scale-110 hover:rotate-12 transition-all duration-300 group">
+                    {/* Camera button with brand accent */}
+                    <label className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 p-2 sm:p-3 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-full shadow-lg cursor-pointer hover:scale-110 hover:rotate-12 transition-all duration-300 group">
                       <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white group-hover:scale-110 transition-transform" />
                       <input
                         type="file"
@@ -640,23 +642,25 @@ export default function MyProfile() {
                   </div>
                 </div>
 
-                {/* Profile Details */}
+                {/* Profile Details - Neutral text colors */}
                 <div className="flex-1 text-center sm:text-left space-y-3 sm:space-y-4">
                   <div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2 animate-gradient-x">
+                    {/* Profile name - neutral black/white text */}
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black dark:text-white mb-2">
                       {displayName}
                     </h1>
+                    {/* Username with brand blue accent */}
                     {selectedProfile.instagramUsername && (
-                      <p className="text-purple-600 dark:text-purple-400 text-base sm:text-lg">@{selectedProfile.instagramUsername}</p>
+                      <p className="text-[#5DC3F8] dark:text-[#5DC3F8] text-base sm:text-lg">@{selectedProfile.instagramUsername}</p>
                     )}
                   </div>
 
-                  {/* Enhanced Stats Cards */}
+                  {/* Stats Card with brand accent border */}
                   <div className="flex gap-3 sm:gap-4 justify-center sm:justify-start flex-wrap">
-                    <div className="group relative overflow-hidden px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-br from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20 rounded-2xl border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-pink-500/0 group-hover:from-purple-500/10 group-hover:to-pink-500/10 transition-all duration-300" />
+                    <div className="group relative overflow-hidden px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-gray-800 rounded-2xl border-2 border-[#5DC3F8] hover:border-[#EC67A1] transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#5DC3F8]/20">
                       <div className="relative">
-                        <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        {/* Stats number - neutral text */}
+                        <div className="text-xl sm:text-2xl font-bold text-black dark:text-white">
                           {posts.length}
                         </div>
                         <div className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Posts</div>
@@ -667,20 +671,19 @@ export default function MyProfile() {
               </div>
             </div>
 
-            {/* Posts Grid */}
+            {/* Posts Section */}
             <div className="mt-6 sm:mt-8">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-4 sm:mb-6">Posts</h2>
+              {/* Section heading - neutral text */}
+              <h2 className="text-xl sm:text-2xl font-bold text-black dark:text-white mb-4 sm:mb-6">Posts</h2>
               
               {posts.length === 0 ? (
-                <div className="relative overflow-hidden bg-gradient-to-br from-white/90 to-purple-50/50 dark:from-gray-900/90 dark:to-purple-950/30 backdrop-blur-xl rounded-3xl shadow-2xl p-16 text-center border border-gray-200/50 dark:border-gray-800/50">
-                  <div className="absolute top-0 left-0 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
-                  <div className="absolute bottom-0 right-0 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
+                <div className="relative overflow-hidden bg-white dark:bg-gray-900 backdrop-blur-xl rounded-3xl shadow-2xl p-16 text-center border-2 border-[#5DC3F8] dark:border-[#5DC3F8]">
                   <div className="relative">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full mb-4">
-                      <Camera className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-white dark:bg-gray-800 border-2 border-[#EC67A1] rounded-full mb-4">
+                      <Camera className="w-10 h-10 text-[#5DC3F8]" />
                     </div>
-                    <p className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No posts yet</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">Start sharing your moments</p>
+                    <p className="text-xl font-semibold text-black dark:text-white mb-2">No posts yet</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Start sharing your moments</p>
                   </div>
                 </div>
               ) : (
@@ -730,10 +733,10 @@ export default function MyProfile() {
           </div>
         </div>
 
-      {/* Post Detail Modal */}
+      {/* Post Detail Modal - Theme-aware overlay and container */}
       {mounted && selectedPost && createPortal(
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-          <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row border border-gray-200/50 dark:border-gray-800/50 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-white dark:bg-gray-900 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row border-2 border-[#5DC3F8] dark:border-[#5DC3F8] animate-in slide-in-from-bottom-4 duration-500">
             {/* Image Section */}
             <div className="md:w-1/2 bg-black flex items-center justify-center">
               <ImageCarousel images={selectedPost.imageUrls} postId={selectedPost.id} />
@@ -741,10 +744,11 @@ export default function MyProfile() {
 
             {/* Details Section */}
             <div className="md:w-1/2 flex flex-col max-h-[90vh]">
-              {/* Header */}
-              <div className="p-5 border-b border-gray-200/50 dark:border-gray-800/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/20 flex items-center justify-between">
+              {/* Header - theme-aware */}
+              <div className="p-5 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-[2px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500">
+                  {/* Brand accent ring for avatar */}
+                  <div className="p-[2px] rounded-full bg-gradient-to-tr from-[#5DC3F8] via-[#EC67A1] to-[#F774B9]">
                     <img
                       src={selectedPost.user.imageUrl || '/default-avatar.png'}
                       alt={displayName || ''}
@@ -752,7 +756,8 @@ export default function MyProfile() {
                     />
                   </div>
                   <div>
-                    <p className="font-bold text-gray-900 dark:text-white">{displayName}</p>
+                    {/* Neutral text */}
+                    <p className="font-bold text-black dark:text-white">{displayName}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                       {new Date(selectedPost.createdAt).toLocaleDateString()}
                     </p>
@@ -760,15 +765,15 @@ export default function MyProfile() {
                 </div>
                 <button
                   onClick={() => setSelectedPost(null)}
-                  className="p-2.5 hover:bg-white/80 dark:hover:bg-gray-800/80 rounded-full transition-all hover:scale-110 hover:rotate-90 duration-300"
+                  className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all hover:scale-110 hover:rotate-90 duration-300"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-black dark:text-white" />
                 </button>
               </div>
 
-              {/* Caption */}
+              {/* Caption - neutral text */}
               <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
+                <p className="text-black dark:text-white whitespace-pre-wrap">
                   {selectedPost.caption}
                 </p>
               </div>
@@ -777,7 +782,7 @@ export default function MyProfile() {
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {loadingComments.has(selectedPost.id) ? (
                   <div className="flex justify-center py-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-[#5DC3F8]" />
                   </div>
                 ) : postComments[selectedPost.id]?.length > 0 ? (
                   postComments[selectedPost.id].map((comment) => (
@@ -788,8 +793,9 @@ export default function MyProfile() {
                         className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                       />
                       <div className="flex-1">
+                        {/* Comment bubble - theme-aware */}
                         <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 py-2">
-                          <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                          <p className="font-semibold text-sm text-black dark:text-white">
                             {comment.profile?.instagramUsername || comment.profile?.name || comment.user.username || `${comment.user.firstName || ''} ${comment.user.lastName || ''}`.trim()}
                           </p>
                           <p className="text-sm text-gray-700 dark:text-gray-300">{comment.content}</p>
@@ -797,7 +803,7 @@ export default function MyProfile() {
                         <div className="flex items-center gap-4 mt-1 px-4">
                           <button
                             onClick={() => {/* Handle like comment */}}
-                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            className="text-xs text-gray-500 hover:text-[#5DC3F8] dark:hover:text-[#5DC3F8]"
                           >
                             Like {comment.likeCount > 0 && `(${comment.likeCount})`}
                           </button>
@@ -815,9 +821,10 @@ export default function MyProfile() {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="p-5 border-t border-gray-200/50 dark:border-gray-800/50 bg-gradient-to-r from-purple-50/30 to-pink-50/30 dark:from-purple-950/10 dark:to-pink-950/10">
+              {/* Actions Section - Theme-aware */}
+              <div className="p-5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                 <div className="flex items-center gap-3 mb-4">
+                  {/* Like button with brand accent when active */}
                   <button
                     onClick={() => handleLikePost(selectedPost.id)}
                     className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ${
@@ -828,13 +835,15 @@ export default function MyProfile() {
                   >
                     <Heart
                       className={`w-6 h-6 transition-all ${
-                        selectedPost.liked ? 'fill-red-500 text-red-500 scale-110' : ''
+                        selectedPost.liked ? 'fill-red-500 text-red-500 scale-110' : 'text-black dark:text-white'
                       }`}
                     />
                   </button>
+                  {/* Comment button - neutral with brand hover */}
                   <button className="p-3 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all hover:scale-110">
-                    <MessageCircle className="w-6 h-6" />
+                    <MessageCircle className="w-6 h-6 text-black dark:text-white" />
                   </button>
+                  {/* Bookmark button with brand accent when active */}
                   <button
                     onClick={() => handleBookmarkPost(selectedPost.id)}
                     className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ml-auto ${
@@ -845,17 +854,18 @@ export default function MyProfile() {
                   >
                     <Bookmark
                       className={`w-6 h-6 transition-all ${
-                        selectedPost.bookmarked ? 'fill-yellow-500 text-yellow-500 scale-110' : ''
+                        selectedPost.bookmarked ? 'fill-yellow-500 text-yellow-500 scale-110' : 'text-black dark:text-white'
                       }`}
                     />
                   </button>
                 </div>
 
-                <div className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-3">
+                {/* Likes count - neutral text */}
+                <div className="text-sm font-bold text-black dark:text-white mb-3">
                   {selectedPost.likesCount} {selectedPost.likesCount === 1 ? 'like' : 'likes'}
                 </div>
 
-                {/* Add Comment */}
+                {/* Add Comment Input - brand accent focus ring */}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -873,12 +883,12 @@ export default function MyProfile() {
                       }
                     }}
                     placeholder="Add a comment..."
-                    className="flex-1 px-5 py-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200/50 dark:border-gray-700/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="flex-1 px-5 py-3 bg-white dark:bg-gray-800 backdrop-blur-sm rounded-full border-2 border-gray-200 dark:border-gray-700 text-black dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent transition-all"
                   />
                   <button
                     onClick={() => handleAddComment(selectedPost.id)}
                     disabled={!commentTexts[selectedPost.id]?.trim()}
-                    className="p-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white rounded-full transition-all hover:scale-110 disabled:scale-100 shadow-lg shadow-purple-500/30"
+                    className="p-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white rounded-full transition-all hover:scale-110 disabled:scale-100 shadow-lg shadow-[#5DC3F8]/30"
                   >
                     <Send className="w-5 h-5" />
                   </button>
@@ -890,12 +900,13 @@ export default function MyProfile() {
         document.body
       )}
 
-      {/* Crop Modal */}
+      {/* Crop Modal - Theme-aware overlay */}
       {showCropModal && imageToCrop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-2xl w-full mx-4 border border-gray-200/50 dark:border-gray-800/50 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="p-6 border-b border-gray-200/50 dark:border-gray-800/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/20 flex items-center justify-between rounded-t-3xl">
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+          <div className="bg-white dark:bg-gray-900 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-2xl w-full mx-4 border-2 border-[#5DC3F8] dark:border-[#5DC3F8] animate-in slide-in-from-bottom-4 duration-500">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between rounded-t-3xl">
+              {/* Modal title - neutral text */}
+              <h3 className="text-2xl font-bold text-black dark:text-white">
                 Crop Profile Picture
               </h3>
               <button
@@ -903,12 +914,13 @@ export default function MyProfile() {
                   setShowCropModal(false);
                   setImageToCrop(null);
                 }}
-                className="p-2.5 hover:bg-white/80 dark:hover:bg-gray-800/80 rounded-full transition-all hover:scale-110 hover:rotate-90 duration-300"
+                className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all hover:scale-110 hover:rotate-90 duration-300"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-black dark:text-white" />
               </button>
             </div>
 
+            {/* Cropper area */}
             <div className="relative h-96 bg-gray-100 dark:bg-gray-800">
               <Cropper
                 image={imageToCrop}
@@ -925,7 +937,8 @@ export default function MyProfile() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                {/* Zoom label - neutral text */}
+                <label className="text-sm font-medium text-black dark:text-white mb-2 block">
                   Zoom
                 </label>
                 <input
@@ -940,6 +953,7 @@ export default function MyProfile() {
               </div>
 
               <div className="flex gap-3">
+                {/* Cancel button - neutral */}
                 <button
                   onClick={() => {
                     setShowCropModal(false);
@@ -949,10 +963,11 @@ export default function MyProfile() {
                 >
                   Cancel
                 </button>
+                {/* Save button - brand gradient */}
                 <button
                   onClick={handleCropSave}
                   disabled={uploadingProfile}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2 font-semibold shadow-lg shadow-purple-500/30"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 text-white rounded-xl transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2 font-semibold shadow-lg shadow-[#5DC3F8]/30"
                 >
                   {uploadingProfile ? (
                     <>

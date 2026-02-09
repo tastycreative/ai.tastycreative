@@ -60,7 +60,7 @@ export default function UserFeedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
+    <div className="min-h-screen bg-background">
       <div className="h-full w-full">
         {/* 3-Column Layout with mobile responsiveness */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 p-2 sm:p-4 lg:p-6 h-full">

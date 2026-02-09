@@ -332,11 +332,11 @@ export default function InstagramExtractorPage() {
         
         {/* Modern Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-600 mb-6 shadow-2xl shadow-purple-500/30 animate-pulse">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] mb-6 shadow-2xl shadow-[#5DC3F8]/30 animate-pulse">
             <Instagram className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] bg-clip-text text-transparent">
               Instagram Extractor
             </span>
           </h1>
@@ -362,7 +362,7 @@ export default function InstagramExtractorPage() {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://www.instagram.com/p/..."
-                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-gray-900 dark:text-white placeholder-gray-400 text-base"
+                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-2xl focus:ring-4 focus:ring-[#5DC3F8]/20 focus:border-[#5DC3F8] transition-all text-gray-900 dark:text-white placeholder-gray-400 text-base"
                     disabled={isLoading}
                     onKeyDown={(e) => e.key === "Enter" && handleExtract()}
                   />
@@ -402,7 +402,7 @@ export default function InstagramExtractorPage() {
               <button
                 onClick={handleExtract}
                 disabled={isLoading || !url.trim()}
-                className="w-full py-4 px-6 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-2xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full py-4 px-6 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-2xl disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-2xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-xl shadow-[#5DC3F8]/30 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {isLoading ? (
                   <>
@@ -453,7 +453,7 @@ export default function InstagramExtractorPage() {
                       <button
                         onClick={handleDownloadAll}
                         disabled={downloadingAll || downloadingIndex !== null}
-                        className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+                        className="px-4 py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
                       >
                         {downloadingAll ? (
                           <>
@@ -470,7 +470,7 @@ export default function InstagramExtractorPage() {
                       <button
                         onClick={handleSaveAllToReferenceBank}
                         disabled={savingAll || savingIndex !== null}
-                        className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+                        className="px-4 py-2.5 bg-[#F774B9] hover:bg-[#EC67A1] disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
                       >
                         {savingAll ? (
                           <>
@@ -510,7 +510,7 @@ export default function InstagramExtractorPage() {
                   <div className="aspect-square relative overflow-hidden bg-gray-100 dark:bg-gray-800">
                     {imageLoadingStates[index] && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm z-10">
-                        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                        <Loader2 className="h-8 w-8 animate-spin text-[#5DC3F8]" />
                       </div>
                     )}
 
@@ -522,7 +522,7 @@ export default function InstagramExtractorPage() {
                         </p>
                         <button
                           onClick={() => window.open(image.url, "_blank")}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-xl transition-all"
+                          className="px-4 py-2 bg-[#5DC3F8] hover:bg-[#EC67A1] text-white text-sm font-medium rounded-xl transition-all"
                         >
                           Open Original
                         </button>
@@ -634,7 +634,7 @@ export default function InstagramExtractorPage() {
                       <button
                         onClick={() => handleDownloadImage(image.url, index)}
                         disabled={downloadingIndex === index || downloadingAll}
-                        className="px-3 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        className="px-3 py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
                         {downloadingIndex === index ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -645,7 +645,7 @@ export default function InstagramExtractorPage() {
                       <button
                         onClick={() => handleSaveToReferenceBank(image.url, index)}
                         disabled={savingIndex === index || savingAll}
-                        className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        className="px-3 py-2.5 bg-[#F774B9] hover:bg-[#EC67A1] disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
                         {savingIndex === index ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />

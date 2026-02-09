@@ -87,11 +87,11 @@ export default function AIMarketplacePage() {
       {/* Header */}
       <div className="mb-10">
         <div className="flex items-center space-x-4 mb-8">
-          <div className="p-4 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl shadow-xl">
+          <div className="p-4 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-2xl shadow-xl">
             <ShoppingBag className="w-10 h-10 text-white" />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] bg-clip-text text-transparent">
               AI Marketplace
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-lg">
@@ -104,13 +104,13 @@ export default function AIMarketplacePage() {
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#5DC3F8] transition-colors" />
             <input
               type="text"
               placeholder="Search for AI models..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 text-gray-900 dark:text-white placeholder:text-gray-400 transition-all shadow-sm hover:shadow-md"
+              className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 dark:border-[#5DC3F8]/30 rounded-xl focus:outline-none focus:border-[#5DC3F8] dark:focus:border-[#5DC3F8] text-gray-900 dark:text-white placeholder:text-gray-400 transition-all shadow-sm hover:shadow-md"
             />
           </div>
 
@@ -120,7 +120,7 @@ export default function AIMarketplacePage() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="pl-12 pr-10 py-3.5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 text-gray-900 dark:text-white appearance-none cursor-pointer min-w-[200px] transition-all shadow-sm hover:shadow-md"
+              className="pl-12 pr-10 py-3.5 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 dark:border-[#5DC3F8]/30 rounded-xl focus:outline-none focus:border-[#5DC3F8] dark:focus:border-[#5DC3F8] text-gray-900 dark:text-white appearance-none cursor-pointer min-w-[200px] transition-all shadow-sm hover:shadow-md"
             >
               <option value="all">All Categories</option>
               <option value="Standard">Standard</option>
@@ -139,7 +139,7 @@ export default function AIMarketplacePage() {
       {/* Loading State */}
       {loading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5DC3F8]"></div>
         </div>
       ) : filteredModels.length === 0 ? (
         <div className="text-center py-20">
@@ -185,7 +185,7 @@ export default function AIMarketplacePage() {
             {/* Info Container */}
             <div className="p-6">
               {/* Model Name */}
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 group-hover:text-[#5DC3F8] transition-colors">
                 {model.name}
               </h3>
 
@@ -193,7 +193,7 @@ export default function AIMarketplacePage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Price</p>
-                  <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <span className="text-3xl font-bold bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] bg-clip-text text-transparent">
                     ${model.price}
                   </span>
                 </div>
@@ -201,7 +201,7 @@ export default function AIMarketplacePage() {
 
               {/* View Details Button */}
               <button
-                className="w-full py-3.5 rounded-xl font-semibold transition-all duration-300 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl group-hover:scale-105 active:scale-95"
+                className="w-full py-3.5 rounded-xl font-semibold transition-all duration-300 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:from-[#5DC3F8] hover:to-[#E1518E] text-white shadow-lg hover:shadow-xl group-hover:scale-105 active:scale-95"
               >
                 View Details
               </button>
@@ -220,13 +220,13 @@ export default function AIMarketplacePage() {
             onClick={closeModal}
           >
             <div
-              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn border border-gray-200 dark:border-gray-700 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gradient-to-b [&::-webkit-scrollbar-thumb]:from-blue-400 [&::-webkit-scrollbar-thumb]:to-purple-500 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-gray-100 dark:[&::-webkit-scrollbar-thumb]:border-gray-900 hover:[&::-webkit-scrollbar-thumb]:from-blue-500 hover:[&::-webkit-scrollbar-thumb]:to-purple-600"
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn border border-gray-200 dark:border-gray-700 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gradient-to-b [&::-webkit-scrollbar-thumb]:from-[#5DC3F8] [&::-webkit-scrollbar-thumb]:to-[#EC67A1] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-gray-100 dark:[&::-webkit-scrollbar-thumb]:border-gray-900 hover:[&::-webkit-scrollbar-thumb]:from-[#5DC3F8] hover:[&::-webkit-scrollbar-thumb]:to-[#E1518E]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
               <div className="sticky top-0 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700 p-8 flex items-center justify-between z-10 backdrop-blur-sm">
                 <div>
-                  <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] bg-clip-text text-transparent">
                     {selectedModel.name}
                   </h2>
                   <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
@@ -246,7 +246,7 @@ export default function AIMarketplacePage() {
                 {/* Image Gallery */}
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                    <div className="w-1.5 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full mr-3"></div>
+                    <div className="w-1.5 h-8 bg-gradient-to-b from-[#5DC3F8] to-[#EC67A1] rounded-full mr-3"></div>
                     Gallery
                   </h3>
                   <div className="grid grid-cols-2 gap-6">
@@ -294,17 +294,17 @@ export default function AIMarketplacePage() {
                 {/* Used For */}
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                    <div className="w-1.5 h-8 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full mr-3"></div>
+                    <div className="w-1.5 h-8 bg-gradient-to-b from-[#5DC3F8] to-[#EC67A1] rounded-full mr-3"></div>
                     Used For
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {selectedModel.usedFor.map((use, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start space-x-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border border-blue-200 dark:border-blue-700/30 hover:shadow-md transition-all duration-300"
+                        className="flex items-start space-x-3 p-4 bg-gradient-to-br from-[#5DC3F8]/10 to-[#EC67A1]/10 dark:from-[#5DC3F8]/20 dark:to-[#EC67A1]/20 rounded-xl border border-[#5DC3F8]/30 dark:border-[#5DC3F8]/30 hover:shadow-md transition-all duration-300"
                       >
                         <div className="flex-shrink-0 mt-0.5">
-                          <div className="p-1 bg-blue-500 rounded-full">
+                          <div className="p-1 bg-[#5DC3F8] rounded-full">
                             <Check className="w-4 h-4 text-white" />
                           </div>
                         </div>
@@ -323,7 +323,7 @@ export default function AIMarketplacePage() {
                       <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mb-2">
                         Price
                       </p>
-                      <p className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      <p className="text-5xl font-bold bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] bg-clip-text text-transparent">
                         ${selectedModel.price}
                       </p>
                     </div>
@@ -341,7 +341,7 @@ export default function AIMarketplacePage() {
                     disabled={selectedModel.status !== "available"}
                     className={`w-full py-5 rounded-xl font-bold text-lg transition-all duration-300 ${
                       selectedModel.status === "available"
-                        ? "bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95"
+                        ? "bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:from-[#5DC3F8] hover:to-[#E1518E] text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95"
                         : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
                     }`}
                   >

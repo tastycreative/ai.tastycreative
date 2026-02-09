@@ -930,14 +930,14 @@ export default function KlingTextToVideo() {
             e.stopPropagation();
             setShowTooltip(!showTooltip);
           }}
-          className="inline-flex items-center text-slate-400 hover:text-violet-300 transition-colors cursor-help"
+          className="inline-flex items-center text-zinc-400 dark:text-zinc-500 hover:text-[#EC67A1] transition-colors cursor-help"
         >
           {children}
         </span>
         {showTooltip && (
-          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-slate-100 bg-slate-800 border border-white/10 rounded-lg shadow-xl pointer-events-none">
+          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-white bg-zinc-800 dark:bg-zinc-700 border border-zinc-600 rounded-lg shadow-xl pointer-events-none">
             {content}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-slate-800 border-r border-b border-white/10 rotate-45" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-zinc-800 dark:bg-zinc-700 border-r border-b border-zinc-600 rotate-45" />
           </div>
         )}
       </div>
@@ -945,7 +945,7 @@ export default function KlingTextToVideo() {
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+    <div className="relative min-h-screen bg-white dark:bg-[#1a1625] text-sidebar-foreground">
       {/* Toast Notification */}
       {showToast && toastError && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top">
@@ -964,56 +964,56 @@ export default function KlingTextToVideo() {
       )}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[#EC67A1]/20 dark:bg-[#EC67A1]/10 blur-3xl" />
         <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-pink-400/10 blur-3xl" />
-        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-zinc-300/30 dark:via-white/20 to-transparent" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header Section */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-start">
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-violet-900/30 backdrop-blur">
+          <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
             <div className="flex items-center gap-3 mb-4">
-              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-pink-600 shadow-lg shadow-violet-900/50">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F774B9] via-[#EC67A1] to-[#E1518E] shadow-lg shadow-[#EC67A1]/50">
                 <Film className="w-6 h-6 text-white" />
                 <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Motion Studio</p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">Kling AI — Text to Video</h1>
+                <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Motion Studio</p>
+                <h1 className="text-3xl sm:text-4xl font-black text-sidebar-foreground">Kling AI — Text to Video</h1>
               </div>
             </div>
-            <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
+            <p className="text-sm sm:text-base text-header-muted leading-relaxed">
               Create stunning AI-generated videos from text prompts using Kling AI&apos;s powerful models. 
               Supports professional mode, camera controls, and multiple aspect ratios.
             </p>
 
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EC67A1]/20 text-[#EC67A1]">
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Duration</p>
-                  <p className="text-sm font-semibold text-white">5s or 10s</p>
+                  <p className="text-xs text-header-muted">Duration</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">5s or 10s</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/20 text-pink-200">
                   <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Camera</p>
-                  <p className="text-sm font-semibold text-white">AI Controls</p>
+                  <p className="text-xs text-header-muted">Camera</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">AI Controls</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5DC3F8]/20 text-[#5DC3F8]">
                   <Wand2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Model</p>
-                  <p className="text-sm font-semibold text-white">Kling V1.6</p>
+                  <p className="text-xs text-header-muted">Model</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">Kling V1.6</p>
                 </div>
               </div>
             </div>
@@ -1024,7 +1024,7 @@ export default function KlingTextToVideo() {
               <button
                 type="button"
                 onClick={() => setShowHelpModal(true)}
-                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-violet-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-[#EC67A1]/20 transition hover:-translate-y-0.5 hover:shadow-xl"
                 title="View Help & Tips"
               >
                 <Info className="w-4 h-4" />
@@ -1032,21 +1032,21 @@ export default function KlingTextToVideo() {
               </button>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/10 via-purple-500/10 to-pink-500/10 p-4 shadow-2xl shadow-violet-900/20 backdrop-blur">
+            <div className="rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-gradient-to-br from-[#EC67A1]/10 via-[#F774B9]/10 to-[#5DC3F8]/10 p-4 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Current setup</p>
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Current setup</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">
                     {MODEL_OPTIONS.find(m => m.value === model)?.label} · {mode === "pro" ? "Professional" : "Standard"} · {duration}s
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-200/80">
-                  <span className="rounded-full bg-white/10 px-3 py-1">{aspectRatio}</span>
+                <div className="flex items-center gap-2 text-xs text-header-muted">
+                  <span className="rounded-full bg-zinc-100 dark:bg-white/10 px-3 py-1">{aspectRatio}</span>
                   <span
                     className={`rounded-full px-3 py-1 ${
                       isGenerating
-                        ? "bg-amber-400/20 text-amber-100"
-                        : "bg-emerald-400/20 text-emerald-100"
+                        ? "bg-amber-400/20 text-amber-600 dark:text-amber-300"
+                        : "bg-emerald-400/20 text-emerald-600 dark:text-emerald-300"
                     }`}
                   >
                     {isGenerating ? "Rendering" : "Ready"}
@@ -1054,7 +1054,7 @@ export default function KlingTextToVideo() {
                 </div>
               </div>
               {pollingStatus && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-violet-100">
+                <div className="mt-3 flex items-center gap-2 text-sm text-[#EC67A1]">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>{pollingStatus}</span>
                 </div>
@@ -1068,17 +1068,17 @@ export default function KlingTextToVideo() {
           {/* Left Panel - Controls */}
           <div className="space-y-6">
             {/* Presets Bar - Sticky on mobile */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-4 shadow-2xl shadow-violet-900/40 backdrop-blur lg:sticky lg:top-4">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-4 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur lg:sticky lg:top-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Wand2 className="w-4 h-4 text-violet-300" />
-                  <p className="text-sm font-semibold text-white">Quick Presets</p>
+                  <Wand2 className="w-4 h-4 text-[#EC67A1]" />
+                  <p className="text-sm font-semibold text-sidebar-foreground">Quick Presets</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowPresetModal(true)}
                   disabled={isGenerating}
-                  className="text-xs text-violet-300 hover:text-violet-100 transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="text-xs text-[#EC67A1] hover:text-[#E1518E] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   <Save className="w-3 h-3" />
                   Save Current
@@ -1091,7 +1091,7 @@ export default function KlingTextToVideo() {
                     type="button"
                     onClick={() => applyPreset(preset)}
                     disabled={isGenerating}
-                    className="px-3 py-1.5 text-xs font-medium rounded-full border border-violet-400/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-400/50 transition-all disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-medium rounded-full border border-[#EC67A1]/30 bg-[#EC67A1]/10 text-[#EC67A1] hover:bg-[#EC67A1]/20 hover:border-[#EC67A1]/50 transition-all disabled:opacity-50"
                   >
                     {preset.name}
                   </button>
@@ -1102,7 +1102,7 @@ export default function KlingTextToVideo() {
                       type="button"
                       onClick={() => applyPreset(preset)}
                       disabled={isGenerating}
-                      className="px-3 py-1.5 text-xs font-medium rounded-full border border-pink-400/30 bg-pink-500/10 text-pink-200 hover:bg-pink-500/20 hover:border-pink-400/50 transition-all disabled:opacity-50"
+                      className="px-3 py-1.5 text-xs font-medium rounded-full border border-[#EC67A1]/30 bg-[#EC67A1]/10 text-[#EC67A1] hover:bg-[#EC67A1]/20 hover:border-[#EC67A1]/50 transition-all disabled:opacity-50"
                     >
                       {preset.name}
                     </button>
@@ -1121,12 +1121,12 @@ export default function KlingTextToVideo() {
               </div>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur space-y-6">
               {/* Prompt Input with Templates */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <label className="text-base font-bold text-white">Prompt <span className="text-red-400">*</span></label>
+                    <label className="text-base font-bold text-sidebar-foreground">Prompt <span className="text-red-400">*</span></label>
                     <Tooltip content={TOOLTIPS.negativePrompt}>
                       <HelpCircle className="w-4 h-4" />
                     </Tooltip>
@@ -1138,7 +1138,7 @@ export default function KlingTextToVideo() {
                       e.target.value = '';
                     }}
                     disabled={isGenerating}
-                    className="text-xs px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-white hover:bg-slate-750 disabled:opacity-50 cursor-pointer"
+                    className="text-xs px-2 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sidebar-foreground hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 cursor-pointer"
                   >
                     <option value="">💡 Use template...</option>
                     {PROMPT_TEMPLATES.map((template) => (
@@ -1152,22 +1152,22 @@ export default function KlingTextToVideo() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe your video in detail... Be specific about the scene, motion, lighting, and camera movement for best results."
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-base text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 resize-none"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-4 text-base text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 resize-none"
                   rows={6}
                   disabled={isGenerating}
                 />
-                <div className="flex items-center justify-between text-xs text-slate-400">
+                <div className="flex items-center justify-between text-xs text-zinc-400 dark:text-zinc-500">
                   <span>Be descriptive for best results</span>
-                  <span className={prompt.length > 200 ? 'text-violet-300' : ''}>{prompt.length} chars</span>
+                  <span className={prompt.length > 200 ? 'text-[#EC67A1]' : ''}>{prompt.length} chars</span>
                 </div>
 
                 {/* Quick Settings - Integrated in prompt section */}
-                <div className="pt-3 border-t border-white/10">
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700">
                   <div className="grid grid-cols-2 gap-3">
                     {/* Model Dropdown */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-slate-300">Model</label>
+                        <label className="text-xs font-medium text-header-muted">Model</label>
                         <Tooltip content={TOOLTIPS.model}>
                           <HelpCircle className="w-3 h-3" />
                         </Tooltip>
@@ -1189,7 +1189,7 @@ export default function KlingTextToVideo() {
                           }
                         }}
                         disabled={isGenerating}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {MODEL_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -1202,7 +1202,7 @@ export default function KlingTextToVideo() {
                     {/* Quality Mode Dropdown */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-slate-300">Quality</label>
+                        <label className="text-xs font-medium text-header-muted">Quality</label>
                         <Tooltip content={TOOLTIPS.mode}>
                           <HelpCircle className="w-3 h-3" />
                         </Tooltip>
@@ -1216,7 +1216,7 @@ export default function KlingTextToVideo() {
                           }
                         }}
                         disabled={isGenerating || (sound === "on" && currentModelSupportsSound)}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {MODE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -1229,7 +1229,7 @@ export default function KlingTextToVideo() {
                     {/* Duration Dropdown */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-slate-300">Duration</label>
+                        <label className="text-xs font-medium text-header-muted">Duration</label>
                         <Tooltip content={TOOLTIPS.duration}>
                           <HelpCircle className="w-3 h-3" />
                         </Tooltip>
@@ -1238,7 +1238,7 @@ export default function KlingTextToVideo() {
                         value={duration}
                         onChange={(e) => setDuration(e.target.value)}
                         disabled={isGenerating}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {DURATION_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -1251,7 +1251,7 @@ export default function KlingTextToVideo() {
                     {/* Aspect Ratio Dropdown */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-slate-300">Aspect Ratio</label>
+                        <label className="text-xs font-medium text-header-muted">Aspect Ratio</label>
                         <Tooltip content={TOOLTIPS.aspectRatio}>
                           <HelpCircle className="w-3 h-3" />
                         </Tooltip>
@@ -1260,7 +1260,7 @@ export default function KlingTextToVideo() {
                         value={aspectRatio}
                         onChange={(e) => setAspectRatio(e.target.value)}
                         disabled={isGenerating}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-slate-750"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {ASPECT_RATIO_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -1274,12 +1274,12 @@ export default function KlingTextToVideo() {
               </div>
 
               {/* Folder Selection - MOVED UP */}
-              <div className="space-y-3 border-t border-white/10 pt-6">
+              <div className="space-y-3 border-t border-zinc-200 dark:border-zinc-700 pt-6">
                 <div className="flex items-center gap-2">
-                  <Archive className="w-5 h-5 text-violet-300" />
-                  <p className="text-base font-bold text-white">Save to Vault <span className="text-red-400">*</span></p>
+                  <Archive className="w-5 h-5 text-[#EC67A1]" />
+                  <p className="text-base font-bold text-sidebar-foreground">Save to Vault <span className="text-red-400">*</span></p>
                   {isLoadingVaultData && (
-                    <Loader2 className="w-4 h-4 animate-spin text-violet-300" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#EC67A1]" />
                   )}
                 </div>
                 
@@ -1293,10 +1293,10 @@ export default function KlingTextToVideo() {
                       w-full flex items-center justify-between gap-3 px-4 py-4
                       rounded-2xl border-2 transition-all duration-200
                       ${folderDropdownOpen 
-                        ? 'border-violet-400 bg-violet-500/10 ring-2 ring-violet-400/30' 
+                        ? 'border-[#EC67A1] bg-[#EC67A1]/10 ring-2 ring-[#EC67A1]/30' 
                         : targetFolder
-                          ? 'border-violet-400/50 bg-violet-500/5'
-                          : 'border-white/10 bg-slate-800/80 hover:border-violet-400/50 hover:bg-slate-800'
+                          ? 'border-[#EC67A1]/50 bg-[#EC67A1]/5'
+                          : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 hover:border-[#EC67A1]/50 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed
                     `}
@@ -1305,21 +1305,21 @@ export default function KlingTextToVideo() {
                       <div className={`
                         flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
                         ${targetFolder 
-                          ? 'bg-gradient-to-br from-violet-500/30 to-purple-500/30 border border-violet-400/30' 
-                          : 'bg-slate-700/50 border border-white/5'
+                          ? 'bg-gradient-to-br from-[#EC67A1]/30 to-[#F774B9]/30 border border-[#EC67A1]/30' 
+                          : 'bg-zinc-100 dark:bg-slate-700/50 border border-zinc-200 dark:border-white/5'
                         }
                       `}>
-                        <FolderOpen className={`w-5 h-5 ${targetFolder ? 'text-violet-300' : 'text-slate-400'}`} />
+                        <FolderOpen className={`w-5 h-5 ${targetFolder ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-slate-400'}`} />
                       </div>
                       <div className="text-left min-w-0">
-                        <p className={`text-sm font-semibold truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                        <p className={`text-sm font-semibold truncate ${targetFolder ? 'text-sidebar-foreground' : 'text-zinc-400 dark:text-slate-400'}`}>
                           {targetFolder 
                             ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
                             : 'Select a folder...'
                           }
                         </p>
                         {targetFolder && (
-                          <p className="text-xs text-violet-300/70 truncate">
+                          <p className="text-xs text-[#EC67A1]/70 truncate">
                             {isAllProfiles 
                               ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
                               : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
@@ -1328,12 +1328,12 @@ export default function KlingTextToVideo() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-5 h-5 text-zinc-400 dark:text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* Dropdown Menu */}
                   {folderDropdownOpen && mounted && (
-                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden max-h-[300px] overflow-y-auto">
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/20 dark:shadow-black/40 overflow-hidden max-h-[300px] overflow-y-auto">
                       {/* Clear Selection Option */}
                       <button
                         type="button"
@@ -1341,17 +1341,17 @@ export default function KlingTextToVideo() {
                           setTargetFolder('');
                           setFolderDropdownOpen(false);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
-                          <X className="w-4 h-4 text-slate-400" />
+                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-zinc-400 dark:text-slate-400" />
                         </div>
-                        <span className="text-sm text-slate-400">No folder selected</span>
-                        {!targetFolder && <Check className="w-4 h-4 text-violet-400 ml-auto" />}
+                        <span className="text-sm text-zinc-400 dark:text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-[#EC67A1] ml-auto" />}
                       </button>
 
                       {vaultFolders.filter(f => !f.isDefault).length > 0 && (
-                        <div className="my-2 mx-3 h-px bg-white/5" />
+                        <div className="my-2 mx-3 h-px bg-zinc-100 dark:bg-white/5" />
                       )}
 
                       {/* Folder Options - Grouped by profile when viewing all profiles */}
@@ -1366,7 +1366,7 @@ export default function KlingTextToVideo() {
                           }, {} as Record<string, VaultFolder[]>)
                         ).map(([profileName, folders]) => (
                           <div key={profileName}>
-                            <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
+                            <div className="px-4 py-2 text-xs font-semibold text-[#EC67A1] uppercase tracking-wider bg-[#EC67A1]/10 sticky top-0">
                               {profileName}
                             </div>
                             {sortFoldersHierarchically(folders).map((folder) => {
@@ -1383,8 +1383,8 @@ export default function KlingTextToVideo() {
                                   className={`
                                     w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
                                     ${targetFolder === folder.id 
-                                      ? 'bg-violet-500/15' 
-                                      : 'hover:bg-white/5'
+                                      ? 'bg-[#EC67A1]/10' 
+                                      : 'hover:bg-zinc-50 dark:hover:bg-white/5'
                                     }
                                   `}
                                   style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
@@ -1392,24 +1392,24 @@ export default function KlingTextToVideo() {
                                   <div className={`
                                     w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
                                     ${targetFolder === folder.id 
-                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                      : 'bg-slate-700/50 border border-white/5'
+                                      ? 'bg-gradient-to-br from-[#EC67A1]/40 to-[#F774B9]/40 border border-[#EC67A1]/40' 
+                                      : 'bg-zinc-100 dark:bg-slate-700/50 border border-zinc-200 dark:border-white/5'
                                     }
                                   `}>
                                     {hasChildren ? (
-                                      <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-slate-400'}`} />
                                     ) : (
-                                      <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                      <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-slate-400'}`} />
                                     )}
                                   </div>
-                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
                                     {folder.name}
                                   </span>
                                   {depth > 0 && (
                                     <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
                                   )}
                                   {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                    <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
                                   )}
                                 </button>
                               );
@@ -1432,8 +1432,8 @@ export default function KlingTextToVideo() {
                               className={`
                                 w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
                                 ${targetFolder === folder.id 
-                                  ? 'bg-violet-500/15' 
-                                  : 'hover:bg-white/5'
+                                  ? 'bg-[#EC67A1]/10' 
+                                  : 'hover:bg-zinc-50 dark:hover:bg-white/5'
                                 }
                               `}
                               style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
@@ -1441,24 +1441,24 @@ export default function KlingTextToVideo() {
                               <div className={`
                                 w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
                                 ${targetFolder === folder.id 
-                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                  : 'bg-slate-700/50 border border-white/5'
+                                  ? 'bg-gradient-to-br from-[#EC67A1]/40 to-[#F774B9]/40 border border-[#EC67A1]/40' 
+                                  : 'bg-zinc-100 dark:bg-slate-700/50 border border-zinc-200 dark:border-white/5'
                                 }
                               `}>
                                 {hasChildren ? (
-                                  <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-slate-400'}`} />
                                 ) : (
-                                  <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-slate-400'}`} />
                                 )}
                               </div>
-                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
                                 {folder.name}
                               </span>
                               {depth > 0 && (
                                 <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
                               )}
                               {targetFolder === folder.id && (
-                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
                               )}
                             </button>
                           );
@@ -1478,9 +1478,9 @@ export default function KlingTextToVideo() {
 
                 {/* Status Indicator */}
                 {targetFolder && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
-                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                    <p className="text-xs text-violet-200 flex-1 truncate">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#EC67A1]/10 border border-[#EC67A1]/20">
+                    <div className="w-2 h-2 rounded-full bg-[#EC67A1] animate-pulse" />
+                    <p className="text-xs text-[#EC67A1] flex-1 truncate">
                       Videos will be saved to this folder
                     </p>
                   </div>
@@ -1490,7 +1490,7 @@ export default function KlingTextToVideo() {
               {/* Negative Prompt */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                  <label className="text-sm font-semibold text-sidebar-foreground">Negative Prompt (Optional)</label>
                   <Tooltip content={TOOLTIPS.negativePrompt}>
                     <HelpCircle className="w-3.5 h-3.5" />
                   </Tooltip>
@@ -1499,25 +1499,25 @@ export default function KlingTextToVideo() {
                   value={negativePrompt}
                   onChange={(e) => setNegativePrompt(e.target.value)}
                   placeholder="What to avoid: blurry, distorted, low quality, watermark, text..."
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50"
                   rows={2}
                   disabled={isGenerating}
                 />
               </div>
 
               {/* Collapsible Advanced Settings */}
-              <div className="border-t border-white/10 pt-6">
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-6">
                 <button
                   type="button"
                   onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors border border-zinc-200 dark:border-zinc-700"
                 >
                   <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-violet-300" />
-                    <span className="text-sm font-semibold text-white">Advanced Options</span>
-                    <span className="text-xs text-slate-400">(CFG, Camera, Sound)</span>
+                    <Zap className="w-4 h-4 text-[#EC67A1]" />
+                    <span className="text-sm font-semibold text-sidebar-foreground">Advanced Options</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">(CFG, Camera, Sound)</span>
                   </div>
-                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-5 h-5 text-zinc-400 dark:text-zinc-500 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showAdvancedSettings && (
@@ -1526,7 +1526,7 @@ export default function KlingTextToVideo() {
               {currentModelSupportsSound && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
+                    <label className="text-sm font-semibold text-sidebar-foreground">Audio Generation</label>
                     <Tooltip content={TOOLTIPS.sound}>
                       <HelpCircle className="w-3.5 h-3.5" />
                     </Tooltip>
@@ -1536,13 +1536,13 @@ export default function KlingTextToVideo() {
                       onClick={() => setSound("off")}
                       className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                         sound === "off"
-                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
+                          ? "border-[#EC67A1]/70 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/20"
+                          : "border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-sidebar-foreground"
                       } disabled:opacity-50`}
                       disabled={isGenerating}
                     >
                       <p className="text-sm font-semibold">🔇 No Audio</p>
-                      <p className="text-xs text-slate-300">Video only</p>
+                      <p className="text-xs text-header-muted">Video only</p>
                     </button>
                     <button
                       onClick={() => {
@@ -1554,13 +1554,13 @@ export default function KlingTextToVideo() {
                       }}
                       className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                         sound === "on"
-                          ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
+                          ? "border-emerald-400/70 bg-emerald-500/10 text-sidebar-foreground shadow-emerald-900/30"
+                          : "border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-sidebar-foreground"
                       } disabled:opacity-50`}
                       disabled={isGenerating}
                     >
                       <p className="text-sm font-semibold">🔊 With Audio</p>
-                      <p className="text-xs text-slate-300">Pro mode only</p>
+                      <p className="text-xs text-header-muted">Pro mode only</p>
                     </button>
                   </div>
                 </div>
@@ -1571,12 +1571,12 @@ export default function KlingTextToVideo() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                      <label className="text-sm font-semibold text-sidebar-foreground">Creativity (CFG Scale)</label>
                       <Tooltip content={TOOLTIPS.cfgScale}>
                         <HelpCircle className="w-3.5 h-3.5" />
                       </Tooltip>
                     </div>
-                    <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
+                    <span className="text-xs text-header-muted">{cfgScale.toFixed(1)}</span>
                   </div>
                   <input
                     type="range"
@@ -1585,10 +1585,10 @@ export default function KlingTextToVideo() {
                     step={0.1}
                     value={cfgScale}
                     onChange={(e) => setCfgScale(Number(e.target.value))}
-                    className="w-full accent-violet-400"
+                    className="w-full accent-[#EC67A1]"
                     disabled={isGenerating}
                   />
-                  <div className="flex justify-between text-xs text-slate-400">
+                  <div className="flex justify-between text-xs text-zinc-400 dark:text-zinc-500">
                     <span>More Creative</span>
                     <span>More Accurate</span>
                   </div>
@@ -1603,8 +1603,8 @@ export default function KlingTextToVideo() {
                     onClick={() => setUseCameraControl(!useCameraControl)}
                     className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                       useCameraControl
-                        ? "border-pink-400/70 bg-pink-500/10 text-white shadow-pink-900/30"
-                        : "border-white/10 bg-white/5 text-slate-200"
+                        ? "border-[#EC67A1]/70 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/20"
+                        : "border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-sidebar-foreground"
                     } disabled:opacity-50`}
                     disabled={isGenerating}
                   >
@@ -1617,7 +1617,7 @@ export default function KlingTextToVideo() {
                             <HelpCircle className="w-3.5 h-3.5" />
                           </Tooltip>
                         </div>
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-header-muted">
                           {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
                         </p>
                       </div>
@@ -1628,7 +1628,7 @@ export default function KlingTextToVideo() {
                   <div className="space-y-4 pl-2">
                     {/* Camera Control Type Selection */}
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-200">Movement Type</label>
+                      <label className="text-xs font-semibold text-sidebar-foreground">Movement Type</label>
                       <div className="grid grid-cols-2 gap-2">
                         {CAMERA_CONTROL_TYPE_OPTIONS.map((option) => (
                           <button
@@ -1636,13 +1636,13 @@ export default function KlingTextToVideo() {
                             onClick={() => setCameraControlType(option.value)}
                             className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
                               cameraControlType === option.value
-                                ? "border-pink-400/70 bg-pink-500/10 text-white"
-                                : "border-white/10 bg-white/5 text-slate-200"
+                                ? "border-[#EC67A1]/70 bg-[#EC67A1]/10 text-sidebar-foreground"
+                                : "border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-sidebar-foreground"
                             } disabled:opacity-50`}
                             disabled={isGenerating}
                           >
                             <p className="text-xs font-semibold">{option.label}</p>
-                            <p className="text-[10px] text-slate-400">{option.description}</p>
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{option.description}</p>
                           </button>
                         ))}
                       </div>
@@ -1650,9 +1650,9 @@ export default function KlingTextToVideo() {
 
                     {/* 6-Axis Config (only for simple type) */}
                     {cameraControlType === "simple" && (
-                      <div className="space-y-3 border-t border-white/10 pt-3">
-                        <label className="text-xs font-semibold text-slate-200">6-Axis Configuration</label>
-                        <p className="text-[10px] text-slate-400">Select one axis and set its value. Only one axis can be non-zero.</p>
+                      <div className="space-y-3 border-t border-zinc-200 dark:border-zinc-700 pt-3">
+                        <label className="text-xs font-semibold text-sidebar-foreground">6-Axis Configuration</label>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Select one axis and set its value. Only one axis can be non-zero.</p>
                         
                         {/* Axis Selection */}
                         <div className="grid grid-cols-3 gap-1">
@@ -1674,8 +1674,8 @@ export default function KlingTextToVideo() {
                               }}
                               className={`rounded-lg border px-2 py-1.5 text-center transition ${
                                 selectedCameraAxis === axis.key
-                                  ? "border-pink-400/70 bg-pink-500/10 text-white"
-                                  : "border-white/10 bg-white/5 text-slate-300"
+                                  ? "border-[#EC67A1]/70 bg-[#EC67A1]/10 text-sidebar-foreground"
+                                  : "border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-header-muted"
                               } disabled:opacity-50`}
                               disabled={isGenerating}
                             >
@@ -1688,10 +1688,10 @@ export default function KlingTextToVideo() {
                         {selectedCameraAxis && (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-slate-300">
+                              <span className="text-xs text-header-muted">
                                 {CAMERA_AXIS_OPTIONS.find(a => a.key === selectedCameraAxis)?.description}
                               </span>
-                              <span className="text-xs font-mono text-pink-300">
+                              <span className="text-xs font-mono text-[#EC67A1]">
                                 {cameraConfig[selectedCameraAxis]?.toFixed(0) || 0}
                               </span>
                             </div>
@@ -1713,7 +1713,7 @@ export default function KlingTextToVideo() {
                                   [selectedCameraAxis]: newValue,
                                 });
                               }}
-                              className="w-full accent-pink-400"
+                              className="w-full accent-[#EC67A1]"
                               disabled={isGenerating}
                             />
                             <div className="flex justify-between text-[10px] text-slate-500">
@@ -1738,7 +1738,7 @@ export default function KlingTextToVideo() {
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim() || !targetFolder}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-6 py-4 sm:py-3 text-base sm:text-sm font-bold sm:font-semibold text-white shadow-2xl shadow-violet-900/40 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-4 sm:py-3 text-base sm:text-sm font-bold sm:font-semibold text-white shadow-2xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:from-[#E1518E] hover:to-[#EC67A1] hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                   {isGenerating ? "Generating..." : "Generate Video"}
@@ -1747,7 +1747,7 @@ export default function KlingTextToVideo() {
                   onClick={handleReset}
                   type="button"
                   disabled={isGenerating}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-4 sm:py-3 text-base sm:text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 backdrop-blur-xl"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-200 dark:bg-zinc-700 px-5 py-4 sm:py-3 text-base sm:text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 hover:bg-zinc-300 dark:hover:bg-zinc-600 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-5 h-5 sm:w-4 sm:h-4" /> Reset
                 </button>
@@ -1758,21 +1758,21 @@ export default function KlingTextToVideo() {
           {/* Right Panel - Results */}
           <div className="space-y-6">
             {/* Generated Videos */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Latest output</p>
-                  <h2 className="text-lg font-semibold text-white">Generated videos</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Latest output</p>
+                  <h2 className="text-lg font-semibold text-sidebar-foreground">Generated videos</h2>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-300">
+                <div className="flex items-center gap-2 text-xs text-header-muted">
                   <Play className="w-4 h-4" />
                   {generatedVideos.length} clip{generatedVideos.length === 1 ? "" : "s"}
                 </div>
               </div>
 
               {generatedVideos.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-300">
-                  <Video className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-white/5 p-6 text-center text-header-muted">
+                  <Video className="w-6 h-6 mx-auto mb-2 text-zinc-400 dark:text-slate-400" />
                   <p className="text-sm">Your generated videos will appear here.</p>
                 </div>
               ) : (
@@ -1784,7 +1784,7 @@ export default function KlingTextToVideo() {
                       aria-label="Open video"
                       tabIndex={0}
                       onClick={() => openVideoModal(video)}
-                      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer"
+                      className="group relative overflow-hidden rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-white/5 cursor-pointer"
                     >
                       <video
                         data-role="preview"
@@ -1793,7 +1793,7 @@ export default function KlingTextToVideo() {
                         className="w-full h-52 object-cover pointer-events-none"
                         controlsList="nodownload noplaybackrate noremoteplayback"
                       />
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/0 to-transparent opacity-0 group-hover:opacity-100 transition" />
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-transparent opacity-0 group-hover:opacity-100 transition" />
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-white">
                         <span className="rounded-full bg-white/10 px-3 py-1">
                           {video.duration}s · {video.aspectRatio}
@@ -1817,17 +1817,17 @@ export default function KlingTextToVideo() {
             </div>
 
             {/* Generation History */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
-                  <h2 className="text-lg font-semibold text-white">Recent generations</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Library</p>
+                  <h2 className="text-lg font-semibold text-sidebar-foreground">Recent generations</h2>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowHistoryModal(true)}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    className="inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-white/5 px-3 py-1 text-xs text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow"
                   >
                     <Maximize2 className="w-3 h-3" />
                     View All
@@ -1835,7 +1835,7 @@ export default function KlingTextToVideo() {
                   <button
                     type="button"
                     onClick={loadGenerationHistory}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    className="inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-white/5 px-3 py-1 text-xs text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow"
                     disabled={isLoadingHistory}
                   >
                     {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
@@ -1845,8 +1845,8 @@ export default function KlingTextToVideo() {
               </div>
 
               {generationHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-300">
-                  <Clock className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-white/5 p-6 text-center text-header-muted">
+                  <Clock className="w-6 h-6 mx-auto mb-2 text-zinc-400 dark:text-slate-400" />
                   <p className="text-sm">No history yet.</p>
                 </div>
               ) : (
@@ -1858,7 +1858,7 @@ export default function KlingTextToVideo() {
                       aria-label="Open video"
                       tabIndex={0}
                       onClick={() => video.videoUrl && openVideoModal(video)}
-                      className="group overflow-hidden rounded-xl border border-white/10 bg-white/5 cursor-pointer max-w-[180px]"
+                      className="group overflow-hidden rounded-xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-white/5 cursor-pointer max-w-[180px]"
                     >
                       {video.videoUrl ? (
                         <video
@@ -1869,16 +1869,16 @@ export default function KlingTextToVideo() {
                           controlsList="nodownload noplaybackrate noremoteplayback"
                         />
                       ) : (
-                        <div className="w-full h-24 flex items-center justify-center bg-slate-800/50">
-                          <div className="text-center text-slate-400">
+                        <div className="w-full h-24 flex items-center justify-center bg-zinc-100 dark:bg-slate-800/50">
+                          <div className="text-center text-zinc-400 dark:text-slate-400">
                             <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
                             <span className="text-[10px]">Unavailable</span>
                           </div>
                         </div>
                       )}
-                      <div className="px-2 py-2 text-[10px] text-slate-200">
-                        <p className="font-medium text-white truncate text-xs">{video.prompt}</p>
-                        <p className="text-slate-400 truncate">
+                      <div className="px-2 py-2 text-[10px] text-sidebar-foreground">
+                        <p className="font-medium text-sidebar-foreground truncate text-xs">{video.prompt}</p>
+                        <p className="text-zinc-400 dark:text-zinc-500 truncate">
                           {video.duration}s · {video.model}
                         </p>
                       </div>
@@ -1895,18 +1895,18 @@ export default function KlingTextToVideo() {
       {showVideoModal && selectedVideo &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur"
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowVideoModal(false);
             }}
           >
             <div
-              className="relative w-full max-w-6xl max-h-[85vh] rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              className="relative w-full max-w-6xl max-h-[85vh] rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20"
+                className="absolute right-4 top-4 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 onClick={() => setShowVideoModal(false)}
               >
                 <span className="sr-only">Close</span>
@@ -1919,15 +1919,15 @@ export default function KlingTextToVideo() {
                 src={selectedVideo.videoUrl}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
-              <div className="p-4 text-sm text-slate-200">
-                <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
-                <p className="text-slate-400 mb-3">
+              <div className="p-4 text-sm text-sidebar-foreground">
+                <p className="font-semibold text-sidebar-foreground mb-1">{selectedVideo.prompt}</p>
+                <p className="text-zinc-400 dark:text-zinc-500 mb-3">
                   {selectedVideo.duration}s · {selectedVideo.aspectRatio} · {selectedVideo.model}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleReuseSettings(selectedVideo)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 px-4 py-2 text-sm font-medium text-violet-300 transition"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 border border-[#EC67A1]/30 px-4 py-2 text-sm font-medium text-[#EC67A1] transition"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Reuse Settings
@@ -1939,7 +1939,7 @@ export default function KlingTextToVideo() {
                         `kling-t2v-${selectedVideo.id}.mp4`
                       )
                     }
-                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 text-sm font-medium text-white transition"
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 border border-zinc-200 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-sidebar-foreground transition"
                   >
                     <Download className="w-4 h-4" />
                     Download
@@ -1955,25 +1955,25 @@ export default function KlingTextToVideo() {
       {showHistoryModal &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4"
             onClick={() => setShowHistoryModal(false)}
           >
             <div
-              className="relative w-full max-w-7xl max-h-[90vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              className="relative w-full max-w-7xl max-h-[90vh] overflow-auto rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur p-6">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 bg-white/95 dark:bg-zinc-900/95 backdrop-blur p-6">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
-                  <h2 className="text-2xl font-bold text-white">All Recent Generations</h2>
-                  <p className="text-sm text-slate-400 mt-1">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Library</p>
+                  <h2 className="text-2xl font-bold text-sidebar-foreground">All Recent Generations</h2>
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">
                     {generationHistory.length} video{generationHistory.length !== 1 ? 's' : ''}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowHistoryModal(false)}
-                  className="rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
+                  className="rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1981,7 +1981,7 @@ export default function KlingTextToVideo() {
 
               <div className="p-6">
                 {generationHistory.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-slate-400">
                     <Clock className="w-12 h-12 mb-4 opacity-50" />
                     <p className="text-lg">No generation history yet</p>
                   </div>
@@ -1999,7 +1999,7 @@ export default function KlingTextToVideo() {
                             setShowHistoryModal(false);
                           }
                         }}
-                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-900/20"
+                        className="group relative overflow-hidden rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-white/5 cursor-pointer transition hover:border-[#EC67A1]/50 hover:shadow-lg hover:shadow-[#EC67A1]/10"
                       >
                         {video.videoUrl ? (
                           <video
@@ -2010,31 +2010,31 @@ export default function KlingTextToVideo() {
                             controlsList="nodownload noplaybackrate noremoteplayback"
                           />
                         ) : (
-                          <div className="w-full aspect-video flex items-center justify-center bg-slate-800/50">
-                            <div className="text-center text-slate-400">
+                          <div className="w-full aspect-video flex items-center justify-center bg-zinc-100 dark:bg-slate-800/50">
+                            <div className="text-center text-zinc-400 dark:text-slate-400">
                               <Video className="w-8 h-8 mx-auto mb-2" />
                               <p className="text-xs">Processing...</p>
                             </div>
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
                         <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition">
                           <p className="text-xs font-medium line-clamp-2 mb-1">{video.prompt}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-300">
+                          <div className="flex items-center gap-2 text-[10px] text-zinc-300 dark:text-slate-300">
                             <span>{video.duration}s</span>
                             <span>•</span>
                             <span>{video.aspectRatio}</span>
                           </div>
                         </div>
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
-                          <div className="rounded-full bg-violet-500/20 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                          <div className="rounded-full bg-[#EC67A1]/20 backdrop-blur-sm px-2 py-1 text-[10px] text-[#EC67A1] border border-[#EC67A1]/30">
                             {video.status === "completed" ? "✓ Ready" : "Processing"}
                           </div>
                         </div>
                         {/* Profile badge when viewing all profiles */}
                         {isAllProfiles && video.profileName && (
                           <div className="absolute top-2 left-2">
-                            <div className="rounded-full bg-slate-900/80 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                            <div className="rounded-full bg-slate-900/80 backdrop-blur-sm px-2 py-1 text-[10px] text-[#EC67A1] border border-[#EC67A1]/30">
                               {video.profileName}
                             </div>
                           </div>
@@ -2053,16 +2053,16 @@ export default function KlingTextToVideo() {
       {showPresetModal &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur p-4"
             onClick={() => setShowPresetModal(false)}
           >
             <div
-              className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+              className="relative w-full max-w-md rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
+                className="absolute right-4 top-4 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
                 onClick={() => setShowPresetModal(false)}
               >
                 <X className="w-4 h-4" />
@@ -2070,22 +2070,22 @@ export default function KlingTextToVideo() {
 
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Save className="w-5 h-5 text-violet-400" />
-                  <h3 className="text-xl font-semibold text-white">Save Preset</h3>
+                  <Save className="w-5 h-5 text-[#EC67A1]" />
+                  <h3 className="text-xl font-semibold text-sidebar-foreground">Save Preset</h3>
                 </div>
 
-                <p className="text-sm text-slate-300">
+                <p className="text-sm text-header-muted">
                   Save your current settings as a preset for quick access later.
                 </p>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-100">Preset Name</label>
+                  <label className="text-sm font-semibold text-sidebar-foreground">Preset Name</label>
                   <input
                     type="text"
                     value={presetName}
                     onChange={(e) => setPresetName(e.target.value)}
                     placeholder="e.g., My Cinematic Style"
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         saveAsPreset();
@@ -2095,9 +2095,9 @@ export default function KlingTextToVideo() {
                   />
                 </div>
 
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
-                  <p className="text-xs text-slate-400 mb-2">This preset will save:</p>
-                  <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                <div className="bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3">
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">This preset will save:</p>
+                  <ul className="text-xs text-header-muted space-y-1 list-disc list-inside">
                     <li>Model: {MODEL_OPTIONS.find(m => m.value === model)?.label}</li>
                     <li>Mode: {mode === "pro" ? "Professional" : "Standard"}</li>
                     <li>Duration: {duration}s</li>
@@ -2112,7 +2112,7 @@ export default function KlingTextToVideo() {
                   <button
                     type="button"
                     onClick={() => setShowPresetModal(false)}
-                    className="flex-1 px-4 py-2 rounded-2xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition"
+                    className="flex-1 px-4 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-white/5 text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-white/10 transition"
                   >
                     Cancel
                   </button>
@@ -2120,7 +2120,7 @@ export default function KlingTextToVideo() {
                     type="button"
                     onClick={saveAsPreset}
                     disabled={!presetName.trim()}
-                    className="flex-1 px-4 py-2 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:-translate-y-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white font-semibold hover:shadow-lg hover:-translate-y-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Save Preset
                   </button>
@@ -2134,27 +2134,27 @@ export default function KlingTextToVideo() {
       {/* Help Modal */}
       {showHelpModal &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur">
-            <div className="relative max-w-3xl w-full rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur">
+            <div className="relative max-w-3xl w-full rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-2xl">
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20"
+                className="absolute right-4 top-4 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 onClick={() => setShowHelpModal(false)}
               >
                 <span className="sr-only">Close</span>
                 ×
               </button>
 
-              <div className="space-y-6 text-slate-100">
+              <div className="space-y-6 text-sidebar-foreground">
                 <div className="flex items-center gap-2">
-                  <Info className="w-5 h-5 text-violet-400" />
+                  <Info className="w-5 h-5 text-[#EC67A1]" />
                   <h3 className="text-xl font-semibold">Kling AI Text-to-Video Guide</h3>
                 </div>
                 
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-2xl p-4">
-                    <p className="font-semibold text-emerald-100 mb-2">✓ Do</p>
-                    <ul className="text-sm space-y-1 text-emerald-50 list-disc list-inside">
+                    <p className="font-semibold text-emerald-600 dark:text-emerald-300 mb-2">✓ Do</p>
+                    <ul className="text-sm space-y-1 text-emerald-600 dark:text-emerald-300 list-disc list-inside">
                       <li>Be specific about subject, action, and setting</li>
                       <li>Describe camera movements explicitly</li>
                       <li>Include lighting and atmosphere details</li>
@@ -2162,8 +2162,8 @@ export default function KlingTextToVideo() {
                     </ul>
                   </div>
                   <div className="bg-red-500/10 border border-red-400/30 rounded-2xl p-4">
-                    <p className="font-semibold text-red-100 mb-2">✗ Avoid</p>
-                    <ul className="text-sm space-y-1 text-red-50 list-disc list-inside">
+                    <p className="font-semibold text-red-600 dark:text-red-300 mb-2">✗ Avoid</p>
+                    <ul className="text-sm space-y-1 text-red-600 dark:text-red-300 list-disc list-inside">
                       <li>Vague or single-word prompts</li>
                       <li>Contradictory instructions</li>
                       <li>Too many simultaneous actions</li>
@@ -2173,12 +2173,12 @@ export default function KlingTextToVideo() {
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
+                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 bg-zinc-50 dark:bg-zinc-800/30">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Settings className="w-4 h-4 text-violet-400" />
+                      <Settings className="w-4 h-4 text-[#EC67A1]" />
                       Parameters
                     </h4>
-                    <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
+                    <ul className="text-sm space-y-1 text-sidebar-foreground list-disc list-inside">
                       <li><strong>Model:</strong> V1.6 is latest, V1.5 is stable</li>
                       <li><strong>Mode:</strong> Pro for quality, Std for speed</li>
                       <li><strong>Duration:</strong> 5s quick, 10s extended</li>
@@ -2186,12 +2186,12 @@ export default function KlingTextToVideo() {
                       <li><strong>CFG:</strong> Lower = more creative</li>
                     </ul>
                   </div>
-                  <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
+                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 bg-zinc-50 dark:bg-zinc-800/30">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Camera className="w-4 h-4 text-violet-400" />
+                      <Camera className="w-4 h-4 text-[#EC67A1]" />
                       Camera Controls
                     </h4>
-                    <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
+                    <ul className="text-sm space-y-1 text-sidebar-foreground list-disc list-inside">
                       <li><strong>Zoom In/Out:</strong> Gradual focal changes</li>
                       <li><strong>Down & Back:</strong> Pull away motion</li>
                       <li><strong>Forward & Up:</strong> Push in motion</li>
@@ -2201,11 +2201,11 @@ export default function KlingTextToVideo() {
                 </div>
 
                 <div className="border border-amber-400/30 bg-amber-500/10 rounded-2xl p-4">
-                  <h4 className="font-semibold flex items-center gap-2 text-amber-100">
+                  <h4 className="font-semibold flex items-center gap-2 text-amber-600 dark:text-amber-300">
                     <AlertCircle className="w-4 h-4" />
                     Tips
                   </h4>
-                  <ul className="text-sm space-y-1 text-amber-50 list-disc list-inside">
+                  <ul className="text-sm space-y-1 text-amber-600 dark:text-amber-300 list-disc list-inside">
                     <li>Generation typically takes 2-5 minutes depending on duration and mode</li>
                     <li>Professional mode produces higher quality but takes longer</li>
                     <li>Use negative prompts to avoid common issues like blur or distortion</li>

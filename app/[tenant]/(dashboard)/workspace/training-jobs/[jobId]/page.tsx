@@ -448,17 +448,17 @@ export default function TrainingJobDetailPage() {
       )}
 
       {/* Breadcrumb Navigation */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 border-b-2 border-[#5DC3F8]/20">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center space-x-2 text-sm">
             <Link
               href={`/${tenant}/workspace/training-jobs`}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              className="text-[#5DC3F8] hover:text-[#EC67A1] transition-colors"
             >
               Training Jobs
             </Link>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-            <span className="text-gray-900 dark:text-white font-medium">
+            <ChevronRight className="w-4 h-4 text-[#5DC3F8]" />
+            <span className="text-black dark:text-white font-medium">
               {job?.name || "Loading..."}
             </span>
           </div>
@@ -466,13 +466,13 @@ export default function TrainingJobDetailPage() {
       </div>
 
       {/* Header */}
-      <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 sticky top-0 z-40 shadow-lg">
+      <div className="bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] sticky top-0 z-40 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <Link
                 href={`/${tenant}/workspace/training-jobs`}
-                className="flex items-center text-white/80 hover:text-white transition-colors"
+                className="flex items-center text-white/90 hover:text-white transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Back
@@ -495,14 +495,14 @@ export default function TrainingJobDetailPage() {
                 </div>
               </div>
               <div
-                className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold shadow-lg ${
+                className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold shadow-lg border-2 ${
                   job.status === "COMPLETED"
-                    ? "bg-green-500 text-white"
+                    ? "bg-[#5DC3F8] text-white border-[#5DC3F8]/30"
                     : job.status === "PROCESSING"
-                    ? "bg-yellow-500 text-white animate-pulse"
+                    ? "bg-[#EC67A1] text-white animate-pulse border-[#EC67A1]/30"
                     : job.status === "FAILED"
-                    ? "bg-red-500 text-white"
-                    : "bg-gray-500 text-white"
+                    ? "bg-red-500 text-white border-red-500/30"
+                    : "bg-gray-500 text-white border-gray-500/30"
                 }`}
               >
                 {getStatusIcon(job.status)}
@@ -512,7 +512,7 @@ export default function TrainingJobDetailPage() {
 
             <div className="flex items-center space-x-3">
               {isConnected && (
-                <div className="flex items-center text-green-300 text-sm font-medium bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
+                <div className="flex items-center text-white text-sm font-medium bg-[#5DC3F8]/30 px-3 py-2 rounded-lg backdrop-blur-sm border border-[#5DC3F8]/50">
                   <Wifi className="w-4 h-4 mr-1 animate-pulse" />
                   Live
                 </div>
@@ -520,7 +520,7 @@ export default function TrainingJobDetailPage() {
 
               <button
                 onClick={handleShareJob}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm border border-white/20"
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm border border-white/30"
                 title="Share Job"
               >
                 <Share2 className="w-4 h-4 mr-2 inline" />
@@ -531,8 +531,8 @@ export default function TrainingJobDetailPage() {
                 onClick={() => setAutoRefresh(!autoRefresh)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm border ${
                   autoRefresh
-                    ? "bg-white/20 text-white border-white/30"
-                    : "bg-white/10 text-white/70 border-white/20 hover:bg-white/15"
+                    ? "bg-[#5DC3F8]/30 text-white border-[#5DC3F8]/50"
+                    : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
                 }`}
               >
                 <RefreshCw
@@ -557,12 +557,12 @@ export default function TrainingJobDetailPage() {
               {job.status === "FAILED" && (
                 <button
                   onClick={handleRefresh}
-                  className="px-4 py-2 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm shadow-lg"
+                  className="px-4 py-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm shadow-lg"
                 >
                   <Repeat className="w-4 h-4 mr-2 inline" />
                   Retry
                 </button>
-              )}
+              )})
 
               {job.runpodJobId && (
                 <button
@@ -584,60 +584,60 @@ export default function TrainingJobDetailPage() {
         {metrics && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Progress Card */}
-            <div className="group bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl border-2 border-blue-200 dark:border-blue-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
+            <div className="group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 rounded-2xl border-2 border-[#5DC3F8]/30 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-black dark:text-white">
                   Progress
                 </h3>
-                <div className="p-2 bg-blue-600 rounded-lg group-hover:scale-110 transition-transform">
+                <div className="p-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-lg group-hover:scale-110 transition-transform">
                   <Activity className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Step</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Step</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.currentStep}/{metrics.totalSteps}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div
-                    className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] h-3 rounded-full transition-all duration-300"
                     style={{ width: `${metrics.progressPercentage}%` }}
                   />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-black dark:text-white">
                   {metrics.progressPercentage}%
                 </div>
               </div>
             </div>
 
             {/* Performance Card */}
-            <div className="group bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border-2 border-purple-200 dark:border-purple-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
+            <div className="group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 rounded-2xl border-2 border-[#EC67A1]/30 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-black dark:text-white">
                   Performance
                 </h3>
-                <div className="p-2 bg-purple-600 rounded-lg group-hover:scale-110 transition-transform">
+                <div className="p-2 bg-[#EC67A1] rounded-lg group-hover:scale-110 transition-transform">
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Loss</span>
-                  <span className="font-medium text-purple-600">
+                  <span className="text-gray-600 dark:text-gray-400">Loss</span>
+                  <span className="font-medium text-[#EC67A1]">
                     {metrics.loss.toFixed(4)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Learning Rate</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Learning Rate</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.learningRate.toExponential(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Step Time</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Step Time</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.stepTimeAvg.toFixed(2)}s/it
                   </span>
                 </div>
@@ -645,29 +645,29 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {/* System Card */}
-            <div className="group bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
+            <div className="group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 rounded-2xl border-2 border-[#5DC3F8]/30 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System</h3>
-                <div className="p-2 bg-indigo-600 rounded-lg group-hover:scale-110 transition-transform">
+                <h3 className="text-lg font-semibold text-black dark:text-white">System</h3>
+                <div className="p-2 bg-[#5DC3F8] rounded-lg group-hover:scale-110 transition-transform">
                   <Monitor className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">GPU</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">GPU</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.gpuUtilization?.toFixed(0)}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Memory</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Memory</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.memoryUsage?.toFixed(0)}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Temp</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Temp</span>
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.temperature?.toFixed(0)}°C
                   </span>
                 </div>
@@ -675,29 +675,29 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {/* Timing Card */}
-            <div className="group bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl border-2 border-green-200 dark:border-green-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
+            <div className="group bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 rounded-2xl border-2 border-[#F774B9]/30 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Timing</h3>
-                <div className="p-2 bg-green-600 rounded-lg group-hover:scale-110 transition-transform">
+                <h3 className="text-lg font-semibold text-black dark:text-white">Timing</h3>
+                <div className="p-2 bg-[#F774B9] rounded-lg group-hover:scale-110 transition-transform">
                   <Clock className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Elapsed</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Elapsed</span>
+                  <span className="font-medium text-black dark:text-white">
                     {formatDuration(metrics.timeElapsed)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Remaining</span>
-                  <span className="font-medium">
+                  <span className="text-gray-600 dark:text-gray-400">Remaining</span>
+                  <span className="font-medium text-black dark:text-white">
                     {formatDuration(metrics.estimatedTimeRemaining)}
                   </span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
                   Phase:{" "}
-                  <span className="font-medium text-gray-900">
+                  <span className="font-medium text-black dark:text-white">
                     {metrics.currentPhase}
                   </span>
                 </div>
@@ -707,7 +707,7 @@ export default function TrainingJobDetailPage() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg mb-8">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl border-2 border-[#5DC3F8]/30 shadow-lg mb-8">
           <div className="border-b border-gray-200/50">
             <nav className="flex space-x-8 px-6">
               {[
@@ -723,7 +723,7 @@ export default function TrainingJobDetailPage() {
                     onClick={() => setSelectedTab(tab.id as any)}
                     className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
                       selectedTab === tab.id
-                        ? "border-blue-600 text-blue-600"
+                        ? "border-[#5DC3F8] text-[#5DC3F8]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     }`}
                   >
@@ -740,34 +740,34 @@ export default function TrainingJobDetailPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-black dark:text-white">
                       Job Details
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Model Type</span>
-                        <span className="font-medium">
+                        <span className="text-gray-600 dark:text-gray-400">Model Type</span>
+                        <span className="font-medium text-black dark:text-white">
                           {job.modelConfig?.type || "LoRA"}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Created</span>
-                        <span className="font-medium">
+                        <span className="text-gray-600 dark:text-gray-400">Created</span>
+                        <span className="font-medium text-black dark:text-white">
                           {new Date(job.createdAt).toLocaleString()}
                         </span>
                       </div>
                       {job.startedAt && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Started</span>
-                          <span className="font-medium">
+                          <span className="text-gray-600 dark:text-gray-400">Started</span>
+                          <span className="font-medium text-black dark:text-white">
                             {new Date(job.startedAt).toLocaleString()}
                           </span>
                         </div>
                       )}
                       {job.completedAt && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Completed</span>
-                          <span className="font-medium">
+                          <span className="text-gray-600 dark:text-gray-400">Completed</span>
+                          <span className="font-medium text-black dark:text-white">
                             {new Date(job.completedAt).toLocaleString()}
                           </span>
                         </div>
@@ -776,15 +776,15 @@ export default function TrainingJobDetailPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-black dark:text-white">
                       Configuration
                     </h3>
                     <div className="space-y-3">
                       <div>
-                        <span className="text-gray-600 block text-sm">
+                        <span className="text-gray-600 dark:text-gray-400 block text-sm">
                           Training Prompt
                         </span>
-                        <span className="font-medium text-sm bg-gray-100 rounded-lg px-3 py-2 block mt-1">
+                        <span className="font-medium text-sm bg-gray-100 dark:bg-gray-700 text-black dark:text-white rounded-lg px-3 py-2 block mt-1">
                           {job.trainingConfig?.trigger_word ||
                             job.description ||
                             "Custom training prompt"}
@@ -792,12 +792,12 @@ export default function TrainingJobDetailPage() {
                       </div>
                       {job.datasetConfig?.source_url && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Dataset</span>
+                          <span className="text-gray-600 dark:text-gray-400">Dataset</span>
                           <a
                             href={job.datasetConfig.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-700 flex items-center"
+                            className="text-[#5DC3F8] hover:text-[#EC67A1] flex items-center transition-colors"
                           >
                             View <Eye className="w-4 h-4 ml-1" />
                           </a>
@@ -821,7 +821,7 @@ export default function TrainingJobDetailPage() {
                     </span>
                     <button
                       onClick={handleDownloadLogs}
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg text-white rounded-lg transition-all text-sm font-medium"
                     >
                       <Download className="w-4 h-4" />
                       Download
@@ -832,19 +832,19 @@ export default function TrainingJobDetailPage() {
                 {/* Log Search & Filter */}
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5DC3F8]" />
                     <input
                       type="text"
                       placeholder="Search logs..."
                       value={logSearchQuery}
                       onChange={(e) => setLogSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:text-white"
+                      className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] text-sm text-black dark:text-white"
                     />
                   </div>
                   <select
                     value={logLevelFilter}
                     onChange={(e) => setLogLevelFilter(e.target.value)}
-                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:text-white"
+                    className="px-4 py-2 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] text-sm text-black dark:text-white"
                   >
                     <option value="all">All Levels</option>
                     <option value="info">Info</option>
@@ -892,15 +892,15 @@ export default function TrainingJobDetailPage() {
 
             {selectedTab === "samples" && (
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-black dark:text-white">
                   Generated Samples
                 </h3>
 
                 {samples.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No samples generated yet</p>
-                    <p className="text-sm">
+                  <div className="text-center py-12">
+                    <ImageIcon className="w-12 h-12 mx-auto mb-4 text-[#5DC3F8]" />
+                    <p className="text-gray-600 dark:text-gray-400">No samples generated yet</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500">
                       Samples will appear here as training progresses
                     </p>
                   </div>
@@ -909,7 +909,7 @@ export default function TrainingJobDetailPage() {
                     {samples.map((sample) => (
                       <div
                         key={sample.id}
-                        className="bg-white rounded-lg shadow-md overflow-hidden"
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border-2 border-[#5DC3F8]/30 hover:shadow-xl transition-all"
                       >
                         <img
                           src={sample.imageUrl}
@@ -917,10 +917,10 @@ export default function TrainingJobDetailPage() {
                           className="w-full h-48 object-cover"
                         />
                         <div className="p-4">
-                          <div className="text-sm text-gray-600 mb-2">
+                          <div className="text-sm text-[#5DC3F8] font-medium mb-2">
                             Step {sample.step}
                           </div>
-                          <div className="text-sm">{sample.prompt}</div>
+                          <div className="text-sm text-black dark:text-white">{sample.prompt}</div>
                           <div className="text-xs text-gray-500 mt-2">
                             {new Date(sample.timestamp).toLocaleString()}
                           </div>
@@ -934,38 +934,38 @@ export default function TrainingJobDetailPage() {
 
             {selectedTab === "metrics" && (
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-black dark:text-white">
                   Training Metrics
                 </h3>
 
                 {metrics && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
-                      <h4 className="font-medium text-gray-900">
+                      <h4 className="font-medium text-black dark:text-white">
                         Training Progress
                       </h4>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Current Step</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Current Step</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.currentStep.toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Total Steps</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Total Steps</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.totalSteps.toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Loss</span>
-                          <span className="font-mono text-lg text-green-600">
+                          <span className="text-gray-600 dark:text-gray-400">Loss</span>
+                          <span className="font-mono text-lg text-[#5DC3F8]">
                             {metrics.loss.toFixed(6)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Learning Rate</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Learning Rate</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.learningRate.toExponential(3)}
                           </span>
                         </div>
@@ -973,31 +973,31 @@ export default function TrainingJobDetailPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <h4 className="font-medium text-gray-900">
+                      <h4 className="font-medium text-black dark:text-white">
                         System Metrics
                       </h4>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">GPU Utilization</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">GPU Utilization</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.gpuUtilization?.toFixed(1)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Memory Usage</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Memory Usage</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.memoryUsage?.toFixed(1)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Temperature</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Temperature</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.temperature?.toFixed(1)}°C
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Step Time Avg</span>
-                          <span className="font-mono text-lg">
+                          <span className="text-gray-600 dark:text-gray-400">Step Time Avg</span>
+                          <span className="font-mono text-lg text-black dark:text-white">
                             {metrics.stepTimeAvg.toFixed(2)}s/it
                           </span>
                         </div>

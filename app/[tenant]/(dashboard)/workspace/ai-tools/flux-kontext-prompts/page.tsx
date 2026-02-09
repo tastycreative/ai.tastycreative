@@ -37,30 +37,30 @@ function ThinkingProcess({ thinking }: { thinking: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="my-2 sm:my-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-300/30 dark:border-purple-600/30 rounded-lg overflow-hidden">
+    <div className="my-2 sm:my-3 bg-gradient-to-r from-[#5DC3F8]/10 to-[#EC67A1]/10 border-2 border-[#5DC3F8]/30 rounded-lg overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-2 sm:p-3 flex items-center justify-between hover:bg-white/5 transition-colors active:scale-[0.99]"
       >
         <div className="flex items-center space-x-1.5 sm:space-x-2">
-          <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
-          <span className="font-semibold text-purple-900 dark:text-purple-200 text-xs sm:text-sm">
+          <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5DC3F8]" />
+          <span className="font-semibold text-black dark:text-white text-xs sm:text-sm">
             💭 View AI's Thinking Process
           </span>
         </div>
         {isExpanded ? (
-          <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+          <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5DC3F8]" />
         ) : (
-          <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+          <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5DC3F8]" />
         )}
       </button>
       {isExpanded && (
-        <div className="p-3 xs:p-4 sm:p-5 bg-black/10 dark:bg-black/20 border-t border-purple-300/30 dark:border-purple-600/30">
+        <div className="p-3 xs:p-4 sm:p-5 bg-black/10 dark:bg-black/20 border-t border-[#5DC3F8]/30">
           <pre className="text-xs sm:text-sm leading-loose whitespace-pre-wrap text-gray-700 dark:text-gray-300 font-mono overflow-x-auto tracking-wide">
             {thinking}
           </pre>
-          <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-purple-300/20 dark:border-purple-600/20">
-            <p className="text-[10px] xs:text-xs text-purple-600 dark:text-purple-400 italic">
+          <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-[#5DC3F8]/20">
+            <p className="text-[10px] xs:text-xs text-[#5DC3F8] italic">
               💡 This shows how the AI reasoned through the image analysis
             </p>
           </div>
@@ -82,7 +82,7 @@ function PromptBlock({ prompt }: { prompt: string }) {
 
   return (
     <div className="my-2 sm:my-3 group relative">
-      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 dark:from-blue-600/20 dark:to-purple-600/20 border border-blue-300/30 dark:border-blue-600/30 rounded-lg p-3 sm:p-4">
+      <div className="bg-gradient-to-r from-[#5DC3F8]/10 to-[#EC67A1]/10 border-2 border-[#5DC3F8]/30 rounded-lg p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2 sm:gap-3">
           <p className="flex-1 text-xs xs:text-sm leading-relaxed break-words whitespace-normal">
             {prompt}
@@ -93,9 +93,9 @@ function PromptBlock({ prompt }: { prompt: string }) {
             title="Copy prompt"
           >
             {copied ? (
-              <span className="text-[10px] xs:text-xs text-green-600 dark:text-green-400 font-semibold">✓</span>
+              <span className="text-[10px] xs:text-xs text-[#5DC3F8] font-semibold">✓</span>
             ) : (
-              <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+              <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5DC3F8]" />
             )}
           </button>
         </div>
@@ -578,10 +578,10 @@ export default function FluxKontextPrompts() {
 
       {/* Conversations Sidebar */}
       {showConversations && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 sm:p-4 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
+        <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-3 sm:p-4 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm xs:text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-1.5 sm:gap-2">
-              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-[#5DC3F8]" />
               Your Conversations
             </h2>
             <button
@@ -615,14 +615,14 @@ export default function FluxKontextPrompts() {
                     onClick={() => loadConversation(conv.id)}
                     className={`w-full text-left p-2 xs:p-2.5 sm:p-3 rounded-lg transition-all active:scale-[0.99] ${
                       isActive
-                        ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-2 border-purple-400 dark:border-purple-600'
+                        ? 'bg-gradient-to-r from-[#5DC3F8]/20 to-[#EC67A1]/20 border-2 border-[#5DC3F8]'
                         : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs xs:text-sm font-medium truncate ${
-                          isActive ? 'text-purple-700 dark:text-purple-300' : 'text-gray-900 dark:text-white'
+                          isActive ? 'text-[#5DC3F8]' : 'text-gray-900 dark:text-white'
                         }`}>
                           {preview}...
                         </p>
@@ -638,7 +638,7 @@ export default function FluxKontextPrompts() {
                       </div>
                       {isActive && (
                         <div className="flex-shrink-0">
-                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-purple-500 rounded-full"></div>
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#5DC3F8] rounded-full"></div>
                         </div>
                       )}
                     </div>
@@ -652,7 +652,7 @@ export default function FluxKontextPrompts() {
 
       {/* Techniques Panel */}
       {showTechniques && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 xs:p-4 sm:p-6 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
+        <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-3 xs:p-4 sm:p-6 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm xs:text-base sm:text-lg font-bold text-gray-900 dark:text-white">
               Flux Kontext Prompt Techniques
@@ -736,8 +736,8 @@ export default function FluxKontextPrompts() {
               </ol>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2 sm:p-3 mt-3 sm:mt-4">
-              <p className="text-xs xs:text-sm text-blue-800 dark:text-blue-200">
+            <div className="bg-[#5DC3F8]/10 border border-[#5DC3F8]/30 rounded-lg p-2 sm:p-3 mt-3 sm:mt-4">
+              <p className="text-xs xs:text-sm text-black dark:text-white">
                 <strong>Remember:</strong> The more specific, the better. Kontext excels at understanding detailed instructions and maintaining consistency.
               </p>
             </div>
@@ -746,11 +746,11 @@ export default function FluxKontextPrompts() {
       )}
 
       {/* Chat Messages */}
-      <div className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
+      <div className="flex-1 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl shadow-lg overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
         {isLoadingHistory ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-blue-500 mx-auto mb-2" />
+              <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-[#5DC3F8] mx-auto mb-2" />
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Loading conversation history...</p>
             </div>
           </div>
@@ -764,7 +764,7 @@ export default function FluxKontextPrompts() {
                 <div
                   className={`max-w-[90%] xs:max-w-[85%] md:max-w-3xl ${
                     message.role === "user"
-                      ? "bg-blue-500 text-white"
+                      ? "bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
                   } rounded-xl p-3 sm:p-4 shadow-md`}
                 >
@@ -814,9 +814,9 @@ export default function FluxKontextPrompts() {
             ))}
             {isGenerating && (
           <div className="flex justify-start">
-            <div className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/40 dark:to-purple-900/40 rounded-xl p-3 sm:p-4 shadow-md border border-blue-200 dark:border-blue-800">
+            <div className="bg-gradient-to-r from-[#5DC3F8]/20 to-[#EC67A1]/20 rounded-xl p-3 sm:p-4 shadow-md border-2 border-[#5DC3F8]/30">
               <div className="flex items-center space-x-2 sm:space-x-3">
-                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-blue-600 dark:text-blue-400" />
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-[#5DC3F8]" />
                 <div>
                   <span className="text-gray-800 dark:text-gray-200 font-medium block text-xs xs:text-sm">
                     {loadingStep || "Processing..."}
@@ -843,7 +843,7 @@ export default function FluxKontextPrompts() {
       )}
 
       {/* Input Area */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-3 sm:p-4">
+      <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl shadow-lg p-3 sm:p-4">
         {/* Quick Examples */}
         {messages.length <= 1 && !uploadedImage && !inputMessage && (
           <div className="mb-3 sm:mb-4">
@@ -857,7 +857,7 @@ export default function FluxKontextPrompts() {
               </button>
               <button
                 onClick={() => handleExamplePrompt("Give me 3 variations: Change the background to a beach at sunset while keeping the person in the exact same position")}
-                className="text-[10px] xs:text-xs px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-800/40 rounded-lg transition-colors text-blue-700 dark:text-blue-300 active:scale-95"
+                className="text-[10px] xs:text-xs px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-[#5DC3F8]/20 hover:bg-[#5DC3F8]/30 rounded-lg transition-colors text-[#5DC3F8] active:scale-95"
               >
                 Multiple Variations
               </button>
@@ -869,7 +869,7 @@ export default function FluxKontextPrompts() {
               </button>
               <button
                 onClick={() => handleExamplePrompt("Create 5 different prompts: sensual boudoir photography, woman in elegant lingerie, soft bedroom lighting with warm tones, intimate atmosphere")}
-                className="text-[10px] xs:text-xs px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-800/40 rounded-lg transition-colors text-purple-700 dark:text-purple-300 active:scale-95"
+                className="text-[10px] xs:text-xs px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-lg transition-colors text-[#EC67A1] active:scale-95"
               >
                 Multiple NSFW Variations
               </button>
@@ -882,7 +882,7 @@ export default function FluxKontextPrompts() {
             <img
               src={uploadedImage}
               alt="Preview"
-              className="h-16 xs:h-18 sm:h-20 w-16 xs:w-18 sm:w-20 object-cover rounded-lg border-2 border-blue-300 dark:border-blue-600 shadow-md"
+              className="h-16 xs:h-18 sm:h-20 w-16 xs:w-18 sm:w-20 object-cover rounded-lg border-2 border-[#5DC3F8]/50 shadow-md"
             />
             <button
               onClick={handleRemoveImage}
@@ -894,7 +894,7 @@ export default function FluxKontextPrompts() {
           </div>
         )}
         
-        <div className="relative bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+        <div className="relative bg-gray-50 dark:bg-gray-700 border-2 border-[#5DC3F8]/30 rounded-lg focus-within:ring-2 focus-within:ring-[#5DC3F8] focus-within:border-[#5DC3F8] transition-all">
           <div className="flex items-center">
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -917,7 +917,7 @@ export default function FluxKontextPrompts() {
             <button
               onClick={() => handleSendMessage()}
               disabled={isGenerating || (!inputMessage.trim() && !uploadedImage)}
-              className="p-2 xs:p-2.5 sm:p-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 m-1 xs:m-1.5 flex-shrink-0 active:scale-95"
+              className="p-2 xs:p-2.5 sm:p-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 m-1 xs:m-1.5 flex-shrink-0 active:scale-95"
             >
               <Send className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>

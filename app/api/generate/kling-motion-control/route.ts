@@ -69,26 +69,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse form data
-    const formData = await request.formData();
+    // Parse JSON body (changed from FormData to JSON to accept S3 URLs)
+    const body = await request.json();
     
-    const image = formData.get("image") as File;
-    const video = formData.get("video") as File;
-    const prompt = formData.get("prompt") as string | null;
-    const mode = (formData.get("mode") as string) || "std";
-    const characterOrientation = (formData.get("character_orientation") as string) || "image";
-    const keepOriginalSound = (formData.get("keep_original_sound") as string) || "no";
-    const targetFolder = formData.get("targetFolder") as string | null;
-    const saveToVault = formData.get("saveToVault") === "true";
-    const vaultProfileId = formData.get("vaultProfileId") as string | null;
-    const vaultFolderId = formData.get("vaultFolderId") as string | null;
+    const imageUrl = body.imageUrl as string;
+    const videoUrl = body.videoUrl as string;
+    const prompt = body.prompt as string | null;
+    const mode = body.mode || "std";
+    const characterOrientation = body.character_orientation || "image";
+    const keepOriginalSound = body.keep_original_sound || "no";
+    const targetFolder = body.targetFolder as string | null;
+    const saveToVault = body.saveToVault === true || body.saveToVault === "true";
+    const vaultProfileId = body.vaultProfileId as string | null;
+    const vaultFolderId = body.vaultFolderId as string | null;
 
-    // Validate required fields
-    if (!image) {
-      return NextResponse.json({ error: "Reference image is required" }, { status: 400 });
+    // Validate required fields (now expecting S3 URLs)
+    if (!imageUrl) {
+      return NextResponse.json({ error: "Image URL is required" }, { status: 400 });
     }
-    if (!video) {
-      return NextResponse.json({ error: "Reference video is required" }, { status: 400 });
+    if (!videoUrl) {
+      return NextResponse.json({ error: "Video URL is required" }, { status: 400 });
+    }
+
+    // Validate URLs are valid S3 URLs
+    if (!imageUrl.includes('s3.') && !imageUrl.includes('amazonaws.com')) {
+      return NextResponse.json({ error: "Invalid image URL format" }, { status: 400 });
+    }
+    if (!videoUrl.includes('s3.') && !videoUrl.includes('amazonaws.com')) {
+      return NextResponse.json({ error: "Invalid video URL format" }, { status: 400 });
     }
 
     // Validate character orientation
@@ -101,19 +109,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Mode must be 'std' or 'pro'" }, { status: 400 });
     }
 
-    // Convert image to buffer and upload to S3
-    const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const imageFilename = `kling-motion-image-${Date.now()}.jpg`;
-    const imageUrl = await uploadToS3(imageBuffer, imageFilename, userId, "image/jpeg");
-
-    console.log("[Kling Motion Control] Image uploaded to:", imageUrl);
-
-    // Convert video to buffer and upload to S3
-    const videoBuffer = Buffer.from(await video.arrayBuffer());
-    const videoFilename = `kling-motion-video-${Date.now()}.mp4`;
-    const videoUrl = await uploadToS3(videoBuffer, videoFilename, userId, "video/mp4");
-
-    console.log("[Kling Motion Control] Reference video uploaded to:", videoUrl);
+    // Files are already uploaded to S3 by the client
+    // We just use the provided URLs directly
+    console.log("[Kling Motion Control] Using pre-uploaded image:", imageUrl);
+    console.log("[Kling Motion Control] Using pre-uploaded video:", videoUrl);
 
     // Prepare Kling API request payload
     const payload: any = {

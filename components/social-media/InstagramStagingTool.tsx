@@ -337,10 +337,10 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
 
   if (!isLoaded || roleLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">Loading...</p>
+          <div className="w-16 h-16 border-4 border-[var(--color-brand-mid-pink)] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground font-medium">Loading...</p>
         </div>
       </div>
     );
@@ -348,17 +348,17 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
 
   if (!canAccessTool(userRole)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8 max-w-md text-center">
-          <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-card rounded-3xl shadow-2xl p-8 max-w-md text-center border border-border">
+          <div className="w-20 h-20 bg-red-500/10 dark:bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-10 h-10 text-red-600 dark:text-red-400" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-4">
             You don't have permission to access this tool.
           </p>
-          <span className="inline-block px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-            Current role: <span className="font-semibold">{userRole}</span>
+          <span className="inline-block px-4 py-2 bg-muted rounded-lg text-sm text-muted-foreground">
+            Current role: <span className="font-semibold text-foreground">{userRole}</span>
           </span>
         </div>
       </div>
@@ -366,33 +366,33 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="min-h-screen bg-background">
       {/* Modern Header */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800">
+      <div className="sticky top-0 z-40 bg-card/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             {/* Logo & Title */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] rounded-2xl flex items-center justify-center shadow-lg">
                 <ImageIcon className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Content Staging</h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Instagram Posts</p>
+                <h1 className="text-xl font-bold text-foreground">Content Staging</h1>
+                <p className="text-xs text-muted-foreground">Instagram Posts</p>
               </div>
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
               {!profileId ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 dark:bg-yellow-500/20 border border-yellow-500/30 rounded-xl">
                   <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                   <span className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">Select a profile</span>
                 </div>
               ) : (
                 <button
                   onClick={() => setShowVaultPicker(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] hover:from-[var(--color-brand-dark-pink)] hover:to-[var(--color-brand-blue)] text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Add Media</span>
@@ -405,13 +405,13 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
           <div className="mt-4 flex flex-col sm:flex-row gap-3">
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search posts..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent transition-all"
               />
             </div>
 
@@ -423,8 +423,8 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                   onClick={() => setStatusFilter(status)}
                   className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                     statusFilter === status
-                      ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                      ? "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white shadow-lg"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                   }`}
                 >
                   {status === "ALL" ? "All" : status.charAt(0) + status.slice(1).toLowerCase()}
@@ -445,20 +445,20 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
         {postsLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="aspect-square bg-gray-200 dark:bg-gray-800 rounded-2xl animate-pulse" />
+              <div key={i} className="aspect-square bg-muted rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : filteredPosts.length === 0 ? (
           <div className="text-center py-20">
-            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ImageIcon className="w-10 h-10 text-gray-400" />
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <ImageIcon className="w-10 h-10 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No posts yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">Start by adding media from your vault</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No posts yet</h3>
+            <p className="text-muted-foreground mb-6">Start by adding media from your vault</p>
             {profileId && (
               <button
                 onClick={() => setShowVaultPicker(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] hover:from-[var(--color-brand-dark-pink)] hover:to-[var(--color-brand-blue)] text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 <Plus className="w-5 h-5" />
                 Add Media
@@ -515,15 +515,15 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
       {/* Post Detail Sidebar */}
       {selectedPost && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-border" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Post Details</h2>
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">Post Details</h2>
               <button
                 onClick={() => setSelectedPost(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
@@ -549,7 +549,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
               <div className="px-6 pb-6 space-y-6">
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Status</label>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={selectedPost.status} isRejected={!!selectedPost.rejectedAt} />
                     {selectedPost.instagramUrl && (
@@ -557,7 +557,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                         href={selectedPost.instagramUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-muted text-foreground rounded-full text-xs font-medium hover:bg-muted/80 transition-colors"
                       >
                         <ExternalLink className="w-3 h-3" />
                         View on Instagram
@@ -568,7 +568,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
 
                 {/* Rejection Reason */}
                 {selectedPost.rejectedAt && selectedPost.rejectionReason && (
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl">
+                  <div className="p-4 bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 rounded-2xl">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                       <div>
@@ -581,7 +581,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
 
                 {/* Caption */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Caption</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Caption</label>
                   <textarea
                     value={selectedPost.caption}
                     onChange={(e) => {
@@ -590,7 +590,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                     onBlur={(e) => updateCaption(selectedPost, e.target.value)}
                     placeholder="Write a caption..."
                     rows={4}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-2xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent resize-none"
                   />
                 </div>
 
@@ -645,7 +645,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                         setInstagramUrl(selectedPost.instagramUrl || "");
                         setShowPublishDialog(true);
                       }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl font-medium transition-colors"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] hover:from-[var(--color-brand-dark-pink)] hover:to-[var(--color-brand-blue)] text-white rounded-xl font-medium transition-colors"
                     >
                       <CheckCheck className="w-4 h-4" />
                       Mark as Published
@@ -654,7 +654,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
 
                   <button
                     onClick={() => handleDelete(selectedPost)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 rounded-xl font-medium transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-muted hover:bg-red-500/10 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 rounded-xl font-medium transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete
@@ -683,14 +683,14 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
       {/* Reject Dialog */}
       {showRejectDialog && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Reject Post</h3>
+          <div className="bg-card rounded-3xl shadow-2xl max-w-md w-full p-6 border border-border">
+            <h3 className="text-lg font-bold text-foreground mb-4">Reject Post</h3>
             <textarea
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="Provide a reason for rejection..."
               rows={4}
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none mb-4"
+              className="w-full px-4 py-3 bg-background border border-border rounded-2xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none mb-4"
               autoFocus
             />
             <div className="flex gap-3">
@@ -700,7 +700,7 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                   setRejectingPost(null);
                   setRejectionReason("");
                 }}
-                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-3 bg-muted text-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors"
               >
                 Cancel
               </button>
@@ -720,17 +720,17 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
       {/* Publish Dialog */}
       {showPublishDialog && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Mark as Published</h3>
+          <div className="bg-card rounded-3xl shadow-2xl max-w-md w-full p-6 border border-border">
+            <h3 className="text-lg font-bold text-foreground mb-4">Mark as Published</h3>
             <input
               type="url"
               value={instagramUrl}
               onChange={(e) => setInstagramUrl(e.target.value)}
               placeholder="https://www.instagram.com/p/..."
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 mb-2"
+              className="w-full px-4 py-3 bg-background border border-border rounded-2xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent mb-2"
               autoFocus
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Optional: Add Instagram post URL</p>
+            <p className="text-xs text-muted-foreground mb-4">Optional: Add Instagram post URL</p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -738,13 +738,13 @@ const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingTo
                   setPublishingPost(null);
                   setInstagramUrl("");
                 }}
-                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-3 bg-muted text-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmPublish}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl font-medium transition-colors"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] hover:from-[var(--color-brand-dark-pink)] hover:to-[var(--color-brand-blue)] text-white rounded-xl font-medium transition-colors"
               >
                 Publish
               </button>

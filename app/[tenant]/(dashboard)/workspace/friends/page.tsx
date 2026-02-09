@@ -437,19 +437,19 @@ function FriendsPageContent() {
                 placeholder="Search friends..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent bg-white dark:bg-gray-800 text-black dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
               />
             </div>
 
             {/* Friends List */}
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                <Loader2 className="w-8 h-8 text-[#5DC3F8] animate-spin" />
               </div>
             ) : filteredFriends.length === 0 ? (
               <div className="text-center py-12">
-                <Users className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <Users className="w-12 h-12 sm:w-16 sm:h-16 text-[#5DC3F8] mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold text-black dark:text-white mb-2">
                   {searchQuery ? "No friends found" : "No friends yet"}
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -460,7 +460,7 @@ function FriendsPageContent() {
                 {!searchQuery && (
                   <button
                     onClick={() => setActiveTab("add")}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all shadow-md active:scale-95"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white text-xs sm:text-sm font-medium rounded-lg hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 transition-all shadow-md active:scale-95"
                   >
                     <UserPlus className="w-4 h-4" />
                     Add Friend
@@ -472,7 +472,7 @@ function FriendsPageContent() {
                 {filteredFriends.map((friend) => (
                   <div
                     key={friend.id}
-                    className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-all"
+                    className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-[#5DC3F8] dark:hover:border-[#5DC3F8] rounded-xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-all"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -483,17 +483,17 @@ function FriendsPageContent() {
                             className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
                           />
                         ) : (
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center">
                             <span className="text-white text-sm sm:text-base font-semibold">
                               {friend.friendProfile.name?.[0]?.toUpperCase() || "?"}
                             </span>
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                          <h4 className="text-xs sm:text-sm font-semibold text-black dark:text-white truncate">
                             {friend.friendProfile.name}
                           </h4>
-                          <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                          <p className="text-[10px] sm:text-xs text-[#5DC3F8] truncate">
                             @{friend.friendProfile.instagramUsername || "No username"}
                           </p>
                           <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
@@ -504,10 +504,10 @@ function FriendsPageContent() {
                         </div>
                       </div>
                       <div className="relative group">
-                        <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
-                          <MoreVertical className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+                          <MoreVertical className="w-4 h-4 text-black dark:text-white" />
                         </button>
-                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                           <button
                             onClick={() => handleRemoveFriend(friend.id)}
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -531,22 +531,22 @@ function FriendsPageContent() {
             {/* Received Requests Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-[#5DC3F8]" />
+                <h3 className="text-sm sm:text-base font-semibold text-black dark:text-white">
                   Received Requests
                 </h3>
-                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+                <span className="px-2 py-0.5 text-xs font-medium bg-[#5DC3F8] text-white rounded-full">
                   {friendRequests.length}
                 </span>
               </div>
 
               {loading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-[#5DC3F8] animate-spin" />
                 </div>
               ) : friendRequests.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/30">
-                  <Mail className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3" />
+                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900">
+                  <Mail className="w-10 h-10 sm:w-12 sm:h-12 text-[#5DC3F8] mx-auto mb-3" />
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     No received requests
                   </p>
@@ -556,7 +556,7 @@ function FriendsPageContent() {
                   {friendRequests.map((request) => (
                     <div
                       key={request.id}
-                      className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800/50 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-700/30 rounded-xl p-4 sm:p-5 shadow-md"
+                      className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8] dark:border-[#5DC3F8] rounded-xl p-4 sm:p-5 shadow-md"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -567,17 +567,17 @@ function FriendsPageContent() {
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm sm:text-base font-semibold">
                                 {request.fromProfile.name?.[0]?.toUpperCase() || "?"}
                               </span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            <h4 className="text-xs sm:text-sm font-semibold text-black dark:text-white truncate">
                               {request.fromProfile.name}
                             </h4>
-                            <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                            <p className="text-[10px] sm:text-xs text-[#5DC3F8] truncate">
                               @{request.fromProfile.instagramUsername || "No username"}
                             </p>
                             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
@@ -617,22 +617,22 @@ function FriendsPageContent() {
             {/* Sent Requests Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-[#EC67A1]" />
+                <h3 className="text-sm sm:text-base font-semibold text-black dark:text-white">
                   Sent Requests
                 </h3>
-                <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
+                <span className="px-2 py-0.5 text-xs font-medium bg-[#EC67A1] text-white rounded-full">
                   {sentRequests.length}
                 </span>
               </div>
 
               {loading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-[#EC67A1] animate-spin" />
                 </div>
               ) : sentRequests.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/30">
-                  <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3" />
+                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900">
+                  <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-[#EC67A1] mx-auto mb-3" />
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     No pending sent requests
                   </p>
@@ -642,7 +642,7 @@ function FriendsPageContent() {
                   {sentRequests.map((request) => (
                     <div
                       key={request.id}
-                      className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800/50 dark:to-purple-900/20 border border-purple-200/50 dark:border-purple-700/30 rounded-xl p-4 sm:p-5 shadow-md"
+                      className="bg-white dark:bg-gray-800 border-2 border-[#EC67A1] dark:border-[#EC67A1] rounded-xl p-4 sm:p-5 shadow-md"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -653,17 +653,17 @@ function FriendsPageContent() {
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm sm:text-base font-semibold">
                                 {request.toProfile.name?.[0]?.toUpperCase() || "?"}
                               </span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            <h4 className="text-xs sm:text-sm font-semibold text-black dark:text-white truncate">
                               {request.toProfile.name}
                             </h4>
-                            <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                            <p className="text-[10px] sm:text-xs text-[#EC67A1] truncate">
                               @{request.toProfile.instagramUsername || "No username"}
                             </p>
                             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
@@ -699,13 +699,13 @@ function FriendsPageContent() {
       case "add":
         return (
           <div className="max-w-2xl mx-auto">
-            <div className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800/50 dark:to-purple-900/20 border border-purple-200/50 dark:border-purple-700/30 rounded-xl p-6 sm:p-8 shadow-lg">
+            <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8] dark:border-[#5DC3F8] rounded-xl p-6 sm:p-8 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center">
                   <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-base sm:text-lg font-semibold text-black dark:text-white">
                     Add Friend
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -718,7 +718,7 @@ function FriendsPageContent() {
                 <div>
                   <label
                     htmlFor="search"
-                    className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                    className="block text-xs sm:text-sm font-medium text-black dark:text-white mb-2"
                   >
                     Search Instagram Profiles
                   </label>
@@ -733,22 +733,22 @@ function FriendsPageContent() {
                         handleSearchUsers(e.target.value);
                       }}
                       placeholder="Search by Instagram username or profile name..."
-                      className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent bg-white dark:bg-gray-800 text-black dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     />
                     {searchingUsers && (
-                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-gray-400 z-10" />
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-[#5DC3F8] z-10" />
                     )}
 
                     {/* Search Results Dropdown */}
                     {emailInput.trim().length >= 2 && (
-                      <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-[400px] overflow-y-scroll">
+                      <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8] dark:border-[#5DC3F8] rounded-lg shadow-xl max-h-[400px] overflow-y-scroll">
                         {searchingUsers ? (
                           <div className="flex items-center justify-center py-8">
-                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                            <Loader2 className="w-6 h-6 text-[#5DC3F8] animate-spin" />
                           </div>
                         ) : profileSearchResults.length === 0 ? (
                           <div className="text-center py-8">
-                            <Users className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                            <Users className="w-10 h-10 text-[#5DC3F8] mx-auto mb-2" />
                             <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                               No Instagram profiles found
                             </p>
@@ -769,16 +769,16 @@ function FriendsPageContent() {
                                         className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                       />
                                     ) : (
-                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center flex-shrink-0">
                                         <Users className="w-5 h-5 text-white" />
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                      <h4 className="text-xs sm:text-sm font-semibold text-black dark:text-white truncate">
                                         {profile.name}
                                       </h4>
                                       {profile.instagramUsername && (
-                                        <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 truncate">
+                                        <p className="text-[10px] sm:text-xs text-[#5DC3F8] truncate">
                                           @{profile.instagramUsername}
                                         </p>
                                       )}
@@ -794,7 +794,7 @@ function FriendsPageContent() {
                                       handleSendFriendRequestToProfile(profile)
                                     }
                                     disabled={sendingRequest}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[10px] sm:text-xs font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white text-[10px] sm:text-xs font-medium rounded-lg hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
                                   >
                                     {sendingRequest ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -818,10 +818,10 @@ function FriendsPageContent() {
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <div className="mt-6 p-4 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8] dark:border-[#5DC3F8] rounded-lg">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div className="text-[10px] sm:text-xs text-blue-900 dark:text-blue-200">
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-[#5DC3F8] flex-shrink-0 mt-0.5" />
+                  <div className="text-[10px] sm:text-xs text-black dark:text-white">
                     <p className="font-semibold mb-1">Friend Features</p>
                     <ul className="space-y-1 list-disc list-inside">
                       <li>Share your LoRA models</li>
@@ -845,10 +845,10 @@ function FriendsPageContent() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center p-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-            <User className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white dark:bg-gray-900 border-2 border-[#5DC3F8] flex items-center justify-center">
+            <User className="w-10 h-10 text-[#5DC3F8]" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Select a Profile</h3>
+          <h3 className="text-xl font-bold text-black dark:text-white mb-2">Select a Profile</h3>
           <p className="text-gray-600 dark:text-gray-400">Please select a specific profile from the sidebar to manage friends</p>
         </div>
       </div>
@@ -859,10 +859,10 @@ function FriendsPageContent() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center p-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-500/20 to-gray-500/20 flex items-center justify-center">
-            <Users className="w-10 h-10 text-gray-600 dark:text-gray-400" />
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white dark:bg-gray-900 border-2 border-[#5DC3F8] flex items-center justify-center">
+            <Users className="w-10 h-10 text-[#5DC3F8]" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Profile Selected</h3>
+          <h3 className="text-xl font-bold text-black dark:text-white mb-2">No Profile Selected</h3>
           <p className="text-gray-600 dark:text-gray-400">Select a profile from the sidebar to get started</p>
         </div>
       </div>
@@ -874,18 +874,18 @@ function FriendsPageContent() {
       {/* Header */}
       <div className="space-y-2 sm:space-y-3">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-lg sm:text-xl font-bold text-black dark:text-white">
             Friends
           </h1>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
             Connect with friends and collaborate on creative projects
           </p>
         </div>
       </div>
 
       {/* Tab Navigation and Content */}
-      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
-        <div className="border-b border-gray-200/50 dark:border-gray-700/30">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="border-b border-gray-200 dark:border-gray-800">
           <nav
             className="flex gap-4 sm:gap-6 md:gap-8 px-4 sm:px-6 overflow-x-auto scrollbar-hide"
             aria-label="Tabs"
@@ -906,8 +906,8 @@ function FriendsPageContent() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`${
                     isActive
-                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                      ? "border-[#5DC3F8] text-[#5DC3F8] dark:text-[#5DC3F8]"
+                      : "border-transparent text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:border-[#EC67A1] dark:hover:border-[#EC67A1]"
                   } whitespace-nowrap border-b-2 py-3 sm:py-4 px-1 font-medium text-xs sm:text-sm transition-colors flex items-center gap-1.5 sm:gap-2 active:scale-95`}
                 >
                   <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -918,8 +918,8 @@ function FriendsPageContent() {
                   {tab.countKey && count > 0 && (
                     <span className={`ml-1 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold rounded-full ${
                       isActive 
-                        ? "bg-blue-500 text-white" 
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                        ? "bg-[#5DC3F8] text-white" 
+                        : "bg-gray-200 dark:bg-gray-700 text-black dark:text-white"
                     }`}>
                       {count}
                     </span>
@@ -939,11 +939,11 @@ function FriendsPageContent() {
 // Loading fallback component
 function FriendsPageFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
+    <div className="min-h-screen bg-[#F8F8F8] dark:bg-gray-950">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[600px]">
           <div className="text-center space-y-4">
-            <Loader2 className="w-12 h-12 text-blue-600 dark:text-blue-400 animate-spin mx-auto" />
+            <Loader2 className="w-12 h-12 text-[#5DC3F8] animate-spin mx-auto" />
             <p className="text-sm text-gray-600 dark:text-gray-400">Loading friends...</p>
           </div>
         </div>

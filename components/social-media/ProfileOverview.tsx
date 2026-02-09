@@ -141,17 +141,17 @@ export default function ProfileOverview() {
   if (isAllProfiles) {
     return (
       <div className="sticky top-6">
-        <div className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-gray-900 dark:to-teal-950/30 rounded-2xl sm:rounded-3xl shadow-xl border-2 border-emerald-200/50 dark:border-emerald-800/50 p-6 backdrop-blur-sm overflow-hidden">
+        <div className="bg-card rounded-2xl sm:rounded-3xl shadow-xl border-2 border-[var(--color-brand-blue)]/20 p-6 backdrop-blur-sm overflow-hidden">
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--color-brand-blue)] flex items-center justify-center shadow-lg">
               <FolderOpen className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              <h2 className="text-xl font-bold text-foreground">
                 All Profiles
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 Viewing all your content
               </p>
             </div>
@@ -159,22 +159,22 @@ export default function ProfileOverview() {
 
           {/* Info */}
           <div className="space-y-4">
-            <div className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <FolderOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center gap-3 text-foreground">
+              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
+                <FolderOpen className="w-5 h-5 text-[var(--color-brand-blue)]" />
               </div>
               <div>
                 <p className="text-sm font-medium">Combined View</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   Posts from all profiles
                 </p>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-emerald-200/50 dark:border-emerald-800/50">
+            <div className="pt-4 border-t border-border">
               <button
                 onClick={() => router.push(`/${tenant}/workspace/my-influencers`)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 font-medium text-sm flex items-center justify-center gap-2"
+                className="w-full px-4 py-3 bg-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue)]/90 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 font-medium text-sm flex items-center justify-center gap-2"
               >
                 <Users className="w-4 h-4" />
                 Manage Profiles
@@ -190,16 +190,16 @@ export default function ProfileOverview() {
   if (!selectedProfile) {
     return (
       <div className="sticky top-6">
-        <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-purple-950/30 dark:via-gray-900 dark:to-pink-950/30 rounded-2xl sm:rounded-3xl shadow-xl border-2 border-purple-200/50 dark:border-purple-800/50 p-6 backdrop-blur-sm overflow-hidden text-center">
+        <div className="bg-card rounded-2xl sm:rounded-3xl shadow-xl border-2 border-[var(--color-brand-mid-pink)]/20 p-6 backdrop-blur-sm overflow-hidden text-center">
           <div className="mb-4 inline-block">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 dark:from-purple-500/30 dark:to-pink-500/30 flex items-center justify-center mx-auto">
-              <User className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto">
+              <User className="w-8 h-8 text-[var(--color-brand-mid-pink)]" />
             </div>
           </div>
-          <h3 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+          <h3 className="text-lg font-bold text-foreground mb-2">
             No Profile Selected
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Select a profile from the sidebar to view details
           </p>
         </div>
@@ -209,11 +209,11 @@ export default function ProfileOverview() {
 
   return (
     <div className="sticky top-6">
-      <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-purple-950/30 dark:via-gray-900 dark:to-pink-950/30 rounded-2xl sm:rounded-3xl shadow-xl border-2 border-purple-200/50 dark:border-purple-800/50 p-6 backdrop-blur-sm overflow-hidden">
+      <div className="bg-card rounded-2xl sm:rounded-3xl shadow-xl border-2 border-[var(--color-brand-mid-pink)]/20 p-6 backdrop-blur-sm overflow-hidden">
         {/* Profile Header */}
-        <div className="flex items-start gap-4 mb-6 pb-6 border-b border-purple-200/50 dark:border-purple-800/50">
+        <div className="flex items-start gap-4 mb-6 pb-6 border-b border-border">
           <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-purple-200 dark:ring-purple-800 shadow-lg">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-[var(--color-brand-mid-pink)]/30 shadow-lg">
               {selectedProfile.profileImageUrl ? (
                 <img
                   src={selectedProfile.profileImageUrl}
@@ -221,18 +221,18 @@ export default function ProfileOverview() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] flex items-center justify-center">
                   <User className="w-8 h-8 text-white" />
                 </div>
               )}
             </div>
             {isOwnProfile && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--color-brand-blue)] rounded-full border-2 border-background flex items-center justify-center">
                 <Sparkles className="w-3 h-3 text-white" />
               </div>
             )}
             {!isOwnProfile && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--color-brand-blue)] rounded-full border-2 border-background flex items-center justify-center">
                 <Users className="w-3 h-3 text-white" />
               </div>
             )}
@@ -240,20 +240,20 @@ export default function ProfileOverview() {
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+              <h2 className="text-lg font-bold text-foreground truncate">
                 {selectedProfile.name}
               </h2>
               {selectedProfile.organization && (
-                <Building2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <Building2 className="w-4 h-4 text-[var(--color-brand-blue)] flex-shrink-0" />
               )}
             </div>
             {selectedProfile.instagramUsername && (
-              <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mb-1">
+              <p className="text-sm text-muted-foreground font-medium mb-1">
                 @{selectedProfile.instagramUsername}
               </p>
             )}
             {!isOwnProfile && selectedProfile.user && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Shared by {selectedProfile.user.firstName || selectedProfile.user.email?.split('@')[0]}
               </p>
             )}
@@ -263,46 +263,46 @@ export default function ProfileOverview() {
         {/* Stats */}
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
+            <Loader2 className="w-6 h-6 text-[var(--color-brand-mid-pink)] animate-spin" />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 border border-purple-200/30 dark:border-purple-800/30">
+            <div className="bg-card rounded-xl p-4 border border-border">
               <div className="flex items-center gap-2 mb-1">
-                <ImageIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">Posts</span>
+                <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
+                <span className="text-xs text-muted-foreground">Posts</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-2xl font-bold text-foreground">
                 {stats.totalPosts}
               </p>
             </div>
 
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 border border-purple-200/30 dark:border-purple-800/30">
+            <div className="bg-card rounded-xl p-4 border border-border">
               <div className="flex items-center gap-2 mb-1">
-                <Heart className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">Likes</span>
+                <Heart className="w-4 h-4 text-[var(--color-brand-light-pink)]" />
+                <span className="text-xs text-muted-foreground">Likes</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-2xl font-bold text-foreground">
                 {stats.totalLikes}
               </p>
             </div>
 
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 border border-purple-200/30 dark:border-purple-800/30">
+            <div className="bg-card rounded-xl p-4 border border-border">
               <div className="flex items-center gap-2 mb-1">
-                <Bookmark className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">Saved</span>
+                <Bookmark className="w-4 h-4 text-[var(--color-brand-blue)]" />
+                <span className="text-xs text-muted-foreground">Saved</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-2xl font-bold text-foreground">
                 {stats.totalBookmarks}
               </p>
             </div>
 
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 border border-purple-200/30 dark:border-purple-800/30">
+            <div className="bg-card rounded-xl p-4 border border-border">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">Last Post</span>
+                <Calendar className="w-4 h-4 text-[var(--color-brand-blue)]" />
+                <span className="text-xs text-muted-foreground">Last Post</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white">
+              <p className="text-xs font-semibold text-foreground">
                 {formatDate(stats.lastPostDate)}
               </p>
             </div>
@@ -313,7 +313,7 @@ export default function ProfileOverview() {
         <div className="space-y-2">
           <button
             onClick={handleCreatePost}
-            className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 font-medium text-sm flex items-center justify-center gap-2"
+            className="w-full px-4 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 font-medium text-sm flex items-center justify-center gap-2"
           >
             <Sparkles className="w-4 h-4" />
             Create Post
@@ -322,7 +322,7 @@ export default function ProfileOverview() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleViewProfile}
-              className="px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-all duration-300 border border-purple-200 dark:border-purple-800 font-medium text-sm flex items-center justify-center gap-2"
+              className="px-4 py-2.5 bg-card text-foreground rounded-xl hover:bg-muted transition-all duration-300 border border-border hover:border-[var(--color-brand-blue)] font-medium text-sm flex items-center justify-center gap-2"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               View
@@ -331,7 +331,7 @@ export default function ProfileOverview() {
             {canEditProfile && (
               <button
                 onClick={handleEditProfile}
-                className="px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-all duration-300 border border-purple-200 dark:border-purple-800 font-medium text-sm flex items-center justify-center gap-2"
+                className="px-4 py-2.5 bg-card text-foreground rounded-xl hover:bg-muted transition-all duration-300 border border-border hover:border-[var(--color-brand-blue)] font-medium text-sm flex items-center justify-center gap-2"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 Edit
@@ -342,13 +342,13 @@ export default function ProfileOverview() {
 
         {/* Engagement Rate (if posts exist) */}
         {stats.totalPosts > 0 && (
-          <div className="mt-4 pt-4 border-t border-purple-200/50 dark:border-purple-800/50">
+          <div className="mt-4 pt-4 border-t border-border">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">Avg. Engagement</span>
+                <TrendingUp className="w-4 h-4 text-[var(--color-brand-blue)]" />
+                <span className="text-xs text-muted-foreground">Avg. Engagement</span>
               </div>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="text-sm font-bold text-[var(--color-brand-blue)]">
                 {(stats.totalLikes / stats.totalPosts).toFixed(1)} likes/post
               </span>
             </div>

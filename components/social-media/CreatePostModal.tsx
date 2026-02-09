@@ -408,15 +408,15 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-card rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-card border-b border-border p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-2xl font-bold text-foreground">
               {scheduledData ? 'Post Scheduled Content' : 'Create Post'}
             </h2>
             {scheduledData && (
-              <p className="text-sm text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+              <p className="text-sm text-[var(--color-brand-blue)] mt-1 flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
                 Ready to publish scheduled content
               </p>
@@ -424,9 +424,9 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 hover:bg-muted rounded-full transition-colors"
           >
-            <X className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <X className="w-6 h-6 text-muted-foreground" />
           </button>
         </div>
 
@@ -442,15 +442,15 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
               }}
               className={`flex-1 p-4 rounded-xl border-2 transition-all ${
                 mediaType === 'image'
-                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20'
-                  : 'border-gray-200 dark:border-gray-800 hover:border-purple-300'
+                  ? 'border-[var(--color-brand-mid-pink)] bg-[var(--color-brand-mid-pink)]/10'
+                  : 'border-border hover:border-[var(--color-brand-mid-pink)]/50'
               }`}
             >
               <ImageIcon className={`w-6 h-6 mx-auto mb-2 ${
-                mediaType === 'image' ? 'text-purple-600' : 'text-gray-600 dark:text-gray-400'
+                mediaType === 'image' ? 'text-[var(--color-brand-mid-pink)]' : 'text-muted-foreground'
               }`} />
               <span className={`text-sm font-medium ${
-                mediaType === 'image' ? 'text-purple-600' : 'text-gray-600 dark:text-gray-400'
+                mediaType === 'image' ? 'text-[var(--color-brand-mid-pink)]' : 'text-muted-foreground'
               }`}>
                 Images
               </span>
@@ -463,15 +463,15 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
               }}
               className={`flex-1 p-4 rounded-xl border-2 transition-all ${
                 mediaType === 'video'
-                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20'
-                  : 'border-gray-200 dark:border-gray-800 hover:border-purple-300'
+                  ? 'border-[var(--color-brand-mid-pink)] bg-[var(--color-brand-mid-pink)]/10'
+                  : 'border-border hover:border-[var(--color-brand-mid-pink)]/50'
               }`}
             >
               <Video className={`w-6 h-6 mx-auto mb-2 ${
-                mediaType === 'video' ? 'text-purple-600' : 'text-gray-600 dark:text-gray-400'
+                mediaType === 'video' ? 'text-[var(--color-brand-mid-pink)]' : 'text-muted-foreground'
               }`} />
               <span className={`text-sm font-medium ${
-                mediaType === 'video' ? 'text-purple-600' : 'text-gray-600 dark:text-gray-400'
+                mediaType === 'video' ? 'text-[var(--color-brand-mid-pink)]' : 'text-muted-foreground'
               }`}>
                 Video
               </span>
@@ -480,7 +480,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
 
           {/* Caption Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-foreground mb-3">
               Caption
             </label>
             
@@ -491,8 +491,8 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 onClick={() => setCaptionMode('custom')}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                   captionMode === 'custom'
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
                 Write Your Own
@@ -502,8 +502,8 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 onClick={() => setCaptionMode('bank')}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                   captionMode === 'bank'
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
                 Select from Bank
@@ -515,7 +515,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 value={postCaption}
                 onChange={(e) => setPostCaption(e.target.value)}
                 placeholder="What's on your mind?"
-                className="w-full p-4 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 resize-none"
+                className="w-full p-4 border border-border rounded-xl bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-[var(--color-brand-mid-pink)] resize-none"
                 rows={4}
               />
             ) : (
@@ -526,14 +526,14 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                   placeholder="Search captions..."
                   value={captionSearchQuery}
                   onChange={(e) => setCaptionSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] text-sm"
                 />
                 
                 <div className="grid grid-cols-3 gap-2">
                   <select
                     value={captionCategoryFilter}
                     onChange={(e) => setCaptionCategoryFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500"
+                    className="px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                   >
                     <option value="All">All Categories</option>
                     <option value="Dick rating">Dick rating</option>
@@ -559,7 +559,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                   <select
                     value={captionTypeFilter}
                     onChange={(e) => setCaptionTypeFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500"
+                    className="px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                   >
                     <option value="All">All Types</option>
                     <option value="Bundle Unlocks">Bundle Unlocks</option>
@@ -606,7 +606,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                   <select
                     value={captionBankFilter}
                     onChange={(e) => setCaptionBankFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500"
+                    className="px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                   >
                     <option value="All">All Banks</option>
                     <option value="Main Porn Caption Bank">Main Porn Caption Bank</option>
@@ -620,10 +620,10 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 </div>
 
                 {/* Caption List */}
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 p-3 max-h-[300px] overflow-y-auto">
+                <div className="bg-muted rounded-xl border-2 border-border p-3 max-h-[300px] overflow-y-auto">
                   {loadingCaptions ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                      <Loader2 className="w-6 h-6 animate-spin text-[var(--color-brand-mid-pink)]" />
                     </div>
                   ) : availableCaptions.filter(caption => {
                     const matchesSearch = caption.caption.toLowerCase().includes(captionSearchQuery.toLowerCase());
@@ -632,7 +632,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                     const matchesBank = captionBankFilter === 'All' || caption.captionBanks === captionBankFilter;
                     return matchesSearch && matchesCategory && matchesType && matchesBank;
                   }).length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 text-sm">
+                    <div className="text-center py-8 text-muted-foreground text-sm">
                       <p>No captions found</p>
                       <p className="text-xs mt-1">Try adjusting your filters</p>
                     </div>
@@ -654,9 +654,9 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                               setPostCaption(caption.caption);
                               setCaptionMode('custom');
                             }}
-                            className="w-full text-left p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-600 transition-all group"
+                            className="w-full text-left p-3 bg-card rounded-lg border border-border hover:border-[var(--color-brand-mid-pink)] transition-all group"
                           >
-                            <p className="text-sm text-gray-900 dark:text-white mb-2 line-clamp-2">
+                            <p className="text-sm text-foreground mb-2 line-clamp-2">
                               {caption.caption}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
@@ -681,7 +681,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
 
           {/* Content Source Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-foreground mb-3">
               Content Source
             </label>
             
@@ -692,8 +692,8 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 onClick={() => setUploadMode('upload')}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                   uploadMode === 'upload'
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
                 📤 Upload New
@@ -709,8 +709,8 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                 disabled={!profileId || profileId === 'all'}
                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                   uploadMode === 'vault'
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
                 🗄️ From Vault
@@ -732,10 +732,10 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                     />
                     <label
                       htmlFor="image-upload"
-                      className="flex items-center justify-center gap-3 p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl hover:border-purple-400 dark:hover:border-purple-600 cursor-pointer transition-colors"
+                      className="flex items-center justify-center gap-3 p-8 border-2 border-dashed border-border rounded-xl hover:border-[var(--color-brand-mid-pink)] cursor-pointer transition-colors"
                     >
-                      <Upload className="w-6 h-6 text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-400">Click to upload images (Max 10, up to 10MB each)</span>
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-muted-foreground">Click to upload images (Max 10, up to 10MB each)</span>
                     </label>
 
                     {/* Image Previews */}

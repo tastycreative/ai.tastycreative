@@ -53,6 +53,10 @@
       "maxDuration": 120,
       "memory": 1024
     },
+    "app/api/generate/kling-motion-control/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
     "app/api/webhooks/**/*.ts": {
       "maxDuration": 300
     },

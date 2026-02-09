@@ -300,7 +300,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-brand-blue)]"></div>
       </div>
     );
   }
@@ -319,13 +319,13 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
           </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
             <button
               onClick={() => setViewMode('monthly')}
               className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
                 viewMode === 'monthly'
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  ? 'bg-card text-[var(--color-brand-blue)] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -335,8 +335,8 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
               onClick={() => setViewMode('weekly')}
               className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
                 viewMode === 'weekly'
-                  ? 'bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  ? 'bg-card text-[var(--color-brand-mid-pink)] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -377,14 +377,14 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         <>
           {/* Profile Type Filter - Show only when "All Profiles" is selected */}
       {isAllProfiles && (
-        <div className="flex items-center gap-2 p-3 bg-white/5 dark:bg-white/5 rounded-xl border border-white/10">
-          <Filter className="w-4 h-4 text-white/50" />
+        <div className="flex items-center gap-2 p-3 bg-card rounded-xl border border-border">
+          <Filter className="w-4 h-4 text-muted-foreground" />
           <button
             onClick={() => setProfileTypeFilter('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
               profileTypeFilter === 'all'
-                ? 'bg-violet-500 text-white shadow-lg'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-[var(--color-brand-blue)] text-white shadow-lg'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             All ({posts.length})
@@ -393,8 +393,8 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
             onClick={() => setProfileTypeFilter('owned')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
               profileTypeFilter === 'owned'
-                ? 'bg-violet-500 text-white shadow-lg'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-[var(--color-brand-mid-pink)] text-white shadow-lg'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             My Posts ({posts.filter(p => p.profile?.isOwned).length})
@@ -403,8 +403,8 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
             onClick={() => setProfileTypeFilter('shared')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
               profileTypeFilter === 'shared'
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-[var(--color-brand-blue)] text-white shadow-lg'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             Shared ({posts.filter(p => !p.profile?.isOwned && p.profile).length})
@@ -463,12 +463,12 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
       </div>
 
       {/* Calendar Grid */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-lg">
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-lg">
         {/* Weekday Headers */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="grid grid-cols-7 border-b border-border bg-muted">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div key={day} className="p-2 sm:p-3 text-center">
-              <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{day}</span>
+              <span className="text-xs sm:text-sm font-semibold text-foreground">{day}</span>
             </div>
           ))}
         </div>
@@ -482,9 +482,9 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
             return (
               <div
                 key={index}
-                className={`min-h-[80px] sm:min-h-[100px] md:min-h-[120px] border-r border-b border-gray-200 dark:border-gray-700 p-1 sm:p-2 relative group ${
-                  date ? "bg-white dark:bg-gray-800 hover:bg-gradient-to-br hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 cursor-pointer transition-all duration-300" : "bg-gray-50 dark:bg-gray-900/30"
-                } ${today ? "ring-1 sm:ring-2 ring-blue-500 ring-inset bg-blue-50/30 dark:bg-blue-900/10" : ""} ${
+                className={`min-h-[80px] sm:min-h-[100px] md:min-h-[120px] border-r border-b border-border p-1 sm:p-2 relative group ${
+                  date ? "bg-card hover:bg-[var(--color-brand-blue)]/5 cursor-pointer transition-all duration-300" : "bg-muted/50"
+                } ${today ? "ring-1 sm:ring-2 ring-[var(--color-brand-blue)] ring-inset bg-[var(--color-brand-blue)]/5" : ""} ${
                   dayPosts.length > 0 ? "hover:shadow-lg hover:scale-[1.02] hover:z-10" : ""
                 }`}
                 onClick={() => {
@@ -500,14 +500,14 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       <span
                         className={`text-xs sm:text-sm font-semibold ${
                           today
-                            ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white w-5 h-5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shadow-lg text-[10px] sm:text-sm"
-                            : "text-gray-700 dark:text-gray-300"
+                            ? "bg-gradient-to-br from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] text-white w-5 h-5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shadow-lg text-[10px] sm:text-sm"
+                            : "text-foreground"
                         }`}
                       >
                         {date.getDate()}
                       </span>
                       {dayPosts.length > 0 && (
-                        <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm">
+                        <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] text-white shadow-sm">
                           {dayPosts.length}
                         </span>
                       )}
@@ -515,7 +515,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
 
                     {/* Post density indicator */}
                     {dayPosts.length > 0 && (
-                      <div className="absolute top-0 left-0 right-0 h-0.5 sm:h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" 
+                      <div className="absolute top-0 left-0 right-0 h-0.5 sm:h-1 bg-gradient-to-r from-[var(--color-brand-blue)] via-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)]" 
                            style={{ opacity: Math.min(dayPosts.length * 0.2, 1) }}
                       />
                     )}
@@ -525,38 +525,38 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       {dayPosts.slice(0, 2).map((post) => (
                         <div
                           key={post.id}
-                          className={`flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-gradient-to-r rounded hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-200 group-hover:scale-105 ${
+                          className={`flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 rounded transition-all duration-200 group-hover:scale-105 ${
                             isAllProfiles && post.profile
                               ? post.profile.isOwned
-                                ? 'from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/20 border border-violet-200/50 dark:border-violet-700/30'
-                                : 'from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-700/30'
-                              : 'from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30'
+                                ? 'bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30'
+                                : 'bg-[var(--color-brand-blue)]/10 border border-[var(--color-brand-blue)]/30'
+                              : 'bg-muted border border-border'
                           }`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor(post.status)} shadow-sm`} />
                           {isAllProfiles && post.profile && (
-                            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/20">
+                            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-border">
                               {post.profile.profileImageUrl ? (
                                 <img src={post.profile.profileImageUrl} alt={post.profile.name} className="w-full h-full object-cover" />
                               ) : (
                                 <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold ${
-                                  post.profile.isOwned ? 'bg-violet-500 text-white' : 'bg-blue-500 text-white'
+                                  post.profile.isOwned ? 'bg-[var(--color-brand-mid-pink)] text-white' : 'bg-[var(--color-brand-blue)] text-white'
                                 }`}>
                                   {post.profile.name.charAt(0).toUpperCase()}
                                 </div>
                               )}
                             </div>
                           )}
-                          <span className="text-[9px] sm:text-xs text-gray-600 dark:text-gray-400 truncate flex-1 font-medium">
+                          <span className="text-[9px] sm:text-xs text-muted-foreground truncate flex-1 font-medium">
                             {post.fileName}
                           </span>
-                          {post.type === "REEL" && <Video className="w-2 h-2 sm:w-3 sm:h-3 text-purple-500" />}
+                          {post.type === "REEL" && <Video className="w-2 h-2 sm:w-3 sm:h-3 text-[var(--color-brand-mid-pink)]" />}
                           {post.type === "STORY" && <Clock className="w-2 h-2 sm:w-3 sm:h-3 text-orange-500" />}
                         </div>
                       ))}
                       {dayPosts.length > 2 && (
-                        <div className="text-[9px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold text-center mt-0.5 sm:mt-1 bg-blue-50 dark:bg-blue-900/20 rounded py-0.5">
+                        <div className="text-[9px] sm:text-xs text-[var(--color-brand-blue)] font-semibold text-center mt-0.5 sm:mt-1 bg-[var(--color-brand-blue)]/10 rounded py-0.5">
                           +{dayPosts.length - 2} more
                         </div>
                       )}
@@ -576,14 +576,14 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-modal-overlay-bg backdrop-blur-sm"
             onClick={() => setShowModal(false)}
           />
           
           {/* Modal */}
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden border border-border animate-in slide-in-from-bottom-4 duration-300">
             {/* Header */}
-            <div className="relative bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 text-white overflow-hidden">
+            <div className="relative bg-gradient-to-r from-[var(--color-brand-blue)] via-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] p-6 text-white overflow-hidden">
               {/* Animated background pattern */}
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute inset-0" style={{
@@ -597,7 +597,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                   <h3 className="text-2xl font-bold mb-1">
                     {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                   </h3>
-                  <p className="text-blue-100 text-sm flex items-center gap-2">
+                  <p className="text-white/80 text-sm flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4" />
                     {getPostsForDate(selectedDate).length} {getPostsForDate(selectedDate).length === 1 ? 'post' : 'posts'} scheduled
                   </p>
@@ -615,13 +615,13 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)] custom-scrollbar">
               {getPostsForDate(selectedDate).length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 mb-4">
-                    <CalendarIcon className="w-10 h-10 text-gray-400" />
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
+                    <CalendarIcon className="w-10 h-10 text-muted-foreground" />
                   </div>
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <h4 className="text-lg font-semibold text-foreground mb-2">
                     No posts scheduled
                   </h4>
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Add posts to your queue to see them here
                   </p>
                 </div>
@@ -639,13 +639,13 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       className={`group relative rounded-xl overflow-hidden border hover:shadow-lg hover:scale-[1.01] transition-all duration-300 ${
                         isAllProfiles && post.profile
                           ? post.profile.isOwned
-                            ? 'bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/20 border-violet-200 dark:border-violet-700/30'
-                            : 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-700/30'
-                          : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 border-gray-200 dark:border-gray-600'
+                            ? 'bg-[var(--color-brand-mid-pink)]/10 border-[var(--color-brand-mid-pink)]/30'
+                            : 'bg-[var(--color-brand-blue)]/10 border-[var(--color-brand-blue)]/30'
+                          : 'bg-card border-border'
                       }`}
                     >
                       {/* Post number indicator */}
-                      <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center text-sm font-bold shadow-lg z-10">
+                      <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] text-white flex items-center justify-center text-sm font-bold shadow-lg z-10">
                         {index + 1}
                       </div>
                       
@@ -657,7 +657,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                               <img src={post.profile.profileImageUrl} alt={post.profile.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold ${
-                                post.profile.isOwned ? 'bg-violet-500' : 'bg-blue-500'
+                                post.profile.isOwned ? 'bg-[var(--color-brand-mid-pink)]' : 'bg-[var(--color-brand-blue)]'
                               } text-white`}>
                                 {post.profile.name.charAt(0).toUpperCase()}
                               </div>
@@ -671,7 +671,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       <div className="flex gap-4 p-4">
                         {/* Image/Video Preview */}
                         <div className="flex-shrink-0">
-                          <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 relative group-hover:ring-2 group-hover:ring-purple-500 transition-all">
+                          <div className="w-32 h-32 rounded-lg overflow-hidden bg-muted relative group-hover:ring-2 group-hover:ring-[var(--color-brand-mid-pink)] transition-all">
                             {post.image ? (
                               post.type === "REEL" ? (
                                 <video
@@ -689,17 +689,17 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 {post.type === "REEL" ? (
-                                  <Video className="w-12 h-12 text-gray-400" />
+                                  <Video className="w-12 h-12 text-muted-foreground" />
                                 ) : (
-                                  <ImageIcon className="w-12 h-12 text-gray-400" />
+                                  <ImageIcon className="w-12 h-12 text-muted-foreground" />
                                 )}
                               </div>
                             )}
                             {/* Type badge */}
                             <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold text-white shadow-lg ${
-                              post.type === "REEL" ? "bg-gradient-to-r from-purple-500 to-pink-500" :
+                              post.type === "REEL" ? "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)]" :
                               post.type === "STORY" ? "bg-gradient-to-r from-orange-500 to-red-500" :
-                              "bg-gradient-to-r from-blue-500 to-cyan-500"
+                              "bg-gradient-to-r from-[var(--color-brand-blue)] to-cyan-500"
                             }`}>
                               {post.type}
                             </div>
@@ -710,11 +710,11 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                         <div className="flex-1 min-w-0 flex flex-col">
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-900 dark:text-white truncate mb-1">
+                              <h4 className="font-semibold text-foreground truncate mb-1">
                                 {post.fileName}
                               </h4>
                               {post.date && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
                                   {new Date(post.date).toLocaleTimeString("en-US", { 
                                     hour: "numeric", 
@@ -733,10 +733,10 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                           {post.caption && (
                             <div className="mb-3 flex-1">
                               <div className="flex items-center gap-1.5 mb-1">
-                                <MessageSquare className="w-3 h-3 text-gray-400" />
-                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Caption:</span>
+                                <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground">Caption:</span>
                               </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 bg-white/50 dark:bg-gray-800/50 rounded p-2">
+                              <p className="text-sm text-foreground line-clamp-2 bg-muted/50 rounded p-2">
                                 {post.caption}
                               </p>
                             </div>
@@ -746,7 +746,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                           <div className="flex gap-2 mt-auto">
                             <button 
                               onClick={() => handleViewPost(post)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 transition-all">
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-card hover:bg-[var(--color-brand-blue)]/10 border border-border rounded-lg text-xs font-medium text-foreground hover:text-[var(--color-brand-blue)] hover:border-[var(--color-brand-blue)]/50 transition-all">
                               <Eye className="w-3.5 h-3.5" />
                               View
                             </button>
@@ -768,20 +768,20 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            className="absolute inset-0 bg-modal-overlay-bg backdrop-blur-md"
             onClick={() => setShowViewModal(false)}
           />
           
           {/* Modal */}
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-border animate-in slide-in-from-bottom-4 duration-300">
             {/* Header */}
-            <div className="relative bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 text-white">
+            <div className="relative bg-gradient-to-r from-[var(--color-brand-blue)] via-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] p-6 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`p-3 rounded-xl ${
-                    viewingPost.type === "REEL" ? "bg-purple-500/30" :
+                    viewingPost.type === "REEL" ? "bg-[var(--color-brand-mid-pink)]/30" :
                     viewingPost.type === "STORY" ? "bg-orange-500/30" :
-                    "bg-blue-500/30"
+                    "bg-[var(--color-brand-blue)]/30"
                   } backdrop-blur-sm`}>
                     {viewingPost.type === "REEL" ? (
                       <Video className="w-6 h-6" />
@@ -815,7 +815,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Media Preview */}
                 <div className="space-y-4">
-                  <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 relative group">
+                  <div className="aspect-square rounded-xl overflow-hidden bg-muted relative group">
                     {viewingPost.image ? (
                       viewingPost.type === "REEL" ? (
                         <video
@@ -833,9 +833,9 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         {viewingPost.type === "REEL" ? (
-                          <Video className="w-24 h-24 text-gray-400" />
+                          <Video className="w-24 h-24 text-muted-foreground" />
                         ) : (
-                          <ImageIcon className="w-24 h-24 text-gray-400" />
+                          <ImageIcon className="w-24 h-24 text-muted-foreground" />
                         )}
                       </div>
                     )}
@@ -854,7 +854,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       <a
                         href={viewingPost.image}
                         download={viewingPost.fileName}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-xl"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:from-[var(--color-brand-blue)] hover:to-[var(--color-brand-dark-pink)] text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-xl"
                       >
                         <ExternalLink className="w-4 h-4" />
                         Download
@@ -867,10 +867,10 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                 <div className="space-y-4">
                   {/* Schedule Info */}
                   {viewingPost.date && (
-                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-700/30 rounded-xl p-4">
+                    <div className="bg-[var(--color-brand-blue)]/10 dark:bg-[var(--color-brand-blue)]/20 border border-[var(--color-brand-blue)]/30 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-2">
-                        <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Scheduled Time</h4>
+                        <Clock className="w-5 h-5 text-[var(--color-brand-blue)]" />
+                        <h4 className="font-semibold text-foreground">Scheduled Time</h4>
                       </div>
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                         {new Date(viewingPost.date).toLocaleDateString("en-US", { 
@@ -880,7 +880,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                           day: "numeric" 
                         })}
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         {new Date(viewingPost.date).toLocaleTimeString("en-US", { 
                           hour: "numeric", 
                           minute: "2-digit",
@@ -891,43 +891,43 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                   )}
 
                   {/* Caption */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <MessageSquare className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                      <h4 className="font-semibold text-gray-900 dark:text-white">Caption</h4>
+                      <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                      <h4 className="font-semibold text-foreground">Caption</h4>
                     </div>
                     {viewingPost.caption ? (
-                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      <p className="text-foreground whitespace-pre-wrap leading-relaxed">
                         {viewingPost.caption}
                       </p>
                     ) : (
-                      <p className="text-gray-400 dark:text-gray-500 italic">No caption added</p>
+                      <p className="text-muted-foreground italic">No caption added</p>
                     )}
                   </div>
 
                   {/* Post Details */}
-                  <div className="bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Post Details</h4>
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <h4 className="font-semibold text-foreground mb-3">Post Details</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Type:</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{viewingPost.type}</span>
+                        <span className="text-muted-foreground">Type:</span>
+                        <span className="font-medium text-foreground">{viewingPost.type}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Status:</span>
+                        <span className="text-muted-foreground">Status:</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getStatusColor(viewingPost.status)} text-white`}>
                           {viewingPost.status}
                         </span>
                       </div>
                       {viewingPost.driveFileId && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Google Drive:</span>
+                          <span className="text-muted-foreground">Google Drive:</span>
                           <span className="font-medium text-green-600 dark:text-green-400">Linked</span>
                         </div>
                       )}
                       {viewingPost.awsS3Key && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">AWS S3:</span>
+                          <span className="text-muted-foreground">AWS S3:</span>
                           <span className="font-medium text-blue-600 dark:text-blue-400">Stored</span>
                         </div>
                       )}
@@ -946,7 +946,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         editingPost &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 bg-modal-overlay-bg backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200"
             onClick={() => {
               if (!isSaving) {
                 setShowEditModal(false);

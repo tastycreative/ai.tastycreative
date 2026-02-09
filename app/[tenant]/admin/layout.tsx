@@ -262,9 +262,9 @@ export default function AdminLayout({
         onMouseLeave={handleMouseLeave}
         className={classNames(
           isActive
-            ? "bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-500/25 scale-[1.02]"
-            : "text-gray-300 hover:bg-gradient-to-r hover:from-red-900/50 hover:to-orange-900/50 hover:text-white hover:scale-[1.02] hover:shadow-md",
-          "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-900",
+            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02]"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
           !sidebarOpen ? "justify-center" : ""
         )}
       >
@@ -272,9 +272,9 @@ export default function AdminLayout({
           className={classNames(
             isActive
               ? "text-white"
-              : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
-            "h-6 w-6 flex-shrink-0 transition-transform duration-300",
-            sidebarOpen ? "mr-3" : "",
+              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
+            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+            sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
             isActive ? "scale-110" : "group-hover:scale-110"
           )}
           aria-hidden="true"
@@ -295,9 +295,9 @@ export default function AdminLayout({
           onClick={() => toggleSection(section.name)}
           className={classNames(
             hasActiveItem
-              ? "bg-gradient-to-r from-red-900/50 to-orange-900/50 text-white"
-              : "text-gray-300 hover:bg-gradient-to-r hover:from-red-900/30 hover:to-orange-900/30 hover:text-white",
-            "w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
+              ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-l-2 border-[#EC67A1]"
+              : "",
+            "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
             !sidebarOpen ? "justify-center" : "justify-between"
           )}
         >
@@ -305,10 +305,10 @@ export default function AdminLayout({
             <Icon
               className={classNames(
                 hasActiveItem
-                  ? "text-orange-400"
-                  : "text-gray-400 group-hover:text-gray-300",
-                "h-6 w-6 flex-shrink-0 transition-transform duration-300",
-                sidebarOpen ? "mr-3" : ""
+                  ? "text-[#EC67A1]"
+                  : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
+                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+                sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : ""
               )}
               aria-hidden="true"
             />
@@ -317,14 +317,14 @@ export default function AdminLayout({
           {sidebarOpen && (
             <ChevronDown
               className={classNames(
-                "h-4 w-4 text-gray-400 transition-transform duration-300",
+                "h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300",
                 isExpanded ? "rotate-180" : ""
               )}
             />
           )}
         </button>
         {sidebarOpen && isExpanded && (
-          <div className="ml-4 pl-4 border-l border-red-900/30 space-y-1">
+          <div className="ml-4 pl-4 border-l border-[#EC67A1]/30 space-y-1">
             {section.items.map((subItem) => {
               const isActive = isNavItemActive(subItem.href);
               const SubIcon = subItem.icon;
@@ -335,15 +335,15 @@ export default function AdminLayout({
                   onClick={() => isMobile && setSidebarOpen(false)}
                   className={classNames(
                     isActive
-                      ? "bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-md"
-                      : "text-gray-400 hover:bg-red-900/30 hover:text-white",
-                    "group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-300"
+                      ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    "group flex items-center px-3 py-2 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300"
                   )}
                 >
                   <SubIcon
                     className={classNames(
-                      isActive ? "text-white" : "text-gray-500 group-hover:text-gray-300",
-                      "h-5 w-5 flex-shrink-0 mr-2"
+                      isActive ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
+                      "h-4 w-4 xs:h-5 xs:w-5 flex-shrink-0 mr-2"
                     )}
                     aria-hidden="true"
                   />
@@ -358,51 +358,53 @@ export default function AdminLayout({
   };
 
   return (
-    <div className="flex h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 relative overflow-hidden">
-      {/* Animated Background Effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+    <div className="flex h-screen bg-background relative overflow-hidden">
+      {/* Background ambient effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#EC67A1]/10 dark:bg-[#F774B9]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[#5DC3F8]/10 dark:bg-[#EC67A1]/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-[#EC67A1]/5 to-[#5DC3F8]/5 rounded-full blur-3xl" />
       </div>
 
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - Modern Glass Design */}
       <div
         className={classNames(
-          "hidden lg:flex bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-red-900/30 relative z-10",
-          sidebarOpen ? "w-64" : "w-16"
+          "hidden lg:flex flex-col transition-all duration-300 ease-out relative z-10",
+          sidebarOpen ? "w-80" : "w-24",
         )}
       >
+        <div className="absolute inset-0 bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border shadow-2xl" />
+
         {/* Sidebar header */}
-        <div className="flex items-center justify-between p-4 border-b border-red-900/50">
+        <div className="relative flex items-center justify-between p-4 xs:p-5 sm:p-6 border-b border-sidebar-border">
           {sidebarOpen && (
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-gradient-to-br from-red-600 via-orange-600 to-yellow-600 rounded-lg shadow-lg">
-                <Shield className="h-5 w-5 text-white" />
+            <div className="flex items-center space-x-2.5 xs:space-x-3">
+              <div className="p-2 xs:p-2.5 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-xl shadow-lg shadow-[#EC67A1]/25">
+                <Shield className="h-5 w-5 xs:h-6 xs:w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-white text-lg font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent">
+                <h1 className="text-sidebar-foreground text-base xs:text-lg font-bold">
                   Admin Panel
                 </h1>
-                <p className="text-xs text-gray-400">System Control</p>
+                <p className="text-xs text-sidebar-foreground/60">System Control</p>
               </div>
             </div>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 text-gray-400 hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="relative p-1.5 xs:p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-sidebar-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar"
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? (
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4 xs:h-5 xs:w-5" />
             ) : (
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5" />
             )}
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="relative flex-1 px-2.5 xs:px-3 py-4 xs:py-5 space-y-1.5 xs:space-y-2 overflow-y-auto custom-scrollbar">
           {navigation.map((item) => {
             if ("items" in item) {
               return renderNavSection(item);
@@ -413,7 +415,7 @@ export default function AdminLayout({
         </nav>
 
         {/* Theme toggle and footer */}
-        <div className="border-t border-red-900/50 p-4 bg-gradient-to-t from-slate-950/50 to-transparent">
+        <div className="relative border-t border-sidebar-border p-4 xs:p-5">
           <div className="flex items-center justify-end">
             <div className="transform transition-transform duration-300 hover:scale-110">
               <ThemeToggle />
@@ -431,41 +433,42 @@ export default function AdminLayout({
       >
         {/* Backdrop */}
         <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
 
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "relative w-64 h-full bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl flex flex-col shadow-2xl border-r border-red-900/30 transition-all duration-300 ease-out",
+            "relative w-72 xs:w-80 h-full flex flex-col transition-all duration-300 ease-out",
             sidebarOpen
               ? "transform translate-x-0 opacity-100"
               : "transform -translate-x-full opacity-0"
           )}
         >
+          <div className="absolute inset-0 bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border shadow-2xl" />
           {/* Mobile Sidebar Header */}
-          <div className="flex items-center justify-between p-4 border-b border-red-900/50">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-gradient-to-br from-red-600 via-orange-600 to-yellow-600 rounded-lg shadow-lg">
-                <Shield className="h-5 w-5 text-white" />
+          <div className="relative flex items-center justify-between p-4 xs:p-5 border-b border-sidebar-border">
+            <div className="flex items-center space-x-2.5 xs:space-x-3">
+              <div className="p-2 xs:p-2.5 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-xl shadow-lg shadow-[#EC67A1]/25">
+                <Shield className="h-5 w-5 xs:h-6 xs:w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-white text-lg font-bold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">Admin Panel</h1>
-                <p className="text-xs text-gray-400">System Control</p>
+                <h1 className="text-sidebar-foreground text-base xs:text-lg font-bold">Admin Panel</h1>
+                <p className="text-xs text-sidebar-foreground/60">System Control</p>
               </div>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1 text-gray-400 hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg"
+              className="relative p-1.5 xs:p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 active:scale-95 hover:bg-sidebar-accent rounded-lg"
               aria-label="Close sidebar"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4 xs:h-5 xs:w-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto">
+          <nav className="relative flex-1 px-2.5 xs:px-3 py-4 xs:py-5 space-y-1.5 xs:space-y-2 overflow-y-auto">
             {navigation.map((item) => {
               if ("items" in item) {
                 return renderNavSection(item);
@@ -476,7 +479,7 @@ export default function AdminLayout({
           </nav>
 
           {/* Theme toggle */}
-          <div className="border-t border-red-900/50 p-4">
+          <div className="relative border-t border-sidebar-border p-4 xs:p-5">
             <div className="flex items-center justify-end">
               <ThemeToggle />
             </div>
@@ -487,29 +490,29 @@ export default function AdminLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         {/* Mobile menu button */}
-        <div className="lg:hidden bg-slate-900/90 backdrop-blur-md shadow-lg border-b border-red-900/30 px-4 py-2">
+        <div className="lg:hidden bg-card/95 backdrop-blur-md shadow-lg border-b border-border px-4 py-2.5">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 text-gray-400 hover:text-white transition-all duration-300 active:scale-95 hover:bg-red-900/50 rounded-lg"
+            className="p-2 text-foreground/70 hover:text-foreground hover:bg-accent transition-all duration-300 active:scale-95 rounded-lg"
             aria-label="Open menu"
           >
             <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-red-400" />
+              <Shield className="h-5 w-5 text-[#EC67A1]" />
               <span className="text-sm font-medium">Admin Menu</span>
             </div>
           </button>
         </div>
 
         {/* Content area */}
-        <main className="flex-1 h-full overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 custom-scrollbar">
+        <main className="flex-1 h-full overflow-y-auto custom-scrollbar">
           {/* Sticky Header with user info */}
-          <div className="sticky top-0 z-20 bg-slate-900/90 backdrop-blur-md border-b border-red-900/30 px-4 lg:px-8 py-3 shadow-lg">
+          <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-md border-b border-border px-4 lg:px-8 py-3 xs:py-4 shadow-lg">
             <div className="flex items-center justify-between">
               {/* Left Side - Page Title */}
               <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2 bg-gradient-to-r from-red-950/50 to-orange-950/50 px-3 py-2 rounded-lg border border-red-900/30">
-                  <Shield className="w-6 h-6 text-red-400" />
-                  <h2 className="text-lg font-semibold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">Admin Control Panel</h2>
+                <div className="flex items-center space-x-2 bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 px-3 py-2 rounded-lg border border-[#EC67A1]/30">
+                  <Shield className="w-5 h-5 xs:w-6 xs:h-6 text-[#EC67A1]" />
+                  <h2 className="text-base xs:text-lg font-semibold text-foreground">Admin Control Panel</h2>
                 </div>
               </div>
 
@@ -520,44 +523,47 @@ export default function AdminLayout({
 
                 {/* User Dropdown */}
                 <div className="relative group">
-                  <button className="flex items-center space-x-2 bg-red-950/50 hover:bg-red-900/50 border border-red-900/50 px-3 py-2 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md">
-                    <div className="w-8 h-8 bg-gradient-to-br from-red-600 via-orange-600 to-yellow-600 rounded-full flex items-center justify-center shadow-md">
+                  <button className="flex items-center space-x-2 bg-accent hover:bg-accent/80 border border-border px-3 py-2 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-full flex items-center justify-center shadow-md shadow-[#EC67A1]/25">
                       <span className="text-white text-sm font-semibold">
                         {initials}
                       </span>
                     </div>
-                    <span className="text-sm font-medium text-white hidden sm:block">
+                    <span className="text-sm font-medium text-foreground hidden sm:block">
                       {firstName}
                     </span>
-                    <ChevronDown className="w-4 h-4 text-gray-400 transition-transform duration-300 group-hover:rotate-180" />
+                    <ChevronDown className="w-4 h-4 text-foreground/60 transition-transform duration-300 group-hover:rotate-180" />
                   </button>
 
                   {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-48 bg-slate-800 border border-red-900/50 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
                     <div className="py-2">
-                      <div className="px-4 py-2 border-b border-red-900/50 bg-red-950/30">
-                        <p className="text-sm font-medium text-white truncate">{firstName}</p>
-                        <p className="text-xs text-orange-400 truncate">{email}</p>
-                        <p className="text-xs text-red-400 mt-1 font-semibold">Admin Access</p>
+                      <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10">
+                        <p className="text-sm font-medium text-foreground truncate">{firstName}</p>
+                        <p className="text-xs text-foreground/60 truncate">{email}</p>
+                        <div className="mt-1.5 inline-flex items-center space-x-1 px-2 py-0.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] rounded-full">
+                          <Shield className="w-3 h-3 text-white" />
+                          <span className="text-xs text-white font-semibold">Admin</span>
+                        </div>
                       </div>
                       <Link
                         href={`/${tenant}/dashboard`}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 flex items-center space-x-2"
+                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-all duration-200 flex items-center space-x-2"
                       >
-                        <Home className="w-4 h-4" />
+                        <Home className="w-4 h-4 text-[#EC67A1]" />
                         <span>User Dashboard</span>
                       </Link>
                       <Link
                         href={`/${tenant}/settings`}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 flex items-center space-x-2"
+                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-all duration-200 flex items-center space-x-2"
                       >
-                        <Settings className="w-4 h-4" />
+                        <Settings className="w-4 h-4 text-[#5DC3F8]" />
                         <span>Settings</span>
                       </Link>
-                      <div className="border-t border-red-900/50 mt-2 pt-2">
+                      <div className="border-t border-border mt-2 pt-2">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-900/20 transition-all duration-200 flex items-center space-x-2"
+                          className="w-full text-left px-4 py-2.5 text-sm text-[#EC67A1] hover:bg-[#EC67A1]/10 transition-all duration-200 flex items-center space-x-2"
                         >
                           <LogOut className="w-4 h-4" />
                           <span>Sign Out</span>
@@ -571,15 +577,16 @@ export default function AdminLayout({
           </div>
 
           {/* Content */}
-          <div className="px-4 py-6 lg:px-8 animate-fadeIn h-full">
+          <div className="px-4 xs:px-6 py-6 xs:py-8 lg:px-8 animate-fadeIn">
             {children}
           </div>
         </main>
       </div>
+
       {/* Tooltip for collapsed sidebar */}
       {!sidebarOpen && hoveredItem && (
         <div
-          className="hidden lg:block fixed z-50 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg shadow-lg border border-red-900/50 pointer-events-none animate-fadeIn"
+          className="hidden lg:block fixed z-50 px-3 py-2 bg-sidebar text-sidebar-foreground text-sm rounded-xl shadow-xl border border-sidebar-border pointer-events-none animate-fadeIn"
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
@@ -587,7 +594,7 @@ export default function AdminLayout({
           }}
         >
           {hoveredItem}
-          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45 border-l border-b border-red-900/50"></div>
+          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-sidebar rotate-45 border-l border-b border-sidebar-border" />
         </div>
       )}
     </div>

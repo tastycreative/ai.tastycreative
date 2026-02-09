@@ -25,7 +25,7 @@ interface VaultFolderDropdownProps {
     name?: string;
   } | null;
   mounted: boolean;
-  accentColor?: "violet" | "purple" | "cyan" | "emerald";
+  accentColor?: "violet" | "purple" | "cyan" | "emerald" | "pink";
   label?: string;
 }
 
@@ -118,67 +118,34 @@ export default function VaultFolderDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [setFolderDropdownOpen]);
 
-  // Color scheme mappings
+  // Color scheme mappings – all use brand pink for consistency and light/dark support
+  const pinkScheme = {
+    button: targetFolder 
+      ? 'bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 border border-[#EC67A1]/30 dark:border-[#EC67A1]/40'
+      : 'bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700',
+    icon: targetFolder ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500',
+    text: targetFolder ? 'text-sidebar-foreground' : 'text-zinc-400 dark:text-zinc-500',
+    subtitle: 'text-[#EC67A1]/70',
+    selected: 'bg-[#EC67A1]/10 dark:bg-[#EC67A1]/15',
+    selectedIcon: 'bg-[#EC67A1]/20 dark:bg-[#EC67A1]/30 border border-[#EC67A1]/40',
+    selectedText: 'text-[#EC67A1]',
+    check: 'text-[#EC67A1]',
+    header: 'text-[#EC67A1] bg-[#EC67A1]/10'
+  };
+
   const colors = {
-    violet: {
-      button: targetFolder 
-        ? 'bg-gradient-to-br from-violet-500/30 to-purple-500/30 border border-violet-400/30'
-        : 'bg-slate-700/50 border border-white/5',
-      icon: targetFolder ? 'text-violet-300' : 'text-slate-400',
-      text: targetFolder ? 'text-white' : 'text-slate-400',
-      subtitle: 'text-violet-300/70',
-      selected: 'bg-violet-500/15',
-      selectedIcon: 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40',
-      selectedText: 'text-violet-300',
-      check: 'text-violet-400',
-      header: 'text-violet-300 bg-violet-500/10'
-    },
-    purple: {
-      button: targetFolder 
-        ? 'bg-gradient-to-br from-purple-500/30 to-indigo-500/30 border border-purple-400/30'
-        : 'bg-slate-700/50 border border-white/5',
-      icon: targetFolder ? 'text-purple-300' : 'text-slate-400',
-      text: targetFolder ? 'text-white' : 'text-slate-400',
-      subtitle: 'text-purple-300/70',
-      selected: 'bg-purple-500/15',
-      selectedIcon: 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40',
-      selectedText: 'text-purple-300',
-      check: 'text-purple-400',
-      header: 'text-purple-300 bg-purple-500/10'
-    },
-    cyan: {
-      button: targetFolder 
-        ? 'bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-400/30'
-        : 'bg-slate-700/50 border border-white/5',
-      icon: targetFolder ? 'text-cyan-300' : 'text-slate-400',
-      text: targetFolder ? 'text-white' : 'text-slate-400',
-      subtitle: 'text-cyan-300/70',
-      selected: 'bg-cyan-500/15',
-      selectedIcon: 'bg-gradient-to-br from-cyan-500/40 to-blue-500/40 border border-cyan-400/40',
-      selectedText: 'text-cyan-300',
-      check: 'text-cyan-400',
-      header: 'text-cyan-300 bg-cyan-500/10'
-    },
-    emerald: {
-      button: targetFolder 
-        ? 'bg-gradient-to-br from-emerald-500/30 to-green-500/30 border border-emerald-400/30'
-        : 'bg-slate-700/50 border border-white/5',
-      icon: targetFolder ? 'text-emerald-300' : 'text-slate-400',
-      text: targetFolder ? 'text-white' : 'text-slate-400',
-      subtitle: 'text-emerald-300/70',
-      selected: 'bg-emerald-500/15',
-      selectedIcon: 'bg-gradient-to-br from-emerald-500/40 to-green-500/40 border border-emerald-400/40',
-      selectedText: 'text-emerald-300',
-      check: 'text-emerald-400',
-      header: 'text-emerald-300 bg-emerald-500/10'
-    }
+    violet: pinkScheme,
+    purple: pinkScheme,
+    cyan: pinkScheme,
+    emerald: pinkScheme,
+    pink: pinkScheme,
   };
 
   const color = colors[accentColor];
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold text-white">{label}</label>
+      <label className="text-sm font-semibold text-sidebar-foreground">{label}</label>
       
       <div ref={folderDropdownRef} className="relative">
         {/* Dropdown Trigger */}
@@ -215,12 +182,12 @@ export default function VaultFolderDropdown({
               )}
             </div>
           </div>
-          <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {/* Dropdown Menu */}
         {folderDropdownOpen && mounted && (
-          <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+          <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
             {/* Clear Selection Option */}
             <button
               type="button"
@@ -228,17 +195,17 @@ export default function VaultFolderDropdown({
                 setTargetFolder('');
                 setFolderDropdownOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
-                <X className="w-4 h-4 text-slate-400" />
+              <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                <X className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
               </div>
-              <span className="text-sm text-slate-400">No folder selected</span>
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">No folder selected</span>
               {!targetFolder && <Check className={`w-4 h-4 ${color.check} ml-auto`} />}
             </button>
 
             {vaultFolders.filter(f => !f.isDefault).length > 0 && (
-              <div className="my-2 mx-3 h-px bg-white/5" />
+              <div className="my-2 mx-3 h-px bg-zinc-200 dark:bg-zinc-700" />
             )}
 
             {/* Folder Options - Grouped by profile when viewing all profiles */}
@@ -272,7 +239,7 @@ export default function VaultFolderDropdown({
                             w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
                             ${targetFolder === folder.id 
                               ? color.selected
-                              : 'hover:bg-white/5'
+                              : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                             }
                           `}
                           style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
@@ -281,20 +248,20 @@ export default function VaultFolderDropdown({
                             w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
                             ${targetFolder === folder.id 
                               ? color.selectedIcon
-                              : 'bg-slate-700/50 border border-white/5'
+                              : 'bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700'
                             }
                           `}>
                             {hasChildren ? (
-                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-slate-400'}`} />
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-zinc-400 dark:text-zinc-500'}`} />
                             ) : (
-                              <Folder className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-slate-400'}`} />
+                              <Folder className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-zinc-400 dark:text-zinc-500'}`} />
                             )}
                           </div>
-                          <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                          <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
                             {folder.name}
                           </span>
                           {depth > 0 && (
-                            <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                            <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
                           )}
                           {targetFolder === folder.id && (
                             <Check className={`w-4 h-4 ${color.check} flex-shrink-0`} />
@@ -321,7 +288,7 @@ export default function VaultFolderDropdown({
                         w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
                         ${targetFolder === folder.id 
                           ? color.selected
-                          : 'hover:bg-white/5'
+                          : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                         }
                       `}
                       style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
@@ -330,20 +297,20 @@ export default function VaultFolderDropdown({
                         w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
                         ${targetFolder === folder.id 
                           ? color.selectedIcon
-                          : 'bg-slate-700/50 border border-white/5'
+                          : 'bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700'
                         }
                       `}>
                         {hasChildren ? (
-                          <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-slate-400'}`} />
+                          <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-zinc-400 dark:text-zinc-500'}`} />
                         ) : (
-                          <Folder className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-slate-400'}`} />
+                          <Folder className={`w-4 h-4 ${targetFolder === folder.id ? color.selectedText : 'text-zinc-400 dark:text-zinc-500'}`} />
                         )}
                       </div>
-                      <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                      <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
                         {folder.name}
                       </span>
                       {depth > 0 && (
-                        <span className="text-xs text-slate-500 flex-shrink-0">L{depth + 1}</span>
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
                       )}
                       {targetFolder === folder.id && (
                         <Check className={`w-4 h-4 ${color.check} flex-shrink-0`} />
@@ -356,9 +323,9 @@ export default function VaultFolderDropdown({
 
             {vaultFolders.filter(f => !f.isDefault).length === 0 && (
               <div className="px-4 py-6 text-center">
-                <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">No folders available</p>
-                <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                <FolderOpen className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mx-auto mb-2" />
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No folders available</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Create folders in the Vault tab</p>
               </div>
             )}
           </div>
@@ -367,9 +334,9 @@ export default function VaultFolderDropdown({
 
       {/* Status Indicator */}
       {targetFolder && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${color.selected} ${color.selectedIcon.replace('bg-gradient-to-br', 'border')}`}>
-          <div className={`w-2 h-2 rounded-full animate-pulse ${color.selectedText.replace('text-', 'bg-')}`} />
-          <p className={`text-xs flex-1 truncate ${color.selectedText}`}>
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${color.selected} border-[#EC67A1]/30`}>
+          <div className="w-2 h-2 rounded-full animate-pulse bg-[#EC67A1]" />
+          <p className="text-xs flex-1 truncate text-[#EC67A1]">
             Videos save to: {getFolderPath(targetFolder)}
           </p>
         </div>

@@ -504,7 +504,7 @@ export default function TrainLoRAPage() {
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
       {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-xl sm:rounded-2xl md:rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-6 xs:p-8 sm:p-10 md:p-12 text-white text-center">
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-xl sm:rounded-2xl md:rounded-3xl shadow-2xl border-2 border-[#5DC3F8]/30 p-6 xs:p-8 sm:p-10 md:p-12 text-white text-center">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
@@ -527,24 +527,24 @@ export default function TrainLoRAPage() {
               <span>Train Custom LoRA</span>
               <span className="text-xl xs:text-2xl sm:text-3xl md:text-4xl">🧠</span>
             </h1>
-            <p className="text-sm xs:text-base sm:text-lg md:text-xl text-blue-100 font-medium opacity-90 max-w-3xl mx-auto leading-relaxed px-2">
+            <p className="text-sm xs:text-base sm:text-lg md:text-xl text-white font-medium opacity-90 max-w-3xl mx-auto leading-relaxed px-2">
               Create a personalized AI model by training on your own images
               using
-              <span className="text-yellow-300 font-bold"> RunPod's </span>
+              <span className="text-[#F8F8F8] font-bold"> RunPod's </span>
               powerful GPU infrastructure
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 xs:gap-4 sm:gap-6 md:gap-8 text-[10px] xs:text-xs sm:text-sm text-blue-100 pt-2 sm:pt-3 md:pt-4">
+            <div className="flex flex-wrap items-center justify-center gap-3 xs:gap-4 sm:gap-6 md:gap-8 text-[10px] xs:text-xs sm:text-sm text-white pt-2 sm:pt-3 md:pt-4">
               <div className="flex items-center space-x-1.5 sm:space-x-2">
-                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-[#F8F8F8] rounded-full animate-pulse"></div>
                 <span className="font-medium">GPU Powered</span>
               </div>
               <div className="flex items-center space-x-1.5 sm:space-x-2">
-                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-purple-300 rounded-full"></div>
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-white rounded-full"></div>
                 <span className="font-medium">Custom Models</span>
               </div>
               <div className="flex items-center space-x-1.5 sm:space-x-2">
-                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-yellow-300 rounded-full"></div>
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-[#F8F8F8] rounded-full"></div>
                 <span className="font-medium">High Quality</span>
               </div>
             </div>
@@ -557,7 +557,7 @@ export default function TrainLoRAPage() {
         {/* Progress Line */}
         <div className="absolute top-5 xs:top-6 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700" style={{ width: `calc(100% - 64px)`, left: '32px' }}>
           <div 
-            className="h-full bg-blue-600 transition-all duration-500"
+            className="h-full bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] transition-all duration-500"
             style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
           ></div>
         </div>
@@ -581,9 +581,9 @@ export default function TrainLoRAPage() {
                     w-10 h-10 xs:w-12 xs:h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 transform hover:scale-110 active:scale-95
                     ${
                       isActive
-                        ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/50"
+                        ? "bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] border-[#5DC3F8] text-white shadow-lg shadow-[#5DC3F8]/50"
                         : isCompleted
-                        ? "bg-green-600 border-green-600 text-white cursor-pointer hover:shadow-lg"
+                        ? "bg-[#5DC3F8] border-[#5DC3F8] text-white cursor-pointer hover:shadow-lg"
                         : "border-gray-300 text-gray-400 dark:border-gray-600"
                     }
                     ${step.id > currentStep + 1 ? "opacity-50 cursor-not-allowed" : ""}
@@ -597,7 +597,7 @@ export default function TrainLoRAPage() {
                 </button>
                 <span
                   className={`text-[10px] xs:text-xs sm:text-sm font-medium transition-colors text-center max-w-[80px] xs:max-w-none ${
-                    isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
+                    isActive ? "text-[#5DC3F8]" : "text-black dark:text-white"
                   }`}
                 >
                   {step.name}
@@ -609,13 +609,13 @@ export default function TrainLoRAPage() {
       </div>
 
       {/* Step Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg p-4 xs:p-5 sm:p-6 md:p-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg border-2 border-[#5DC3F8]/30 p-4 xs:p-5 sm:p-6 md:p-8">
         {currentStep === 1 && (
           <div className="space-y-4 sm:space-y-6 md:space-y-8">
             <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3">
-              <h2 className="text-lg xs:text-xl sm:text-2xl font-semibold">Configure Training</h2>
-              <div className="flex items-center gap-1.5 sm:gap-2 text-xs xs:text-sm text-gray-500">
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <h2 className="text-lg xs:text-xl sm:text-2xl font-semibold text-black dark:text-white">Configure Training</h2>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs xs:text-sm text-black dark:text-white">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5DC3F8]" />
                 <span>Est. 2-4 hours</span>
               </div>
             </div>
@@ -1290,11 +1290,11 @@ export default function TrainLoRAPage() {
         )}
 
         {/* Navigation Buttons */}
-        <div className="flex flex-col xs:flex-row justify-between gap-3 pt-6 sm:pt-7 md:pt-8 border-t border-gray-200 dark:border-gray-700 mt-6 sm:mt-7 md:mt-8">
+        <div className="flex flex-col xs:flex-row justify-between gap-3 pt-6 sm:pt-7 md:pt-8 border-t-2 border-[#5DC3F8]/20 mt-6 sm:mt-7 md:mt-8">
           {currentStep > 1 && (
             <button
               onClick={() => setCurrentStep(currentStep - 1)}
-              className="flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 transition-all font-medium text-xs xs:text-sm sm:text-base active:scale-95"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 border-2 border-[#5DC3F8]/30 text-black dark:text-white rounded-lg hover:bg-[#5DC3F8]/10 hover:border-[#5DC3F8] transition-all font-medium text-xs xs:text-sm sm:text-base active:scale-95"
             >
               <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-90" />
               Previous
@@ -1309,7 +1309,7 @@ export default function TrainLoRAPage() {
                 }
                 setCurrentStep(currentStep + 1);
               }}
-              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all hover:shadow-lg font-medium text-xs xs:text-sm sm:text-base active:scale-95"
+              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-lg hover:shadow-xl hover:shadow-[#5DC3F8]/40 transition-all font-medium text-xs xs:text-sm sm:text-base active:scale-95"
             >
               Next
               <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 -rotate-90" />
@@ -1318,7 +1318,7 @@ export default function TrainLoRAPage() {
             <button
               onClick={handleStartTraining}
               disabled={createTrainingJobMutation.isPending || uploadProgress.isUploading}
-              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-6 xs:px-7 sm:px-8 py-2.5 xs:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:shadow-lg hover:shadow-green-500/50 font-medium text-sm xs:text-base sm:text-lg disabled:hover:shadow-none active:scale-95"
+              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-6 xs:px-7 sm:px-8 py-2.5 xs:py-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-lg hover:shadow-xl hover:shadow-[#5DC3F8]/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm xs:text-base sm:text-lg disabled:hover:shadow-none active:scale-95"
             >
               {createTrainingJobMutation.isPending || uploadProgress.isUploading ? (
                 <>

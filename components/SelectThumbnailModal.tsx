@@ -103,22 +103,22 @@ export default function SelectThumbnailModal({
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-700">
+    <div className="fixed inset-0 bg-modal-overlay-bg backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-modal-bg rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-modal-border">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-modal-border">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-2xl font-bold text-modal-foreground">
               Select Thumbnail
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-sm text-header-muted mt-1">
               Choose from images generated with{" "}
               <span className="font-semibold">{influencerName}</span>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-header-muted hover:text-modal-foreground transition-colors"
             disabled={saving}
           >
             <X className="w-6 h-6" />
@@ -129,17 +129,17 @@ export default function SelectThumbnailModal({
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Loader2 className="w-12 h-12 animate-spin text-purple-500" />
-              <p className="text-gray-600 dark:text-gray-400">
+              <Loader2 className="w-12 h-12 animate-spin text-[#EC67A1]" />
+              <p className="text-header-muted">
                 Loading your generated images...
               </p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                <ImageIcon className="w-8 h-8 text-gray-400" />
+              <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-header-muted" />
               </div>
-              <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
+              <p className="text-header-muted text-center max-w-md">
                 {error}
               </p>
             </div>
@@ -151,8 +151,8 @@ export default function SelectThumbnailModal({
                   onClick={() => setSelectedImageUrl(image.url)}
                   className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
                     selectedImageUrl === image.url
-                      ? "border-purple-500 ring-4 ring-purple-500/30"
-                      : "border-gray-200 dark:border-gray-700 hover:border-purple-300"
+                      ? "border-[#EC67A1] ring-4 ring-[#EC67A1]/30"
+                      : "border-modal-border hover:border-[#5DC3F8]"
                   }`}
                 >
                   {image.url ? (
@@ -163,16 +163,16 @@ export default function SelectThumbnailModal({
                         className="w-full h-full object-cover"
                       />
                       {selectedImageUrl === image.url && (
-                        <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-[#EC67A1]/20 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-[#EC67A1] flex items-center justify-center">
                             <Check className="w-8 h-8 text-white" />
                           </div>
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-gray-400" />
+                    <div className="w-full h-full bg-sidebar-accent flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-header-muted" />
                     </div>
                   )}
                 </button>
@@ -182,8 +182,8 @@ export default function SelectThumbnailModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="flex items-center justify-between p-6 border-t border-modal-border bg-modal-section-bg">
+          <p className="text-sm text-header-muted">
             {selectedImageUrl
               ? "Click 'Set as Thumbnail' to confirm"
               : "Click an image to select it"}
@@ -192,14 +192,14 @@ export default function SelectThumbnailModal({
             <button
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-modal-foreground hover:bg-modal-hover-bg rounded-lg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSelectImage}
               disabled={!selectedImageUrl || saving}
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="px-6 py-2 bg-gradient-to-r from-[#9333ea] to-[#EC67A1] text-white rounded-lg hover:from-[#7e22ce] hover:to-[#E1518E] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {saving ? (
                 <>

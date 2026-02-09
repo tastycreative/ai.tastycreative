@@ -740,7 +740,7 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-brand-blue)]"></div>
       </div>
     );
   }
@@ -750,12 +750,12 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
       {/* Header */}
       <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
         <div className="flex items-center gap-2 sm:gap-4">
-          <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+          <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--color-brand-blue)]" />
           <div>
-            <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-lg sm:text-2xl font-bold text-foreground">
               Week of {weekStartFormatted}
             </h2>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               {weekStartFormatted} - {weekEndFormatted}
             </p>
           </div>
@@ -765,7 +765,7 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
             <>
               <button
                 onClick={() => setSelectionMode(true)}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-[var(--color-brand-mid-pink)] hover:bg-[var(--color-brand-mid-pink)]/10 rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
               >
                 <CheckSquare className="w-4 h-4" />
                 Select
@@ -785,14 +785,14 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
               <button
                 onClick={handleBulkDelete}
                 disabled={selectedSlotIds.size === 0}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-muted disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
               <button
                 onClick={handleCancelSelection}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors active:scale-95"
               >
                 Cancel
               </button>
@@ -832,7 +832,7 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
               <div
                 key={index}
                 className={`p-2 sm:p-3 text-center ${
-                  index < 6 ? "border-r border-gray-200 dark:border-gray-700" : ""
+                  index < 6 ? "border-r border-border" : ""
                 } ${isToday ? "bg-blue-100 dark:bg-blue-900/30" : ""}`}
               >
                 <div className="text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-400">

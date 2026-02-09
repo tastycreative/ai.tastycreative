@@ -271,18 +271,18 @@ export default function CommentsModal({
           className="w-8 h-8 rounded-full object-cover flex-shrink-0"
         />
         <div className="flex-1">
-          <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 py-2">
+          <div className="bg-muted rounded-2xl px-4 py-2">
             <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-sm text-gray-900 dark:text-white">
+              <h4 className="font-semibold text-sm text-foreground">
                 {getDisplayName(comment)}
               </h4>
               {getDisplayUsername(comment) && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {getDisplayUsername(comment)}
                 </span>
               )}
             </div>
-            <p className="text-gray-900 dark:text-white text-sm mt-1">
+            <p className="text-foreground text-sm mt-1">
               {comment.content}
             </p>
           </div>
@@ -293,7 +293,7 @@ export default function CommentsModal({
               className={`text-xs font-medium transition-colors ${
                 comment.liked
                   ? 'text-red-500'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
+                  : 'text-header-muted hover:text-red-500'
               }`}
             >
               {comment.liked ? 'Liked' : 'Like'} {comment.likeCount > 0 && `(${comment.likeCount})`}
@@ -304,12 +304,12 @@ export default function CommentsModal({
                   setReplyingTo(comment.id);
                   setCommentText('');
                 }}
-                className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-purple-500 transition-colors"
+                className="text-xs font-medium text-header-muted hover:text-[#EC67A1] transition-colors"
               >
                 Reply
               </button>
             )}
-            <span className="text-xs text-gray-500 dark:text-gray-500">
+            <span className="text-xs text-header-muted">
               {new Date(comment.createdAt).toLocaleDateString()}
             </span>
           </div>
@@ -326,8 +326,8 @@ export default function CommentsModal({
   );
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row">
         {/* Left Side - Post Image/Video */}
         <div className="md:w-1/2 bg-black flex items-center justify-center">
           <ImageCarousel
@@ -343,18 +343,18 @@ export default function CommentsModal({
         {/* Right Side - Comments */}
         <div className="md:w-1/2 flex flex-col max-h-[90vh]">
           {/* Header */}
-          <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between flex-shrink-0">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Comments</h2>
+          <div className="p-6 border-b border-modal-border flex items-center justify-between flex-shrink-0">
+            <h2 className="text-xl font-bold text-modal-foreground">Comments</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              className="p-2 hover:bg-modal-hover-bg rounded-full transition-colors"
             >
-              <X className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+              <X className="w-6 h-6 text-header-muted" />
             </button>
           </div>
 
           {/* Post Info */}
-          <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+          <div className="p-6 border-b border-modal-border flex-shrink-0">
             <div className="flex items-center gap-3 mb-3">
               <img
                 src={post.user.imageUrl || '/default-avatar.png'}
@@ -362,46 +362,46 @@ export default function CommentsModal({
                 className="w-10 h-10 rounded-full object-cover"
               />
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">
+                <h3 className="font-semibold text-modal-foreground">
                   {post.user.firstName && post.user.lastName
                     ? `${post.user.firstName} ${post.user.lastName}`
                     : post.user.username || 'Unknown User'}
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-header-muted">
                   {new Date(post.createdAt).toLocaleDateString()}
                 </p>
               </div>
             </div>
-            <p className="text-gray-900 dark:text-white">{post.caption}</p>
+            <p className="text-modal-foreground">{post.caption}</p>
           </div>
 
           {/* Comments List */}
           <div className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
+                <Loader2 className="w-6 h-6 text-[#EC67A1] animate-spin" />
               </div>
             ) : comments.length > 0 ? (
               <div>
                 {comments.map(comment => renderComment(comment))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-8 text-header-muted">
                 No comments yet. Be the first to comment!
               </div>
             )}
           </div>
 
           {/* Comment Input */}
-          <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex-shrink-0">
+          <div className="p-6 border-t border-modal-border flex-shrink-0">
             {replyingTo && (
-              <div className="mb-3 flex items-center justify-between bg-purple-50 dark:bg-purple-950/20 px-3 py-2 rounded-lg">
-                <span className="text-sm text-purple-600 dark:text-purple-400">
+              <div className="mb-3 flex items-center justify-between bg-dropdown-selected-bg px-3 py-2 rounded-lg">
+                <span className="text-sm text-dropdown-selected-text">
                   Replying to comment
                 </span>
                 <button
                   onClick={() => setReplyingTo(null)}
-                  className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                  className="text-dropdown-selected-text hover:text-modal-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -419,13 +419,13 @@ export default function CommentsModal({
                   }
                 }}
                 placeholder={replyingTo ? 'Write a reply...' : 'Write a comment...'}
-                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500"
+                className="flex-1 px-4 py-3 bg-modal-input-bg border border-modal-input-border rounded-xl text-modal-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1]/30 focus:border-[#EC67A1]"
                 disabled={submitting}
               />
               <button
                 onClick={handleAddComment}
                 disabled={submitting || !commentText.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-blue)] text-white rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />

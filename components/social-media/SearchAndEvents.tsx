@@ -212,9 +212,9 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
   return (
     <div className="sticky top-4 space-y-6">
       {/* Search Section */}
-      <div className="bg-gradient-to-br from-white via-purple-50/30 to-pink-50/30 dark:from-gray-900 dark:via-purple-950/20 dark:to-pink-950/20 rounded-2xl shadow-xl border-2 border-purple-200/50 dark:border-purple-800/50 overflow-hidden backdrop-blur-sm">
-        <div className="p-6 border-b border-purple-100/50 dark:border-purple-900/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-950/30 dark:to-pink-950/30">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+      <div className="bg-card rounded-2xl shadow-xl border-2 border-[var(--color-brand-mid-pink)]/20 overflow-hidden backdrop-blur-sm">
+        <div className="p-6 border-b border-border bg-muted/30">
+          <h2 className="text-2xl font-bold text-foreground">
             Search & Discover
           </h2>
         </div>
@@ -222,13 +222,13 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
         <div className="p-6">
           {/* Search Input */}
           <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-500 dark:text-purple-400 transition-transform group-focus-within:scale-110" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-brand-mid-pink)] transition-transform group-focus-within:scale-110" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search Instagram profiles..."
-              className="w-full pl-12 pr-12 py-4 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-800 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:border-purple-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-inner"
+              className="w-full pl-12 pr-12 py-4 bg-background border-2 border-border rounded-xl text-foreground placeholder-muted-foreground focus:border-[var(--color-brand-mid-pink)] focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]/20 transition-all shadow-inner"
             />
             {searchQuery && (
               <button
@@ -236,9 +236,9 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
                   setSearchQuery('');
                   setSearchResults([]);
                 }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-full transition-all hover:scale-110"
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted rounded-full transition-all hover:scale-110"
               >
-                <X className="w-4 h-4 text-gray-500" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             )}
           </div>
@@ -248,38 +248,38 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
             <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
               {isSearching ? (
                 <div className="text-center py-8">
-                  <div className="inline-block w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Searching...</p>
+                  <div className="inline-block w-8 h-8 border-3 border-[var(--color-brand-mid-pink)] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm text-muted-foreground mt-2">Searching...</p>
                 </div>
               ) : searchResults.length > 0 ? (
                 searchResults.map((result) => (
                   <button
                     key={`${result.type}-${result.id}`}
                     onClick={() => handleSearchResultClick(result)}
-                    className="w-full p-4 flex items-center gap-3 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 dark:hover:from-purple-900/30 dark:hover:to-pink-900/30 rounded-xl transition-all text-left hover:scale-[1.02] border-2 border-transparent hover:border-purple-200 dark:hover:border-purple-800"
+                    className="w-full p-4 flex items-center gap-3 hover:bg-muted rounded-xl transition-all text-left hover:scale-[1.02] border-2 border-transparent hover:border-[var(--color-brand-mid-pink)]/30"
                   >
                     {result.imageUrl ? (
                       <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full p-[2px]">
-                          <div className="w-full h-full rounded-full bg-white dark:bg-gray-900"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-light-pink)] rounded-full p-[2px]">
+                          <div className="w-full h-full rounded-full bg-background"></div>
                         </div>
                         <img
                           src={result.imageUrl}
                           alt={result.title}
-                          className="relative w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-gray-900"
+                          className="relative w-12 h-12 rounded-full object-cover ring-2 ring-background"
                         />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-light-pink)] flex items-center justify-center flex-shrink-0 shadow-lg">
                         <User className="w-6 h-6 text-white" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 dark:text-white truncate">
+                      <h4 className="font-bold text-foreground truncate">
                         {result.title}
                       </h4>
                       {result.subtitle && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                           {result.subtitle}
                         </p>
                       )}
@@ -288,10 +288,10 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
                 ))
               ) : (
                 <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Search className="w-8 h-8 text-purple-500 dark:text-purple-400" />
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-8 h-8 text-[var(--color-brand-mid-pink)]" />
                   </div>
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">No results found</p>
+                  <p className="text-muted-foreground font-medium">No results found</p>
                 </div>
               )}
             </div>
@@ -300,18 +300,18 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
       </div>
 
       {/* Scheduled Events Section */}
-      <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20 rounded-2xl shadow-xl border-2 border-blue-200/50 dark:border-blue-800/50 overflow-hidden backdrop-blur-sm">
-        <div className="p-6 border-b border-blue-100/50 dark:border-blue-900/50 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30">
+      <div className="bg-card rounded-2xl shadow-xl border-2 border-[var(--color-brand-blue)]/20 overflow-hidden backdrop-blur-sm">
+        <div className="p-6 border-b border-border bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+              <Calendar className="w-6 h-6 text-[var(--color-brand-blue)]" />
+              <h2 className="text-2xl font-bold text-foreground">
                 Upcoming Posts
               </h2>
             </div>
             <button
               onClick={() => router.push('/workspace/instagram-staging?tab=feed-posts')}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-bold"
+              className="text-sm text-[var(--color-brand-blue)] hover:underline font-bold"
             >
               View All
             </button>
@@ -333,15 +333,15 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
                 <div key={event.id} className="relative">
                   {/* Timeline connector */}
                   {index < scheduledEvents.length - 1 && (
-                    <div className="absolute left-6 top-20 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 to-purple-300 dark:from-blue-700 dark:to-purple-700"></div>
+                    <div className="absolute left-6 top-20 bottom-0 w-0.5 bg-gradient-to-b from-[var(--color-brand-blue)]/30 to-[var(--color-brand-mid-pink)]/30"></div>
                   )}
                   
                   <button
                     onClick={() => handleEventClick(event)}
-                    className="relative w-full p-4 flex items-center gap-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/30 dark:hover:to-purple-900/30 rounded-xl transition-all text-left group hover:scale-[1.02] border-2 border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                    className="relative w-full p-4 flex items-center gap-4 hover:bg-muted rounded-xl transition-all text-left group hover:scale-[1.02] border-2 border-transparent hover:border-[var(--color-brand-blue)]/30"
                   >
                     {/* Timeline dot */}
-                    <div className="absolute left-4 w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full ring-4 ring-white dark:ring-gray-900 group-hover:scale-125 transition-transform shadow-lg"></div>
+                    <div className="absolute left-4 w-4 h-4 bg-gradient-to-br from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] rounded-full ring-4 ring-background group-hover:scale-125 transition-transform shadow-lg"></div>
                     
                     {/* Thumbnail or Icon */}
                     {event.thumbnail ? (
@@ -351,7 +351,7 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
                         className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow-lg ml-8"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg ml-8">
+                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] flex items-center justify-center flex-shrink-0 shadow-lg ml-8">
                         <Calendar className="w-8 h-8 text-white" />
                       </div>
                     )}
@@ -361,21 +361,21 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
                       <div className="flex items-center gap-2 mb-2">
                         <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase shadow-sm ${
                           event.type === 'reel' 
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                            ? 'bg-[var(--color-brand-mid-pink)] text-white' 
                             : event.type === 'story'
-                            ? 'bg-gradient-to-r from-pink-500 to-orange-500 text-white'
-                            : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                            ? 'bg-[var(--color-brand-light-pink)] text-white'
+                            : 'bg-[var(--color-brand-blue)] text-white'
                         }`}>
                           {event.type}
                         </span>
-                        <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-bold">
+                        <span className="text-xs px-2 py-1 bg-[var(--color-brand-blue)]/10 text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)]/30 rounded-full font-bold">
                           {formatTimeUntil(event.scheduledDate)}
                         </span>
                       </div>
-                      <h4 className="font-bold text-gray-900 dark:text-white truncate mb-1">
+                      <h4 className="font-bold text-foreground truncate mb-1">
                         {event.title}
                       </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                      <p className="text-xs text-muted-foreground font-medium">
                         📅 {event.scheduledDate.toLocaleDateString()} • 🕐 {event.scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -386,17 +386,17 @@ export default function SearchAndEvents({ selectedProfileId, onOpenScheduledPost
           ) : (
             <div className="text-center py-12">
               <div className="relative inline-block mb-4">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                <div className="relative bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 p-6 rounded-full">
-                  <Calendar className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+                <div className="absolute inset-0 bg-[var(--color-brand-blue)] rounded-full blur-xl opacity-20 animate-pulse"></div>
+                <div className="relative bg-muted p-6 rounded-full">
+                  <Calendar className="w-12 h-12 text-[var(--color-brand-blue)]" />
                 </div>
               </div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 font-medium">
+              <p className="text-muted-foreground text-sm mb-4 font-medium">
                 No upcoming posts scheduled
               </p>
               <button
                 onClick={() => router.push('/workspace/instagram-staging?tab=feed-posts')}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 font-bold"
+                className="px-6 py-2.5 bg-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue)]/90 text-white rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 font-bold"
               >
                 Schedule a Post
               </button>
