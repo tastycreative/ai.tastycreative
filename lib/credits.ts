@@ -54,12 +54,15 @@ export async function deductCredits(
       };
     }
 
-    // Deduct credits
+    // Deduct credits and track usage
     const updatedOrg = await prisma.organization.update({
       where: { id: organizationId },
       data: {
         availableCredits: {
           decrement: featurePricing.credits,
+        },
+        creditsUsedThisMonth: {
+          increment: featurePricing.credits,
         },
       },
       select: { availableCredits: true },

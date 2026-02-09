@@ -10,6 +10,8 @@ interface InviteMembersModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  currentMembers?: number;
+  maxMembers?: number;
 }
 
 export function InviteMembersModal({
@@ -18,6 +20,8 @@ export function InviteMembersModal({
   isOpen,
   onClose,
   onSuccess,
+  currentMembers,
+  maxMembers,
 }: InviteMembersModalProps) {
   const [emailInput, setEmailInput] = useState("");
   const [role, setRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
@@ -28,6 +32,7 @@ export function InviteMembersModal({
     skipped: string[];
   } | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [limitError, setLimitError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -63,6 +68,7 @@ export function InviteMembersModal({
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    setLimitError(null);
 
     try {
       // Parse emails from textarea (comma, newline, or space separated)
@@ -75,6 +81,20 @@ export function InviteMembersModal({
         alert("Please enter at least one email address");
         setLoading(false);
         return;
+      }
+
+      // Check member limit if provided
+      if (currentMembers !== undefined && maxMembers !== undefined) {
+        const availableSlots = maxMembers - currentMembers;
+        if (emails.length > availableSlots) {
+          setLimitError(
+            `You can only invite ${availableSlots} more member${availableSlots !== 1 ? 's' : ''}. ` +
+            `Your plan allows ${maxMembers} members and you currently have ${currentMembers}. ` +
+            `Please reduce the number of invites or upgrade your plan.`
+          );
+          setLoading(false);
+          return;
+        }
       }
 
       const response = await fetch(`/api/tenant/${organizationSlug}/invites`, {
@@ -224,13 +244,49 @@ export function InviteMembersModal({
           ) : (
             // Invite Form
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Member Limit Error */}
+              {limitError && (
+                <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-rose-200 mb-1">
+                        Too Many Invites
+                      </h4>
+                      <p className="text-sm text-rose-300">
+                        {limitError}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLimitError(null)}
+                      className="text-rose-400 hover:text-rose-300 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Member Limit Info */}
+              {currentMembers !== undefined && maxMembers !== undefined && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <p className="text-sm text-blue-200">
+                    <span className="font-semibold">Available slots:</span> {maxMembers - currentMembers} of {maxMembers} members
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Email Addresses
                 </label>
                 <textarea
                   value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
+                  onChange={(e) => {
+                    setEmailInput(e.target.value);
+                    setLimitError(null); // Clear error when user starts typing
+                  }}
                   placeholder="Enter email addresses (comma, space, or new line separated)&#10;&#10;Example:&#10;user1@example.com&#10;user2@example.com, user3@example.com"
                   className="w-full h-32 px-4 py-3 bg-accent border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:border-transparent resize-none transition-all"
                   required
