@@ -142,11 +142,11 @@ export async function POST(req: NextRequest) {
       });
 
       // Create transaction record
-      await prisma.transaction.create({
+      await prisma.billingTransaction.create({
         data: {
           organizationId: currentOrg.id,
           userId: user.id,
-          type: 'SUBSCRIPTION_CANCELLATION',
+          type: 'SUBSCRIPTION_REFUND',
           status: 'COMPLETED',
           amount: 0,
           currency: 'usd',
@@ -175,11 +175,11 @@ export async function POST(req: NextRequest) {
       });
 
       // Create transaction record
-      await prisma.transaction.create({
+      await prisma.billingTransaction.create({
         data: {
           organizationId: currentOrg.id,
           userId: user.id,
-          type: 'SUBSCRIPTION_UPDATE',
+          type: 'PLAN_CHANGE',
           status: 'COMPLETED',
           amount: 0,
           currency: 'usd',
