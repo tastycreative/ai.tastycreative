@@ -113,6 +113,12 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    console.log('🔍 DEBUG: Found member slot subscriptions:', memberSlotSubscriptions.length);
+    memberSlotSubscriptions.forEach((sub, index) => {
+      const memberSlotItem = sub.items.data.find(item => item.price.id === memberSlotPriceId);
+      console.log(`   Subscription ${index + 1}: ID=${sub.id}, Quantity=${memberSlotItem?.quantity || 0}`);
+    });
+
     if (memberSlotSubscriptions.length === 0) {
       return NextResponse.json(
         { error: 'No active member slot subscription found' },
@@ -120,9 +126,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // For simplicity, we'll cancel/update the first matching subscription
-    // In a production environment, you might need more sophisticated logic
-    const subscriptionToUpdate = memberSlotSubscriptions[0];
+    // CRITICAL: Handle multiple subscriptions properly
+    // Calculate total quantity across ALL subscriptions
+    let totalStripeQuantity = 0;
+    memberSlotSubscriptions.forEach(sub => {
+      const item = sub.items.data.find(i => i.price.id === memberSlotPriceId);
+      totalStripeQuantity += item?.quantity || 0;
+    });
+
+
+    // For removal, we'll update/cancel subscriptions starting from the most recent
+    const subscriptionToUpdate = memberSlotSubscriptions[memberSlotSubscriptions.length - 1];
 
     // Get the current quantity of member slots in the subscription
     const memberSlotItem = subscriptionToUpdate.items.data.find(
@@ -172,17 +186,20 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Update quantity in the subscription
+      console.log(`🔄 Updating Stripe subscription item ${memberSlotItem.id} from ${currentQuantity} to ${newQuantity}`);
       await stripe.subscriptionItems.update(memberSlotItem.id, {
         quantity: newQuantity,
       });
 
       // Update organization - use newAdditionalSlots (calculated from DB) not newQuantity (from Stripe)
-      await prisma.organization.update({
+      console.log(`💾 Updating database: additionalMemberSlots from ${currentAdditionalSlots} to ${newAdditionalSlots}`);
+      const updatedOrg = await prisma.organization.update({
         where: { id: currentOrg.id },
         data: {
           additionalMemberSlots: newAdditionalSlots,
         },
       });
+      console.log(`✅ Database updated successfully. New value: ${updatedOrg.additionalMemberSlots}`);
 
       // Create transaction record
       await prisma.billingTransaction.create({

@@ -123,6 +123,80 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // CRITICAL FIX: Check for existing member slot subscription
+    // If one exists, update its quantity instead of creating a new subscription
+    const existingSubscriptions = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: 'active',
+      limit: 100,
+    });
+
+    const existingMemberSlotSub = existingSubscriptions.data.find((sub) =>
+      sub.items.data.some((item) => item.price.id === memberSlotPrice.id)
+    );
+
+    if (existingMemberSlotSub) {
+      // Found existing subscription - update quantity instead of creating new one
+      console.log('📝 Found existing member slot subscription, updating quantity...');
+      const memberSlotItem = existingMemberSlotSub.items.data.find(
+        (item) => item.price.id === memberSlotPrice.id
+      );
+
+      if (memberSlotItem) {
+        const currentQuantity = memberSlotItem.quantity || 0;
+        const newQuantity = currentQuantity + numberOfSlots;
+
+        console.log(`   Current quantity: ${currentQuantity}`);
+        console.log(`   Adding: ${numberOfSlots}`);
+        console.log(`   New quantity: ${newQuantity}`);
+
+        // Update the subscription item quantity
+        await stripe.subscriptionItems.update(memberSlotItem.id, {
+          quantity: newQuantity,
+        });
+
+        // Update organization database
+        const currentAdditionalSlots = currentOrg.additionalMemberSlots ?? 0;
+        const newTotalSlots = currentAdditionalSlots + numberOfSlots;
+
+        await prisma.organization.update({
+          where: { id: currentOrg.id },
+          data: {
+            additionalMemberSlots: newTotalSlots,
+          },
+        });
+
+        // Create transaction record
+        await prisma.billingTransaction.create({
+          data: {
+            organizationId: currentOrg.id,
+            userId: user.id,
+            type: 'SUBSCRIPTION_PAYMENT',
+            status: 'COMPLETED',
+            amount: pricePerSlot * numberOfSlots,
+            currency: 'usd',
+            description: `Added ${numberOfSlots} member slot${numberOfSlots > 1 ? 's' : ''} (${currentQuantity} → ${newQuantity} in Stripe)`,
+            planName: 'Member Slot Add-on',
+            metadata: {
+              subscriptionId: existingMemberSlotSub.id,
+              numberOfSlots: numberOfSlots,
+              pricePerSlot: pricePerSlot,
+              type: 'member_slot_addon_update',
+            },
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: `Successfully added ${numberOfSlots} member slot${numberOfSlots > 1 ? 's' : ''}`,
+          url: null, // No checkout needed, updated existing subscription
+        });
+      }
+    }
+
+    // No existing subscription found - create new checkout session
+    console.log('🆕 No existing member slot subscription found, creating new checkout session...');
+
     // Create Stripe Checkout Session for subscription add-on
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
