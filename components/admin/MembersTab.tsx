@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle } from 'lucide-react';
+import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { InviteMembersModal } from '../InviteMembersModal';
 import { useOrganization } from '@/lib/hooks/useOrganization';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
@@ -40,6 +40,9 @@ export default function MembersTab() {
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [showLimitError, setShowLimitError] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [showBulkRemoveModal, setShowBulkRemoveModal] = useState(false);
+  const [isBulkRemoving, setIsBulkRemoving] = useState(false);
 
   useEffect(() => {
     if (tenant && currentOrganization) {
@@ -106,6 +109,60 @@ export default function MembersTab() {
         newSet.delete(memberId);
         return newSet;
       });
+    }
+  };
+
+  const handleBulkRemove = async () => {
+    if (selectedMembers.size === 0) return;
+
+    setIsBulkRemoving(true);
+    try {
+      const removePromises = Array.from(selectedMembers).map(memberId =>
+        fetch(`/api/tenant/${tenant}/members?memberId=${memberId}`, {
+          method: 'DELETE',
+        })
+      );
+
+      const results = await Promise.allSettled(removePromises);
+      const failedRemovals = results.filter(result => result.status === 'rejected').length;
+
+      if (failedRemovals > 0) {
+        alert(`Failed to remove ${failedRemovals} member(s). Please try again.`);
+      } else {
+        alert(`Successfully removed ${selectedMembers.size} member(s) from the organization.`);
+      }
+
+      // Refresh the member list
+      await fetchUsers();
+      setSelectedMembers(new Set());
+      setShowBulkRemoveModal(false);
+    } catch (error) {
+      console.error('Error bulk removing members:', error);
+      alert('Failed to remove members. Please try again.');
+    } finally {
+      setIsBulkRemoving(false);
+    }
+  };
+
+  const handleSelectMember = (memberId: string, checked: boolean) => {
+    setSelectedMembers(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(memberId);
+      } else {
+        newSet.delete(memberId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // Only select members that are not owners
+      const selectableMembers = filteredUsers.filter(user => user.role !== 'OWNER');
+      setSelectedMembers(new Set(selectableMembers.map(user => user.id)));
+    } else {
+      setSelectedMembers(new Set());
     }
   };
 
@@ -214,6 +271,17 @@ export default function MembersTab() {
         <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Organization Members</h3>
         
         <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+          {/* Bulk Remove Button */}
+          {selectedMembers.size > 0 && (
+            <button
+              onClick={() => setShowBulkRemoveModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-600/30 text-xs xs:text-sm font-medium active:scale-95"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Remove ({selectedMembers.size})</span>
+            </button>
+          )}
+
           {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 xs:w-4 xs:h-4" />
@@ -295,9 +363,21 @@ export default function MembersTab() {
       {/* Users Table */}
       <div className="bg-card/50 backdrop-blur-sm border border-border rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[850px]">
             <thead className="bg-gradient-to-r from-[#EC67A1]/5 to-[#5DC3F8]/5 border-b border-border">
               <tr>
+                <th className="px-2 xs:px-3 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider w-12">
+                  <button
+                    onClick={() => handleSelectAll(selectedMembers.size !== filteredUsers.filter(u => u.role !== 'OWNER').length)}
+                    className="text-muted-foreground hover:text-[#EC67A1] transition-colors"
+                  >
+                    {selectedMembers.size === filteredUsers.filter(u => u.role !== 'OWNER').length && filteredUsers.filter(u => u.role !== 'OWNER').length > 0 ? (
+                      <CheckSquare className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   User
                 </th>
@@ -328,6 +408,23 @@ export default function MembersTab() {
                       : 'bg-accent/30'
                   } hover:bg-[#EC67A1]/5 transition-colors duration-200`}
                 >
+                  {/* Select Checkbox */}
+                  <td className="px-2 xs:px-3 py-2.5 xs:py-3 sm:py-4 w-12">
+                    <button
+                      onClick={() => handleSelectMember(user.id, !selectedMembers.has(user.id))}
+                      disabled={user.role === 'OWNER'}
+                      className={`text-muted-foreground hover:text-[#EC67A1] transition-colors ${
+                        user.role === 'OWNER' ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {selectedMembers.has(user.id) ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
+
                   {/* User Info */}
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <div className="flex items-center space-x-2 xs:space-x-3">
@@ -466,6 +563,80 @@ export default function MembersTab() {
           currentMembers={billingInfo?.usage.members.current}
           maxMembers={billingInfo?.usage.members.max}
         />
+      )}
+
+      {/* Bulk Remove Confirmation Modal */}
+      {showBulkRemoveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBulkRemoveModal(false)} />
+
+          {/* Modal */}
+          <div className="relative bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground">Remove Members</h2>
+              <button
+                onClick={() => setShowBulkRemoveModal(false)}
+                className="p-1.5 hover:bg-accent rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+              {/* Warning */}
+              <div className="flex items-start gap-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl mb-4">
+                <AlertCircle className="w-6 h-6 text-red-400 shrink-0" />
+                <div>
+                  <h3 className="font-medium text-red-600 dark:text-red-400">This action cannot be undone</h3>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/70 mt-1">
+                    You are about to remove <span className="font-semibold">{selectedMembers.size}</span> member{selectedMembers.size !== 1 ? 's' : ''} from the organization.
+                    They will lose access to all organization resources and data.
+                  </p>
+                </div>
+              </div>
+
+              {/* Selected Members List */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">Members to be removed:</h4>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {filteredUsers
+                    .filter(user => selectedMembers.has(user.id))
+                    .map(user => (
+                      <div key={user.id} className="text-sm text-muted-foreground bg-accent/50 rounded px-2 py-1">
+                        {user.firstName && user.lastName
+                          ? `${user.firstName} ${user.lastName}`
+                          : user.firstName || user.lastName || 'Anonymous User'}
+                        {user.email && ` (${user.email})`}
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBulkRemoveModal(false)}
+                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 text-foreground rounded-lg transition-colors font-medium"
+                  disabled={isBulkRemoving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkRemove}
+                  disabled={isBulkRemoving}
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBulkRemoving ? 'Removing...' : 'Remove Members'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
