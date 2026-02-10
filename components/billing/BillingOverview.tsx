@@ -89,6 +89,7 @@ export default function BillingOverview({
 
       // Success - refetch billing info to update UI
       await refetch();
+      toast.success(data.message || 'Member slots removed successfully!');
 
       return {
         success: true,

@@ -313,6 +313,14 @@ export function ManageMemberSlotsModal({
                     </div>
                   </div>
 
+                  {/* Refund Info */}
+                  <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-2">💡 About Refunds</p>
+                    <p className="text-xs text-blue-800 dark:text-blue-300">
+                      You will receive a <strong>prorated credit</strong> for unused time, applied to your next invoice. No cash refund will be issued.
+                    </p>
+                  </div>
+
                   {/* After Removal Preview */}
                   <div className="mt-6 p-5 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-xl border border-gray-300 dark:border-gray-600">
                     <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">After removal:</p>
