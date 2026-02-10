@@ -266,7 +266,7 @@ async function handleSubscriptionUpdated(subscription: any) {
       console.log('👥 Member slot subscription update detected - skipping credit logic');
       console.log(`   ⚠️  IMPORTANT: NOT updating additionalMemberSlots in database`);
       console.log(`   Subscription ID: ${subscription.id}`);
-      const memberSlotItem = subscription.items.data.find(item => item.price.id === memberSlotPriceId);
+      const memberSlotItem = subscription.items.data.find((item: any) => item.price.id === memberSlotPriceId);
       console.log(`   Current quantity in Stripe: ${memberSlotItem?.quantity || 0}`);
       // This is a member slot subscription, not a plan subscription
       // No need to update credits or plan info, just return
