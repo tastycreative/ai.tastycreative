@@ -208,8 +208,8 @@ export async function POST(req: NextRequest) {
           quantity: numberOfSlots,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/ai-content-team/admin/members?member_slots_added=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/ai-content-team/admin/members?member_slots_canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/ai-content-team/billing?member_slots_added=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/ai-content-team/billing?canceled=true`,
       metadata: {
         organizationId: currentOrg.id,
         userId: user.id,

@@ -74,6 +74,13 @@ export default function BillingPageClient() {
         // Remove query params but stay on current page
         const currentPath = window.location.pathname;
         router.replace(currentPath);
+      } else if (searchParams.get('member_slots_added')) {
+        toast.success('Member slots added successfully! Your team capacity has been increased.');
+        setHasShownToast(true);
+        refetchBilling(); // Refresh billing info
+        // Remove query params but stay on current page
+        const currentPath = window.location.pathname;
+        router.replace(currentPath);
       } else if (searchParams.get('canceled')) {
         toast.info('Checkout canceled');
         setHasShownToast(true);

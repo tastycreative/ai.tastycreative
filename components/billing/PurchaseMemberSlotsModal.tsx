@@ -11,6 +11,7 @@ interface PurchaseMemberSlotsModalProps {
   pricePerSlot: number;
   currentSlots: number;
   baseLimit: number;
+  purchasing?: boolean;
 }
 
 export function PurchaseMemberSlotsModal({
@@ -20,9 +21,9 @@ export function PurchaseMemberSlotsModal({
   pricePerSlot,
   currentSlots,
   baseLimit,
+  purchasing = false,
 }: PurchaseMemberSlotsModalProps) {
   const [quantity, setQuantity] = useState(1);
-  const [purchasing, setPurchasing] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -56,9 +57,7 @@ export function PurchaseMemberSlotsModal({
   if (!isOpen || !mounted) return null;
 
   const handlePurchase = async () => {
-    setPurchasing(true);
     await onPurchase(quantity);
-    setPurchasing(false);
   };
 
   const totalPrice = pricePerSlot * quantity;

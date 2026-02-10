@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus, Settings } from 'lucide-react';
+import { toast } from 'sonner';
 import { PRICING_PLANS } from '@/lib/pricing-data';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
@@ -45,14 +46,22 @@ export default function BillingOverview({
         throw new Error('Failed to create purchase session');
       }
 
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe Checkout (new subscription)
+        // Keep modal open and show loading state until redirect
+        window.location.href = data.url;
+      } else {
+        // Updated existing subscription, no redirect needed
+        setShowMemberSlotModal(false);
+        setPurchasingSlots(false);
+        toast.success(data.message || 'Member slots added successfully!');
+        refetch(); // Refresh billing info
       }
     } catch (error) {
       console.error('Error purchasing member slots:', error);
-      alert('Failed to start purchase. Please try again.');
-    } finally {
+      toast.error('Failed to start purchase. Please try again.');
       setPurchasingSlots(false);
     }
   };
@@ -495,13 +504,11 @@ export default function BillingOverview({
           <PurchaseMemberSlotsModal
             isOpen={showMemberSlotModal}
             onClose={() => setShowMemberSlotModal(false)}
-            onPurchase={(quantity) => {
-              setShowMemberSlotModal(false);
-              handlePurchaseMemberSlots(quantity);
-            }}
+            onPurchase={handlePurchaseMemberSlots}
             pricePerSlot={billingInfo.usage.members.memberSlotPrice}
             currentSlots={billingInfo.usage.members.additionalSlots}
             baseLimit={billingInfo.usage.members.baseLimit}
+            purchasing={purchasingSlots}
           />
           <ManageMemberSlotsModal
             isOpen={showManageSlotModal}
