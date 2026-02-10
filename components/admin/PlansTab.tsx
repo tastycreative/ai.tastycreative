@@ -229,7 +229,7 @@ export default function PlansTab() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-mid-pink"></div>
         </div>
       </div>
     );
@@ -239,32 +239,32 @@ export default function PlansTab() {
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div>
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Subscription Plans</h3>
-        <p className="text-gray-600 dark:text-gray-400">Manage subscription plans, pricing, and features</p>
+        <h3 className="text-xl font-semibold text-foreground mb-2">Subscription Plans</h3>
+        <p className="text-muted-foreground">Manage subscription plans, pricing, and features</p>
       </div>
 
       {/* Alerts */}
       {error && (
-        <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+        <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg flex items-start gap-3">
           <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">Error</p>
-            <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+            <p className="text-sm font-medium text-foreground">Error</p>
+            <p className="text-sm text-foreground mt-1">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">
+          <button onClick={() => setError(null)} className="text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {success && (
-        <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
+        <div className="mt-4 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 rounded-lg flex items-start gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-green-800 dark:text-green-200">Success</p>
-            <p className="text-sm text-green-700 dark:text-green-300 mt-1">{success}</p>
+            <p className="text-sm font-medium text-foreground">Success</p>
+            <p className="text-sm text-foreground mt-1">{success}</p>
           </div>
-          <button onClick={() => setSuccess(null)} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200">
+          <button onClick={() => setSuccess(null)} className="text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -273,13 +273,13 @@ export default function PlansTab() {
       {/* Search and Actions */}
       <div className="mt-6 flex gap-4 items-center">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search plans..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink placeholder:text-muted-foreground"
           />
         </div>
         <button
@@ -287,7 +287,7 @@ export default function PlansTab() {
             resetForm();
             setShowCreatePlanModal(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors active:scale-95"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white rounded-lg hover:from-brand-dark-pink hover:to-brand-mid-pink transition-all active:scale-95 shadow-lg shadow-brand-mid-pink/25"
         >
           <Plus className="w-5 h-5" />
           <span>Create Plan</span>
@@ -297,41 +297,41 @@ export default function PlansTab() {
       {/* Plans List */}
       <div className="space-y-4 flex-1 overflow-auto min-h-0 mt-4">
         {filteredPlans.map((plan) => (
-          <div key={plan.id} className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-lg p-6 hover:shadow-md transition-shadow">
+          <div key={plan.id} className="bg-card border border-border rounded-lg p-6 hover:shadow-md hover:border-brand-mid-pink/30 transition-all">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.displayName}</h4>
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  <h4 className="text-lg font-semibold text-foreground">{plan.displayName}</h4>
+                  <span className="text-xs px-2 py-1 rounded-full bg-muted border border-border text-muted-foreground">
                     {plan.name}
                   </span>
                   {plan.isActive ? (
-                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" />
+                    <span className="text-xs px-2 py-1 rounded-full bg-green-50/50 dark:bg-green-950/30 border border-green-500/30 text-foreground flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
                       Active
                     </span>
                   ) : (
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                    <span className="text-xs px-2 py-1 rounded-full bg-muted border border-border text-muted-foreground">
                       Inactive
                     </span>
                   )}
                   {!plan.isPublic && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                    <span className="text-xs px-2 py-1 rounded-full bg-orange-50/50 dark:bg-orange-950/30 border border-orange-500/30 text-foreground">
                       Private
                     </span>
                   )}
                 </div>
                 {plan.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{plan.description}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{plan.description}</p>
                 )}
-                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4" />
-                    <span className="font-semibold text-gray-900 dark:text-white">${plan.price}</span>
+                    <DollarSign className="w-4 h-4 text-brand-mid-pink" />
+                    <span className="font-semibold text-foreground">${plan.price}</span>
                     <span>/ {plan.billingInterval.toLowerCase()}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
+                    <Users className="w-4 h-4 text-brand-blue" />
                     <span>{plan.organizationsCount} org{plan.organizationsCount !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
@@ -339,14 +339,14 @@ export default function PlansTab() {
               <div className="flex gap-2">
                 <button
                   onClick={() => openEditModal(plan)}
-                  className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  className="p-2 text-brand-blue hover:bg-brand-blue/10 rounded-lg transition-colors"
                   title="Edit plan"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDeletePlan(plan.id, plan.displayName)}
-                  className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
                   title="Delete plan"
                   disabled={plan.organizationsCount > 0}
                 >
@@ -356,33 +356,33 @@ export default function PlansTab() {
             </div>
 
             {/* Plan Limits */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 border border-border rounded-lg mb-3">
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Members</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{plan.maxMembers}</p>
+                <p className="text-xs text-muted-foreground mb-1">Members</p>
+                <p className="text-sm font-semibold text-foreground">{plan.maxMembers}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Profiles</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{plan.maxProfiles}</p>
+                <p className="text-xs text-muted-foreground mb-1">Profiles</p>
+                <p className="text-sm font-semibold text-foreground">{plan.maxProfiles}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Workspaces</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{plan.maxWorkspaces}</p>
+                <p className="text-xs text-muted-foreground mb-1">Workspaces</p>
+                <p className="text-sm font-semibold text-foreground">{plan.maxWorkspaces}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Storage</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{plan.maxStorageGB} GB</p>
+                <p className="text-xs text-muted-foreground mb-1">Storage</p>
+                <p className="text-sm font-semibold text-foreground">{plan.maxStorageGB} GB</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Monthly Credits</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{plan.monthlyCredits}</p>
+                <p className="text-xs text-muted-foreground mb-1">Monthly Credits</p>
+                <p className="text-sm font-semibold text-foreground">{plan.monthlyCredits}</p>
               </div>
             </div>
 
             {/* Features Summary */}
             {plan.features && Object.keys(plan.features).length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <p className="text-xs font-semibold text-foreground mb-2">
                   Available Features ({Object.entries(plan.features).filter(([_, v]) => v === true).length} enabled):
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -392,9 +392,9 @@ export default function PlansTab() {
                     .map(([key]) => (
                       <span
                         key={key}
-                        className="text-xs px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-1"
+                        className="text-xs px-3 py-1.5 bg-green-50/50 dark:bg-green-950/30 border border-green-500/30 text-foreground rounded-lg flex items-center gap-1"
                       >
-                        ✓ {key.replace('has', '').replace('Tab', '')}
+                        <span className="text-green-600 dark:text-green-400">✓</span> {key.replace('has', '').replace('Tab', '')}
                       </span>
                     ))}
                   {/* Feature Permissions */}
@@ -404,14 +404,14 @@ export default function PlansTab() {
                     .map(([key]) => (
                       <span
                         key={key}
-                        className="text-xs px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 flex items-center gap-1"
+                        className="text-xs px-3 py-1.5 bg-background border border-brand-blue/30 text-foreground rounded-lg flex items-center gap-1"
                       >
-                        ✓ {key.replace('can', '')}
+                        <span className="text-brand-blue">✓</span> {key.replace('can', '')}
                       </span>
                     ))}
                 </div>
                 {Object.entries(plan.features).filter(([key, value]) => key.startsWith('can') && value === true).length > 6 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     +{Object.entries(plan.features).filter(([key, value]) => key.startsWith('can') && value === true).length - 6} more features
                   </p>
                 )}
@@ -432,80 +432,80 @@ export default function PlansTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Plan</h2>
+                <h2 className="text-2xl font-bold text-foreground">Create New Plan</h2>
                 <button
                   onClick={() => {
                     setShowCreatePlanModal(false);
                     resetForm();
                   }}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-semibold text-foreground mb-2">
                       Plan Name (tenant) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '-') })}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink placeholder:text-muted-foreground"
                       placeholder="basic-plan"
                       autoFocus
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-semibold text-foreground mb-2">
                       Display Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.displayName}
                       onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink placeholder:text-muted-foreground"
                       placeholder="Basic Plan"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                  <label className="block text-sm font-semibold text-foreground mb-2">Description</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink placeholder:text-muted-foreground"
                     placeholder="Plan description..."
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Price</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Price</label>
                     <input
                       type="number"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                       min="0"
                       step="0.01"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Billing Interval</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Billing Interval</label>
                     <select
                       value={formData.billingInterval}
                       onChange={(e) => setFormData({ ...formData, billingInterval: e.target.value as 'MONTHLY' | 'YEARLY' })}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     >
                       <option value="MONTHLY">Monthly</option>
                       <option value="YEARLY">Yearly</option>
@@ -515,53 +515,53 @@ export default function PlansTab() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Members</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Members</label>
                     <input
                       type="number"
                       value={formData.maxMembers}
                       onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) || 1 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Profiles</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Profiles</label>
                     <input
                       type="number"
                       value={formData.maxProfiles}
                       onChange={(e) => setFormData({ ...formData, maxProfiles: parseInt(e.target.value) || 1 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Workspaces</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Workspaces</label>
                     <input
                       type="number"
                       value={formData.maxWorkspaces}
                       onChange={(e) => setFormData({ ...formData, maxWorkspaces: parseInt(e.target.value) || 0 })}
                       min="0"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Storage (GB)</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Storage (GB)</label>
                     <input
                       type="number"
                       value={formData.maxStorageGB}
                       onChange={(e) => setFormData({ ...formData, maxStorageGB: parseInt(e.target.value) || 5 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Monthly Credits</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Monthly Credits</label>
                     <input
                       type="number"
                       value={formData.monthlyCredits}
                       onChange={(e) => setFormData({ ...formData, monthlyCredits: parseInt(e.target.value) || 100 })}
                       min="0"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                 </div>
@@ -573,9 +573,9 @@ export default function PlansTab() {
                       id="isActive"
                       checked={formData.isActive}
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 text-brand-mid-pink rounded focus:ring-2 focus:ring-brand-mid-pink"
                     />
-                    <label htmlFor="isActive" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="isActive" className="text-sm font-medium text-foreground">
                       Active
                     </label>
                   </div>
@@ -585,17 +585,17 @@ export default function PlansTab() {
                       id="isPublic"
                       checked={formData.isPublic}
                       onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 text-brand-blue rounded focus:ring-2 focus:ring-brand-blue"
                     />
-                    <label htmlFor="isPublic" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="isPublic" className="text-sm font-medium text-foreground">
                       Public
                     </label>
                   </div>
                 </div>
 
                 {/* Features Section */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Plan Features & Permissions</h3>
+                <div className="border-t border-border pt-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-4">Plan Features & Permissions</h3>
                   <PlanFeaturesEditor features={planFeatures} onChange={setPlanFeatures} />
                 </div>
               </div>
@@ -606,14 +606,14 @@ export default function PlansTab() {
                     setShowCreatePlanModal(false);
                     resetForm();
                   }}
-                  className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95"
+                  className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreatePlan}
                   disabled={!formData.name || !formData.displayName}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25"
+                  className="px-5 py-2.5 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white rounded-lg hover:from-brand-dark-pink hover:to-brand-mid-pink font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-mid-pink/25"
                 >
                   Create Plan
                 </button>
@@ -635,13 +635,13 @@ export default function PlansTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Plan</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{selectedPlan.displayName}</p>
+                  <h2 className="text-2xl font-bold text-foreground">Edit Plan</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{selectedPlan.displayName}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -649,67 +649,67 @@ export default function PlansTab() {
                     setSelectedPlan(null);
                     resetForm();
                   }}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-semibold text-foreground mb-2">
                       Plan Name (tenant)
                     </label>
                     <input
                       type="text"
                       value={formData.name}
                       disabled
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
+                      className="w-full px-4 py-2.5 border border-border bg-muted text-muted-foreground rounded-lg cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Cannot be changed</p>
+                    <p className="text-xs text-muted-foreground mt-1">Cannot be changed</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-semibold text-foreground mb-2">
                       Display Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.displayName}
                       onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                  <label className="block text-sm font-semibold text-foreground mb-2">Description</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Price</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Price</label>
                     <input
                       type="number"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                       min="0"
                       step="0.01"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Billing Interval</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Billing Interval</label>
                     <select
                       value={formData.billingInterval}
                       onChange={(e) => setFormData({ ...formData, billingInterval: e.target.value as 'MONTHLY' | 'YEARLY' })}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     >
                       <option value="MONTHLY">Monthly</option>
                       <option value="YEARLY">Yearly</option>
@@ -719,53 +719,53 @@ export default function PlansTab() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Members</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Members</label>
                     <input
                       type="number"
                       value={formData.maxMembers}
                       onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) || 1 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Profiles</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Profiles</label>
                     <input
                       type="number"
                       value={formData.maxProfiles}
                       onChange={(e) => setFormData({ ...formData, maxProfiles: parseInt(e.target.value) || 1 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Workspaces</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Workspaces</label>
                     <input
                       type="number"
                       value={formData.maxWorkspaces}
                       onChange={(e) => setFormData({ ...formData, maxWorkspaces: parseInt(e.target.value) || 0 })}
                       min="0"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Storage (GB)</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Max Storage (GB)</label>
                     <input
                       type="number"
                       value={formData.maxStorageGB}
                       onChange={(e) => setFormData({ ...formData, maxStorageGB: parseInt(e.target.value) || 5 })}
                       min="1"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Monthly Credits</label>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Monthly Credits</label>
                     <input
                       type="number"
                       value={formData.monthlyCredits}
                       onChange={(e) => setFormData({ ...formData, monthlyCredits: parseInt(e.target.value) || 100 })}
                       min="0"
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
                     />
                   </div>
                 </div>
@@ -777,9 +777,9 @@ export default function PlansTab() {
                       id="isActiveEdit"
                       checked={formData.isActive}
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 text-brand-mid-pink rounded focus:ring-2 focus:ring-brand-mid-pink"
                     />
-                    <label htmlFor="isActiveEdit" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="isActiveEdit" className="text-sm font-medium text-foreground">
                       Active
                     </label>
                   </div>
@@ -789,17 +789,17 @@ export default function PlansTab() {
                       id="isPublicEdit"
                       checked={formData.isPublic}
                       onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 text-brand-blue rounded focus:ring-2 focus:ring-brand-blue"
                     />
-                    <label htmlFor="isPublicEdit" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="isPublicEdit" className="text-sm font-medium text-foreground">
                       Public
                     </label>
                   </div>
                 </div>
 
                 {/* Features Section */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Plan Features & Permissions</h3>
+                <div className="border-t border-border pt-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-4">Plan Features & Permissions</h3>
                   <PlanFeaturesEditor features={planFeatures} onChange={setPlanFeatures} />
                 </div>
               </div>
@@ -811,14 +811,14 @@ export default function PlansTab() {
                     setSelectedPlan(null);
                     resetForm();
                   }}
-                  className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95"
+                  className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdatePlan}
                   disabled={!formData.displayName}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25"
+                  className="px-5 py-2.5 bg-gradient-to-r from-brand-blue to-brand-mid-pink text-white rounded-lg hover:from-brand-blue/90 hover:to-brand-mid-pink/90 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-blue/25"
                 >
                   Update Plan
                 </button>

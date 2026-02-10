@@ -166,36 +166,36 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[90vh] bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-br from-red-600 to-orange-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-brand-blue to-brand-mid-pink rounded-lg">
               <Plus className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Add Voice Account</h2>
-              <p className="text-sm text-gray-400">
+              <h2 className="text-xl font-bold text-foreground">Add Voice Account</h2>
+              <p className="text-sm text-muted-foreground">
                 Add an ElevenLabs voice to your account
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <X className="h-5 w-5 text-gray-400" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         {/* Mode Tabs */}
-        <div className="flex border-b border-slate-700">
+        <div className="flex border-b border-border">
           <button
             onClick={() => setMode("search")}
             className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
               mode === "search"
-                ? "text-white border-b-2 border-red-500 bg-slate-800/50"
-                : "text-gray-400 hover:text-white"
+                ? "text-foreground border-b-2 border-brand-mid-pink bg-muted"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Search Voices
@@ -204,8 +204,8 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
             onClick={() => setMode("manual")}
             className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
               mode === "manual"
-                ? "text-white border-b-2 border-red-500 bg-slate-800/50"
-                : "text-gray-400 hover:text-white"
+                ? "text-foreground border-b-2 border-brand-mid-pink bg-muted"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Enter Voice ID
@@ -218,24 +218,24 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
             <div className="space-y-4">
               {/* Search Bar */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search voices by name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && fetchVoices()}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink"
                 />
               </div>
 
               {/* Voice List */}
               {loading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 text-red-500 animate-spin" />
+                  <Loader2 className="h-8 w-8 text-brand-mid-pink animate-spin" />
                 </div>
               ) : voices.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-muted-foreground">
                   <Volume2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No voices found</p>
                 </div>
@@ -247,8 +247,8 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                       onClick={() => setSelectedVoice(voice)}
                       className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedVoice?.voice_id === voice.voice_id
-                          ? "border-red-500 bg-red-500/10"
-                          : "border-slate-700 hover:border-slate-600 hover:bg-slate-800/50"
+                          ? "border-brand-mid-pink bg-brand-mid-pink/10"
+                          : "border-border hover:border-brand-mid-pink/50 hover:bg-muted"
                       }`}
                     >
                       <button
@@ -259,8 +259,8 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                         disabled={!voice.preview_url}
                         className={`p-2 rounded-lg ${
                           voice.preview_url
-                            ? "bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                            : "bg-gray-500/20 text-gray-500 cursor-not-allowed"
+                            ? "bg-brand-mid-pink/20 hover:bg-brand-mid-pink/30 text-brand-mid-pink"
+                            : "bg-muted text-muted-foreground cursor-not-allowed"
                         }`}
                       >
                         {playingId === voice.voice_id ? (
@@ -270,8 +270,8 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                         )}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white">{voice.name}</p>
-                        <div className="flex items-center space-x-2 text-xs text-gray-400">
+                        <p className="font-medium text-foreground">{voice.name}</p>
+                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           {voice.category && <span>{voice.category}</span>}
                           {voice.labels?.gender && (
                             <>
@@ -288,7 +288,7 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                         </div>
                       </div>
                       {selectedVoice?.voice_id === voice.voice_id && (
-                        <div className="w-2 h-2 bg-red-500 rounded-full" />
+                        <div className="w-2 h-2 bg-brand-mid-pink rounded-full" />
                       )}
                     </div>
                   ))}
@@ -298,7 +298,7 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   ElevenLabs Voice ID *
                 </label>
                 <input
@@ -306,15 +306,15 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                   placeholder="e.g., 21m00Tcm4TlvDq8ikWAM"
                   value={manualVoiceId}
                   onChange={(e) => setManualVoiceId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Find the Voice ID in your ElevenLabs dashboard
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Display Name (optional)
                 </label>
                 <input
@@ -322,12 +322,12 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                   placeholder="Custom name for this voice"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Description (optional)
                 </label>
                 <textarea
@@ -335,12 +335,12 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                   value={manualDescription}
                   onChange={(e) => setManualDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50 resize-none"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Custom API Key (optional)
                 </label>
                 <input
@@ -348,9 +348,9 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
                   placeholder="Leave empty to use default API key"
                   value={customApiKey}
                   onChange={(e) => setCustomApiKey(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Use a dedicated API key for this voice account
                 </p>
               </div>
@@ -361,15 +361,15 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
         {/* Error Message */}
         {error && (
           <div className="mx-6 mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-500">{error}</p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-slate-700">
+        <div className="flex items-center justify-end space-x-3 p-6 border-t border-border">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+            className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -380,7 +380,7 @@ export function AddVoiceModal({ isOpen, onClose, onAdd }: AddVoiceModalProps) {
               (mode === "search" && !selectedVoice) ||
               (mode === "manual" && !manualVoiceId)
             }
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 text-white rounded-lg transition-all shadow-lg shadow-brand-blue/25 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             <span>Add Voice</span>

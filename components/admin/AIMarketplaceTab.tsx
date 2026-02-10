@@ -272,14 +272,14 @@ export default function AIMarketplaceTab() {
       {/* Header with Add Button */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AI Marketplace Management</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          <h2 className="text-3xl font-bold text-foreground">AI Marketplace Management</h2>
+          <p className="text-sm text-muted-foreground mt-2">
             Manage available and sold models
           </p>
         </div>
         <button
           onClick={openAddModal}
-          className="flex items-center space-x-2 px-6 py-3.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+          className="flex items-center space-x-2 px-6 py-3.5 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-mid-pink/25 hover:shadow-xl hover:scale-105 active:scale-95"
         >
           <Plus className="w-5 h-5" />
           <span>Add Model</span>
@@ -289,35 +289,41 @@ export default function AIMarketplaceTab() {
       {/* Loading State */}
       {loading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-mid-pink"></div>
         </div>
       ) : (
         <>
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-700/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-              <h3 className="text-sm font-bold text-green-700 dark:text-green-300 uppercase tracking-wider">Available Models</h3>
-              <p className="text-5xl font-bold text-green-600 dark:text-green-400 mt-3">{availableModels.length}</p>
+            <div className="bg-muted border-2 border-green-500/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all">
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                Available Models
+              </h3>
+              <p className="text-5xl font-bold text-foreground mt-3">{availableModels.length}</p>
             </div>
-            <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-2 border-red-200 dark:border-red-700/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-              <h3 className="text-sm font-bold text-red-700 dark:text-red-300 uppercase tracking-wider">Sold Models</h3>
-              <p className="text-5xl font-bold text-red-600 dark:text-red-400 mt-3">{soldModels.length}</p>
+            <div className="bg-muted border-2 border-red-500/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all">
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                Sold Models
+              </h3>
+              <p className="text-5xl font-bold text-foreground mt-3">{soldModels.length}</p>
             </div>
           </div>
 
       {/* Available Models Section */}
       <div>
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-          <div className="w-1.5 h-8 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full mr-3"></div>
+        <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center">
+          <div className="w-1.5 h-8 bg-green-500 rounded-full mr-3"></div>
           Available Models
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {availableModels.map((model) => (
             <div
               key={model.id}
-              className="bg-white dark:bg-gray-800/50 rounded-2xl border-2 border-gray-100 dark:border-gray-700/50 overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1"
+              className="bg-card rounded-2xl border-2 border-border overflow-hidden shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 hover:border-brand-mid-pink/30"
             >
-              <div className="relative h-56 w-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
+              <div className="relative h-56 w-full bg-muted">
                 {model.imageUrl && (
                   <Image
                     src={model.imageUrl}
@@ -329,21 +335,21 @@ export default function AIMarketplaceTab() {
               </div>
               <div className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{model.name}</h4>
-                  <span className="text-xl font-bold text-green-600 dark:text-green-400">${model.price}</span>
+                  <h4 className="text-lg font-bold text-foreground line-clamp-1">{model.name}</h4>
+                  <span className="text-xl font-bold text-green-600">${model.price}</span>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{model.category}</p>
+                <p className="text-sm text-muted-foreground mb-4">{model.category}</p>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => openEditModal(model)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 font-semibold"
+                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 text-white rounded-lg transition-all hover:scale-105 active:scale-95 font-semibold shadow-lg shadow-brand-blue/25"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit</span>
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 font-semibold"
+                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 font-semibold border border-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Delete</span>
@@ -354,23 +360,23 @@ export default function AIMarketplaceTab() {
           ))}
         </div>
         {availableModels.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">No available models</p>
+          <p className="text-center text-muted-foreground py-8">No available models</p>
         )}
       </div>
 
       {/* Sold Models Section */}
       <div>
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-          <div className="w-1.5 h-8 bg-gradient-to-b from-red-500 to-rose-500 rounded-full mr-3"></div>
+        <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center">
+          <div className="w-1.5 h-8 bg-red-500 rounded-full mr-3"></div>
           Sold Models
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {soldModels.map((model) => (
             <div
               key={model.id}
-              className="bg-white dark:bg-gray-800/50 rounded-2xl border-2 border-gray-100 dark:border-gray-700/50 overflow-hidden shadow-lg opacity-75"
+              className="bg-card rounded-2xl border-2 border-border overflow-hidden shadow-lg opacity-75"
             >
-              <div className="relative h-56 w-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
+              <div className="relative h-56 w-full bg-muted">
                 {model.imageUrl && (
                   <Image
                     src={model.imageUrl}
@@ -379,27 +385,27 @@ export default function AIMarketplaceTab() {
                     className="object-contain p-4 grayscale"
                   />
                 )}
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
-                  <span className="text-white text-2xl font-bold tracking-wider">SOLD</span>
+                <div className="absolute inset-0 bg-background/80 flex items-center justify-center backdrop-blur-sm">
+                  <span className="text-foreground text-2xl font-bold tracking-wider">SOLD</span>
                 </div>
               </div>
               <div className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{model.name}</h4>
-                  <span className="text-xl font-bold text-gray-500 dark:text-gray-400">${model.price}</span>
+                  <h4 className="text-lg font-bold text-foreground line-clamp-1">{model.name}</h4>
+                  <span className="text-xl font-bold text-muted-foreground">${model.price}</span>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{model.category}</p>
+                <p className="text-sm text-muted-foreground mb-4">{model.category}</p>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => openEditModal(model)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 font-semibold"
+                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 text-white rounded-lg transition-all hover:scale-105 active:scale-95 font-semibold shadow-lg shadow-brand-blue/25"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit</span>
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 font-semibold"
+                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 font-semibold border border-red-600"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Delete</span>
@@ -410,7 +416,7 @@ export default function AIMarketplaceTab() {
           ))}
         </div>
         {soldModels.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">No sold models</p>
+          <p className="text-center text-muted-foreground py-8">No sold models</p>
         )}
       </div>
         </>
@@ -424,19 +430,19 @@ export default function AIMarketplaceTab() {
             onClick={closeModal}
           >
             <div
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gradient-to-b [&::-webkit-scrollbar-thumb]:from-blue-400 [&::-webkit-scrollbar-thumb]:to-purple-500 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-gray-100 dark:[&::-webkit-scrollbar-thumb]:border-gray-900 hover:[&::-webkit-scrollbar-thumb]:from-blue-500 hover:[&::-webkit-scrollbar-thumb]:to-purple-600"
+              className="bg-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gradient-to-b [&::-webkit-scrollbar-thumb]:from-brand-blue [&::-webkit-scrollbar-thumb]:to-brand-mid-pink [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-muted hover:[&::-webkit-scrollbar-thumb]:from-brand-blue/90 hover:[&::-webkit-scrollbar-thumb]:to-brand-mid-pink/90"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6 flex items-center justify-between z-10">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="sticky top-0 bg-card border-b border-border p-6 flex items-center justify-between z-10">
+                <h2 className="text-2xl font-bold text-foreground">
                   {modalMode === 'add' ? 'Add New Model' : 'Edit Model'}
                 </h2>
                 <button
                   onClick={closeModal}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                  <X className="w-6 h-6 text-muted-foreground" />
                 </button>
               </div>
 
@@ -444,11 +450,11 @@ export default function AIMarketplaceTab() {
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 {/* Basic Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Basic Information</h3>
+                  <h3 className="text-lg font-semibold text-foreground">Basic Information</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Model Name *
                       </label>
                       <input
@@ -456,13 +462,13 @@ export default function AIMarketplaceTab() {
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                        className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                         placeholder="Enter model name"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Price ($) *
                       </label>
                       <input
@@ -470,19 +476,19 @@ export default function AIMarketplaceTab() {
                         required
                         value={formData.price}
                         onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                        className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                        className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                         placeholder="999"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Status *
                       </label>
                       <select
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value as 'available' | 'sold' })}
-                        className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                        className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                       >
                         <option value="available">Available</option>
                         <option value="sold">Sold</option>
@@ -491,7 +497,7 @@ export default function AIMarketplaceTab() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Description *
                     </label>
                     <textarea
@@ -499,13 +505,13 @@ export default function AIMarketplaceTab() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={3}
-                      className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                      className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                       placeholder="Enter model description"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Main Image *
                     </label>
                     <div className="space-y-2">
@@ -521,14 +527,14 @@ export default function AIMarketplaceTab() {
                           type="button"
                           onClick={() => mainImageInputRef.current?.click()}
                           disabled={uploading}
-                          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                          className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-all shadow-lg shadow-brand-blue/25"
                         >
                           <Upload className="w-4 h-4" />
                           <span>{uploading ? 'Uploading...' : 'Upload Image'}</span>
                         </button>
                       </div>
                       {formData.imageUrl && (
-                        <div className="relative h-32 w-32 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+                        <div className="relative h-32 w-32 rounded-lg overflow-hidden border border-border">
                           <Image
                             src={formData.imageUrl}
                             alt="Main preview"
@@ -543,11 +549,11 @@ export default function AIMarketplaceTab() {
 
                 {/* Gallery */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Gallery (4 Images)</h3>
+                  <h3 className="text-lg font-semibold text-foreground">Gallery (4 Images)</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {formData.gallery.map((url, index) => (
                       <div key={index}>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                           Image {index + 1}
                         </label>
                         <div className="space-y-2">
@@ -563,14 +569,14 @@ export default function AIMarketplaceTab() {
                               type="button"
                               onClick={() => galleryInputRefs.current[index]?.click()}
                               disabled={uploadingGallery === index}
-                              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white rounded-lg transition-colors text-sm"
+                              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-all shadow-lg shadow-brand-blue/25 text-sm"
                             >
                               <Upload className="w-4 h-4" />
                               <span>{uploadingGallery === index ? 'Uploading...' : 'Upload'}</span>
                             </button>
                           </div>
                           {url && (
-                            <div className="relative h-24 w-24 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+                            <div className="relative h-24 w-24 rounded-lg overflow-hidden border border-border">
                               <Image
                                 src={url}
                                 alt={`Gallery ${index + 1}`}
@@ -588,11 +594,11 @@ export default function AIMarketplaceTab() {
                 {/* What's Included */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">What's Included</h3>
+                    <h3 className="text-lg font-semibold text-foreground">What's Included</h3>
                     <button
                       type="button"
                       onClick={() => addField('included')}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-sm text-brand-mid-pink hover:underline"
                     >
                       + Add Item
                     </button>
@@ -603,14 +609,14 @@ export default function AIMarketplaceTab() {
                         type="text"
                         value={item}
                         onChange={(e) => updateField('included', index, e.target.value)}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                        className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                         placeholder="Enter what's included"
                       />
                       {formData.included.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeField('included', index)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          className="p-2 text-red-600 hover:bg-red-100/50 dark:hover:bg-red-900/20 rounded-lg"
                         >
                           <X className="w-5 h-5" />
                         </button>
@@ -622,11 +628,11 @@ export default function AIMarketplaceTab() {
                 {/* Used For */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Used For</h3>
+                    <h3 className="text-lg font-semibold text-foreground">Used For</h3>
                     <button
                       type="button"
                       onClick={() => addField('usedFor')}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-sm text-brand-mid-pink hover:underline"
                     >
                       + Add Item
                     </button>
@@ -637,14 +643,14 @@ export default function AIMarketplaceTab() {
                         type="text"
                         value={item}
                         onChange={(e) => updateField('usedFor', index, e.target.value)}
-                        className="flex-1 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                        className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-mid-pink text-foreground"
                         placeholder="Enter use case"
                       />
                       {formData.usedFor.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeField('usedFor', index)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          className="p-2 text-red-600 hover:bg-red-100/50 dark:hover:bg-red-900/20 rounded-lg"
                         >
                           <X className="w-5 h-5" />
                         </button>
@@ -654,17 +660,17 @@ export default function AIMarketplaceTab() {
                 </div>
 
                 {/* Submit Buttons */}
-                <div className="flex items-center space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-4 pt-6 border-t border-border">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    className="flex-1 px-6 py-3 border-2 border-border bg-transparent text-foreground rounded-lg font-semibold hover:bg-muted transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-xl active:scale-95"
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 text-white rounded-lg font-semibold transition-all shadow-lg shadow-brand-blue/25 hover:scale-105 active:scale-95"
                   >
                     {modalMode === 'add' ? 'Add Model' : 'Save Changes'}
                   </button>

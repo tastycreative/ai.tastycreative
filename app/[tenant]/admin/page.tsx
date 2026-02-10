@@ -1,6 +1,7 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { isUserAdmin } from '@/lib/adminAuth';
+import { LayoutDashboard, Activity, TrendingUp, Server } from 'lucide-react';
 
 export default async function AdminOverviewPage() {
   const user = await currentUser();
@@ -17,45 +18,70 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center space-x-4">
+        <div className="p-3 bg-gradient-to-br from-brand-blue to-brand-mid-pink rounded-xl shadow-lg shadow-brand-blue/25">
+          <LayoutDashboard className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+          <p className="text-muted-foreground">System health and key metrics at a glance</p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">System Overview</h3>
+        <div className="bg-card rounded-xl p-6 border border-border hover:border-brand-mid-pink/50 transition-colors">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg">
+              <Server className="h-4 w-4 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">System Overview</h3>
+          </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Platform Status</span>
-              <span className="text-sm font-medium text-green-600 dark:text-green-400">Operational</span>
+              <span className="text-sm text-muted-foreground">Platform Status</span>
+              <span className="text-sm font-medium text-green-500">Operational</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Server Uptime</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">99.9%</span>
+              <span className="text-sm text-muted-foreground">Server Uptime</span>
+              <span className="text-sm font-medium text-foreground">99.9%</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">API Response Time</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">127ms</span>
+              <span className="text-sm text-muted-foreground">API Response Time</span>
+              <span className="text-sm font-medium text-foreground">127ms</span>
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h3>
+        <div className="bg-card rounded-xl p-6 border border-border hover:border-brand-mid-pink/50 transition-colors">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-gradient-to-br from-brand-blue to-brand-mid-pink rounded-lg shadow-lg shadow-brand-blue/25">
+              <TrendingUp className="h-4 w-4 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">Quick Stats</h3>
+          </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">New Users Today</span>
-              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">+24</span>
+              <span className="text-sm text-muted-foreground">New Users Today</span>
+              <span className="text-sm font-medium text-brand-blue">+24</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Active Sessions</span>
-              <span className="text-sm font-medium text-purple-600 dark:text-purple-400">1,234</span>
+              <span className="text-sm text-muted-foreground">Active Sessions</span>
+              <span className="text-sm font-medium text-purple-500">1,234</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Content Generated Today</span>
-              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">5,678</span>
+              <span className="text-sm text-muted-foreground">Content Generated Today</span>
+              <span className="text-sm font-medium text-emerald-500">5,678</span>
             </div>
           </div>
         </div>
       </div>
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Monitor system-wide activities and events in real-time.</p>
+      <div className="bg-card rounded-xl p-6 border border-border hover:border-brand-mid-pink/50 transition-colors">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg">
+            <Activity className="h-4 w-4 text-white" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">Monitor system-wide activities and events in real-time.</p>
       </div>
     </div>
   );

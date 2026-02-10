@@ -29,22 +29,22 @@ export default function BillingOverview({
       ACTIVE: {
         icon: <CheckCircle className="w-4 h-4" />,
         text: 'Active',
-        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        className: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30',
       },
       TRIAL: {
         icon: <AlertCircle className="w-4 h-4" />,
         text: 'Trial',
-        className: 'bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue',
+        className: 'bg-brand-blue/20 text-brand-blue border border-brand-blue/30',
       },
       PAST_DUE: {
         icon: <AlertCircle className="w-4 h-4" />,
         text: 'Past Due',
-        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        className: 'bg-amber-500/20 text-amber-500 border border-amber-500/30',
       },
       CANCELED: {
         icon: <XCircle className="w-4 h-4" />,
         text: 'Canceled',
-        className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+        className: 'bg-rose-500/20 text-rose-500 border border-rose-500/30',
       },
     };
 
@@ -66,14 +66,14 @@ export default function BillingOverview({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+            <Icon className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">{label}</span>
           </div>
-          <span className={`text-sm font-semibold ${isNearLimit ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+          <span className={`text-sm font-semibold ${isNearLimit ? 'text-red-500' : 'text-foreground'}`}>
             {current} / {max}
           </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2">
           <div
             className={`h-2 rounded-full transition-all duration-300 ${
               isNearLimit ? 'bg-rose-500' : 'bg-brand-blue'
@@ -90,7 +90,7 @@ export default function BillingOverview({
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-mid-pink mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading billing information...</p>
+          <p className="mt-4 text-muted-foreground">Loading billing information...</p>
         </div>
       </div>
     );
@@ -101,12 +101,12 @@ export default function BillingOverview({
       {/* Current Subscription Status */}
       {billingInfo && (
         <div className="mb-12">
-          <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 md:p-8 shadow-sm">
+          <div className="bg-card border border-brand-mid-pink/20 rounded-2xl p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink dark:text-brand-light-pink">Current Plan</h2>
+                <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink">Current Plan</h2>
                 <div className="flex items-center space-x-3">
-                  <span className="text-xl font-semibold text-brand-mid-pink dark:text-brand-light-pink">
+                  <span className="text-xl font-semibold text-brand-mid-pink">
                     {billingInfo.plan?.displayName || 'No Plan'}
                   </span>
                   {getStatusBadge(billingInfo.organization.subscriptionStatus)}
@@ -114,12 +114,12 @@ export default function BillingOverview({
               </div>
               {billingInfo.plan && (
                 <div className="mt-4 md:mt-0 text-left md:text-right">
-                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                  <div className="text-3xl font-bold text-foreground">
                     ${billingInfo.plan.price}
-                    <span className="text-lg text-gray-600 dark:text-gray-400">/month</span>
+                    <span className="text-lg text-muted-foreground">/month</span>
                   </div>
                   {billingInfo.organization.currentPeriodEnd && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {billingInfo.organization.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on{' '}
                       {new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
                     </p>
@@ -130,18 +130,18 @@ export default function BillingOverview({
 
             {/* Subscription Actions */}
             {billingInfo.organization.subscriptionStatus === 'ACTIVE' && (
-              <div className="flex flex-wrap gap-3 pt-6 border-t border-brand-mid-pink/20 dark:border-brand-mid-pink/30">
+              <div className="flex flex-wrap gap-3 pt-6 border-t border-border">
                 {!billingInfo.organization.cancelAtPeriodEnd ? (
                   <button
                     onClick={() => onManageSubscription('cancel')}
-                    className="px-4 py-2 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors font-medium"
+                    className="px-4 py-2 bg-rose-500/20 text-rose-500 rounded-lg hover:bg-rose-500/30 transition-colors font-medium border border-rose-500/30"
                   >
                     Cancel Subscription
                   </button>
                 ) : (
                   <button
                     onClick={() => onManageSubscription('resume')}
-                    className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors font-medium"
+                    className="px-4 py-2 bg-emerald-500/20 text-emerald-500 rounded-lg hover:bg-emerald-500/30 transition-colors font-medium border border-emerald-500/30"
                   >
                     Resume Subscription
                   </button>
@@ -150,8 +150,8 @@ export default function BillingOverview({
             )}
 
             {billingInfo.organization.cancelAtPeriodEnd && (
-              <div className="mt-4 p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg">
-                <p className="text-sm text-amber-800 dark:text-amber-300">
+              <div className="mt-4 p-4 bg-amber-500/20 border border-amber-500/30 rounded-lg">
+                <p className="text-sm text-amber-600 dark:text-amber-400">
                   Your subscription will be canceled on{' '}
                   {billingInfo.organization.currentPeriodEnd &&
                     new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
@@ -166,9 +166,9 @@ export default function BillingOverview({
       {/* Usage Statistics */}
       {billingInfo && (
         <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6 text-brand-mid-pink dark:text-brand-light-pink">Usage This Month</h2>
+          <h2 className="text-2xl font-bold mb-6 text-brand-mid-pink">Usage This Month</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
                 label="Team Members"
                 current={billingInfo.usage.members.current}
@@ -176,7 +176,7 @@ export default function BillingOverview({
                 icon={Users}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
                 label="Content Profiles"
                 current={billingInfo.usage.profiles.current}
@@ -184,7 +184,7 @@ export default function BillingOverview({
                 icon={CreditCard}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
                 label="Storage (GB)"
                 current={Math.round(billingInfo.usage.storage.current * 10) / 10}
@@ -192,14 +192,14 @@ export default function BillingOverview({
                 icon={HardDrive}
               />
             </div>
-            <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
                 label="AI Credits"
                 current={billingInfo.usage.credits.used}
                 max={billingInfo.usage.credits.available}
                 icon={Zap}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 {billingInfo.usage.credits.available} credits available
               </p>
             </div>
@@ -209,7 +209,7 @@ export default function BillingOverview({
 
       {/* Pricing Plans */}
       <div className="mb-12">
-        <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center text-brand-mid-pink dark:text-brand-light-pink">Available Plans</h2>
+        <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center text-brand-mid-pink">Available Plans</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {PRICING_PLANS.map((plan, index) => {
             const isCurrentPlan = billingInfo?.plan?.name === plan.name;
@@ -219,10 +219,10 @@ export default function BillingOverview({
             return (
               <div
                 key={index}
-                className={`bg-white dark:bg-gray-900/30 border rounded-2xl p-6 transition-all duration-300 relative overflow-visible shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
+                className={`bg-card border rounded-2xl p-6 transition-all duration-300 relative overflow-visible shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
                   isCurrentPlan
                     ? 'border-brand-mid-pink ring-2 ring-brand-mid-pink'
-                    : 'border-brand-mid-pink/20 dark:border-brand-mid-pink/30 hover:border-brand-mid-pink/50 dark:hover:border-brand-mid-pink/60'
+                    : 'border-border hover:border-brand-mid-pink/50'
                 }`}
               >
                 {plan.badge && isCurrentPlan ? (
@@ -248,18 +248,18 @@ export default function BillingOverview({
                   </div>
                 ) : null}
                 <div className={`text-center mb-6 px-2 ${plan.badge && isCurrentPlan ? 'mt-10' : (plan.badge || isCurrentPlan) ? 'mt-4' : ''}`}>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-base sm:text-lg font-semibold text-foreground mb-2">
                     {plan.displayName || plan.name}
                   </h3>
                   <div className="mb-2">
-                    <span className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                    <span className="text-2xl sm:text-3xl font-bold text-foreground">
                       {plan.price}
                     </span>
-                    <span className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                    <span className="text-sm sm:text-base text-muted-foreground">
                       {plan.period}
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {plan.credits}
                   </p>
                 </div>
@@ -267,7 +267,7 @@ export default function BillingOverview({
                   {plan.features.map((feature, featureIndex) => (
                     <li
                       key={featureIndex}
-                      className="text-sm text-gray-600 dark:text-gray-400 flex items-start"
+                      className="text-sm text-muted-foreground flex items-start"
                     >
                       <span className="text-brand-mid-pink mr-2">✓</span>
                       {feature}
@@ -276,13 +276,13 @@ export default function BillingOverview({
                 </ul>
                 <div className="mt-auto">
                   {plan.price === 'Custom' ? (
-                    <button className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium shadow-md">
+                    <button className="w-full bg-muted text-foreground py-2 px-4 rounded-lg hover:bg-muted/80 transition-colors font-medium shadow-md border border-border">
                       {plan.cta || 'Contact Sales'}
                     </button>
                   ) : isCurrentPlan ? (
                     <button
                       disabled
-                      className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed shadow-md"
+                      className="w-full bg-emerald-500 text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed shadow-md"
                     >
                       Active Subscription
                     </button>
@@ -290,7 +290,7 @@ export default function BillingOverview({
                     <button
                       onClick={() => onSubscribe(plan.name)}
                       disabled={isProcessing}
-                      className="w-full bg-brand-mid-pink text-white py-2 px-4 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                      className="w-full bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white py-2 px-4 rounded-lg hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-brand-mid-pink/25"
                     >
                       {isProcessing ? 'Processing...' : hasActiveSubscription ? 'Change to This Plan' : 'Subscribe'}
                     </button>
@@ -305,8 +305,8 @@ export default function BillingOverview({
       {/* Credit Packages */}
       <div ref={creditsRef} className="mb-12 scroll-mt-24">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink dark:text-brand-light-pink">Need More Credits?</h2>
-          <p className="text-gray-600 dark:text-gray-400">Purchase additional credits anytime. Credits never expire and stack with your plan.</p>
+          <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink">Need More Credits?</h2>
+          <p className="text-muted-foreground">Purchase additional credits anytime. Credits never expire and stack with your plan.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {CREDIT_PACKAGES.map((pkg) => {
@@ -316,10 +316,10 @@ export default function BillingOverview({
             return (
               <div
                 key={pkg.id}
-                className={`bg-white dark:bg-gray-900/30 border rounded-2xl p-6 transition-all duration-300 relative shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
+                className={`bg-card border rounded-2xl p-6 transition-all duration-300 relative shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col ${
                   pkg.popular
                     ? 'border-brand-mid-pink ring-2 ring-brand-mid-pink'
-                    : 'border-brand-mid-pink/20 dark:border-brand-mid-pink/30 hover:border-brand-mid-pink/50 dark:hover:border-brand-mid-pink/60'
+                    : 'border-border hover:border-brand-mid-pink/50'
                 }`}
               >
                 {pkg.popular && (
@@ -330,23 +330,23 @@ export default function BillingOverview({
                   </div>
                 )}
                 <div className="text-center mb-4">
-                  <div className="w-12 h-12 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 bg-brand-mid-pink/10 rounded-full flex items-center justify-center mx-auto mb-3">
                     <Plus className="w-6 h-6 text-brand-mid-pink" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
                     {pkg.name}
                   </h3>
                   <div className="mb-2">
-                    <span className="text-3xl font-bold text-gray-900 dark:text-white">
+                    <span className="text-3xl font-bold text-foreground">
                       ${pkg.price}
                     </span>
                   </div>
                   <div className="text-sm">
-                    <span className="text-brand-mid-pink dark:text-brand-light-pink font-semibold">
+                    <span className="text-brand-mid-pink font-semibold">
                       {totalCredits.toLocaleString()} Credits
                     </span>
                     {pkg.bonus && (
-                      <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                      <div className="text-xs text-emerald-500 mt-1">
                         +{pkg.bonus} Bonus Credits
                       </div>
                     )}
@@ -356,11 +356,11 @@ export default function BillingOverview({
                   <button
                     onClick={() => onPurchaseCredits(pkg.id)}
                     disabled={isProcessing}
-                    className="w-full bg-brand-mid-pink text-white py-2 px-4 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                    className="w-full bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white py-2 px-4 rounded-lg hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-brand-mid-pink/25"
                   >
                     {isProcessing ? 'Processing...' : 'Purchase Credits'}
                   </button>
-                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-xs text-center text-muted-foreground mt-2">
                     One-time payment
                   </p>
                 </div>
@@ -372,14 +372,14 @@ export default function BillingOverview({
 
       {/* Help Section */}
       <div className="text-center">
-        <div className="bg-brand-mid-pink/5 dark:bg-brand-mid-pink/10 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-8 shadow-sm">
-          <h3 className="text-2xl font-bold mb-4 text-brand-mid-pink dark:text-brand-light-pink">
+        <div className="bg-muted border border-brand-mid-pink/30 rounded-2xl p-8 shadow-sm">
+          <h3 className="text-2xl font-bold mb-4 text-brand-mid-pink">
             Need help choosing a plan?
           </h3>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">
+          <p className="text-muted-foreground mb-6">
             Our team is here to help you find the perfect plan for your content creation needs.
           </p>
-          <button className="bg-brand-mid-pink text-white px-6 py-3 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium shadow-md">
+          <button className="bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white px-6 py-3 rounded-lg hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 transition-colors font-medium shadow-md shadow-brand-mid-pink/25">
             Contact Sales
           </button>
         </div>

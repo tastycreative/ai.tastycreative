@@ -163,12 +163,12 @@ export default function GenerationTrackerPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-green-600 to-emerald-600 rounded-lg shadow-lg">
+          <div className="p-2 bg-gradient-to-br from-brand-blue to-brand-mid-pink rounded-lg shadow-lg">
             <TrendingUp className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Generation Tracker</h1>
-            <p className="text-sm text-gray-400">
+            <h1 className="text-2xl font-bold text-foreground">Generation Tracker</h1>
+            <p className="text-sm text-muted-foreground">
               Track and analyze AI voice generations across all users
             </p>
           </div>
@@ -176,27 +176,27 @@ export default function GenerationTrackerPage() {
 
         <div className="flex items-center space-x-3">
           {/* Date Range Filter */}
-          <div className="flex items-center space-x-2 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2">
-            <Calendar className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center space-x-2 bg-card border border-border rounded-lg px-3 py-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
             <select
               value={dateRange}
               onChange={(e) => {
                 setDateRange(e.target.value as typeof dateRange);
                 handleFilterChange();
               }}
-              className="bg-transparent text-sm text-white border-none focus:outline-none focus:ring-0"
+              className="bg-transparent text-sm text-foreground border-none focus:outline-none focus:ring-0"
             >
-              <option value="all" className="bg-slate-800">All Time</option>
-              <option value="today" className="bg-slate-800">Today</option>
-              <option value="week" className="bg-slate-800">This Week</option>
-              <option value="month" className="bg-slate-800">This Month</option>
+              <option value="all" className="bg-card">All Time</option>
+              <option value="today" className="bg-card">Today</option>
+              <option value="week" className="bg-card">This Week</option>
+              <option value="month" className="bg-card">This Month</option>
             </select>
           </div>
 
           {/* Export Button */}
           <button
             onClick={handleExport}
-            className="flex items-center space-x-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded-lg text-white transition-all duration-200"
+            className="flex items-center space-x-2 px-4 py-2 bg-card hover:bg-muted border border-border rounded-lg text-foreground transition-all"
           >
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
@@ -206,7 +206,7 @@ export default function GenerationTrackerPage() {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg text-white transition-all duration-200 disabled:opacity-50"
+            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 rounded-lg text-white transition-all shadow-lg shadow-brand-blue/25 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>

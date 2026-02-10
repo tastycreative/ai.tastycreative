@@ -92,9 +92,9 @@ export default function OrganizationPermissionsModal({
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm">
         <div className="flex min-h-screen items-center justify-center p-4">
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 max-w-4xl w-full">
+          <div className="relative bg-card border border-border rounded-xl shadow-2xl p-8 max-w-4xl w-full">
             <div className="flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <Loader2 className="w-8 h-8 text-[#EC67A1] animate-spin" />
             </div>
           </div>
         </div>
@@ -109,20 +109,20 @@ export default function OrganizationPermissionsModal({
     >
       <div className="flex min-h-screen items-center justify-center p-4">
         <div
-          className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-6xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+          className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-6xl w-full my-8 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
           data-modal-content
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Shield className="w-6 h-6 text-blue-600" />
+              <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <Shield className="w-6 h-6 text-[#5DC3F8]" />
                 Permissions
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{organizationName}</p>
+              <p className="text-sm text-muted-foreground mt-1">{organizationName}</p>
               {(permissions as any)?._planName && (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm border border-blue-200 dark:border-blue-800">
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-background border border-[#5DC3F8]/30 text-foreground rounded-lg text-sm">
                   <span className="font-medium">Plan:</span>
                   <span>{(permissions as any)._planName}</span>
                 </div>
@@ -130,27 +130,27 @@ export default function OrganizationPermissionsModal({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <X className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
 
-          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="mb-4 p-4 bg-blue-50/50 dark:bg-blue-950/30 border border-[#5DC3F8]/30 rounded-lg">
+            <p className="text-sm text-foreground">
               <strong>Note:</strong> These permissions are based on the organization's subscription plan.
               Any changes you make here will override the plan defaults for this specific organization.
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            <div className="mb-4 p-4 bg-red-50/50 dark:bg-red-950/30 border border-red-500/30 rounded-lg">
+              <p className="text-sm text-foreground">{error}</p>
             </div>
           )}
 
           {/* Permissions Grid - Use the same editor as Plans */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div className="border-t border-border pt-4">
             <PlanFeaturesEditor
               features={permissions as Record<string, boolean | number | null>}
               onChange={handlePermissionsChange}
@@ -158,18 +158,18 @@ export default function OrganizationPermissionsModal({
           </div>
 
           {/* Footer */}
-          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
+          <div className="mt-6 pt-4 border-t border-border flex gap-3 justify-end">
             <button
               onClick={onClose}
               disabled={saving}
-              className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95 disabled:opacity-50"
+              className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/25 flex items-center gap-2"
+              className="px-5 py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-lg hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 font-medium transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-[#5DC3F8]/25 flex items-center gap-2"
             >
               {saving ? (
                 <>
