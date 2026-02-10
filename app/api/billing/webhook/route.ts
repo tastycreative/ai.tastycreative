@@ -260,6 +260,15 @@ async function handleSubscriptionUpdated(subscription: any) {
       return;
     }
 
+    // Check if this is a member slot subscription (not a regular plan subscription)
+    const memberSlotPriceId = process.env.STRIPE_MEMBER_SLOT_PRICE_ID;
+    if (memberSlotPriceId && stripePriceId === memberSlotPriceId) {
+      console.log('👥 Member slot subscription update detected - skipping credit logic');
+      // This is a member slot subscription, not a plan subscription
+      // No need to update credits or plan info, just return
+      return;
+    }
+
     // Check if the plan has changed by comparing Stripe price IDs
     const newPlan = await prisma.subscriptionPlan.findFirst({
       where: { stripePriceId: stripePriceId },
@@ -267,6 +276,7 @@ async function handleSubscriptionUpdated(subscription: any) {
 
     if (!newPlan) {
       console.error(`❌ No plan found with Stripe Price ID: ${stripePriceId}`);
+      console.log(`   This might be a member slot or other add-on subscription`);
       return;
     }
 

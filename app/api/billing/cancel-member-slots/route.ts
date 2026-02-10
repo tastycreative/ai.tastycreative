@@ -95,11 +95,21 @@ export async function POST(req: NextRequest) {
       limit: 100,
     });
 
-    // Find member slot subscription(s)
+    // Get the member slot price ID to identify the subscription
+    const memberSlotPriceId = process.env.STRIPE_MEMBER_SLOT_PRICE_ID;
+
+    if (!memberSlotPriceId) {
+      return NextResponse.json(
+        { error: 'Member slot price ID not configured' },
+        { status: 500 }
+      );
+    }
+
+    // Find member slot subscription(s) by checking the price ID
     const memberSlotSubscriptions = subscriptions.data.filter((sub) => {
       return sub.items.data.some((item) => {
-        // Check if this is a member slot subscription by metadata or product
-        return sub.metadata?.type === 'member_slot_addon';
+        // Check if this subscription item uses the member slot price ID
+        return item.price.id === memberSlotPriceId;
       });
     });
 
@@ -116,7 +126,7 @@ export async function POST(req: NextRequest) {
 
     // Get the current quantity of member slots in the subscription
     const memberSlotItem = subscriptionToUpdate.items.data.find(
-      (item) => item.price.id === subscriptionToUpdate.items.data[0].price.id
+      (item) => item.price.id === memberSlotPriceId
     );
 
     if (!memberSlotItem) {
