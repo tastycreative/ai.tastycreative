@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2 } from 'lucide-react';
+import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle } from 'lucide-react';
 import { InviteMembersModal } from '../InviteMembersModal';
 import { useOrganization } from '@/lib/hooks/useOrganization';
+import { useBillingInfo } from '@/lib/hooks/useBilling.query';
 
 interface MemberData {
   id: string;
@@ -30,6 +31,7 @@ export default function MembersTab() {
   const params = useParams();
   const tenant = params.tenant as string;
   const { currentOrganization, loading: orgLoading } = useOrganization();
+  const { data: billingInfo } = useBillingInfo();
   const [users, setUsers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export default function MembersTab() {
   const [sortBy, setSortBy] = useState<'name' | 'email' | 'created' | 'activity'>('created');
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [showLimitError, setShowLimitError] = useState(false);
 
   useEffect(() => {
     if (tenant && currentOrganization) {
@@ -104,6 +107,27 @@ export default function MembersTab() {
         return newSet;
       });
     }
+  };
+
+  const handleInviteClick = () => {
+    // Check if we have billing info and member limits
+    if (!billingInfo) {
+      setIsInviteModalOpen(true);
+      return;
+    }
+
+    const currentMembers = billingInfo.usage.members.current;
+    const maxMembers = billingInfo.usage.members.max;
+
+    // Check if we've reached the member limit
+    if (currentMembers >= maxMembers) {
+      setShowLimitError(true);
+      setTimeout(() => setShowLimitError(false), 5000); // Hide after 5 seconds
+      return;
+    }
+
+    // Open the invite modal
+    setIsInviteModalOpen(true);
   };
 
   const filteredUsers = users
@@ -220,7 +244,7 @@ export default function MembersTab() {
           {/* Invite Members Button */}
           {currentOrganization && (
             <button
-              onClick={() => setIsInviteModalOpen(true)}
+              onClick={handleInviteClick}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#F774B9] hover:to-[#EC67A1] text-white rounded-lg transition-all shadow-lg shadow-[#EC67A1]/25 hover:shadow-xl hover:shadow-[#F774B9]/30 text-xs xs:text-sm font-medium active:scale-95"
             >
               <UserPlus className="w-4 h-4" />
@@ -230,6 +254,35 @@ export default function MembersTab() {
           )}
         </div>
       </div>
+
+      {/* Member Limit Error Message */}
+      {showLimitError && billingInfo && (
+        <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl p-4 shadow-md animate-slideIn">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200 mb-1">
+                Member Limit Reached
+              </h4>
+              <p className="text-sm text-rose-700 dark:text-rose-300 mb-2">
+                You've reached your plan's member limit of <span className="font-semibold">{billingInfo.usage.members.max} members</span>.
+                Currently, you have <span className="font-semibold">{billingInfo.usage.members.current} members</span> in your organization.
+              </p>
+              <p className="text-sm text-rose-600 dark:text-rose-400">
+                Please upgrade your plan to invite more team members.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowLimitError(false)}
+              className="text-rose-400 hover:text-rose-600 dark:text-rose-500 dark:hover:text-rose-300 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Members Count */}
       <div className="bg-gradient-to-r from-[#EC67A1]/5 to-[#5DC3F8]/5 border border-[#EC67A1]/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
@@ -410,6 +463,8 @@ export default function MembersTab() {
           isOpen={isInviteModalOpen}
           onClose={() => setIsInviteModalOpen(false)}
           onSuccess={fetchUsers}
+          currentMembers={billingInfo?.usage.members.current}
+          maxMembers={billingInfo?.usage.members.max}
         />
       )}
     </div>

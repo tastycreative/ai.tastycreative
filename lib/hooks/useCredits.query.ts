@@ -27,10 +27,10 @@ export function useCredits() {
     queryKey: ['credits', user?.id],
     queryFn: fetchCredits,
     enabled: !!user,
-    staleTime: 1000 * 30, // 30 seconds - check frequently for credits
-    gcTime: 1000 * 60 * 2, // 2 minutes
+    // staleTime: 1000 * 30, // 30 seconds - check frequently for credits
+    // gcTime: 1000 * 60 * 2, // 2 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchInterval: 1000 * 60, // Refetch every minute
+    // refetchInterval: 1000 * 60, // Refetch every minute
   });
 
   /**
