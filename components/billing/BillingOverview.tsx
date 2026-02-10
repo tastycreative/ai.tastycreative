@@ -8,9 +8,11 @@ import { useBillingInfo } from '@/lib/hooks/useBilling.query';
 import { PurchaseMemberSlotsModal } from './PurchaseMemberSlotsModal';
 import { ManageMemberSlotsModal } from './ManageMemberSlotsModal';
 
+import { CreditPackage } from '@/lib/credit-packages';
+
 interface BillingOverviewProps {
   onSubscribe: (planId: string) => void;
-  onPurchaseCredits: (packageId: string) => void;
+  onPurchaseCredits: (pkg: CreditPackage) => void;
   onManageSubscription: (action: 'cancel' | 'resume' | 'cancel_now') => void;
   processingPlan: string | null;
   processingCredits: string | null;
@@ -456,7 +458,7 @@ export default function BillingOverview({
                 </div>
                 <div className="mt-auto">
                   <button
-                    onClick={() => onPurchaseCredits(pkg.id)}
+                    onClick={() => onPurchaseCredits(pkg)}
                     disabled={isProcessing}
                     className="w-full bg-brand-mid-pink text-white py-2 px-4 rounded-lg hover:bg-brand-dark-pink transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   >
