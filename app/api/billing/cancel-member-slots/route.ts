@@ -176,11 +176,11 @@ export async function POST(req: NextRequest) {
         quantity: newQuantity,
       });
 
-      // Update organization
+      // Update organization - use newAdditionalSlots (calculated from DB) not newQuantity (from Stripe)
       await prisma.organization.update({
         where: { id: currentOrg.id },
         data: {
-          additionalMemberSlots: newQuantity,
+          additionalMemberSlots: newAdditionalSlots,
         },
       });
 
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
           status: 'COMPLETED',
           amount: 0,
           currency: 'usd',
-          description: `Removed ${numberOfSlots} member slot${numberOfSlots > 1 ? 's' : ''} (${currentQuantity} → ${newQuantity})`,
+          description: `Removed ${numberOfSlots} member slot${numberOfSlots > 1 ? 's' : ''} (${currentAdditionalSlots} → ${newAdditionalSlots})`,
           planName: 'Member Slot Add-on',
         },
       });
@@ -201,8 +201,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         message: `Successfully removed ${numberOfSlots} member slot${numberOfSlots > 1 ? 's' : ''}`,
-        remainingAdditionalSlots: newQuantity,
-        newTotalSlots: baseMemberLimit + newQuantity,
+        remainingAdditionalSlots: newAdditionalSlots,
+        newTotalSlots: baseMemberLimit + newAdditionalSlots,
       });
     }
   } catch (error: unknown) {
