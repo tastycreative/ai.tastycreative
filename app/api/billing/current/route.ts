@@ -39,7 +39,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Calculate usage limits
-    const maxMembers = currentOrg.customMaxMembers ?? currentOrg.subscriptionPlan?.maxMembers ?? 1;
+    const baseMemberLimit = currentOrg.customMaxMembers ?? currentOrg.subscriptionPlan?.maxMembers ?? 1;
+    const maxMembers = baseMemberLimit + (currentOrg.additionalMemberSlots ?? 0);
     const maxProfiles = currentOrg.customMaxProfiles ?? currentOrg.subscriptionPlan?.maxProfiles ?? 1;
     const maxStorageGB = currentOrg.customMaxStorageGB ?? currentOrg.subscriptionPlan?.maxStorageGB ?? 5;
     const monthlyCredits = currentOrg.customMonthlyCredits ?? currentOrg.subscriptionPlan?.monthlyCredits ?? 100;
@@ -70,6 +71,9 @@ export async function GET(req: NextRequest) {
           current: memberCount,
           max: maxMembers,
           percentage: (memberCount / maxMembers) * 100,
+          baseLimit: baseMemberLimit,
+          additionalSlots: currentOrg.additionalMemberSlots ?? 0,
+          memberSlotPrice: currentOrg.memberSlotPrice ?? 5.00,
         },
         profiles: {
           current: profileCount,

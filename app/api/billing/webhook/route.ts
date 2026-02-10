@@ -95,6 +95,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
+  // Handle member slot add-on purchase
+  if (purchaseType === 'member_slot_addon') {
+    await handleMemberSlotPurchase(session);
+    return;
+  }
+
   if (!organizationId || !planId) {
     console.error('❌ Missing metadata in checkout session');
     return;
@@ -474,4 +480,76 @@ async function handleCreditPurchase(session: Stripe.Checkout.Session) {
   console.log(`✅ Credits added to organization ${organizationId}`);
   console.log(`   Organization name: ${updated.name}`);
   console.log(`   Available credits: ${updated.availableCredits}`);
+}
+
+async function handleMemberSlotPurchase(session: Stripe.Checkout.Session) {
+  console.log('👥 Processing member slot add-on purchase');
+
+  const organizationId = session.metadata?.organizationId;
+  const numberOfSlots = parseInt(session.metadata?.numberOfSlots || '0');
+
+  console.log(`   Organization ID: ${organizationId}`);
+  console.log(`   Number of slots: ${numberOfSlots}`);
+  console.log(`   Amount paid: ${session.amount_total ? session.amount_total / 100 : 0}`);
+
+  if (!organizationId || !numberOfSlots) {
+    console.error('❌ Missing metadata in member slot purchase session');
+    return;
+  }
+
+  // Get current organization
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      additionalMemberSlots: true,
+      name: true,
+    },
+  });
+
+  if (!organization) {
+    console.error('❌ Organization not found');
+    return;
+  }
+
+  // Add purchased slots to additional member slots
+  const newTotalSlots = (organization.additionalMemberSlots ?? 0) + numberOfSlots;
+  const pricePerSlot = session.amount_total ? (session.amount_total / 100) / numberOfSlots : 5.00;
+
+  console.log(`   Current additional slots: ${organization.additionalMemberSlots ?? 0}`);
+  console.log(`   New total slots: ${newTotalSlots}`);
+  console.log(`   Price per slot: $${pricePerSlot.toFixed(2)}`);
+
+  const updated = await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      additionalMemberSlots: newTotalSlots,
+      memberSlotPrice: pricePerSlot,
+      stripeCustomerId: session.customer as string,
+    },
+  });
+
+  // Create transaction record
+  await prisma.billingTransaction.create({
+    data: {
+      organizationId,
+      userId: session.metadata?.userId || null,
+      type: 'SUBSCRIPTION_PAYMENT',
+      status: 'COMPLETED',
+      amount: (session.amount_total || 0) / 100,
+      currency: session.currency || 'usd',
+      description: `Purchase of ${numberOfSlots} additional team member slot${numberOfSlots > 1 ? 's' : ''}`,
+      planName: 'Member Slot Add-on',
+      stripeCheckoutSessionId: session.id,
+      metadata: {
+        sessionId: session.id,
+        numberOfSlots: numberOfSlots,
+        pricePerSlot: pricePerSlot,
+        type: 'member_slot_addon',
+      },
+    },
+  });
+
+  console.log(`✅ Member slots added to organization ${organizationId}`);
+  console.log(`   Organization name: ${updated.name}`);
+  console.log(`   Total additional slots: ${updated.additionalMemberSlots}`);
 }

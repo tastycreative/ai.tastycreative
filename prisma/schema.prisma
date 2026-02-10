@@ -29,6 +29,7 @@ model User {
   lastLoginAt              DateTime?
   isAdmin                  Boolean                   @default(false)
   billingTransactions      BillingTransaction[]
+  content_submissions      content_submissions[]
   creditUsageLogs          CreditUsageLog[]
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
@@ -889,9 +890,9 @@ model VaultFolder {
   updatedAt  DateTime           @updatedAt
   isDefault  Boolean            @default(false)
   parentId   String?
+  shares     VaultFolderShare[]
   parent     VaultFolder?       @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   subfolders VaultFolder[]      @relation("FolderHierarchy")
-  shares     VaultFolderShare[]
   items      VaultItem[]
 
   @@index([clerkId])
@@ -1059,8 +1060,12 @@ model Organization {
   isActive             Boolean                       @default(true)
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
+  additionalMemberSlots Int                          @default(0)
+  memberSlotPrice      Float?
   availableCredits     Int                           @default(0)
   transactions         BillingTransaction[]
+  content_submissions  content_submissions[]
+  creditUsageLogs      CreditUsageLog[]
   customPermissions    CustomOrganizationPermission?
   gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
@@ -1068,7 +1073,6 @@ model Organization {
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
-  creditUsageLogs      CreditUsageLog[]
   workspaces           Workspace[]
 
   @@index([slug])
@@ -1181,7 +1185,7 @@ model CreditUsageLog {
   metadata       Json?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId])
   @@index([userId])
@@ -1585,6 +1589,114 @@ model FeatureCreditPricing {
   @@map("feature_credit_pricing")
 }
 
+model content_submission_files {
+  id                  String              @id
+  submissionId        String
+  awsS3Key            String
+  awsS3Url            String
+  awsS3Bucket         String?
+  fileName            String
+  fileSize            Int
+  fileType            String
+  fileCategory        String
+  width               Int?
+  height              Int?
+  duration            Float?
+  thumbnailUrl        String?
+  uploadStatus        String              @default("pending")
+  uploadError         String?
+  order               Int                 @default(0)
+  uploadedBy          String?
+  uploadedAt          DateTime            @default(now())
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  content_submissions content_submissions @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([awsS3Key])
+  @@index([fileCategory])
+  @@index([submissionId])
+  @@index([submissionId, order])
+  @@index([uploadStatus])
+}
+
+model content_submission_pricing {
+  id                  String              @id
+  submissionId        String              @unique
+  minimumPrice        Float?
+  suggestedPrice      Float?
+  finalPrice          Float?
+  currency            String              @default("usd")
+  pricingType         String?
+  priceRangeMin       Float?
+  priceRangeMax       Float?
+  pricingNotes        String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  content_submissions content_submissions @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([minimumPrice])
+  @@index([submissionId])
+}
+
+model content_submission_release_schedules {
+  id                  String              @id
+  submissionId        String              @unique
+  releaseDate         DateTime
+  releaseTime         String?
+  timezone            String              @default("UTC")
+  releaseDateTime     DateTime?
+  isScheduled         Boolean             @default(true)
+  scheduledBy         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  content_submissions content_submissions @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([releaseDateTime])
+  @@index([releaseDate])
+  @@index([submissionId])
+}
+
+model content_submissions {
+  id                                   String                                @id
+  organizationId                       String
+  clerkId                              String
+  submissionType                       String
+  contentStyle                         String
+  status                               SubmissionStatus                      @default(DRAFT)
+  modelId                              String?
+  modelName                            String?
+  priority                             String                                @default("normal")
+  caption                              String?
+  driveLink                            String?
+  contentType                          String?
+  contentCount                         String?
+  contentLength                        String?
+  contentTags                          String[]                              @default([])
+  externalCreatorTags                  String?
+  internalModelTags                    String[]                              @default([])
+  platform                             String?                               @default("onlyfans")
+  notes                                String?
+  metadata                             Json?
+  createdAt                            DateTime                              @default(now())
+  updatedAt                            DateTime
+  pricingCategory                      String?                               @default("PORN_ACCURATE")
+  content_submission_files             content_submission_files[]
+  content_submission_pricing           content_submission_pricing?
+  content_submission_release_schedules content_submission_release_schedules?
+  users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([contentStyle])
+  @@index([createdAt])
+  @@index([organizationId, clerkId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([pricingCategory])
+  @@index([status])
+  @@index([submissionType])
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -1869,4 +1981,13 @@ enum TransactionType {
   CREDIT_PURCHASE
   CREDIT_REFUND
   PLAN_CHANGE
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
 }

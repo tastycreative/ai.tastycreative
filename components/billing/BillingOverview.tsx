@@ -1,9 +1,12 @@
 'use client';
 
-import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus, Settings } from 'lucide-react';
 import { PRICING_PLANS } from '@/lib/pricing-data';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
+import { PurchaseMemberSlotsModal } from './PurchaseMemberSlotsModal';
+import { ManageMemberSlotsModal } from './ManageMemberSlotsModal';
 
 interface BillingOverviewProps {
   onSubscribe: (planId: string) => void;
@@ -22,14 +25,79 @@ export default function BillingOverview({
   processingCredits,
   creditsRef,
 }: BillingOverviewProps) {
-  const { data: billingInfo, isLoading: loading } = useBillingInfo();
+  const { data: billingInfo, isLoading: loading, refetch } = useBillingInfo();
+  const [purchasingSlots, setPurchasingSlots] = useState(false);
+  const [showMemberSlotModal, setShowMemberSlotModal] = useState(false);
+  const [showManageSlotModal, setShowManageSlotModal] = useState(false);
+
+  const handlePurchaseMemberSlots = async (numberOfSlots: number) => {
+    try {
+      setPurchasingSlots(true);
+      const response = await fetch('/api/billing/purchase-member-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfSlots }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create purchase session');
+      }
+
+      const { url } = await response.json();
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error) {
+      console.error('Error purchasing member slots:', error);
+      alert('Failed to start purchase. Please try again.');
+    } finally {
+      setPurchasingSlots(false);
+    }
+  };
+
+  const handleRemoveMemberSlots = async (numberOfSlots: number) => {
+    try {
+      const response = await fetch('/api/billing/cancel-member-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfSlots }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error,
+          message: data.message,
+          currentMembers: data.currentMembers,
+          newLimit: data.newLimit,
+          membersToRemove: data.membersToRemove,
+        };
+      }
+
+      // Success - refetch billing info to update UI
+      await refetch();
+
+      return {
+        success: true,
+        message: data.message,
+      };
+    } catch (error) {
+      console.error('Error removing member slots:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred',
+      };
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { icon: React.ReactNode; text: string; className: string }> = {
       ACTIVE: {
         icon: <CheckCircle className="w-4 h-4" />,
         text: 'Active',
-        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        className: 'bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue',
       },
       TRIAL: {
         icon: <AlertCircle className="w-4 h-4" />,
@@ -116,8 +184,18 @@ export default function BillingOverview({
                 <div className="mt-4 md:mt-0 text-left md:text-right">
                   <div className="text-3xl font-bold text-gray-900 dark:text-white">
                     ${billingInfo.plan.price}
+                    {billingInfo.usage.members.additionalSlots > 0 && (
+                      <>
+                        <span className="text-xl text-brand-mid-pink dark:text-brand-light-pink font-semibold"> + ${(billingInfo.usage.members.memberSlotPrice * billingInfo.usage.members.additionalSlots).toFixed(2)}</span>
+                      </>
+                    )}
                     <span className="text-lg text-gray-600 dark:text-gray-400">/month</span>
                   </div>
+                  {billingInfo.usage.members.additionalSlots > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Includes {billingInfo.usage.members.additionalSlots} additional member slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.members.memberSlotPrice}/mo each)
+                    </p>
+                  )}
                   {billingInfo.organization.currentPeriodEnd && (
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                       {billingInfo.organization.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on{' '}
@@ -141,7 +219,7 @@ export default function BillingOverview({
                 ) : (
                   <button
                     onClick={() => onManageSubscription('resume')}
-                    className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors font-medium"
+                    className="px-4 py-2 bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue dark:text-brand-blue rounded-lg hover:bg-brand-blue/20 dark:hover:bg-brand-blue/30 transition-colors font-medium"
                   >
                     Resume Subscription
                   </button>
@@ -175,6 +253,30 @@ export default function BillingOverview({
                 max={billingInfo.usage.members.max}
                 icon={Users}
               />
+              {billingInfo.usage.members.additionalSlots > 0 && (
+                <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                  Base: {billingInfo.usage.members.baseLimit} + {billingInfo.usage.members.additionalSlots} add-on slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''}
+                </div>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setShowMemberSlotModal(true)}
+                  disabled={purchasingSlots}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 hover:bg-brand-mid-pink/20 dark:hover:bg-brand-mid-pink/30 text-brand-mid-pink dark:text-brand-light-pink rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Slots
+                </button>
+                {billingInfo.usage.members.additionalSlots > 0 && (
+                  <button
+                    onClick={() => setShowManageSlotModal(true)}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                    title="Manage member slots"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="bg-white dark:bg-gray-900/50 border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
               <UsageBar
@@ -230,7 +332,7 @@ export default function BillingOverview({
                     <span className="bg-brand-mid-pink text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       {plan.badge}
                     </span>
-                    <span className="bg-emerald-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
+                    <span className="bg-brand-blue text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       Current Plan
                     </span>
                   </div>
@@ -242,7 +344,7 @@ export default function BillingOverview({
                   </div>
                 ) : isCurrentPlan ? (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-emerald-600 text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
+                    <span className="bg-brand-blue text-white text-xs font-medium px-2 sm:px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                       Current Plan
                     </span>
                   </div>
@@ -282,7 +384,7 @@ export default function BillingOverview({
                   ) : isCurrentPlan ? (
                     <button
                       disabled
-                      className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed shadow-md"
+                      className="w-full bg-brand-blue text-white py-2 px-4 rounded-lg font-medium cursor-not-allowed shadow-md"
                     >
                       Active Subscription
                     </button>
@@ -346,7 +448,7 @@ export default function BillingOverview({
                       {totalCredits.toLocaleString()} Credits
                     </span>
                     {pkg.bonus && (
-                      <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                      <div className="text-xs text-brand-blue dark:text-brand-blue mt-1">
                         +{pkg.bonus} Bonus Credits
                       </div>
                     )}
@@ -384,6 +486,32 @@ export default function BillingOverview({
           </button>
         </div>
       </div>
+
+      {/* Member Slot Purchase Modal */}
+      {billingInfo && (
+        <>
+          <PurchaseMemberSlotsModal
+            isOpen={showMemberSlotModal}
+            onClose={() => setShowMemberSlotModal(false)}
+            onPurchase={(quantity) => {
+              setShowMemberSlotModal(false);
+              handlePurchaseMemberSlots(quantity);
+            }}
+            pricePerSlot={billingInfo.usage.members.memberSlotPrice}
+            currentSlots={billingInfo.usage.members.additionalSlots}
+            baseLimit={billingInfo.usage.members.baseLimit}
+          />
+          <ManageMemberSlotsModal
+            isOpen={showManageSlotModal}
+            onClose={() => setShowManageSlotModal(false)}
+            onRemove={handleRemoveMemberSlots}
+            pricePerSlot={billingInfo.usage.members.memberSlotPrice}
+            currentSlots={billingInfo.usage.members.additionalSlots}
+            baseLimit={billingInfo.usage.members.baseLimit}
+            currentMembers={billingInfo.usage.members.current}
+          />
+        </>
+      )}
     </>
   );
 }
