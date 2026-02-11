@@ -277,15 +277,27 @@ export default function BillingOverview({
                         <span className="text-xl text-brand-mid-pink dark:text-brand-light-pink font-semibold"> + ${(billingInfo.usage.members.memberSlotPrice * billingInfo.usage.members.additionalSlots).toFixed(2)}</span>
                       </>
                     )}
+                    {billingInfo.usage.profiles.additionalSlots > 0 && (
+                      <>
+                        <span className="text-xl text-brand-mid-pink dark:text-brand-light-pink font-semibold"> + ${(billingInfo.usage.profiles.contentProfileSlotPrice * billingInfo.usage.profiles.additionalSlots).toFixed(2)}</span>
+                      </>
+                    )}
                     <span className="text-lg text-gray-600 dark:text-gray-400">/month</span>
                   </div>
-                  {billingInfo.usage.members.additionalSlots > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Includes {billingInfo.usage.members.additionalSlots} additional member slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.members.memberSlotPrice}/mo each)
-                    </p>
-                  )}
+                  <div className="space-y-1 mt-1">
+                    {billingInfo.usage.members.additionalSlots > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        • {billingInfo.usage.members.additionalSlots} additional member slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.members.memberSlotPrice}/mo each)
+                      </p>
+                    )}
+                    {billingInfo.usage.profiles.additionalSlots > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        • {billingInfo.usage.profiles.additionalSlots} additional content profile slot{billingInfo.usage.profiles.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.profiles.contentProfileSlotPrice}/mo each)
+                      </p>
+                    )}
+                  </div>
                   {billingInfo.organization.currentPeriodEnd && (
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-2">
                       {billingInfo.organization.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on{' '}
                       {new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
                     </p>
