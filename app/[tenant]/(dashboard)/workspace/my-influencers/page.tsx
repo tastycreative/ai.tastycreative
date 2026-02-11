@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { useBillingInfo } from "@/lib/hooks/useBilling.query";
 import {
   Users,
   Plus,
@@ -30,6 +32,7 @@ import {
   ChevronRight,
   Settings,
   Upload,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -273,10 +276,13 @@ export default function MyInfluencersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<InfluencerProfile | null>(null);
 
   const apiClient = useApiClient();
   const { user: clerkUser } = useUser();
+  const router = useRouter();
+  const { data: billingInfo } = useBillingInfo();
 
   useEffect(() => {
     if (apiClient) loadProfiles();
@@ -297,6 +303,22 @@ export default function MyInfluencersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateProfile = () => {
+    // Check if user has reached profile limit
+    if (billingInfo) {
+      const currentProfiles = billingInfo.usage.profiles.current;
+      const maxProfiles = billingInfo.usage.profiles.max;
+
+      if (currentProfiles >= maxProfiles) {
+        setShowLimitModal(true);
+        return;
+      }
+    }
+
+    setSelectedProfile(null);
+    setShowCreateModal(true);
   };
 
   const isOwnProfile = (profile: InfluencerProfile) => {
@@ -439,7 +461,7 @@ export default function MyInfluencersPage() {
                 <p className="text-xs text-header-muted">{profiles.length} profile{profiles.length !== 1 ? "s" : ""}</p>
               </div>
             </div>
-            <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
+            <button onClick={handleCreateProfile}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-medium rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-lg shadow-[#EC67A1]/30">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New Profile</span>
@@ -524,7 +546,7 @@ export default function MyInfluencersPage() {
             <h3 className="text-xl font-semibold text-sidebar-foreground mb-2">{searchQuery ? "No profiles found" : "No influencer profiles yet"}</h3>
             <p className="text-sm text-header-muted text-center max-w-sm mb-8">{searchQuery ? "Try adjusting your search or filters" : "Create your first influencer profile with comprehensive Model Bible documentation"}</p>
             {!searchQuery && (
-              <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
+              <button onClick={handleCreateProfile}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-semibold rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-xl shadow-[#EC67A1]/30">
                 <Plus className="w-4 h-4" />Create Profile
               </button>
@@ -556,7 +578,88 @@ export default function MyInfluencersPage() {
       {showEditModal && selectedProfile && <CreateEditProfileModal mode="edit" profile={selectedProfile} onClose={() => { setShowEditModal(false); setSelectedProfile(null); }} onSuccess={() => { setShowEditModal(false); setSelectedProfile(null); loadProfiles(); }} />}
       {showDeleteModal && selectedProfile && <DeleteProfileModal profile={selectedProfile} onClose={() => { setShowDeleteModal(false); setSelectedProfile(null); }} onSuccess={() => { setShowDeleteModal(false); setSelectedProfile(null); loadProfiles(); }} />}
       {showDetailsModal && selectedProfile && <ProfileDetailsModal profile={selectedProfile} onClose={() => { setShowDetailsModal(false); setSelectedProfile(null); }} />}
+      {showLimitModal && <ProfileLimitModal billingInfo={billingInfo} onClose={() => setShowLimitModal(false)} onUpgrade={() => router.push('/ai-content-team/billing')} />}
     </div>
+  );
+}
+
+function ProfileLimitModal({ billingInfo, onClose, onUpgrade }: { billingInfo: any; onClose: () => void; onUpgrade: () => void }) {
+  if (typeof window === 'undefined') return null;
+
+  const currentProfiles = billingInfo?.usage.profiles.current || 0;
+  const maxProfiles = billingInfo?.usage.profiles.max || 0;
+  const baseLimit = billingInfo?.usage.profiles.baseLimit || 0;
+  const additionalSlots = billingInfo?.usage.profiles.additionalSlots || 0;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-md border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+        <div className="p-6 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 rounded-xl">
+              <AlertCircle className="w-6 h-6 text-[#EC67A1]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-sidebar-foreground">Profile Limit Reached</h2>
+              <p className="text-sm text-header-muted">You've reached your plan's profile limit</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="bg-[#F8F8F8] dark:bg-[#0f0d18] rounded-xl p-4 border border-[#EC67A1]/10">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-sidebar-foreground">Current Usage</span>
+              <span className="text-sm font-bold text-[#EC67A1]">{currentProfiles} / {maxProfiles}</span>
+            </div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-2">
+              <div
+                className="h-2 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9]"
+                style={{ width: `${Math.min((currentProfiles / maxProfiles) * 100, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-header-muted mt-2">
+              {baseLimit} base limit {additionalSlots > 0 && `+ ${additionalSlots} add-on slot${additionalSlots > 1 ? 's' : ''}`}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm text-sidebar-foreground">
+              You've created {currentProfiles} content profile{currentProfiles !== 1 ? 's' : ''}, which is the maximum for your current plan.
+            </p>
+            <p className="text-sm text-sidebar-foreground">
+              To create more profiles, you can:
+            </p>
+            <ul className="space-y-2 text-sm text-sidebar-foreground">
+              <li className="flex items-start gap-2">
+                <CreditCard className="w-4 h-4 text-[#EC67A1] mt-0.5 flex-shrink-0" />
+                <span>Purchase additional profile slots (${billingInfo?.usage.profiles.contentProfileSlotPrice || 10}/month per slot)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Trash2 className="w-4 h-4 text-[#EC67A1] mt-0.5 flex-shrink-0" />
+                <span>Delete an existing profile to free up space</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="p-6 bg-[#F8F8F8] dark:bg-[#0f0d18] border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 text-sidebar-foreground rounded-xl hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onUpgrade}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-lg shadow-[#EC67A1]/30 font-medium"
+          >
+            Add Slots
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
