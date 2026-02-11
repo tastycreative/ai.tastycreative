@@ -127,7 +127,7 @@ export default function StyleTransferPrompts() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3 sm:space-y-4 md:space-y-6 px-3 sm:px-4">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden max-w-6xl mx-auto bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar space-y-3 sm:space-y-4 md:space-y-6 px-3 sm:px-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
         <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
@@ -166,7 +166,7 @@ export default function StyleTransferPrompts() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {/* Upload Section */}
-        <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-sm border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
           <h2 className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
             Upload Image
           </h2>
@@ -247,7 +247,7 @@ export default function StyleTransferPrompts() {
         </div>
 
         {/* Analysis Results */}
-        <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-sm border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
           <h2 className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
             Analysis Results
           </h2>
@@ -323,7 +323,7 @@ export default function StyleTransferPrompts() {
 
       {/* Generated Prompt */}
       {generatedPrompt && (
-        <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-sm border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
               Generated Flux Prompt

@@ -223,17 +223,17 @@ export function NotificationBell() {
       {/* Bell Icon */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-400 dark:text-gray-300 hover:text-gray-500 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full transition-colors"
+        className="relative p-2 text-header-muted hover:text-header-foreground rounded-xl border-2 border-transparent hover:border-[#EC67A1]/20 hover:bg-sidebar-accent transition-all"
       >
-        <Bell className="h-6 w-6" />
+        <Bell className="h-5 w-5" />
         {totalUnreadItems > 0 && (
           <>
-            <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+            <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-xs font-bold flex items-center justify-center ring-2 ring-header">
               {totalUnreadItems > 9 ? '9+' : totalUnreadItems}
             </span>
             {/* Pulse animation for overdue tasks */}
             {taskStats.overdue > 0 && (
-              <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-red-500 animate-ping"></span>
+              <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-[#EC67A1] animate-ping"></span>
             )}
           </>
         )}
@@ -249,15 +249,15 @@ export function NotificationBell() {
           />
           
           {/* Dropdown Panel */}
-          <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-2xl ring-1 ring-black ring-opacity-5 dark:ring-gray-700 z-20 max-h-[600px] overflow-hidden flex flex-col">
+          <div className="absolute right-0 mt-2 w-96 bg-sidebar rounded-2xl shadow-2xl border border-sidebar-border z-20 max-h-[600px] overflow-hidden flex flex-col">
             {/* Header with Tabs */}
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="px-4 py-3 border-b border-sidebar-border bg-sidebar-accent">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                <h3 className="text-lg font-semibold text-sidebar-foreground">Notifications</h3>
                 {activeTab === 'notifications' && unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium"
+                    className="text-sm text-[#5DC3F8] hover:text-[#EC67A1] font-medium transition-colors"
                   >
                     Mark all read
                   </button>
@@ -265,13 +265,13 @@ export function NotificationBell() {
               </div>
               
               {/* Tabs */}
-              <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <div className="flex space-x-1 bg-sidebar-accent rounded-xl p-1 border border-sidebar-border">
                 <button
                   onClick={() => setActiveTab('notifications')}
-                  className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                     activeTab === 'notifications'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-sm'
+                      : 'text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/80'
                   }`}
                 >
                   Posts {unreadCount > 0 && `(${unreadCount})`}

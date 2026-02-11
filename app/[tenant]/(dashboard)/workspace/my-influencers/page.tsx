@@ -425,7 +425,7 @@ export default function MyInfluencersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F8F8] dark:bg-[#1a1625]">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar">
       {/* Header */}
       <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/90 dark:bg-[#1a1625]/90 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -455,9 +455,9 @@ export default function MyInfluencersPage() {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
               <input type="text" placeholder="Search profiles..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 pl-11 pr-4 text-sm text-sidebar-foreground bg-white dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all placeholder:text-header-muted" />
+                className="w-full h-11 pl-11 pr-4 text-sm text-sidebar-foreground bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all placeholder:text-header-muted" />
             </div>
-            <div className="inline-flex items-center p-1 bg-white dark:bg-[#1a1625]/50 rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+            <div className="inline-flex items-center p-1 bg-white dark:bg-[#1a1625] rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
               {[{ key: "all", label: "All", count: profiles.length }, { key: "mine", label: "Mine", count: myProfilesCount }, { key: "shared", label: "Shared", count: sharedProfilesCount }].map((filter) => (
                 <button key={filter.key} onClick={() => setFilterMode(filter.key as FilterMode)}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-sidebar-foreground shadow-sm" : "text-header-muted hover:text-sidebar-foreground"}`}>
@@ -467,11 +467,11 @@ export default function MyInfluencersPage() {
             </div>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
               className="h-11 px-4 text-sm text-sidebar-foreground bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all">
-              <option value="name">Sort: Name</option>
-              <option value="dateCreated">Sort: Date Created</option>
-              <option value="dateUpdated">Sort: Last Updated</option>
-              <option value="postsCount">Sort: Posts Count</option>
-              <option value="completeness">Sort: Completeness</option>
+              <option value="name" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Sort: Name</option>
+              <option value="dateCreated" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Sort: Date Created</option>
+              <option value="dateUpdated" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Sort: Last Updated</option>
+              <option value="postsCount" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Sort: Posts Count</option>
+              <option value="completeness" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Sort: Completeness</option>
             </select>
           </div>
           
@@ -490,7 +490,7 @@ export default function MyInfluencersPage() {
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                       isSelected
                         ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-sm"
-                        : "bg-white dark:bg-[#1a1625]/50 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-[#1a1625]/70 border border-[#EC67A1]/10"
+                        : "bg-white dark:bg-[#1a1625] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-[#0f0d18] border border-[#EC67A1]/10 rounded-lg"
                     }`}
                   >
                     {tag}
@@ -579,7 +579,7 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
   const color = getCompletenessColor(completeness.percentage);
 
   return (
-    <div className="group relative bg-white dark:bg-[#1a1625]/50 rounded-2xl shadow-sm shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/5 overflow-hidden hover:shadow-2xl hover:shadow-[#EC67A1]/20 dark:hover:shadow-[#EC67A1]/10 hover:-translate-y-1 transition-all duration-300 border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+    <div className="group relative bg-white dark:bg-[#1a1625] rounded-2xl shadow-sm shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/5 overflow-hidden hover:shadow-2xl hover:shadow-[#EC67A1]/20 dark:hover:shadow-[#EC67A1]/10 hover:-translate-y-1 transition-all duration-300 border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
       <div className="relative aspect-[4/5] bg-gradient-to-br from-[#EC67A1]/5 to-[#F774B9]/5 dark:from-[#EC67A1]/10 dark:to-[#F774B9]/10 overflow-hidden">
         {profile.profileImageUrl ? (
           <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
@@ -679,7 +679,7 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
           {profile.tags && profile.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
               {profile.tags.map((tag) => (
-                <span key={tag} className="inline-flex items-center px-2 py-0.5 bg-white dark:bg-[#1a1625]/50 text-[#EC67A1] dark:text-[#F774B9] text-xs font-medium rounded-md border border-[#EC67A1]/20">
+                <span key={tag} className="inline-flex items-center px-2 py-0.5 bg-white dark:bg-[#0f0d18] text-[#EC67A1] dark:text-[#F774B9] text-xs font-medium rounded-md border border-[#EC67A1]/20">
                   {tag}
                 </span>
               ))}
@@ -803,7 +803,7 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
           <button onClick={onClose} className="p-2 hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 rounded-lg transition-colors"><X className="w-5 h-5 text-header-muted" /></button>
         </div>
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-44 border-r border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#1a1625]/50 overflow-y-auto">
+          <div className="w-44 border-r border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#0f0d18] overflow-y-auto rounded-bl-2xl">
             <nav className="p-2 space-y-0.5">
               {sections.map((section) => { const Icon = section.icon; return (
                 <button key={section.id} onClick={() => setActiveSection(section.id)}
@@ -896,11 +896,11 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                 </div>
                 <FormField label="Profile Name" required>
                   <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Luna Rose"
-                    className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all" />
+                    className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#0f0d18] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all" />
                 </FormField>
                 <FormField label="Description">
                   <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} placeholder="Brief description..."
-                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#0f0d18] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none" />
                 </FormField>
                 <FormField label="Instagram Username">
                   <div className="relative">
@@ -1081,7 +1081,7 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
             )}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#1a1625]/50">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#0f0d18] rounded-b-2xl">
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-sidebar-foreground hover:text-sidebar-foreground transition-colors">Cancel</button>
           <button onClick={handleSubmit} disabled={saving || !formData.name.trim()}
             className="px-6 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-semibold rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-[#EC67A1]/30">
@@ -1140,7 +1140,7 @@ function DeleteProfileModal({ profile, onClose, onSuccess }: { profile: Influenc
           )}
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-sidebar-foreground bg-zinc-100 dark:bg-[#1a1625]/50 hover:bg-zinc-200 dark:hover:bg-[#1a1625]/70 rounded-xl transition-colors border border-[#EC67A1]/10">Cancel</button>
+          <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-sidebar-foreground bg-zinc-100 dark:bg-[#0f0d18] hover:bg-zinc-200 dark:hover:bg-[#1a1625] rounded-xl transition-colors border border-[#EC67A1]/10">Cancel</button>
           <button onClick={handleDelete} disabled={deleting} className="flex-1 px-5 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete
           </button>
@@ -1424,8 +1424,8 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
             </div>
           )}
         </div>
-        <div className="flex justify-end px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
-          <button onClick={onClose} className="px-6 py-2.5 text-sm font-medium text-sidebar-foreground bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">Close</button>
+        <div className="flex justify-end px-6 py-4 border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-zinc-50 dark:bg-[#0f0d18] rounded-b-2xl">
+          <button onClick={onClose} className="px-6 py-2.5 text-sm font-medium text-sidebar-foreground bg-white dark:bg-[#1a1625] hover:bg-zinc-100 dark:hover:bg-[#0f0d18] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl transition-colors">Close</button>
         </div>
       </div>
     </div>,

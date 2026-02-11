@@ -952,7 +952,7 @@ export default function KlingTextToVideo() {
   };
 
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[#1a1625] text-sidebar-foreground">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar relative text-sidebar-foreground">
       {/* Toast Notification */}
       {showToast && toastError && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top">

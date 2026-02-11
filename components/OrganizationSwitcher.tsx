@@ -107,9 +107,9 @@ export function OrganizationSwitcher() {
 
   if (loading) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm rounded-xl border border-sidebar-border">
-        <Loader2 className="w-4 h-4 animate-spin text-sidebar-foreground/50" />
-        <span className="text-sm text-sidebar-foreground/50">Loading...</span>
+      <div className="flex items-center space-x-2 px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm rounded-2xl border border-sidebar-border">
+        <Loader2 className="w-4 h-4 animate-spin text-[#EC67A1]" />
+        <span className="text-sm text-sidebar-foreground">Loading...</span>
       </div>
     );
   }
@@ -119,15 +119,15 @@ export function OrganizationSwitcher() {
     return (
       <Link
         href="/dashboard"
-        className="flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-primary/10 border border-sidebar-border hover:border-[#EC67A1]/30 rounded-xl transition-all duration-200 group"
+        className="flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/30 rounded-2xl transition-all duration-200 group"
       >
         <div className="flex items-center space-x-2">
-          <User className="w-4 h-4 text-sidebar-foreground/70 group-hover:text-[#EC67A1] transition-colors" />
+          <User className="w-4 h-4 text-[#5DC3F8] group-hover:text-[#EC67A1] transition-colors" />
           <span className="text-sm font-medium text-sidebar-foreground">
             Personal
           </span>
         </div>
-        <Plus className="w-4 h-4 text-sidebar-foreground/40 group-hover:text-[#EC67A1] transition-colors" />
+        <Plus className="w-4 h-4 text-[#EC67A1]/70 group-hover:text-[#EC67A1] transition-colors" />
       </Link>
     );
   }
@@ -142,7 +142,7 @@ export function OrganizationSwitcher() {
           setIsOpen(!isOpen);
         }}
         disabled={switching}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-primary/10 border border-sidebar-border hover:border-sidebar-border rounded-xl transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/20 rounded-2xl transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <div className="flex items-center space-x-2.5 min-w-0 flex-1">
           {currentOrganization?.logoUrl ? (
@@ -163,7 +163,7 @@ export function OrganizationSwitcher() {
               {subscriptionInfo && getStatusBadge(subscriptionInfo.status)}
             </div>
             {subscriptionInfo && (
-              <span className="text-[10px] text-sidebar-foreground/40">
+              <span className="text-[10px] text-sidebar-foreground/50">
                 {subscriptionInfo.planDisplayName}
               </span>
             )}
@@ -171,9 +171,9 @@ export function OrganizationSwitcher() {
         </div>
 
         {switching ? (
-          <Loader2 className="w-4 h-4 animate-spin text-[#5DC3F8] flex-shrink-0 ml-2" />
+          <Loader2 className="w-4 h-4 animate-spin text-[#EC67A1] flex-shrink-0 ml-2" />
         ) : (
-          <ChevronDown className={`w-4 h-4 text-sidebar-foreground/40 transition-transform duration-300 flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-[#EC67A1]/70 group-hover:text-[#EC67A1] transition-all duration-300 flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
         )}
       </button>
 
@@ -190,8 +190,8 @@ export function OrganizationSwitcher() {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-sidebar-border">
-            <p className="text-[10px] font-semibold text-sidebar-foreground/50 dark:text-sidebar-foreground/40 uppercase tracking-wider">
+          <div className="px-4 py-3 border-b border-sidebar-border bg-sidebar-accent">
+            <p className="text-[10px] font-semibold text-sidebar-foreground uppercase tracking-wider">
               Switch Organization
             </p>
           </div>
@@ -206,10 +206,10 @@ export function OrganizationSwitcher() {
                   key={org.id}
                   onClick={() => handleSwitch(org.id, org.slug)}
                   disabled={switching}
-                  className={`w-full text-left px-4 py-3 transition-all duration-200 flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`w-full text-left px-4 py-3 transition-all duration-200 flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed rounded-xl mx-2 ${
                     isActive
-                      ? 'bg-[#EC67A1]/10 dark:bg-[#EC67A1]/10 border-l-2 border-[#EC67A1]'
-                      : 'hover:bg-sidebar-accent border-l-2 border-transparent'
+                      ? 'bg-sidebar-accent border-2 border-[#EC67A1]/30'
+                      : 'hover:bg-sidebar-accent border-2 border-transparent hover:border-[#EC67A1]/20'
                   }`}
                 >
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
@@ -231,14 +231,14 @@ export function OrganizationSwitcher() {
                       <div className="flex items-center space-x-1.5">
                         <span className={`text-sm font-medium truncate ${
                           isActive
-                            ? 'text-[#EC67A1]'
+                            ? 'text-sidebar-foreground'
                             : 'text-sidebar-foreground'
                         }`}>
                           {org.name}
                         </span>
                         {getRoleIcon(org.role)}
                       </div>
-                      <span className="text-[10px] text-sidebar-foreground/40 uppercase">
+                      <span className="text-[10px] text-sidebar-foreground/50 uppercase">
                         {org.role}
                       </span>
                     </div>

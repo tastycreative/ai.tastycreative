@@ -502,7 +502,7 @@ export default function TrainLoRAPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
       {/* Enhanced Header */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-xl sm:rounded-2xl md:rounded-3xl shadow-2xl border-2 border-[#5DC3F8]/30 p-6 xs:p-8 sm:p-10 md:p-12 text-white text-center">
         {/* Background Pattern */}
@@ -569,7 +569,7 @@ export default function TrainLoRAPage() {
             const isCompleted = currentStep > step.id;
 
             return (
-              <div key={step.id} className="flex flex-col items-center space-y-1.5 sm:space-y-2 bg-white dark:bg-gray-900 px-1 sm:px-2">
+              <div key={step.id} className="flex flex-col items-center space-y-1.5 sm:space-y-2 bg-[#F8F8F8] dark:bg-[#0a0a0f] px-1 sm:px-2">
                 <button
                   onClick={() => {
                     if (step.id < currentStep || (step.id === currentStep + 1 && validateStep(currentStep))) {
@@ -609,7 +609,7 @@ export default function TrainLoRAPage() {
       </div>
 
       {/* Step Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg border-2 border-[#5DC3F8]/30 p-4 xs:p-5 sm:p-6 md:p-8">
+      <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-lg sm:rounded-xl shadow-lg border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-4 xs:p-5 sm:p-6 md:p-8">
         {currentStep === 1 && (
           <div className="space-y-4 sm:space-y-6 md:space-y-8">
             <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3">

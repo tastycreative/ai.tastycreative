@@ -262,9 +262,9 @@ export default function AdminLayout({
         onMouseLeave={handleMouseLeave}
         className={classNames(
           isActive
-            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02]"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md",
-          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
+            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02] border-2 border-[#EC67A1]/30"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md hover:border-[#EC67A1]/20 border-2 border-transparent",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 active:scale-95",
           !sidebarOpen ? "justify-center" : ""
         )}
       >
@@ -272,8 +272,8 @@ export default function AdminLayout({
           className={classNames(
             isActive
               ? "text-white"
-              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
-            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+              : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300",
             sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
             isActive ? "scale-110" : "group-hover:scale-110"
           )}
@@ -295,9 +295,9 @@ export default function AdminLayout({
           onClick={() => toggleSection(section.name)}
           className={classNames(
             hasActiveItem
-              ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-l-2 border-[#EC67A1]"
-              : "",
-            "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
+              ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-2 border-[#EC67A1]/30"
+              : "border-2 border-transparent hover:border-[#EC67A1]/20",
+            "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-xl transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md",
             !sidebarOpen ? "justify-center" : "justify-between"
           )}
         >
@@ -306,8 +306,8 @@ export default function AdminLayout({
               className={classNames(
                 hasActiveItem
                   ? "text-[#EC67A1]"
-                  : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
-                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+                  : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300",
                 sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : ""
               )}
               aria-hidden="true"
@@ -335,15 +335,15 @@ export default function AdminLayout({
                   onClick={() => isMobile && setSidebarOpen(false)}
                   className={classNames(
                     isActive
-                      ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    "group flex items-center px-3 py-2 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300"
+                      ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25 border-2 border-[#EC67A1]/30"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-[#EC67A1]/20 border-2 border-transparent",
+                    "group flex items-center px-3 py-2 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-md"
                   )}
                 >
                   <SubIcon
                     className={classNames(
-                      isActive ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
-                      "h-4 w-4 xs:h-5 xs:w-5 flex-shrink-0 mr-2"
+                      isActive ? "text-white" : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+                      "h-4 w-4 xs:h-5 xs:w-5 flex-shrink-0 mr-2 transition-all duration-300"
                     )}
                     aria-hidden="true"
                   />
@@ -373,52 +373,66 @@ export default function AdminLayout({
           sidebarOpen ? "w-80" : "w-24",
         )}
       >
-        <div className="absolute inset-0 bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border shadow-2xl" />
-
-        {/* Sidebar header */}
-        <div className="relative flex items-center justify-between p-4 xs:p-5 sm:p-6 border-b border-sidebar-border">
-          {sidebarOpen && (
-            <div className="flex items-center space-x-2.5 xs:space-x-3">
-              <div className="p-2 xs:p-2.5 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-xl shadow-lg shadow-[#EC67A1]/25">
-                <Shield className="h-5 w-5 xs:h-6 xs:w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-sidebar-foreground text-base xs:text-lg font-bold">
-                  Admin Panel
-                </h1>
-                <p className="text-xs text-sidebar-foreground/60">System Control</p>
-              </div>
+        {/* Sidebar Glass Container */}
+        <div className="flex-1 m-3 rounded-3xl bg-background backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-xl">
+          {/* Sidebar Header with Logo */}
+          <div className="p-5 border-b border-sidebar-border">
+            <div className="flex items-center justify-between">
+              {sidebarOpen ? (
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 flex-shrink-0">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-xl font-bold text-sidebar-foreground">
+                      Admin Panel
+                    </h1>
+                    <p className="text-xs text-sidebar-foreground/60">System Control</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 mx-auto">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+              )}
+              {sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="p-2 rounded-xl hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 hover:rotate-180"
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
             </div>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="relative p-1.5 xs:p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-sidebar-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar"
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {sidebarOpen ? (
-              <ChevronLeft className="h-4 w-4 xs:h-5 xs:w-5" />
-            ) : (
-              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5" />
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-xl hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 mt-3 mx-auto"
+                aria-label="Expand sidebar"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             )}
-          </button>
-        </div>
+          </div>
 
-        {/* Navigation */}
-        <nav className="relative flex-1 px-2.5 xs:px-3 py-4 xs:py-5 space-y-1.5 xs:space-y-2 overflow-y-auto custom-scrollbar">
-          {navigation.map((item) => {
-            if ("items" in item) {
-              return renderNavSection(item);
-            } else {
-              return renderNavItem(item);
-            }
-          })}
-        </nav>
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+            {navigation.map((item) => {
+              if ("items" in item) {
+                return renderNavSection(item);
+              } else {
+                return renderNavItem(item);
+              }
+            })}
+          </nav>
 
-        {/* Theme toggle and footer */}
-        <div className="relative border-t border-sidebar-border p-4 xs:p-5">
-          <div className="flex items-center justify-end">
-            <div className="transform transition-transform duration-300 hover:scale-110">
-              <ThemeToggle />
+          {/* Theme toggle and footer */}
+          <div className="border-t border-sidebar-border p-4">
+            <div className="flex items-center justify-end">
+              <div className="transform transition-transform duration-300 hover:scale-110">
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>
@@ -440,48 +454,51 @@ export default function AdminLayout({
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "relative w-72 xs:w-80 h-full flex flex-col transition-all duration-300 ease-out",
+            "w-72 xs:w-80 h-full p-3 transition-all duration-300 ease-out",
             sidebarOpen
               ? "transform translate-x-0 opacity-100"
               : "transform -translate-x-full opacity-0"
           )}
         >
-          <div className="absolute inset-0 bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border shadow-2xl" />
-          {/* Mobile Sidebar Header */}
-          <div className="relative flex items-center justify-between p-4 xs:p-5 border-b border-sidebar-border">
-            <div className="flex items-center space-x-2.5 xs:space-x-3">
-              <div className="p-2 xs:p-2.5 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-xl shadow-lg shadow-[#EC67A1]/25">
-                <Shield className="h-5 w-5 xs:h-6 xs:w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-sidebar-foreground text-base xs:text-lg font-bold">Admin Panel</h1>
-                <p className="text-xs text-sidebar-foreground/60">System Control</p>
+          <div className="h-full rounded-3xl bg-background backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-xl">
+            {/* Mobile Sidebar Header */}
+            <div className="p-5 border-b border-sidebar-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 flex-shrink-0">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-xl font-bold text-sidebar-foreground">Admin Panel</h1>
+                    <p className="text-xs text-sidebar-foreground/60">System Control</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-2 rounded-xl hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200"
+                  aria-label="Close sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="relative p-1.5 xs:p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200 active:scale-95 hover:bg-sidebar-accent rounded-lg"
-              aria-label="Close sidebar"
-            >
-              <ChevronLeft className="h-4 w-4 xs:h-5 xs:w-5" />
-            </button>
-          </div>
 
-          {/* Navigation */}
-          <nav className="relative flex-1 px-2.5 xs:px-3 py-4 xs:py-5 space-y-1.5 xs:space-y-2 overflow-y-auto">
-            {navigation.map((item) => {
-              if ("items" in item) {
-                return renderNavSection(item);
-              } else {
-                return renderNavItem(item);
-              }
-            })}
-          </nav>
+            {/* Navigation */}
+            <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+              {navigation.map((item) => {
+                if ("items" in item) {
+                  return renderNavSection(item);
+                } else {
+                  return renderNavItem(item);
+                }
+              })}
+            </nav>
 
-          {/* Theme toggle */}
-          <div className="relative border-t border-sidebar-border p-4 xs:p-5">
-            <div className="flex items-center justify-end">
-              <ThemeToggle />
+            {/* Theme toggle */}
+            <div className="border-t border-sidebar-border p-4">
+              <div className="flex items-center justify-end">
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>
@@ -504,69 +521,71 @@ export default function AdminLayout({
         </div>
 
         {/* Content area */}
-        <main className="flex-1 h-full overflow-y-auto custom-scrollbar">
-          {/* Sticky Header with user info */}
-          <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-md border-b border-border px-4 lg:px-8 py-3 xs:py-4 shadow-lg">
-            <div className="flex items-center justify-between">
-              {/* Left Side - Page Title */}
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2 bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 px-3 py-2 rounded-lg border border-[#EC67A1]/30">
-                  <Shield className="w-5 h-5 xs:w-6 xs:h-6 text-[#EC67A1]" />
-                  <h2 className="text-base xs:text-lg font-semibold text-foreground">Admin Control Panel</h2>
+        <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
+          {/* Modern Top Header */}
+          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-background border-b border-header-border rounded-b-2xl">
+            <div className="px-6 lg:px-8 py-4">
+              <div className="flex items-center justify-between">
+                {/* Left Side - Page Title */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 px-4 py-2.5 rounded-2xl border-2 border-[#EC67A1]/30">
+                    <Shield className="w-5 h-5 text-[#EC67A1]" />
+                    <h2 className="text-base font-semibold text-header-foreground">Admin Control Panel</h2>
+                  </div>
                 </div>
-              </div>
 
-              {/* Right Side - User Info */}
-              <div className="flex items-center space-x-4">
-                {/* Theme Toggle */}
-                <ThemeToggle />
+                {/* Right Side - Compact Controls */}
+                <div className="hidden lg:flex items-center gap-3">
+                  {/* Theme Toggle */}
+                  <ThemeToggle />
 
-                {/* User Dropdown */}
-                <div className="relative group">
-                  <button className="flex items-center space-x-2 bg-accent hover:bg-accent/80 border border-border px-3 py-2 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md">
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-full flex items-center justify-center shadow-md shadow-[#EC67A1]/25">
-                      <span className="text-white text-sm font-semibold">
-                        {initials}
-                      </span>
-                    </div>
-                    <span className="text-sm font-medium text-foreground hidden sm:block">
-                      {firstName}
-                    </span>
-                    <ChevronDown className="w-4 h-4 text-foreground/60 transition-transform duration-300 group-hover:rotate-180" />
-                  </button>
+                  {/* User Menu */}
+                  <div className="relative group">
+                    <button className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/30 transition-all duration-200">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
+                        <span className="text-white text-xs font-bold">{initials}</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-header-foreground">{firstName}</p>
+                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">{email}</p>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-[#EC67A1] transition-all duration-200 group-hover:rotate-180" />
+                    </button>
 
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
-                    <div className="py-2">
-                      <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10">
-                        <p className="text-sm font-medium text-foreground truncate">{firstName}</p>
-                        <p className="text-xs text-foreground/60 truncate">{email}</p>
-                        <div className="mt-1.5 inline-flex items-center space-x-1 px-2 py-0.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] rounded-full">
+                    {/* User Dropdown */}
+                    <div className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      <div className="px-4 py-3 border-b border-sidebar-border">
+                        <p className="text-sm font-semibold text-sidebar-foreground">{firstName}</p>
+                        <p className="text-xs text-sidebar-foreground/60 truncate">{email}</p>
+                        <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] rounded-full">
                           <Shield className="w-3 h-3 text-white" />
                           <span className="text-xs text-white font-semibold">Admin</span>
                         </div>
                       </div>
-                      <Link
-                        href={`/${tenant}/dashboard`}
-                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-all duration-200 flex items-center space-x-2"
-                      >
-                        <Home className="w-4 h-4 text-[#EC67A1]" />
-                        <span>User Dashboard</span>
-                      </Link>
-                      <Link
-                        href={`/${tenant}/settings`}
-                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-all duration-200 flex items-center space-x-2"
-                      >
-                        <Settings className="w-4 h-4 text-[#5DC3F8]" />
-                        <span>Settings</span>
-                      </Link>
-                      <div className="border-t border-border mt-2 pt-2">
+
+                      <div className="py-1">
+                        <Link
+                          href={`/${tenant}/dashboard`}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
+                        >
+                          <Home className="w-4 h-4 text-[#5DC3F8]" />
+                          User Dashboard
+                        </Link>
+                        <Link
+                          href={`/${tenant}/settings`}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
+                        >
+                          <Settings className="w-4 h-4 text-[#5DC3F8]" />
+                          Settings
+                        </Link>
+                      </div>
+                      <div className="border-t border-sidebar-border pt-1 mt-1">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-4 py-2.5 text-sm text-[#EC67A1] hover:bg-[#EC67A1]/10 transition-all duration-200 flex items-center space-x-2"
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all rounded-lg mx-2"
                         >
                           <LogOut className="w-4 h-4" />
-                          <span>Sign Out</span>
+                          Sign Out
                         </button>
                       </div>
                     </div>
@@ -577,7 +596,7 @@ export default function AdminLayout({
           </div>
 
           {/* Content */}
-          <div className="px-4 xs:px-6 py-6 xs:py-8 lg:px-8 animate-fadeIn">
+          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
             {children}
           </div>
         </main>

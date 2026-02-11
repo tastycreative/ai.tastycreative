@@ -976,7 +976,7 @@ export default function MyLoRAModelsPage() {
   const sharedModels = loraModels.filter((m) => m.isShared);
 
   return (
-    <div className="space-y-6">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar space-y-6 px-3 sm:px-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl shadow-lg border border-blue-200 dark:border-cyan-800 p-4 sm:p-6 text-white">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1062,7 +1062,7 @@ export default function MyLoRAModelsPage() {
 
       {/* Empty State */}
       {loraModels.length === 0 ? (
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-sm border-2 border-dashed border-[#5DC3F8]/30 p-12 text-center">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-2xl shadow-sm border-2 border-dashed border-[#EC67A1]/30 p-12 text-center">
           <div className="flex flex-col items-center space-y-6">
             <div className="relative">
               <div className="p-6 bg-gradient-to-br from-[#5DC3F8]/20 to-[#EC67A1]/20 rounded-2xl">
@@ -1123,7 +1123,7 @@ export default function MyLoRAModelsPage() {
                   return (
                     <div
                       key={model.id}
-                      className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 shadow-md rounded-xl border-2 border-[#5DC3F8]/30 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
+                      className="bg-[#F8F8F8] dark:bg-[#0a0a0f] shadow-md rounded-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
                     >
                       <div className="space-y-2 sm:space-y-2.5">
                         <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700/40 dark:to-gray-800/40 flex items-center justify-center">

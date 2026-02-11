@@ -470,7 +470,7 @@ export function ReferenceBankContent() {
 
   return (
     <div
-      className="flex h-full bg-white dark:bg-[#1a1625]"
+      className="flex max-h-[85vh] overflow-y-auto overflow-x-hidden bg-white dark:bg-white/5 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg backdrop-blur-sm custom-scrollbar"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -489,7 +489,7 @@ export function ReferenceBankContent() {
 
       {/* Sidebar */}
       <div
-        className={`fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-[#F8F8F8] dark:bg-[#1a1625] border-r border-[#EC67A1]/10 dark:border-[#EC67A1]/20 transform transition-transform duration-300 ${
+        className={`fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-white dark:bg-[#1a1625] border-r border-[#EC67A1]/10 dark:border-[#EC67A1]/20 transform transition-transform duration-300 ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -691,7 +691,7 @@ export function ReferenceBankContent() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search references..."
-                className="w-full pl-10 pr-4 py-2 bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground placeholder-header-muted focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#0f0d18] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground placeholder-header-muted focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
               />
               {searchQuery && (
                 <button
@@ -704,7 +704,7 @@ export function ReferenceBankContent() {
             </div>
 
             {/* Type filter */}
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-[#EC67A1]/10">
+            <div className="flex items-center gap-1 bg-white dark:bg-[#1a1625] rounded-lg p-1 border border-[#EC67A1]/10">
               <button
                 onClick={() => setFilterType("all")}
                 className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
@@ -743,15 +743,15 @@ export function ReferenceBankContent() {
               onChange={(e) =>
                 setSortBy(e.target.value as "recent" | "name" | "usage")
               }
-              className="px-3 py-2 bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
+              className="px-3 py-2 bg-white dark:bg-[#0f0d18] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
             >
-              <option value="recent">Most Recent</option>
-              <option value="name">Name</option>
-              <option value="usage">Most Used</option>
+              <option value="recent" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Most Recent</option>
+              <option value="name" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Name</option>
+              <option value="usage" className="bg-white dark:bg-[#1a1625] text-sidebar-foreground">Most Used</option>
             </select>
 
             {/* View mode */}
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-[#EC67A1]/10">
+            <div className="flex items-center gap-1 bg-white dark:bg-[#1a1625] rounded-lg p-1 border border-[#EC67A1]/10">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 rounded-md transition-colors ${

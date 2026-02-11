@@ -800,7 +800,7 @@ export function Captions() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar">
       {/* Toast */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300">
@@ -821,6 +821,7 @@ export function Captions() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden bg-white dark:bg-white/5 border border-[#EC67A1]/20 rounded-xl p-5 sm:p-6 shadow-lg backdrop-blur-sm">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -1483,6 +1484,7 @@ export function Captions() {
             </table>
           </div>
         )}
+        </div>
       </div>
 
       {/* Add Caption Modal */}

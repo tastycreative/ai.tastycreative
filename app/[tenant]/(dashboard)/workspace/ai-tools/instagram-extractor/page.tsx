@@ -327,8 +327,8 @@ export default function InstagramExtractorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-950 dark:via-gray-900 dark:to-black">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+    <div className="min-h-screen bg-[#F8F8F8] dark:bg-[#0a0a0f]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar">
         
         {/* Modern Header */}
         <div className="text-center mb-12">
@@ -347,7 +347,7 @@ export default function InstagramExtractorPage() {
 
         {/* Modern Input Card */}
         <div className="max-w-3xl mx-auto mb-12">
-          <div className="backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 p-8">
+          <div className="backdrop-blur-xl bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-3xl shadow-2xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-8">
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -424,7 +424,7 @@ export default function InstagramExtractorPage() {
         {result && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Action Bar */}
-            <div className="backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-8">
+            <div className="backdrop-blur-xl bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-3xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-6 mb-8">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg">

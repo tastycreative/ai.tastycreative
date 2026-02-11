@@ -429,7 +429,7 @@ export default function VoiceGeneratorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-6 lg:p-8">
+    <div className="relative max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar p-4 md:p-6 lg:p-8">
       <audio ref={audioRef} onEnded={() => setPlayingAudioId(null)} className="hidden" />
       <audio ref={previewAudioRef} onEnded={() => setPreviewPlaying(false)} className="hidden" />
 
@@ -438,14 +438,14 @@ export default function VoiceGeneratorPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-2xl blur-xl opacity-50" />
-              <div className="relative p-3.5 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl">
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-mid-pink to-brand-blue rounded-2xl blur-xl opacity-50" />
+              <div className="relative p-3.5 bg-gradient-to-br from-brand-mid-pink to-brand-blue rounded-2xl">
                 <AudioWaveform className="w-7 h-7 text-white" />
               </div>
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Voice Generator</h1>
-              <p className="text-gray-500 text-sm mt-0.5">Transform text into natural speech with AI</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Voice Generator</h1>
+              <p className="text-muted-foreground text-sm mt-0.5">Transform text into natural speech with AI</p>
             </div>
           </div>
         </div>
@@ -455,17 +455,17 @@ export default function VoiceGeneratorPage() {
           <div className="xl:col-span-8 space-y-5">
             {/* Voice Selection Card */}
             <div className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
-              <div className="relative bg-[#12121a] border border-white/5 rounded-2xl p-5">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-mid-pink/20 to-brand-blue/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
+              <div className="relative bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Mic className="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-medium text-gray-300">Voice</span>
+                    <Mic className="w-4 h-4 text-brand-mid-pink" />
+                    <span className="text-sm font-medium text-foreground">Voice</span>
                   </div>
                   {selectedVoice?.previewUrl && (
                     <button
                       onClick={() => selectedVoice && handlePreviewVoice(selectedVoice)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-400 hover:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 rounded-lg transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-mid-pink hover:text-brand-light-pink bg-brand-mid-pink/10 hover:bg-brand-mid-pink/20 rounded-lg transition-all"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
                       Preview
@@ -478,36 +478,36 @@ export default function VoiceGeneratorPage() {
                   onClick={openVoiceDropdown}
                   disabled={isLoadingVoices}
                   data-voice-selector
-                  className="w-full flex items-center justify-between px-4 py-3.5 bg-[#1a1a24] border border-white/5 rounded-xl text-left hover:border-violet-500/30 hover:bg-[#1e1e2a] transition-all duration-200"
+                  className="w-full flex items-center justify-between px-4 py-3.5 bg-muted border border-border rounded-xl text-left hover:border-brand-mid-pink/30 hover:bg-accent transition-all duration-200"
                 >
                   {isLoadingVoices ? (
                     <div className="flex items-center gap-3">
-                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
-                      <span className="text-gray-400">Loading voices...</span>
+                      <Loader2 className="w-5 h-5 text-brand-mid-pink animate-spin" />
+                      <span className="text-muted-foreground">Loading voices...</span>
                     </div>
                   ) : selectedVoice ? (
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl flex items-center justify-center text-white font-semibold text-lg shadow-lg shadow-violet-500/20">
+                      <div className="w-11 h-11 bg-gradient-to-br from-brand-mid-pink to-brand-blue rounded-xl flex items-center justify-center text-white font-semibold text-lg shadow-lg shadow-brand-mid-pink/20">
                         {selectedVoice?.name.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-semibold text-white">{selectedVoice?.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="font-semibold text-foreground">{selectedVoice?.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {[selectedVoice?.gender, selectedVoice?.age, selectedVoice?.accent].filter(Boolean).join(" · ")}
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <span className="text-gray-500">Select a voice</span>
+                    <span className="text-muted-foreground">Select a voice</span>
                   )}
-                  <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isVoiceDropdownOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${isVoiceDropdownOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {/* Voice Dropdown Portal */}
                 {isVoiceDropdownOpen && typeof document !== "undefined" && createPortal(
                   <div
                     data-voice-dropdown
-                    className="fixed z-[9999] bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+                    className="fixed z-[9999] bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/50 overflow-hidden"
                     style={{
                       top: voiceDropdownPosition.top,
                       left: voiceDropdownPosition.left,
@@ -518,23 +518,23 @@ export default function VoiceGeneratorPage() {
                     <div className="overflow-y-auto max-h-[360px] custom-scrollbar">
                       {Object.entries(groupedVoices).map(([category, categoryVoices]) => (
                         <div key={category}>
-                          <div className="px-4 py-2.5 bg-[#12121a] text-xs font-semibold text-gray-500 uppercase tracking-wider sticky top-0 border-b border-white/5">
+                          <div className="px-4 py-2.5 bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 border-b border-border">
                             {category}
                           </div>
                           {categoryVoices.map((voice) => (
                             <button
                               key={voice.id}
                               onClick={() => handleVoiceSelect(voice)}
-                              className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors ${
-                                selectedVoice?.id === voice.id ? "bg-violet-500/10 border-l-2 border-violet-500" : "border-l-2 border-transparent"
+                              className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors ${
+                                selectedVoice?.id === voice.id ? "bg-brand-mid-pink/10 border-l-2 border-brand-mid-pink" : "border-l-2 border-transparent"
                               }`}
                             >
-                              <div className="w-9 h-9 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                              <div className="w-9 h-9 bg-gradient-to-br from-brand-mid-pink to-brand-blue rounded-lg flex items-center justify-center text-white font-medium text-sm">
                                 {voice.name.charAt(0)}
                               </div>
                               <div className="flex-1 text-left">
-                                <p className="font-medium text-white text-sm">{voice.name}</p>
-                                <p className="text-xs text-gray-500">
+                                <p className="font-medium text-foreground text-sm">{voice.name}</p>
+                                <p className="text-xs text-muted-foreground">
                                   {[voice.gender, voice.age, voice.accent].filter(Boolean).join(" · ")}
                                 </p>
                               </div>
@@ -549,7 +549,7 @@ export default function VoiceGeneratorPage() {
                                       handlePreviewVoice(voice);
                                     }
                                   }}
-                                  className="p-2 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition-colors cursor-pointer"
+                                  className="p-2 text-muted-foreground hover:text-brand-mid-pink hover:bg-brand-mid-pink/10 rounded-lg transition-colors cursor-pointer"
                                 >
                                   <Volume2 className="w-4 h-4" />
                                 </div>
@@ -567,19 +567,19 @@ export default function VoiceGeneratorPage() {
 
             {/* Text Input Card */}
             <div className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
-              <div className="relative bg-[#12121a] border border-white/5 rounded-2xl p-5">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-mid-pink/20 to-brand-blue/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
+              <div className="relative bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-medium text-gray-300">Text to Speech</span>
+                    <Sparkles className="w-4 h-4 text-brand-mid-pink" />
+                    <span className="text-sm font-medium text-foreground">Text to Speech</span>
                   </div>
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                     text.length > 5000 
-                      ? "bg-red-500/20 text-red-400" 
+                      ? "bg-red-500/20 text-red-600 dark:text-red-400" 
                       : text.length > 4000 
-                        ? "bg-amber-500/20 text-amber-400"
-                        : "bg-gray-800 text-gray-400"
+                        ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                        : "bg-muted text-muted-foreground"
                   }`}>
                     {text.length.toLocaleString()} / 5,000
                   </span>
@@ -588,7 +588,7 @@ export default function VoiceGeneratorPage() {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Enter the text you want to convert to speech..."
-                  className="w-full h-44 px-4 py-3.5 bg-[#1a1a24] border border-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/30 focus:ring-2 focus:ring-violet-500/10 resize-none transition-all text-[15px] leading-relaxed"
+                  className="w-full h-44 px-4 py-3.5 bg-muted border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-brand-mid-pink/30 focus:ring-2 focus:ring-brand-mid-pink/10 resize-none transition-all text-[15px] leading-relaxed"
                   maxLength={5000}
                 />
               </div>
@@ -596,29 +596,29 @@ export default function VoiceGeneratorPage() {
 
             {/* Settings Card */}
             <div className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
-              <div className="relative bg-[#12121a] border border-white/5 rounded-2xl overflow-hidden">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-mid-pink/20 to-brand-blue/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
+              <div className="relative bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl overflow-hidden">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-medium text-gray-300">Advanced Settings</span>
+                    <SlidersHorizontal className="w-4 h-4 text-brand-mid-pink" />
+                    <span className="text-sm font-medium text-foreground">Advanced Settings</span>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${showSettings ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showSettings ? "rotate-180" : ""}`} />
                 </button>
                 
                 {showSettings && (
-                  <div className="px-5 pb-5 space-y-5 border-t border-white/5">
+                  <div className="px-5 pb-5 space-y-5 border-t border-border">
                     {/* Model & Format Row */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-5">
                       <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-2">Model</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-2">Model</label>
                         <select
                           value={modelId}
                           onChange={(e) => setModelId(e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-[#1a1a24] border border-white/5 rounded-xl text-white text-sm focus:outline-none focus:border-violet-500/30 transition-colors appearance-none cursor-pointer"
+                          className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-brand-mid-pink/30 transition-colors appearance-none cursor-pointer"
                         >
                           {MODELS.map((model) => (
                             <option key={model.value} value={model.value}>
@@ -629,11 +629,11 @@ export default function VoiceGeneratorPage() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-2">Output Format</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-2">Output Format</label>
                         <select
                           value={outputFormat}
                           onChange={(e) => setOutputFormat(e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-[#1a1a24] border border-white/5 rounded-xl text-white text-sm focus:outline-none focus:border-violet-500/30 transition-colors appearance-none cursor-pointer"
+                          className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-brand-mid-pink/30 transition-colors appearance-none cursor-pointer"
                         >
                           {OUTPUT_FORMATS.map((format) => (
                             <option key={format.value} value={format.value}>
@@ -647,10 +647,10 @@ export default function VoiceGeneratorPage() {
                     {/* Voice Settings */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-400">Voice Parameters</span>
+                        <span className="text-xs font-medium text-muted-foreground">Voice Parameters</span>
                         <button
                           onClick={() => setVoiceSettings(DEFAULT_SETTINGS)}
-                          className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                          className="flex items-center gap-1.5 text-xs text-brand-mid-pink hover:text-brand-light-pink transition-colors"
                         >
                           <RotateCcw className="w-3 h-3" />
                           Reset
@@ -660,8 +660,8 @@ export default function VoiceGeneratorPage() {
                       {/* Speed */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs text-gray-500">Speed</label>
-                          <span className="text-xs font-mono text-white bg-[#1a1a24] px-2 py-0.5 rounded">{voiceSettings.speed.toFixed(2)}x</span>
+                          <label className="text-xs text-muted-foreground">Speed</label>
+                          <span className="text-xs font-mono text-foreground bg-muted px-2 py-0.5 rounded">{voiceSettings.speed.toFixed(2)}x</span>
                         </div>
                         <input
                           type="range"
@@ -670,15 +670,15 @@ export default function VoiceGeneratorPage() {
                           step="0.01"
                           value={voiceSettings.speed}
                           onChange={(e) => setVoiceSettings(prev => ({ ...prev, speed: parseFloat(e.target.value) }))}
-                          className="w-full h-1.5 bg-[#1a1a24] rounded-full appearance-none cursor-pointer slider-thumb"
+                          className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer slider-thumb"
                         />
                       </div>
 
                       {/* Stability */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs text-gray-500">Stability</label>
-                          <span className="text-xs font-mono text-white bg-[#1a1a24] px-2 py-0.5 rounded">{Math.round(voiceSettings.stability * 100)}%</span>
+                          <label className="text-xs text-muted-foreground">Stability</label>
+                          <span className="text-xs font-mono text-foreground bg-muted px-2 py-0.5 rounded">{Math.round(voiceSettings.stability * 100)}%</span>
                         </div>
                         <input
                           type="range"
@@ -687,15 +687,15 @@ export default function VoiceGeneratorPage() {
                           step="0.01"
                           value={voiceSettings.stability}
                           onChange={(e) => setVoiceSettings(prev => ({ ...prev, stability: parseFloat(e.target.value) }))}
-                          className="w-full h-1.5 bg-[#1a1a24] rounded-full appearance-none cursor-pointer slider-thumb"
+                          className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer slider-thumb"
                         />
                       </div>
 
                       {/* Similarity */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs text-gray-500">Similarity</label>
-                          <span className="text-xs font-mono text-white bg-[#1a1a24] px-2 py-0.5 rounded">{Math.round(voiceSettings.similarityBoost * 100)}%</span>
+                          <label className="text-xs text-muted-foreground">Similarity</label>
+                          <span className="text-xs font-mono text-foreground bg-muted px-2 py-0.5 rounded">{Math.round(voiceSettings.similarityBoost * 100)}%</span>
                         </div>
                         <input
                           type="range"
@@ -704,15 +704,15 @@ export default function VoiceGeneratorPage() {
                           step="0.01"
                           value={voiceSettings.similarityBoost}
                           onChange={(e) => setVoiceSettings(prev => ({ ...prev, similarityBoost: parseFloat(e.target.value) }))}
-                          className="w-full h-1.5 bg-[#1a1a24] rounded-full appearance-none cursor-pointer slider-thumb"
+                          className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer slider-thumb"
                         />
                       </div>
 
                       {/* Style Exaggeration */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <label className="text-xs text-gray-500">Style Exaggeration</label>
-                          <span className="text-xs font-mono text-white bg-[#1a1a24] px-2 py-0.5 rounded">{Math.round(voiceSettings.style * 100)}%</span>
+                          <label className="text-xs text-muted-foreground">Style Exaggeration</label>
+                          <span className="text-xs font-mono text-foreground bg-muted px-2 py-0.5 rounded">{Math.round(voiceSettings.style * 100)}%</span>
                         </div>
                         <input
                           type="range"
@@ -721,15 +721,15 @@ export default function VoiceGeneratorPage() {
                           step="0.01"
                           value={voiceSettings.style}
                           onChange={(e) => setVoiceSettings(prev => ({ ...prev, style: parseFloat(e.target.value) }))}
-                          className="w-full h-1.5 bg-[#1a1a24] rounded-full appearance-none cursor-pointer slider-thumb"
+                          className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer slider-thumb"
                         />
                       </div>
 
                       {/* Speaker Boost Toggle */}
                       <label className="flex items-center justify-between py-2 cursor-pointer group/toggle">
                         <div className="flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-gray-500 group-hover/toggle:text-violet-400 transition-colors" />
-                          <span className="text-sm text-gray-400 group-hover/toggle:text-gray-300 transition-colors">Speaker Boost</span>
+                          <Zap className="w-4 h-4 text-muted-foreground group-hover/toggle:text-brand-mid-pink transition-colors" />
+                          <span className="text-sm text-muted-foreground group-hover/toggle:text-foreground transition-colors">Speaker Boost</span>
                         </div>
                         <div className="relative">
                           <input
@@ -738,8 +738,8 @@ export default function VoiceGeneratorPage() {
                             onChange={(e) => setVoiceSettings(prev => ({ ...prev, useSpeakerBoost: e.target.checked }))}
                             className="sr-only peer"
                           />
-                          <div className="w-10 h-5 bg-[#1a1a24] rounded-full peer-checked:bg-violet-600 transition-colors" />
-                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-gray-400 rounded-full peer-checked:bg-white peer-checked:translate-x-5 transition-all" />
+                          <div className="w-10 h-5 bg-muted rounded-full peer-checked:bg-brand-mid-pink transition-colors" />
+                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-muted-foreground rounded-full peer-checked:bg-white peer-checked:translate-x-5 transition-all" />
                         </div>
                       </label>
                     </div>
@@ -754,8 +754,8 @@ export default function VoiceGeneratorPage() {
               disabled={isLoading || !selectedVoice || !text.trim() || text.length > 5000}
               className="relative w-full group/btn disabled:cursor-not-allowed"
             >
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-xl blur opacity-60 group-hover/btn:opacity-100 transition duration-200 group-disabled/btn:opacity-20" />
-              <div className="relative flex items-center justify-center gap-2.5 py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-mid-pink to-brand-blue rounded-xl blur opacity-60 group-hover/btn:opacity-100 transition duration-200 group-disabled/btn:opacity-20" />
+              <div className="relative flex items-center justify-center gap-2.5 py-4 bg-gradient-to-r from-brand-mid-pink to-brand-blue text-white font-semibold rounded-xl transition-all disabled:opacity-50">
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -771,7 +771,7 @@ export default function VoiceGeneratorPage() {
             </button>
 
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -779,16 +779,16 @@ export default function VoiceGeneratorPage() {
 
           {/* History Sidebar */}
           <div className="xl:col-span-4">
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-5 sticky top-6">
+            <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-5 sticky top-6">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-violet-400" />
-                  <h2 className="text-sm font-semibold text-white">History</h2>
+                  <Clock className="w-4 h-4 text-brand-mid-pink" />
+                  <h2 className="text-sm font-semibold text-foreground">History</h2>
                 </div>
                 <button
                   onClick={fetchHistory}
                   disabled={isLoadingHistory}
-                  className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
                   title="Refresh"
                 >
                   <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? "animate-spin" : ""}`} />
@@ -797,39 +797,39 @@ export default function VoiceGeneratorPage() {
               
               {isLoadingHistory ? (
                 <div className="text-center py-16">
-                  <Loader2 className="w-6 h-6 mx-auto text-violet-400 animate-spin" />
-                  <p className="text-xs text-gray-500 mt-3">Loading history...</p>
+                  <Loader2 className="w-6 h-6 mx-auto text-brand-mid-pink animate-spin" />
+                  <p className="text-xs text-muted-foreground mt-3">Loading history...</p>
                 </div>
               ) : generatedAudios.length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="w-12 h-12 mx-auto mb-3 bg-[#1a1a24] rounded-xl flex items-center justify-center">
-                    <AudioWaveform className="w-6 h-6 text-gray-600" />
+                  <div className="w-12 h-12 mx-auto mb-3 bg-muted rounded-xl flex items-center justify-center">
+                    <AudioWaveform className="w-6 h-6 text-muted-foreground" />
                   </div>
-                  <p className="text-gray-500 text-sm">No audio generated yet</p>
-                  <p className="text-gray-600 text-xs mt-1">Your generations will appear here</p>
+                  <p className="text-muted-foreground text-sm">No audio generated yet</p>
+                  <p className="text-muted-foreground/70 text-xs mt-1">Your generations will appear here</p>
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar pr-1">
                   {generatedAudios.map((audio) => (
                     <div
                       key={audio.id}
-                      className="bg-[#1a1a24] border border-white/5 rounded-xl p-3.5 hover:border-violet-500/20 transition-all group/item"
+                      className="bg-muted border border-border rounded-xl p-3.5 hover:border-brand-mid-pink/20 transition-all group/item"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
-                          <Mic className="w-4 h-4 text-violet-400" />
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-brand-mid-pink/20 to-brand-blue/20">
+                          <Mic className="w-4 h-4 text-brand-mid-pink" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-white truncate">{audio.voiceName}</p>
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{formatTimeAgo(new Date(audio.createdAt))}</span>
+                            <p className="text-sm font-medium text-foreground truncate">{audio.voiceName}</p>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatTimeAgo(new Date(audio.createdAt))}</span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{audio.text}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{audio.text}</p>
                           
                           <div className="flex items-center gap-1.5 mt-2.5">
                             <button
                               onClick={() => handlePlayPause(audio)}
-                              className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
+                              className="p-1.5 text-muted-foreground hover:text-brand-mid-pink hover:bg-brand-mid-pink/10 rounded-md transition-colors"
                               title={playingAudioId === audio.id ? "Pause" : "Play"}
                             >
                               {playingAudioId === audio.id ? (
@@ -840,25 +840,25 @@ export default function VoiceGeneratorPage() {
                             </button>
                             <button
                               onClick={() => handleDownload(audio)}
-                              className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
+                              className="p-1.5 text-muted-foreground hover:text-brand-mid-pink hover:bg-brand-mid-pink/10 rounded-md transition-colors"
                               title="Download"
                             >
                               <Download className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleCopyText(audio)}
-                              className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
+                              className="p-1.5 text-muted-foreground hover:text-brand-mid-pink hover:bg-brand-mid-pink/10 rounded-md transition-colors"
                               title="Copy text"
                             >
                               {copiedId === audio.id ? (
-                                <Check className="w-3.5 h-3.5 text-green-400" />
+                                <Check className="w-3.5 h-3.5 text-green-500" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
                             <button
                               onClick={() => handleDelete(audio)}
-                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover/item:opacity-100"
+                              className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover/item:opacity-100"
                               title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -876,34 +876,21 @@ export default function VoiceGeneratorPage() {
       </div>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(139, 92, 246, 0.3);
-          border-radius: 2px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(139, 92, 246, 0.5);
-        }
         .slider-thumb::-webkit-slider-thumb {
           appearance: none;
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: linear-gradient(to right, #8b5cf6, #d946ef);
-          box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+          background: linear-gradient(to right, #EC67A1, #5DC3F8);
+          box-shadow: 0 4px 12px rgba(236, 103, 161, 0.3);
           cursor: pointer;
         }
         .slider-thumb::-moz-range-thumb {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: linear-gradient(to right, #8b5cf6, #d946ef);
-          box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+          background: linear-gradient(to right, #EC67A1, #5DC3F8);
+          box-shadow: 0 4px 12px rgba(236, 103, 161, 0.3);
           cursor: pointer;
           border: none;
         }

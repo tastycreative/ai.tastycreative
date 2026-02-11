@@ -530,7 +530,7 @@ export default function FluxKontextPrompts() {
   const contextMessageCount = Math.min(messages.filter(m => m.role === "user").length, 6);
 
   return (
-    <div className="max-w-6xl mx-auto h-[calc(100vh-8rem)] flex flex-col space-y-3 sm:space-y-4">
+    <div className="max-w-6xl mx-auto h-[calc(100vh-8rem)] flex flex-col space-y-3 sm:space-y-4 bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar px-3 sm:px-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-xl p-3 sm:p-4 shadow-lg">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -578,7 +578,7 @@ export default function FluxKontextPrompts() {
 
       {/* Conversations Sidebar */}
       {showConversations && (
-        <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-3 sm:p-4 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/30 rounded-xl p-3 sm:p-4 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm xs:text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-1.5 sm:gap-2">
               <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-[#5DC3F8]" />
@@ -652,7 +652,7 @@ export default function FluxKontextPrompts() {
 
       {/* Techniques Panel */}
       {showTechniques && (
-        <div className="bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-3 xs:p-4 sm:p-6 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
+        <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/30 rounded-xl p-3 xs:p-4 sm:p-6 shadow-lg max-h-64 xs:max-h-80 sm:max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm xs:text-base sm:text-lg font-bold text-gray-900 dark:text-white">
               Flux Kontext Prompt Techniques

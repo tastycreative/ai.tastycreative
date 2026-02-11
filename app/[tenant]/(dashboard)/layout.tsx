@@ -903,9 +903,9 @@ export default function DashboardLayout({
         onMouseLeave={handleMouseLeave}
         className={classNames(
           isActive
-            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02]"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md",
-          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
+            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02] border-2 border-[#EC67A1]/30"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md hover:border-[#EC67A1]/20 border-2 border-transparent",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 active:scale-95",
           isInSection ? "pl-6 xs:pl-7 sm:pl-8" : "",
           !sidebarOpen ? "justify-center" : "",
         )}
@@ -914,8 +914,8 @@ export default function DashboardLayout({
           className={classNames(
             isActive
               ? "text-white"
-              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
-            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+              : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300",
             sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
             isActive ? "scale-110" : "group-hover:scale-110",
           )}
@@ -998,26 +998,26 @@ export default function DashboardLayout({
             onClick={handleSectionToggle}
             className={classNames(
               isSectionActive
-                ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-l-2 border-[#EC67A1]"
-                : "",
-              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
+                ? "bg-sidebar-accent/80 border-l-4 border-[#EC67A1]"
+                : "border-l-4 border-transparent hover:border-[#EC67A1]/30",
+              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-xl transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md"
             )}
           >
             <span className="flex items-center">
               <SectionIcon
                 className={classNames(
                   isSectionActive
-                    ? "text-[#5DC3F8]"
-                    : "text-sidebar-foreground/50",
-                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-transform duration-300 group-hover:scale-110",
+                    ? "text-[#EC67A1]"
+                    : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-all duration-300 group-hover:scale-110",
                 )}
               />
               <span className="truncate">{section.name}</span>
             </span>
             {isExpanded ? (
-              <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300" />
+              <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-[#EC67A1] transition-transform duration-300" />
             ) : (
-              <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300" />
+              <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-[#5DC3F8] transition-transform duration-300" />
             )}
           </button>
         ) : section.collapsible && !sidebarOpen ? (
@@ -1042,17 +1042,17 @@ export default function DashboardLayout({
               }}
               className={classNames(
                 isSectionActive || hoveredSection === section.name
-                  ? "bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-sidebar-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]",
+                  ? "bg-sidebar-accent/80 text-sidebar-foreground border-2 border-[#EC67A1]/30"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground border-2 border-transparent hover:border-[#EC67A1]/20",
+                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-xl transition-all duration-300 active:scale-95",
               )}
             >
               <SectionIcon
                 className={classNames(
                   isSectionActive
-                    ? "text-[#5DC3F8]"
-                    : "text-sidebar-foreground/50",
-                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300 hover:scale-110",
+                    ? "text-[#EC67A1]"
+                    : "text-[#5DC3F8]",
+                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300 hover:scale-110",
                 )}
               />
             </button>
@@ -1063,7 +1063,7 @@ export default function DashboardLayout({
               createPortal(
                 <div
                   data-flyout
-                  className="fixed bg-sidebar rounded-lg shadow-2xl border border-sidebar-border z-[100] animate-fadeIn"
+                  className="fixed bg-sidebar rounded-2xl shadow-2xl border border-sidebar-border z-[100] animate-fadeIn"
                   style={{
                     left: `${flyoutPosition.x + 8}px`,
                     top: `${flyoutPosition.y}px`,
@@ -1087,7 +1087,7 @@ export default function DashboardLayout({
                     style={{ background: "transparent" }}
                   />
                   {/* Section header */}
-                  <div className="px-3 py-2.5 border-b border-sidebar-border bg-sidebar-accent rounded-t-lg">
+                  <div className="px-3 py-2.5 border-b border-sidebar-border bg-sidebar-accent rounded-t-2xl">
                     <span className="text-sm font-semibold text-sidebar-foreground flex items-center gap-2">
                       <SectionIcon className="h-4 w-4 text-[#5DC3F8]" />
                       {section.name}
@@ -1117,13 +1117,13 @@ export default function DashboardLayout({
                             className={classNames(
                               isActive
                                 ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white"
-                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                              "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200",
+                                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                              "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200 rounded-lg mx-1",
                             )}
                           >
                             <ItemIcon
                               className={classNames(
-                                isActive ? "text-white" : "text-sidebar-foreground/50",
+                                isActive ? "text-white" : "text-[#5DC3F8]",
                                 "h-4 w-4 flex-shrink-0",
                               )}
                             />
@@ -1177,7 +1177,7 @@ export default function DashboardLayout({
         )}
       >
         {/* Sidebar Glass Container */}
-        <div className="flex-1 m-3 rounded-3xl bg-sidebar backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-2xl shadow-black/20">
+        <div className="flex-1 m-3 rounded-3xl bg-background backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-xl">
           {/* Sidebar Header with Logo */}
           <div className="p-5 border-b border-sidebar-border">
             <div className="flex items-center justify-between">
@@ -1187,7 +1187,7 @@ export default function DashboardLayout({
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-sidebar-foreground via-[#EC67A1] to-[#5DC3F8] bg-clip-text text-transparent">
+                    <h1 className="text-xl font-bold text-sidebar-foreground">
                       Creative Ink
                     </h1>
                     {!permissionsLoading && currentOrganization ? (
@@ -1287,9 +1287,9 @@ export default function DashboardLayout({
                 <div className="flex items-center gap-2">
                   <ThemeToggle />
                 </div>
-                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent border border-sidebar-border">
+                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent border border-[#EC67A1]/20">
                   <CreditCard className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-semibold text-sidebar-foreground/80">
+                  <span className="text-sm font-semibold text-sidebar-foreground">
                     {currentOrganization?.availableCredits ?? 0} Credits
                   </span>
                 </div>
@@ -1297,7 +1297,7 @@ export default function DashboardLayout({
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <ThemeToggle />
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sidebar-accent border border-sidebar-border" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sidebar-accent border border-[#EC67A1]/20" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
@@ -1322,16 +1322,16 @@ export default function DashboardLayout({
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "absolute left-0 top-0 bottom-0 w-80 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out",
+            "absolute left-0 top-0 bottom-0 w-80 bg-background border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out rounded-r-3xl",
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
           {/* Sidebar header */}
-          <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+          <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-sidebar-border">
             <div className="flex items-center justify-end">
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="p-1 text-sidebar-foreground/50 hover:text-sidebar-foreground transition-all duration-200 active:scale-95 hover:bg-sidebar-accent rounded-xl"
                 aria-label="Close sidebar"
               >
                 <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
@@ -1341,15 +1341,15 @@ export default function DashboardLayout({
               {permissionsLoading ? (
                 // Loading skeleton for selectors
                 <div className="animate-pulse space-y-3">
-                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
-                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+                  <div className="h-10 bg-sidebar-accent rounded-xl" />
+                  <div className="h-10 bg-sidebar-accent rounded-xl" />
                 </div>
               ) : (
                 <>
                   {/* Organization Switcher */}
                   <div>
                     <div className="px-1 mb-2">
-                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                      <p className="text-[10px] font-medium text-sidebar-foreground/40 uppercase tracking-wider">
                         Organization
                       </p>
                     </div>
@@ -1359,7 +1359,7 @@ export default function DashboardLayout({
                   {/* Profile Selector */}
                   <div>
                     <div className="px-1 mb-2">
-                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                      <p className="text-[10px] font-medium text-sidebar-foreground/40 uppercase tracking-wider">
                         Active Profile
                       </p>
                     </div>
@@ -1378,7 +1378,7 @@ export default function DashboardLayout({
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
-                    className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                    className="h-10 bg-sidebar-accent rounded-xl"
                   />
                 ))}
               </div>
@@ -1397,9 +1397,9 @@ export default function DashboardLayout({
           <div className="p-5 border-t border-sidebar-border">
             <div className="flex items-center justify-between">
               <ThemeToggle />
-              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent">
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent border border-[#EC67A1]/20">
                 <CreditCard className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-sidebar-foreground/80">
+                <span className="text-sm font-semibold text-sidebar-foreground">
                   {currentOrganization?.availableCredits ?? 0} Credits
                 </span>
               </div>
@@ -1411,11 +1411,11 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         {/* Mobile Header Bar */}
-        <div className="lg:hidden bg-header backdrop-blur-xl border-b border-header-border px-4 py-3">
+        <div className="lg:hidden bg-background backdrop-blur-xl border-b border-header-border px-4 py-3 rounded-b-2xl">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-xl text-header-muted hover:text-header-foreground hover:bg-sidebar-accent transition-all"
+              className="p-2 rounded-xl text-header-muted hover:text-header-foreground hover:bg-sidebar-accent transition-all border border-transparent hover:border-[#EC67A1]/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -1423,7 +1423,7 @@ export default function DashboardLayout({
             </button>
             <div className="flex items-center gap-2">
               <NotificationBell />
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
                 <span className="text-white text-xs font-bold">{initials}</span>
               </div>
             </div>
@@ -1433,7 +1433,7 @@ export default function DashboardLayout({
         {/* Content area */}
         <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
           {/* Modern Top Header */}
-          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-header border-b border-header-border">
+          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-background border-b border-header-border rounded-b-2xl">
             <div className="px-6 lg:px-8 py-4">
               <div className="flex items-center justify-between">
                 {/* Left Side - Progress & Breadcrumb Area */}
@@ -1451,7 +1451,7 @@ export default function DashboardLayout({
                     <button
                       ref={userDropdownButtonRef}
                       onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                      className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-primary/10 border border-header-border hover:border-[#EC67A1]/30 transition-all duration-200"
+                      className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/30 transition-all duration-200"
                     >
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
                         <span className="text-white text-xs font-bold">{initials}</span>
@@ -1460,18 +1460,18 @@ export default function DashboardLayout({
                         <p className="text-sm font-medium text-header-foreground">{firstName}</p>
                         <p className="text-[10px] text-header-muted truncate max-w-[120px]">{email}</p>
                       </div>
-                      <ChevronDown className={`w-4 h-4 text-header-muted transition-all duration-200 ${userDropdownOpen ? 'rotate-180 text-header-foreground' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 text-[#EC67A1] transition-all duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {/* User Dropdown */}
                     {userDropdownOpen && (
                       <div
                         ref={userDropdownRef}
-                        className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl shadow-black/30 dark:shadow-black/50 animate-fadeIn z-50"
+                        className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl animate-fadeIn z-50"
                       >
                       <div className="px-4 py-3 border-b border-sidebar-border">
                         <p className="text-sm font-semibold text-sidebar-foreground">{firstName}</p>
-                        <p className="text-xs text-sidebar-foreground/60 dark:text-sidebar-foreground/50 truncate">{email}</p>
+                        <p className="text-xs text-sidebar-foreground/60 truncate">{email}</p>
                       </div>
 
                       {/* Organization Switcher Section */}
@@ -1481,7 +1481,7 @@ export default function DashboardLayout({
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className="mb-2">
-                            <p className="text-[10px] font-semibold text-sidebar-foreground/50 dark:text-sidebar-foreground/40 uppercase tracking-wider px-1">
+                            <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-1">
                               Organization
                             </p>
                           </div>
@@ -1493,18 +1493,18 @@ export default function DashboardLayout({
                         <Link
                           href={`/${tenant}/settings`}
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
                         >
-                          <Settings className="w-4 h-4" />
+                          <Settings className="w-4 h-4 text-[#5DC3F8]" />
                           Settings
                         </Link>
                         {(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN') && (
                           <Link
                             href={`/${tenant}/billing`}
                             onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
                           >
-                            <CreditCard className="w-4 h-4" />
+                            <CreditCard className="w-4 h-4 text-[#5DC3F8]" />
                             Billing
                           </Link>
                         )}
@@ -1512,9 +1512,9 @@ export default function DashboardLayout({
                           <Link
                             href={`/${tenant}/admin`}
                             onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
                           >
-                            <Shield className="w-4 h-4" />
+                            <Shield className="w-4 h-4 text-[#5DC3F8]" />
                             Admin Panel
                           </Link>
                         )}
@@ -1525,7 +1525,7 @@ export default function DashboardLayout({
                             setUserDropdownOpen(false);
                             signOut({ redirectUrl: "/" });
                           }}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all"
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all rounded-lg mx-2"
                         >
                           <ChevronRight className="w-4 h-4" />
                           Sign Out

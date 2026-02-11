@@ -62,7 +62,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -86,16 +86,16 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: #F8F8F8;
+  --sidebar: #FFFFFF;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: #EC67A1;
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: #FFF0F7;
-  --sidebar-accent-foreground: #E1518E;
-  --sidebar-border: rgba(236, 103, 161, 0.1);
+  --sidebar-accent: #FAFAFA;
+  --sidebar-accent-foreground: oklch(0.145 0 0);
+  --sidebar-border: rgba(236, 103, 161, 0.15);
   --sidebar-ring: #EC67A1;
-  --header: rgba(248, 248, 248, 0.95);
-  --header-border: rgba(236, 103, 161, 0.08);
+  --header: rgba(255, 255, 255, 0.98);
+  --header-border: rgba(236, 103, 161, 0.12);
   --header-foreground: oklch(0.145 0 0);
   --header-muted: oklch(0.556 0 0);
 }
@@ -128,12 +128,12 @@
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: #EC67A1;
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: rgba(236, 103, 161, 0.1);
-  --sidebar-accent-foreground: #F774B9;
-  --sidebar-border: rgba(236, 103, 161, 0.15);
+  --sidebar-accent: rgba(255, 255, 255, 0.05);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: rgba(236, 103, 161, 0.2);
   --sidebar-ring: #EC67A1;
-  --header: rgba(26, 22, 37, 0.95);
-  --header-border: rgba(236, 103, 161, 0.12);
+  --header: rgba(26, 22, 37, 0.98);
+  --header-border: rgba(236, 103, 161, 0.18);
   --header-foreground: oklch(0.985 0 0);
   --header-muted: oklch(0.708 0 0);
 }
@@ -272,7 +272,7 @@
   /* Custom Scrollbar Styles */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(99, 102, 241, 0.5) rgba(55, 65, 81, 0.1);
+    scrollbar-color: rgba(236, 103, 161, 0.4) rgba(0, 0, 0, 0.05);
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -280,35 +280,35 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(55, 65, 81, 0.1);
+    background: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(147, 51, 234, 0.6));
+    background: linear-gradient(135deg, rgba(236, 103, 161, 0.5), rgba(93, 195, 248, 0.5));
     border-radius: 4px;
     transition: background 0.3s ease;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(147, 51, 234, 0.8));
+    background: linear-gradient(135deg, rgba(236, 103, 161, 0.7), rgba(93, 195, 248, 0.7));
   }
 
   /* Dark mode scrollbar */
   .dark .custom-scrollbar {
-    scrollbar-color: rgba(99, 102, 241, 0.7) rgba(31, 41, 55, 0.3);
+    scrollbar-color: rgba(236, 103, 161, 0.6) rgba(255, 255, 255, 0.05);
   }
 
   .dark .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(31, 41, 55, 0.3);
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.7), rgba(147, 51, 234, 0.7));
+    background: linear-gradient(135deg, rgba(236, 103, 161, 0.6), rgba(93, 195, 248, 0.6));
   }
 
   .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(147, 51, 234, 0.9));
+    background: linear-gradient(135deg, rgba(236, 103, 161, 0.8), rgba(93, 195, 248, 0.8));
   }
 
   /* New animations for Caption Banks */

@@ -235,7 +235,7 @@ export default function TrainingJobsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar max-w-7xl mx-auto p-6 space-y-8">
       {/* Enhanced Header */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-3xl shadow-2xl border-2 border-[#5DC3F8]/30 p-8 text-white">
         {/* Background Pattern */}
@@ -293,7 +293,7 @@ export default function TrainingJobsPage() {
       {/* Stats */}
       {trainingStats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-[#5DC3F8]/30 hover:shadow-xl hover:border-[#5DC3F8] transition-all duration-200 cursor-pointer">
+          <div className="group bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-xl p-4 border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 hover:shadow-xl hover:border-[#EC67A1] transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-[#5DC3F8]/20 rounded-lg group-hover:scale-110 transition-transform">
                 <BarChart3 className="w-6 h-6 text-[#5DC3F8]" />
@@ -376,7 +376,7 @@ export default function TrainingJobsPage() {
       )}
 
       {/* Search, Filter & Sort Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-[#5DC3F8]/30 p-4">
+      <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
@@ -462,7 +462,7 @@ export default function TrainingJobsPage() {
 
       {/* Training Jobs List */}
       {filteredJobs.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-[#5DC3F8]/30">
+        <div className="text-center py-16 bg-[#F8F8F8] dark:bg-[#0a0a0f] rounded-2xl border-2 border-dashed border-[#EC67A1]/30">
           <div className="max-w-md mx-auto px-6">
             <div className="relative inline-block mb-6">
               <div className="absolute inset-0 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-full blur-2xl opacity-20 animate-pulse"></div>
@@ -522,7 +522,7 @@ export default function TrainingJobsPage() {
             return (
               <div
                 key={job.id}
-                className="group bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-6 hover:shadow-xl hover:shadow-[#5DC3F8]/20 hover:border-[#5DC3F8] hover:-translate-y-1 transition-all duration-200"
+                className="group bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl p-6 hover:shadow-xl hover:shadow-[#EC67A1]/20 hover:border-[#EC67A1] hover:-translate-y-1 transition-all duration-200"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1">

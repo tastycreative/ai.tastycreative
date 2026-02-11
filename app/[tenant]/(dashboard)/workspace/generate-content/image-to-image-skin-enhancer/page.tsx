@@ -1226,25 +1226,18 @@ export default function ImageToImageSkinEnhancerPage() {
   const hasLegacyUrls = Boolean(currentJob?.resultUrls && currentJob.resultUrls.length > 0);
 
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-50">
-      {/* Background gradient effects */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
-        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-      </div>
-
+    <div className="relative max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar text-foreground">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         <div className="mb-6 sm:mb-8 md:mb-10 text-center">
           <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-brand-mid-pink via-brand-light-pink to-brand-blue rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
               <Wand2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue bg-clip-text text-transparent">
               Image-to-Image Skin Enhancer
             </h1>
           </div>
-          <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-2xl mx-auto px-4">
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
             Bring professional-grade retouching to any portrait. Upload once, let Flux-inspired magic refine every pore, tone, and highlight.
           </p>
         </div>
@@ -1270,11 +1263,11 @@ export default function ImageToImageSkinEnhancerPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-md rounded-2xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">Upload Image</h2>
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-brand-mid-pink" />
+                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground">Upload Image</h2>
                 </div>
                 {selectedImage && (
                   <button
@@ -1287,7 +1280,7 @@ export default function ImageToImageSkinEnhancerPage() {
                   </button>
                 )}
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                 Upload a high-quality portrait (PNG or JPG, up to 10MB). We will preserve details while smoothing skin naturally.
               </p>
 
@@ -1324,8 +1317,8 @@ export default function ImageToImageSkinEnhancerPage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
                     isDragging
-                      ? 'border-purple-500 bg-purple-50/80 dark:bg-purple-900/40 scale-[1.02] shadow-xl'
-                      : 'border-slate-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-white/60 dark:hover:bg-gray-900/40'
+                      ? 'border-brand-mid-pink bg-brand-mid-pink/10 scale-[1.02] shadow-xl'
+                      : 'border-border hover:border-brand-mid-pink hover:bg-muted/50'
                   }`}
                   role="button"
                   tabIndex={0}
@@ -1338,15 +1331,15 @@ export default function ImageToImageSkinEnhancerPage() {
                   aria-label="Upload image"
                 >
                   <div className="flex flex-col items-center gap-4">
-                    <div className={`p-5 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-slate-800/50'}`}>
-                      <Upload className={`w-10 h-10 ${isDragging ? 'text-purple-600 dark:text-purple-300' : 'text-slate-400'}`} />
+                    <div className={`p-5 rounded-full ${isDragging ? 'bg-brand-mid-pink/20' : 'bg-muted'}`}>
+                      <Upload className={`w-10 h-10 ${isDragging ? 'text-brand-mid-pink' : 'text-muted-foreground'}`} />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-slate-200">
+                      <p className="text-lg font-semibold text-foreground">
                         {isDragging ? 'Release to upload' : 'Click or drag your image'}
                       </p>
-                      <p className="text-sm text-slate-400">PNG or JPG up to 10MB</p>
-                      <p className="mt-2 text-xs text-slate-400 dark:text-gray-500">
+                      <p className="text-sm text-muted-foreground">PNG or JPG up to 10MB</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
                         Pro tip: centered portraits with even lighting deliver the cleanest enhancements.
                       </p>
                     </div>
@@ -1355,12 +1348,12 @@ export default function ImageToImageSkinEnhancerPage() {
               )}
             </div>
 
-            <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-md rounded-2xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">Save to Vault</h2>
+                <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-brand-mid-pink" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground">Save to Vault</h2>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                 Pick where your enhanced image should live. We only show folders you can edit.
               </p>
               
@@ -1380,7 +1373,7 @@ export default function ImageToImageSkinEnhancerPage() {
               {/* Folder type indicator */}
               <div className="flex items-center gap-2 mt-3">
                 {targetFolder && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-600 dark:text-purple-300">
+                  <div className="flex items-center gap-1.5 rounded-full bg-brand-mid-pink/20 px-2.5 py-1 text-[11px] text-brand-mid-pink">
                     <Archive className="w-3 h-3" />
                     <span>Vault Storage</span>
                   </div>
@@ -1388,49 +1381,49 @@ export default function ImageToImageSkinEnhancerPage() {
               </div>
             </div>
 
-            <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-md rounded-2xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">AI Enhancement Settings</h2>
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-brand-blue" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground">AI Enhancement Settings</h2>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                 Tuned for lifelike skin: balanced retouching, pore retention, cinematic lighting, and zero plastic sheen.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm">
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 sm:px-4 py-2 sm:py-3 shadow-sm">
-                  <span className="block text-[10px] sm:text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">Model</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.selectedModel.replace('.safetensors', '')}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-3 sm:px-4 py-2 sm:py-3 shadow-sm">
+                  <span className="block text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">Model</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.selectedModel.replace('.safetensors', '')}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">LoRA 1</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.selectedLoRA.replace('.safetensors', '')}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">LoRA 1</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.selectedLoRA.replace('.safetensors', '')}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">LoRA 2</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.moreDetailsLoRA.replace('.safetensors', '')}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">LoRA 2</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.moreDetailsLoRA.replace('.safetensors', '')}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">Steps</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.steps}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">Steps</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.steps}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">CFG Scale</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.cfg}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">CFG Scale</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.cfg}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">Denoise</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.denoise}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">Denoise</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.denoise}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">Sampler</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.sampler}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">Sampler</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.sampler}</p>
                 </div>
-                <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-slate-400 dark:text-gray-500">Seed</span>
-                  <p className="mt-1 font-semibold text-slate-200">{FIXED_VALUES.seed}</p>
+                <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-muted-foreground">Seed</span>
+                  <p className="mt-1 font-semibold text-foreground">{FIXED_VALUES.seed}</p>
                 </div>
               </div>
-              <div className="mt-4 sm:mt-6 rounded-2xl bg-gradient-to-r from-purple-900/20 via-slate-900/20 to-blue-900/20 border border-purple-800/50 px-3 sm:px-4 md:px-5 py-3 sm:py-4 text-xs sm:text-sm text-slate-300 shadow-inner">
+              <div className="mt-4 sm:mt-6 rounded-2xl bg-gradient-to-r from-brand-mid-pink/10 via-card to-brand-blue/10 border border-brand-mid-pink/30 px-3 sm:px-4 md:px-5 py-3 sm:py-4 text-xs sm:text-sm text-muted-foreground shadow-inner">
                 ✨ All parameters are pre-configured for cinematic realism. Just upload, choose a destination, and tap enhance.
               </div>
             </div>
@@ -1439,7 +1432,7 @@ export default function ImageToImageSkinEnhancerPage() {
               <button
                 onClick={handleGenerate}
                 disabled={isProcessing || !selectedImage || !targetFolder}
-                className="group flex-1 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-semibold text-sm sm:text-base md:text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
+                className="group flex-1 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue text-white font-semibold text-sm sm:text-base md:text-lg rounded-2xl hover:from-brand-dark-pink hover:via-brand-mid-pink hover:to-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 {isProcessing ? (
@@ -1458,14 +1451,14 @@ export default function ImageToImageSkinEnhancerPage() {
                 type="button"
                 onClick={resetForm}
                 disabled={isProcessing}
-                className="px-5 py-4 rounded-2xl border border-gray-300 dark:border-slate-700/50 text-sm font-medium text-slate-200 bg-slate-800/50 hover:bg-slate-700/50 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-4 rounded-2xl border border-border text-sm font-medium text-foreground bg-muted/50 hover:bg-muted transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 inline-block mr-1.5 sm:mr-2" /> Reset
               </button>
             </div>
 
             {(!selectedImage || !targetFolder) && (
-              <p className="text-center text-xs sm:text-sm text-slate-400">
+              <p className="text-center text-xs sm:text-sm text-muted-foreground">
                 {!selectedImage && 'Please upload an image to begin.'}
                 {selectedImage && !targetFolder && 'Select a folder so we know where to save your results.'}
               </p>
@@ -1474,7 +1467,7 @@ export default function ImageToImageSkinEnhancerPage() {
 
           <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {currentJob && (
-              <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
+              <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-md rounded-2xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
                 <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div
@@ -1483,7 +1476,7 @@ export default function ImageToImageSkinEnhancerPage() {
                           ? 'bg-gradient-to-br from-green-400 to-green-600 text-white'
                           : currentJob.status === 'FAILED'
                             ? 'bg-gradient-to-br from-red-500 to-red-600 text-white'
-                            : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                            : 'bg-gradient-to-br from-brand-mid-pink to-brand-blue text-white'
                       }`}
                     >
                       {currentJob.status === 'COMPLETED' ? (
@@ -1495,8 +1488,8 @@ export default function ImageToImageSkinEnhancerPage() {
                       )}
                     </div>
                     <div>
-                      <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">Enhancement Status</h2>
-                      <p className="text-xs sm:text-sm text-slate-400">
+                      <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground">Enhancement Status</h2>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {currentJob.status === 'COMPLETED'
                           ? 'Your image finished processing successfully.'
                           : currentJob.status === 'FAILED'
@@ -1511,7 +1504,7 @@ export default function ImageToImageSkinEnhancerPage() {
                         ? 'bg-green-500/20 text-green-300 border border-green-500/30'
                         : currentJob.status === 'FAILED'
                           ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                          : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'bg-brand-mid-pink/20 text-brand-mid-pink border border-brand-mid-pink/30'
                     }`}
                   >
                     {currentJob.status}
@@ -1520,13 +1513,13 @@ export default function ImageToImageSkinEnhancerPage() {
 
                 <div className="mt-6 space-y-4">
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm font-semibold text-slate-300">
+                    <div className="flex justify-between text-sm font-semibold text-foreground">
                       <span>Progress</span>
                       <span>{Math.min(currentJob.progress || 0, 100)}%</span>
                     </div>
-                    <div className="h-3 w-full rounded-full bg-slate-700/50 overflow-hidden">
+                    <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue transition-all duration-500"
                         style={{ width: `${Math.min(currentJob.progress || 0, 100)}%` }}
                         aria-valuenow={Math.min(currentJob.progress || 0, 100)}
                         aria-valuemin={0}
@@ -1536,11 +1529,11 @@ export default function ImageToImageSkinEnhancerPage() {
                     </div>
                   </div>
                   {currentJob.message && (
-                    <div className="rounded-2xl border border-purple-100 dark:border-purple-900/40 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 shadow-inner">
+                    <div className="rounded-2xl border border-brand-mid-pink/30 bg-gradient-to-r from-brand-mid-pink/10 to-brand-blue/10 px-4 py-3 text-sm text-muted-foreground shadow-inner">
                       {currentJob.message}
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-xs text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Elapsed: {formattedElapsed}</span>
                     <span>Typical runtime: 1-3 min</span>
                   </div>
@@ -1558,8 +1551,8 @@ export default function ImageToImageSkinEnhancerPage() {
                               isComplete
                                 ? 'bg-gradient-to-br from-green-400 to-green-600 text-white scale-105'
                                 : isActive
-                                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white scale-105 animate-pulse'
-                                  : 'bg-slate-700/50 text-gray-500'
+                                  ? 'bg-gradient-to-br from-brand-mid-pink to-brand-blue text-white scale-105 animate-pulse'
+                                  : 'bg-muted text-muted-foreground'
                             }`}
                           >
                             {isComplete ? (
@@ -1571,21 +1564,21 @@ export default function ImageToImageSkinEnhancerPage() {
                             )}
                           </div>
                           {index < PROGRESS_STAGES.length - 1 && (
-                            <div className={`absolute left-1/2 top-12 -ml-[1px] h-10 w-[2px] ${isComplete ? 'bg-green-400' : 'bg-slate-700/50'}`} />
+                            <div className={`absolute left-1/2 top-12 -ml-[1px] h-10 w-[2px] ${isComplete ? 'bg-green-400' : 'bg-muted'}`} />
                           )}
                         </div>
-                        <div className="flex-1 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/40 px-4 py-3 shadow-sm backdrop-blur">
+                        <div className="flex-1 rounded-2xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#0a0a0f] px-4 py-3 shadow-sm backdrop-blur">
                           <p className={`text-sm font-semibold ${
                             isActive
-                              ? 'text-purple-600 dark:text-purple-300'
+                              ? 'text-brand-mid-pink'
                               : isComplete
                                 ? 'text-green-600 dark:text-green-300'
-                                : 'text-slate-300'
+                                : 'text-muted-foreground'
                           }`}>
                             {stage.label}
                             {isActive ? ' • in progress' : isComplete ? ' • done' : ''}
                           </p>
-                          <p className="mt-1 text-xs text-slate-400 leading-relaxed">{stage.description}</p>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{stage.description}</p>
                         </div>
                       </div>
                     );
@@ -1593,14 +1586,14 @@ export default function ImageToImageSkinEnhancerPage() {
                 </div>
 
                 {(currentJob.status === 'PROCESSING' || currentJob.status === 'PENDING') && (
-                  <div className="mt-8 space-y-4 border-t border-gray-200 dark:border-slate-700/50 pt-6">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Rendering preview</p>
-                    <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800">
+                  <div className="mt-8 space-y-4 border-t border-border pt-6">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rendering preview</p>
+                    <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-muted via-card to-muted">
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
                     </div>
                     <div className="space-y-2">
-                      <div className="h-3 rounded-full bg-slate-700/50 animate-pulse" />
-                      <div className="h-3 rounded-full bg-slate-700/50 w-2/3 animate-pulse" />
+                      <div className="h-3 rounded-full bg-muted animate-pulse" />
+                      <div className="h-3 rounded-full bg-muted w-2/3 animate-pulse" />
                     </div>
                   </div>
                 )}
@@ -1608,15 +1601,15 @@ export default function ImageToImageSkinEnhancerPage() {
             )}
 
             {currentJob && currentJob.status === 'COMPLETED' && (
-              <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
+              <div className="bg-[#F8F8F8] dark:bg-[#0a0a0f] backdrop-blur-md rounded-2xl shadow-xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2.5 bg-gradient-to-br from-green-400 to-blue-500 rounded-xl shadow-lg">
+                    <div className="p-2.5 bg-gradient-to-br from-brand-mid-pink to-brand-blue rounded-xl shadow-lg">
                       <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-50">Enhanced Images</h2>
-                      <p className="text-sm text-slate-400">Ready to review, download, or share immediately.</p>
+                      <h2 className="text-xl font-bold text-foreground">Enhanced Images</h2>
+                      <p className="text-sm text-muted-foreground">Ready to review, download, or share immediately.</p>
                     </div>
                   </div>
                   {lastJobDuration && (
@@ -1629,7 +1622,7 @@ export default function ImageToImageSkinEnhancerPage() {
 
                 {!currentJobImages?.length && !hasLegacyUrls && (
                   <div className="text-center py-12">
-                    <div className="flex items-center justify-center gap-2 text-slate-400 mb-4">
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground mb-4">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span className="text-sm font-medium">Fetching results from your gallery...</span>
                     </div>
@@ -1644,7 +1637,7 @@ export default function ImageToImageSkinEnhancerPage() {
                           }
                         }
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium shadow-md hover:shadow-lg transition"
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-brand-mid-pink to-brand-blue text-white text-sm font-medium shadow-md hover:shadow-lg transition"
                     >
                       <RefreshCw className="w-4 h-4" /> Refresh images
                     </button>
@@ -1656,12 +1649,12 @@ export default function ImageToImageSkinEnhancerPage() {
                     {(() => {
                       const totalImages = currentJobImages?.length || currentJob.resultUrls?.length || 0;
                       return (
-                        <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-gradient-to-r from-blue-50 via-white to-purple-50 dark:from-blue-900/30 dark:via-gray-900/20 dark:to-purple-900/30 px-5 py-4 shadow-inner">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-300">Enhancement complete</p>
-                          <p className="mt-1 text-gray-800 dark:text-gray-100 font-semibold">
+                        <div className="rounded-2xl border border-brand-blue/30 bg-gradient-to-r from-brand-blue/10 via-card to-brand-mid-pink/10 px-5 py-4 shadow-inner">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">Enhancement complete</p>
+                          <p className="mt-1 text-foreground font-semibold">
                             {totalImages} {totalImages === 1 ? 'image' : 'images'} enhanced in {lastJobDuration || formattedElapsed}.
                           </p>
-                          <p className="mt-1 text-xs text-slate-400">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             We saved everything to your chosen folder. Download, share, or run another pass anytime.
                           </p>
                           <div className="mt-4 flex flex-wrap gap-3">
@@ -1670,7 +1663,7 @@ export default function ImageToImageSkinEnhancerPage() {
                                 resetForm();
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
-                              className="inline-flex items-center gap-2 rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-200 dark:hover:bg-blue-900/30"
+                              className="inline-flex items-center gap-2 rounded-full border border-brand-blue px-4 py-2 text-sm font-medium text-brand-blue transition hover:bg-brand-blue/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue"
                             >
                               <Sparkles className="w-4 h-4" /> Enhance another
                             </button>
@@ -1685,7 +1678,7 @@ export default function ImageToImageSkinEnhancerPage() {
                                   }
                                 }
                               }}
-                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:shadow-lg"
+                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand-mid-pink to-brand-blue px-4 py-2 text-sm font-medium text-white shadow-md transition hover:shadow-lg"
                             >
                               <RefreshCw className="w-4 h-4" /> Update gallery
                             </button>
@@ -1701,8 +1694,8 @@ export default function ImageToImageSkinEnhancerPage() {
                             onClick={() => setComparisonMode('side-by-side')}
                             className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                               comparisonMode === 'side-by-side'
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700/50'
+                                ? 'bg-brand-mid-pink/20 text-brand-mid-pink'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
                             }`}
                           >
                             Side by side
@@ -1711,8 +1704,8 @@ export default function ImageToImageSkinEnhancerPage() {
                             onClick={() => setComparisonMode('slider')}
                             className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                               comparisonMode === 'slider'
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700/50'
+                                ? 'bg-brand-mid-pink/20 text-brand-mid-pink'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
                             }`}
                           >
                             Slider
@@ -1720,19 +1713,19 @@ export default function ImageToImageSkinEnhancerPage() {
                         </div>
                         {comparisonMode === 'side-by-side' ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white/70 dark:bg-gray-900/40 shadow-sm">
-                              <p className="px-4 py-2 text-xs font-semibold text-slate-400 tracking-wider">BEFORE</p>
+                            <div className="rounded-2xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 overflow-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] shadow-sm">
+                              <p className="px-4 py-2 text-xs font-semibold text-muted-foreground tracking-wider">BEFORE</p>
                               <img src={selectedImage.preview} alt="Original" className="w-full object-cover" />
                             </div>
-                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white/70 dark:bg-gray-900/40 shadow-sm">
-                              <p className="px-4 py-2 text-xs font-semibold text-slate-400 tracking-wider">AFTER</p>
+                            <div className="rounded-2xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 overflow-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] shadow-sm">
+                              <p className="px-4 py-2 text-xs font-semibold text-muted-foreground tracking-wider">AFTER</p>
                               <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="w-full object-cover" />
                             </div>
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-slate-400 text-center tracking-wider">DRAG TO COMPARE</p>
-                            <div className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-slate-800/50">
+                            <p className="text-xs font-semibold text-muted-foreground text-center tracking-wider">DRAG TO COMPARE</p>
+                            <div className="relative aspect-square rounded-2xl overflow-hidden border border-border bg-muted">
                               <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="absolute inset-0 w-full h-full object-cover" />
                               <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}>
                                 <img src={selectedImage.preview} alt="Original" className="absolute inset-0 w-full h-full object-cover" />
@@ -1814,7 +1807,7 @@ export default function ImageToImageSkinEnhancerPage() {
                                 <img
                                   src={(dbImage.dataUrl || dbImage.url) as string}
                                   alt={dbImage.filename}
-                                  className="w-full rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
+                                  className="w-full rounded-2xl border border-border shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
                                   onClick={() => openLightbox((dbImage.dataUrl || dbImage.url) as string, dbImage.filename)}
                                   onError={(event) => {
                                     const target = event.target as HTMLImageElement;
@@ -1828,21 +1821,21 @@ export default function ImageToImageSkinEnhancerPage() {
                                   }}
                                 />
                               ) : (
-                                <div className="w-full h-64 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700/50 flex flex-col items-center justify-center text-slate-400 text-sm">
+                                <div className="w-full h-64 rounded-2xl border border-dashed border-border flex flex-col items-center justify-center text-muted-foreground text-sm">
                                   Image not available ({dbImage.filename})
                                 </div>
                               )}
                               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition"
+                                  className="p-3 rounded-xl bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 shadow-md hover:bg-gradient-to-br hover:from-brand-blue hover:to-brand-blue/80 hover:text-white transition"
                                   aria-label={`Download ${dbImage.filename}`}
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => shareImage(dbImage)}
-                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition"
+                                  className="p-3 rounded-xl bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 shadow-md hover:bg-gradient-to-br hover:from-brand-mid-pink hover:to-brand-dark-pink hover:text-white transition"
                                   aria-label={`Share ${dbImage.filename}`}
                                 >
                                   <Share2 className="w-4 h-4" />
@@ -1852,8 +1845,8 @@ export default function ImageToImageSkinEnhancerPage() {
                                 {dbImage.filename}
                               </div>
                               <div className="absolute bottom-4 right-4">
-                                <span className="inline-flex items-center gap-1 rounded-full bg-white/80 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 px-3 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-200">
-                                  <span className={`inline-block h-2 w-2 rounded-full ${dbImage.url ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 px-3 py-1 text-[11px] font-medium text-foreground">
+                                  <span className={`inline-block h-2 w-2 rounded-full ${dbImage.url ? 'bg-brand-blue' : 'bg-amber-500'}`} />
                                   {describeImageSource(dbImage)}
                                 </span>
                               </div>
@@ -1864,13 +1857,13 @@ export default function ImageToImageSkinEnhancerPage() {
                               <img
                                 src={imageUrl}
                                 alt={`Enhanced image ${index + 1}`}
-                                className="w-full rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
+                                className="w-full rounded-2xl border border-border shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
                                 onClick={() => openLightbox(imageUrl, `Enhanced image ${index + 1}`)}
                               />
                               <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => downloadImage(imageUrl, `enhanced_image_${index + 1}.png`)}
-                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition"
+                                  className="p-3 rounded-xl bg-[#F8F8F8] dark:bg-[#0a0a0f] border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 shadow-md hover:bg-gradient-to-br hover:from-brand-blue hover:to-brand-blue/80 hover:text-white transition"
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
@@ -1892,7 +1885,7 @@ export default function ImageToImageSkinEnhancerPage() {
           onClick={closeLightbox}
         >
           <div className="relative max-w-7xl max-h-full w-full">
-            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-3xl p-4 border border-white/10 shadow-2xl">
+            <div className="relative bg-gradient-to-br from-brand-mid-pink/20 via-brand-light-pink/10 to-brand-blue/20 rounded-3xl p-4 border border-white/10 shadow-2xl">
               <img
                 src={lightboxImage}
                 alt={lightboxTitle}

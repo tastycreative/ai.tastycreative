@@ -139,14 +139,14 @@ export function GlobalProfileSelector() {
     return (
       <Link
         href={`/${tenant}/workspace/my-influencers`}
-        className="group w-full flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 hover:from-[#EC67A1]/20 hover:to-[#F774B9]/20 border border-[#EC67A1]/20 hover:border-[#EC67A1]/40 transition-all duration-300"
+        className="group w-full flex items-center gap-3 p-3 rounded-2xl bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-[#EC67A1]/20 hover:border-[#EC67A1]/40 transition-all duration-300"
       >
         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 group-hover:scale-105 transition-transform">
           <Plus className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold text-sidebar-foreground">Create Profile</p>
-          <p className="text-[11px] text-header-muted">Add your first creator</p>
+          <p className="text-[11px] text-sidebar-foreground/50">Add your first creator</p>
         </div>
       </Link>
     );
@@ -162,10 +162,9 @@ export function GlobalProfileSelector() {
           group w-full flex items-center gap-3 p-3
           rounded-2xl transition-all duration-300
           ${isOpen 
-            ? 'bg-gradient-to-r from-[#EC67A1]/15 to-[#F774B9]/15 border-[#EC67A1]/30 ring-1 ring-[#EC67A1]/20' 
-            : 'bg-sidebar-accent hover:bg-sidebar-accent/50 border-sidebar-border hover:border-[#EC67A1]/20'
+            ? 'bg-sidebar-accent border-2 border-[#EC67A1]/30 ring-1 ring-[#EC67A1]/20' 
+            : 'bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/20'
           }
-          border focus:outline-none
         `}
       >
         {/* Profile Avatar */}
@@ -214,7 +213,7 @@ export function GlobalProfileSelector() {
               <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
             ) : null}
           </div>
-          <p className="text-[11px] text-header-muted truncate">
+          <p className="text-[11px] text-sidebar-foreground/50 truncate">
             {isAllProfiles 
               ? `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`
               : selectedProfile && !isOwnProfile(selectedProfile)
@@ -227,14 +226,14 @@ export function GlobalProfileSelector() {
         
         {/* Chevron */}
         <div className={`
-          w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
-          ${isOpen ? 'bg-[#EC67A1]/20' : 'bg-sidebar-accent group-hover:bg-sidebar-accent/50'}
+          w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0
+          ${isOpen ? 'bg-[#EC67A1]/20' : 'bg-sidebar-accent group-hover:bg-sidebar-accent/80'}
           transition-all
         `}>
           {isOpen ? (
             <ChevronUp className="w-4 h-4 text-[#EC67A1]" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70" />
+            <ChevronDown className="w-4 h-4 text-[#EC67A1]/70 group-hover:text-[#EC67A1]" />
           )}
         </div>
       </button>
@@ -243,7 +242,7 @@ export function GlobalProfileSelector() {
       {mounted && isOpen && createPortal(
         <div 
           data-profile-dropdown
-          className="fixed bg-sidebar backdrop-blur-xl rounded-2xl shadow-2xl shadow-black/30 dark:shadow-black/50 border border-sidebar-border z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+          className="fixed bg-sidebar backdrop-blur-xl rounded-2xl shadow-2xl border border-sidebar-border z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
           style={{
             top: `${dropdownPosition.top + 60}px`,
             left: `${dropdownPosition.left}px`,
@@ -251,10 +250,10 @@ export function GlobalProfileSelector() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-sidebar-border bg-gradient-to-r from-[#EC67A1]/5 to-[#F774B9]/5">
+          <div className="px-4 py-3 border-b border-sidebar-border bg-sidebar-accent">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-[#EC67A1]" />
-              <span className="text-xs font-semibold text-sidebar-foreground/70">Switch Workspace</span>
+              <span className="text-xs font-semibold text-sidebar-foreground">Switch Workspace</span>
             </div>
           </div>
           
@@ -266,8 +265,8 @@ export function GlobalProfileSelector() {
               className={`
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-2
                 ${isAllProfiles
-                  ? 'bg-emerald-500/15 border border-emerald-500/25'
-                  : 'hover:bg-sidebar-accent border border-transparent'
+                  ? 'bg-sidebar-accent border-2 border-emerald-500/30'
+                  : 'hover:bg-sidebar-accent border-2 border-transparent hover:border-emerald-500/20'
                 }
               `}
             >
@@ -275,12 +274,12 @@ export function GlobalProfileSelector() {
               <div className="relative flex-shrink-0">
                 <div className={`
                   w-10 h-10 rounded-xl overflow-hidden
-                  ${isAllProfiles ? 'ring-2 ring-emerald-400/40' : 'ring-1 ring-white/10'}
+                  ${isAllProfiles ? 'ring-2 ring-emerald-400/40' : 'ring-1 ring-sidebar-border'}
                 `}>
                   <div className={`w-full h-full flex items-center justify-center ${
                     isAllProfiles
                       ? 'bg-gradient-to-br from-emerald-500 to-teal-500'
-                      : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                      : 'bg-gradient-to-br from-emerald-500/50 to-teal-500/50'
                   }`}>
                     <FolderOpen className="w-4 h-4 text-white" />
                   </div>
@@ -291,15 +290,15 @@ export function GlobalProfileSelector() {
               <div className="flex-1 text-left min-w-0">
                 <div className="flex items-center gap-2">
                   <p className={`font-medium text-sm truncate ${
-                    isAllProfiles ? 'text-sidebar-foreground' : 'text-sidebar-foreground/80'
+                    isAllProfiles ? 'text-sidebar-foreground' : 'text-sidebar-foreground'
                   }`}>
                     All Profiles
                   </p>
-                  <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full font-semibold border border-emerald-500/30">
+                  <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full font-semibold border border-emerald-500/30">
                     {profiles.length}
                   </span>
                 </div>
-                <p className="text-[10px] text-header-muted truncate">
+                <p className="text-[10px] text-sidebar-foreground/50 truncate">
                   View all profile folders
                 </p>
               </div>
@@ -332,8 +331,8 @@ export function GlobalProfileSelector() {
                     className={`
                       w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1
                       ${profile.id === profileId
-                        ? 'bg-[#EC67A1]/15 border border-[#EC67A1]/25'
-                        : 'hover:bg-sidebar-accent border border-transparent'
+                        ? 'bg-sidebar-accent border-2 border-[#EC67A1]/30'
+                        : 'hover:bg-sidebar-accent border-2 border-transparent hover:border-[#EC67A1]/20'
                       }
                     `}
                   >
@@ -353,7 +352,7 @@ export function GlobalProfileSelector() {
                           <div className={`w-full h-full flex items-center justify-center ${
                             profile.id === profileId
                               ? 'bg-gradient-to-br from-[#EC67A1] to-[#F774B9]'
-                              : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                              : 'bg-gradient-to-br from-[#EC67A1]/50 to-[#F774B9]/50'
                           }`}>
                             <Instagram className="w-4 h-4 text-white" />
                           </div>
@@ -365,19 +364,19 @@ export function GlobalProfileSelector() {
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className={`font-medium text-sm truncate ${
-                          profile.id === profileId ? 'text-sidebar-foreground' : 'text-sidebar-foreground/80'
+                          profile.id === profileId ? 'text-sidebar-foreground' : 'text-sidebar-foreground'
                         }`}>
                           {profile.name}
                         </p>
                         {profile.isDefault && (
-                          <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-semibold border border-amber-500/30">
+                          <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full font-semibold border border-amber-500/30">
                             <Star className="w-2 h-2" />
                             DEFAULT
                           </span>
                         )}
                       </div>
                       {profile.instagramUsername && (
-                        <p className="text-[10px] text-header-muted truncate">
+                        <p className="text-[10px] text-sidebar-foreground/50 truncate">
                           @{profile.instagramUsername}
                         </p>
                       )}
@@ -416,8 +415,8 @@ export function GlobalProfileSelector() {
                       className={`
                         w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1 last:mb-0
                         ${profile.id === profileId
-                          ? 'bg-[#5DC3F8]/15 border border-[#5DC3F8]/25'
-                          : 'hover:bg-sidebar-accent border border-transparent'
+                          ? 'bg-sidebar-accent border-2 border-[#5DC3F8]/30'
+                          : 'hover:bg-sidebar-accent border-2 border-transparent hover:border-[#5DC3F8]/20'
                         }
                       `}
                     >
@@ -437,7 +436,7 @@ export function GlobalProfileSelector() {
                             <div className={`w-full h-full flex items-center justify-center ${
                               profile.id === profileId
                                 ? 'bg-gradient-to-br from-[#5DC3F8] to-cyan-500'
-                                : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                                : 'bg-gradient-to-br from-[#5DC3F8]/50 to-cyan-500/50'
                             }`}>
                               <Instagram className="w-4 h-4 text-white" />
                             </div>
@@ -453,29 +452,29 @@ export function GlobalProfileSelector() {
                       <div className="flex-1 text-left min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`font-medium text-sm truncate ${
-                            profile.id === profileId ? 'text-sidebar-foreground' : 'text-sidebar-foreground/80'
+                            profile.id === profileId ? 'text-sidebar-foreground' : 'text-sidebar-foreground'
                           }`}>
                             {profile.name}
                           </p>
                           {profile.isDefault && (
-                            <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-semibold border border-amber-500/30">
+                            <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full font-semibold border border-amber-500/30">
                               <Star className="w-2 h-2" />
                               DEFAULT
                             </span>
                           )}
                         </div>
                         {ownerName ? (
-                          <p className="text-[10px] text-[#5DC3F8]/70 truncate flex items-center gap-1">
+                          <p className="text-[10px] text-[#5DC3F8] truncate flex items-center gap-1">
                             <User className="w-2.5 h-2.5" />
                             Shared by {ownerName}
                           </p>
                         ) : profile.organization ? (
-                          <p className="text-[10px] text-[#5DC3F8]/60 truncate flex items-center gap-1">
+                          <p className="text-[10px] text-sidebar-foreground/50 truncate flex items-center gap-1">
                             <Building2 className="w-2.5 h-2.5" />
                             {profile.organization.name}
                           </p>
                         ) : profile.instagramUsername ? (
-                          <p className="text-[10px] text-header-muted truncate">
+                          <p className="text-[10px] text-sidebar-foreground/50 truncate">
                             @{profile.instagramUsername}
                           </p>
                         ) : null}

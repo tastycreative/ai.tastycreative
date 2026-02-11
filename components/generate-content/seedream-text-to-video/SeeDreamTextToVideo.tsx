@@ -709,7 +709,7 @@ export default function SeeDreamTextToVideo() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[#1a1625] text-sidebar-foreground">
+    <div className="relative max-h-[85vh] overflow-y-auto overflow-x-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg custom-scrollbar text-sidebar-foreground">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[#EC67A1]/20 dark:bg-[#EC67A1]/10 blur-3xl" />
         <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-[#5DC3F8]/10 dark:bg-[#5DC3F8]/5 blur-3xl" />
@@ -1338,18 +1338,31 @@ export default function SeeDreamTextToVideo() {
 
       {showHelpModal &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-modal-overlay-bg backdrop-blur">
-            <div className="relative max-w-3xl w-full rounded-3xl border border-modal-border bg-modal-bg p-6 shadow-2xl">
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+            onClick={() => setShowHelpModal(false)}
+          >
+            <div 
+              className="relative w-full max-w-4xl max-h-[90vh] overflow-auto my-8 rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-zinc-200 dark:bg-zinc-700 p-2 text-sidebar-foreground hover:bg-zinc-300 dark:hover:bg-zinc-600 transition"
+                className="sticky top-4 float-right mr-4 z-10 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 onClick={() => setShowHelpModal(false)}
               >
-                <span className="sr-only">Close</span>
-                ×
+                <X className="w-5 h-5" />
               </button>
 
-              <div className="space-y-6 text-modal-foreground">
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9]">
+                    <Info className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-sidebar-foreground">SeeDream 4.5 Text-to-Video — Guide</h2>
+                </div>
+
+              <div className="space-y-8 text-sidebar-foreground">
                 <div className="flex items-center gap-2">
                   <Info className="w-5 h-5 text-[#5DC3F8]" />
                   <h3 className="text-xl font-semibold">Prompting tips</h3>
@@ -1419,6 +1432,7 @@ export default function SeeDreamTextToVideo() {
                   </ul>
                 </div>
               </div>
+            </div>
             </div>
           </div>,
           document.body
