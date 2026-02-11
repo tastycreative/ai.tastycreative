@@ -8,6 +8,8 @@ import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
 import { PurchaseMemberSlotsModal } from './PurchaseMemberSlotsModal';
 import { ManageMemberSlotsModal } from './ManageMemberSlotsModal';
+import { PurchaseContentProfileSlotsModal } from './PurchaseContentProfileSlotsModal';
+import { ManageContentProfileSlotsModal } from './ManageContentProfileSlotsModal';
 
 import { CreditPackage } from '@/lib/credit-packages';
 
@@ -32,6 +34,9 @@ export default function BillingOverview({
   const [purchasingSlots, setPurchasingSlots] = useState(false);
   const [showMemberSlotModal, setShowMemberSlotModal] = useState(false);
   const [showManageSlotModal, setShowManageSlotModal] = useState(false);
+  const [purchasingProfileSlots, setPurchasingProfileSlots] = useState(false);
+  const [showProfileSlotModal, setShowProfileSlotModal] = useState(false);
+  const [showManageProfileSlotModal, setShowManageProfileSlotModal] = useState(false);
 
   const handlePurchaseMemberSlots = async (numberOfSlots: number) => {
     try {
@@ -97,6 +102,77 @@ export default function BillingOverview({
       };
     } catch (error) {
       console.error('Error removing member slots:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred',
+      };
+    }
+  };
+
+  const handlePurchaseContentProfileSlots = async (numberOfSlots: number) => {
+    try {
+      setPurchasingProfileSlots(true);
+      const response = await fetch('/api/billing/purchase-content-profile-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfSlots }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create purchase session');
+      }
+
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe Checkout (new subscription)
+        // Keep modal open and show loading state until redirect
+        window.location.href = data.url;
+      } else {
+        // Updated existing subscription, no redirect needed
+        setShowProfileSlotModal(false);
+        setPurchasingProfileSlots(false);
+        toast.success(data.message || 'Content profile slots added successfully!');
+        refetch(); // Refresh billing info
+      }
+    } catch (error) {
+      console.error('Error purchasing content profile slots:', error);
+      toast.error('Failed to start purchase. Please try again.');
+      setPurchasingProfileSlots(false);
+    }
+  };
+
+  const handleRemoveContentProfileSlots = async (numberOfSlots: number) => {
+    try {
+      const response = await fetch('/api/billing/cancel-content-profile-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfSlots }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error,
+          message: data.message,
+          currentProfiles: data.currentProfiles,
+          newLimit: data.newLimit,
+          profilesToRemove: data.profilesToRemove,
+        };
+      }
+
+      // Success - refetch billing info to update UI
+      await refetch();
+      toast.success(data.message || 'Content profile slots removed successfully!');
+
+      return {
+        success: true,
+        message: data.message,
+      };
+    } catch (error) {
+      console.error('Error removing content profile slots:', error);
       return {
         success: false,
         error: 'An unexpected error occurred',
@@ -297,6 +373,30 @@ export default function BillingOverview({
                 max={billingInfo.usage.profiles.max}
                 icon={CreditCard}
               />
+              {billingInfo.usage.profiles.additionalSlots > 0 && (
+                <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                  Base: {billingInfo.usage.profiles.baseLimit} + {billingInfo.usage.profiles.additionalSlots} add-on slot{billingInfo.usage.profiles.additionalSlots > 1 ? 's' : ''}
+                </div>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setShowProfileSlotModal(true)}
+                  disabled={purchasingProfileSlots}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 hover:bg-brand-mid-pink/20 dark:hover:bg-brand-mid-pink/30 text-brand-mid-pink dark:text-brand-light-pink rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Slots
+                </button>
+                {billingInfo.usage.profiles.additionalSlots > 0 && (
+                  <button
+                    onClick={() => setShowManageProfileSlotModal(true)}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                    title="Manage content profile slots"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
@@ -519,6 +619,26 @@ export default function BillingOverview({
             currentSlots={billingInfo.usage.members.additionalSlots}
             baseLimit={billingInfo.usage.members.baseLimit}
             currentMembers={billingInfo.usage.members.current}
+          />
+
+          {/* Content Profile Slot Modals */}
+          <PurchaseContentProfileSlotsModal
+            isOpen={showProfileSlotModal}
+            onClose={() => setShowProfileSlotModal(false)}
+            onPurchase={handlePurchaseContentProfileSlots}
+            pricePerSlot={billingInfo.usage.profiles.contentProfileSlotPrice}
+            currentSlots={billingInfo.usage.profiles.additionalSlots}
+            baseLimit={billingInfo.usage.profiles.baseLimit}
+            purchasing={purchasingProfileSlots}
+          />
+          <ManageContentProfileSlotsModal
+            isOpen={showManageProfileSlotModal}
+            onClose={() => setShowManageProfileSlotModal(false)}
+            onRemove={handleRemoveContentProfileSlots}
+            pricePerSlot={billingInfo.usage.profiles.contentProfileSlotPrice}
+            currentSlots={billingInfo.usage.profiles.additionalSlots}
+            baseLimit={billingInfo.usage.profiles.baseLimit}
+            currentProfiles={billingInfo.usage.profiles.current}
           />
         </>
       )}

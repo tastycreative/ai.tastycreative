@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
     // Calculate usage limits
     const baseMemberLimit = currentOrg.customMaxMembers ?? currentOrg.subscriptionPlan?.maxMembers ?? 1;
     const maxMembers = baseMemberLimit + (currentOrg.additionalMemberSlots ?? 0);
-    const maxProfiles = currentOrg.customMaxProfiles ?? currentOrg.subscriptionPlan?.maxProfiles ?? 1;
+    const baseProfileLimit = currentOrg.customMaxProfiles ?? currentOrg.subscriptionPlan?.maxProfiles ?? 1;
+    const maxProfiles = baseProfileLimit + (currentOrg.additionalContentProfileSlots ?? 0);
     const maxStorageGB = currentOrg.customMaxStorageGB ?? currentOrg.subscriptionPlan?.maxStorageGB ?? 5;
     const monthlyCredits = currentOrg.customMonthlyCredits ?? currentOrg.subscriptionPlan?.monthlyCredits ?? 100;
 
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       where: { organizationId: currentOrg.id },
     });
 
-    // Get profile count
+    // Get content profile count (Instagram profiles)
     const profileCount = await prisma.instagramProfile.count({
       where: { organizationId: currentOrg.id },
     });
@@ -79,6 +80,9 @@ export async function GET(req: NextRequest) {
           current: profileCount,
           max: maxProfiles,
           percentage: (profileCount / maxProfiles) * 100,
+          baseLimit: baseProfileLimit,
+          additionalSlots: currentOrg.additionalContentProfileSlots ?? 0,
+          contentProfileSlotPrice: currentOrg.contentProfileSlotPrice ?? 10.00,
         },
         storage: {
           current: currentOrg.currentStorageGB,

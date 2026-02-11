@@ -101,6 +101,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
+  // Handle content profile slot add-on purchase
+  if (purchaseType === 'content_profile_slot_addon') {
+    await handleContentProfileSlotPurchase(session);
+    return;
+  }
+
   if (!organizationId || !planId) {
     console.error('❌ Missing metadata in checkout session');
     return;
@@ -269,6 +275,19 @@ async function handleSubscriptionUpdated(subscription: any) {
       const memberSlotItem = subscription.items.data.find((item: any) => item.price.id === memberSlotPriceId);
       console.log(`   Current quantity in Stripe: ${memberSlotItem?.quantity || 0}`);
       // This is a member slot subscription, not a plan subscription
+      // No need to update credits or plan info, just return
+      return;
+    }
+
+    // Check if this is a content profile slot subscription (not a regular plan subscription)
+    const contentProfileSlotPriceId = process.env.STRIPE_CONTENT_PROFILE_SLOT_PRICE_ID;
+    if (contentProfileSlotPriceId && stripePriceId === contentProfileSlotPriceId) {
+      console.log('👤 Content profile slot subscription update detected - skipping credit logic');
+      console.log(`   ⚠️  IMPORTANT: NOT updating additionalContentProfileSlots in database`);
+      console.log(`   Subscription ID: ${subscription.id}`);
+      const contentProfileSlotItem = subscription.items.data.find((item: any) => item.price.id === contentProfileSlotPriceId);
+      console.log(`   Current quantity in Stripe: ${contentProfileSlotItem?.quantity || 0}`);
+      // This is a content profile slot subscription, not a plan subscription
       // No need to update credits or plan info, just return
       return;
     }
@@ -566,4 +585,76 @@ async function handleMemberSlotPurchase(session: Stripe.Checkout.Session) {
   console.log(`✅ Member slots added to organization ${organizationId}`);
   console.log(`   Organization name: ${updated.name}`);
   console.log(`   Total additional slots: ${updated.additionalMemberSlots}`);
+}
+
+async function handleContentProfileSlotPurchase(session: Stripe.Checkout.Session) {
+  console.log('👤 Processing content profile slot add-on purchase');
+
+  const organizationId = session.metadata?.organizationId;
+  const numberOfSlots = parseInt(session.metadata?.numberOfSlots || '0');
+
+  console.log(`   Organization ID: ${organizationId}`);
+  console.log(`   Number of slots: ${numberOfSlots}`);
+  console.log(`   Amount paid: ${session.amount_total ? session.amount_total / 100 : 0}`);
+
+  if (!organizationId || !numberOfSlots) {
+    console.error('❌ Missing metadata in content profile slot purchase session');
+    return;
+  }
+
+  // Get current organization
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      additionalContentProfileSlots: true,
+      name: true,
+    },
+  });
+
+  if (!organization) {
+    console.error('❌ Organization not found');
+    return;
+  }
+
+  // Add purchased slots to additional content profile slots
+  const newTotalSlots = (organization.additionalContentProfileSlots ?? 0) + numberOfSlots;
+  const pricePerSlot = session.amount_total ? (session.amount_total / 100) / numberOfSlots : 10.00;
+
+  console.log(`   Current additional slots: ${organization.additionalContentProfileSlots ?? 0}`);
+  console.log(`   New total slots: ${newTotalSlots}`);
+  console.log(`   Price per slot: $${pricePerSlot.toFixed(2)}`);
+
+  const updated = await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      additionalContentProfileSlots: newTotalSlots,
+      contentProfileSlotPrice: pricePerSlot,
+      stripeCustomerId: session.customer as string,
+    },
+  });
+
+  // Create transaction record
+  await prisma.billingTransaction.create({
+    data: {
+      organizationId,
+      userId: session.metadata?.userId || null,
+      type: 'SUBSCRIPTION_PAYMENT',
+      status: 'COMPLETED',
+      amount: (session.amount_total || 0) / 100,
+      currency: session.currency || 'usd',
+      description: `Purchase of ${numberOfSlots} additional content profile slot${numberOfSlots > 1 ? 's' : ''}`,
+      planName: 'Content Profile Slot Add-on',
+      stripeCheckoutSessionId: session.id,
+      metadata: {
+        sessionId: session.id,
+        numberOfSlots: numberOfSlots,
+        pricePerSlot: pricePerSlot,
+        type: 'content_profile_slot_addon',
+      },
+    },
+  });
+
+  console.log(`✅ Content profile slots added to organization ${organizationId}`);
+  console.log(`   Organization name: ${updated.name}`);
+  console.log(`   Total additional slots: ${updated.additionalContentProfileSlots}`);
 }

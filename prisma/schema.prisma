@@ -1062,6 +1062,8 @@ model Organization {
   updatedAt            DateTime                      @default(now()) @updatedAt
   additionalMemberSlots Int                          @default(0)
   memberSlotPrice      Float?
+  additionalContentProfileSlots Int                 @default(0)
+  contentProfileSlotPrice Float?
   availableCredits     Int                           @default(0)
   transactions         BillingTransaction[]
   content_submissions  content_submissions[]

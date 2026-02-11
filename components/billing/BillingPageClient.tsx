@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useBillingInfo, useCancelSubscription } from '@/lib/hooks/useBilling.query';
 import BillingTabs from './BillingTabs';
 import BillingOverview from './BillingOverview';
-import Invoices from './Invoices';
+import BillingInvoices from './BillingInvoices';
 import BillingTransactions from './BillingTransactions';
 
 export default function BillingPageClient() {
@@ -76,6 +76,13 @@ export default function BillingPageClient() {
         router.replace(currentPath);
       } else if (searchParams.get('member_slots_added')) {
         toast.success('Member slots added successfully! Your team capacity has been increased.');
+        setHasShownToast(true);
+        refetchBilling(); // Refresh billing info
+        // Remove query params but stay on current page
+        const currentPath = window.location.pathname;
+        router.replace(currentPath);
+      } else if (searchParams.get('content_profile_slots_added')) {
+        toast.success('Content profile slots added successfully! You can now create more profiles.');
         setHasShownToast(true);
         refetchBilling(); // Refresh billing info
         // Remove query params but stay on current page
@@ -244,7 +251,7 @@ export default function BillingPageClient() {
           />
         )}
 
-        {activeTab === 'invoices' && <Invoices />}
+        {activeTab === 'invoices' && <BillingInvoices />}
 
         {activeTab === 'transactions' && <BillingTransactions />}
       </div>
