@@ -24,6 +24,20 @@
 .DS_Store
 *.pem
 
+# Screenshots
+Screenshot*.png
+screenshot*.png
+*.screenshot.png
+**/Screenshot*.png
+
+# Implementation plans and temporary docs
+*_IMPLEMENTATION_PLAN.md
+*_PLAN.md
+V1*.md
+cheeky-*.md
+*Product-Brief*.pdf
+Tastyy-*.pdf
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -78,6 +92,7 @@ extra_model_paths.yaml
 # config/secrets.py
 # deploy-production.sh
 .claude/settings.local.json
+CLAUDE.md
 
 # AI agent configurations
 .agents/

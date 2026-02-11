@@ -142,6 +142,11 @@ export default function DashboardLayout({
                 href: `/${tenant}/gif-maker`,
                 icon: Film,
               },
+              {
+                name: "OTP/PTR",
+                href: `/${tenant}/submissions`,
+                icon: FileText,
+              },
             ],
           },
         ]

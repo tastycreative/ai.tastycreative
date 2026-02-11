@@ -1,10 +1,33 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with your secret key
-// Make sure to add STRIPE_SECRET_KEY to your .env.local file
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2026-01-28.clover',
-  typescript: true,
+// Lazy initialization of Stripe to avoid build-time errors
+let _stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+
+    if (!apiKey) {
+      throw new Error(
+        'STRIPE_SECRET_KEY is not defined in environment variables. ' +
+        'Please add it to your .env file.'
+      );
+    }
+
+    _stripe = new Stripe(apiKey, {
+      apiVersion: '2026-01-28.clover',
+      typescript: true,
+    });
+  }
+
+  return _stripe;
+}
+
+// Export a getter function instead of the instance
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as any)[prop];
+  }
 });
 
 export const STRIPE_CONFIG = {
