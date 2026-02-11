@@ -12,9 +12,10 @@ import { PurchaseContentProfileSlotsModal } from './PurchaseContentProfileSlotsM
 import { ManageContentProfileSlotsModal } from './ManageContentProfileSlotsModal';
 
 import { CreditPackage } from '@/lib/credit-packages';
+import { PricingPlan } from '@/lib/pricing-data';
 
 interface BillingOverviewProps {
-  onSubscribe: (planId: string) => void;
+  onSubscribe: (plan: PricingPlan) => void;
   onPurchaseCredits: (pkg: CreditPackage) => void;
   onManageSubscription: (action: 'cancel' | 'resume' | 'cancel_now') => void;
   processingPlan: string | null;
@@ -514,7 +515,7 @@ export default function BillingOverview({
                     </button>
                   ) : (
                     <button
-                      onClick={() => onSubscribe(plan.name)}
+                      onClick={() => onSubscribe(plan)}
                       disabled={isProcessing}
                       className="w-full bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white py-2 px-4 rounded-lg hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-brand-mid-pink/25"
                     >

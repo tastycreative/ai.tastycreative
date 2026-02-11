@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useBillingInfo, useCancelSubscription } from '@/lib/hooks/useBilling.query';
+import { PricingPlan } from '@/lib/pricing-data';
 import BillingTabs from './BillingTabs';
 import BillingOverview from './BillingOverview';
 import BillingInvoices from './BillingInvoices';
@@ -155,7 +156,7 @@ export default function BillingPageClient() {
     }
   };
 
-  const openPlanConfirmation = (plan: any) => {
+  const openPlanConfirmation = (plan: PricingPlan) => {
     setConfirmModal({
       isOpen: true,
       type: 'plan',
