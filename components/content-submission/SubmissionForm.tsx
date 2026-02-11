@@ -1,17 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { createSubmissionWithPricingSchema } from '@/lib/validations/content-submission';
-import { useCreateSubmission, useUpdateSubmission } from '@/lib/hooks/useContentSubmission.query';
-import { SubmissionTypeSelector } from './SubmissionTypeSelector';
-import { ContentStyleSelector } from './ContentStyleSelector';
-import { FileUploadZone } from './FileUploadZone';
-import { Loader2, Check, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
+import type {
+  CreateSubmissionWithComponents,
+  ComponentModule,
+} from '@/lib/validations/content-submission';
+import {
+  useCreateSubmission,
+  useUpdateSubmission,
+} from '@/lib/hooks/useContentSubmission.query';
+import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
+import { getRecommendations, isComponentForced } from '@/lib/content-submission/recommendations';
+import { ProgressIndicator } from './ProgressIndicator';
+import { AutoSaveIndicator } from './AutoSaveIndicator';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
+import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 
-type FormData = z.infer<typeof createSubmissionWithPricingSchema>;
+// Lazy load heavy components
+import dynamic from 'next/dynamic';
+
+const SubmissionTypeSelector = dynamic(() =>
+  import('./SubmissionTypeSelector').then((mod) => mod.SubmissionTypeSelector)
+);
+const ContentStyleSelector = dynamic(() =>
+  import('./ContentStyleSelector').then((mod) => mod.ContentStyleSelector)
+);
+const PlatformSelector = dynamic(() =>
+  import('./PlatformSelector').then((mod) => mod.PlatformSelector)
+);
+const ComponentSelector = dynamic(() =>
+  import('./ComponentSelector').then((mod) => mod.ComponentSelector)
+);
+const ContentDetailsFields = dynamic(() =>
+  import('./ContentDetailsFields').then((mod) => mod.ContentDetailsFields)
+);
+const FileUploadZone = dynamic(() =>
+  import('./FileUploadZone').then((mod) => mod.FileUploadZone)
+);
+
+type FormData = CreateSubmissionWithComponents;
 
 interface SubmissionFormProps {
   submissionId?: string;
@@ -20,13 +52,14 @@ interface SubmissionFormProps {
   onCancel?: () => void;
 }
 
-export function SubmissionForm({
+export const SubmissionForm = memo(function SubmissionForm({
   submissionId,
   initialData,
   onSuccess,
   onCancel,
 }: SubmissionFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
   const isEditMode = !!submissionId;
 
   const {
@@ -34,25 +67,111 @@ export function SubmissionForm({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isSubmitting },
+    reset,
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<FormData>({
-    resolver: zodResolver(createSubmissionWithPricingSchema),
+    resolver: zodResolver(createSubmissionWithComponentsSchema),
     defaultValues: initialData || {
       submissionType: 'otp',
       contentStyle: 'normal',
       priority: 'normal',
       platform: 'onlyfans',
+      selectedComponents: [],
       contentTags: [],
       internalModelTags: [],
+      contentType: undefined,
+      contentLength: '',
+      contentCount: '',
+      externalCreatorTags: '',
     },
   });
 
   const createSubmission = useCreateSubmission();
   const updateSubmission = useUpdateSubmission();
 
+  // Watch form values
   const submissionType = watch('submissionType');
   const contentStyle = watch('contentStyle');
+  const platform = watch('platform');
+  const selectedComponents = watch('selectedComponents') || [];
   const isPTR = submissionType === 'ptr';
+
+  // Memoized computations
+  const steps = useMemo(
+    () => generateSteps(submissionType, contentStyle, selectedComponents),
+    [submissionType, contentStyle, selectedComponents]
+  );
+
+  const recommendations = useMemo(
+    () => getRecommendations(submissionType, contentStyle),
+    [submissionType, contentStyle]
+  );
+
+  const forcedComponents = useMemo(
+    () => recommendations.filter((comp) => isComponentForced(comp, submissionType)),
+    [recommendations, submissionType]
+  );
+
+  // Auto-save functionality
+  const formData = watch();
+  const { isSaving, lastSaved, error: saveError } = useAutoSave({
+    data: formData,
+    onSave: async (data) => {
+      // Simulate auto-save - replace with actual API call
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      console.log('Auto-saved:', data);
+    },
+    delay: 3000,
+    enabled: isEditMode && Object.keys(dirtyFields).length > 0,
+  });
+
+  // Auto-apply recommendations
+  useEffect(() => {
+    const currentComponents = selectedComponents;
+    const needsUpdate = recommendations.some(
+      (rec) => !currentComponents.includes(rec)
+    );
+
+    if (needsUpdate && recommendations.length > 0) {
+      const updated = Array.from(
+        new Set([...currentComponents, ...recommendations])
+      );
+      setValue('selectedComponents', updated);
+    }
+  }, [recommendations, selectedComponents, setValue]);
+
+  // Ensure valid step
+  useEffect(() => {
+    const validStep = ensureValidStep(currentStep, steps);
+    if (validStep !== currentStep) {
+      setCurrentStep(validStep);
+    }
+  }, [steps, currentStep]);
+
+  // Keyboard navigation
+  const handleNext = useCallback(() => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  }, [currentStep, steps.length]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  }, [currentStep]);
+
+  useKeyboardShortcut(
+    { key: 'ArrowRight', ctrl: true },
+    handleNext,
+    currentStep < steps.length - 1
+  );
+
+  useKeyboardShortcut(
+    { key: 'ArrowLeft', ctrl: true },
+    handlePrevious,
+    currentStep > 0
+  );
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -61,661 +180,271 @@ export function SubmissionForm({
           id: submissionId,
           ...data,
         });
-        onSuccess?.(submissionId);
       } else {
         const result = await createSubmission.mutateAsync(data);
-        onSuccess?.(result.id);
+        console.log('Submission created:', result);
       }
+
+      // Show success animation
+      setShowSuccess(true);
+
+      // Navigate after celebration
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(submissionId || 'new');
+        } else {
+          setShowSuccess(false);
+          setCurrentStep(0);
+          reset();
+        }
+      }, 2000);
     } catch (error) {
       console.error('Submission failed:', error);
-      alert('Failed to save submission');
     }
   };
 
-  const steps = [
-    { id: 'type', title: 'Submission Type' },
-    { id: 'style', title: 'Content Style' },
-    { id: 'details', title: 'Content Details' },
-    ...(isPTR ? [{ id: 'schedule', title: 'Release Schedule' }] : []),
-    ...(isPTR || contentStyle === 'ppv' ? [{ id: 'pricing', title: 'Pricing' }] : []),
-    { id: 'files', title: 'File Uploads' },
-    { id: 'review', title: 'Review & Submit' },
-  ];
+  const currentStepInfo = steps[currentStep];
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] pb-16">
-      {/* Ambient background effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-violet-600/5 rounded-full blur-[150px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-fuchsia-600/5 rounded-full blur-[150px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/3 rounded-full blur-[200px]" />
-      </div>
+      {/* Success Celebration */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              className="relative bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 border-green-500/50 rounded-2xl p-12 max-w-md text-center shadow-2xl"
+            >
+              {/* Confetti effect */}
+              <div className="absolute inset-0 overflow-hidden rounded-2xl">
+                {[...Array(30)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-2 h-2 rounded-full"
+                    style={{
+                      background: [
+                        '#F774B9',
+                        '#E1518E',
+                        '#5DC3F8',
+                        '#EC67A1',
+                      ][i % 4],
+                      left: `${Math.random() * 100}%`,
+                      top: '-10%',
+                    }}
+                    animate={{
+                      y: [0, 500],
+                      x: [0, (Math.random() - 0.5) * 200],
+                      rotate: [0, Math.random() * 360],
+                      opacity: [1, 0],
+                    }}
+                    transition={{
+                      duration: 2 + Math.random(),
+                      delay: Math.random() * 0.5,
+                      ease: 'easeOut',
+                    }}
+                  />
+                ))}
+              </div>
+
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 200,
+                  damping: 15,
+                  delay: 0.2,
+                }}
+                className="relative"
+              >
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 border-2 border-green-500 mb-4">
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 0.6, delay: 0.3 }}
+                  >
+                    <Check className="w-10 h-10 text-green-500" />
+                  </motion.div>
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-2">
+                  Submission Created!
+                </h2>
+                <p className="text-zinc-400">
+                  Your content has been successfully submitted for review.
+                </p>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Auto-save Indicator */}
+        {isEditMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex justify-end mb-4"
+          >
+            <AutoSaveIndicator
+              isSaving={isSaving}
+              lastSaved={lastSaved}
+              error={saveError}
+            />
+          </motion.div>
+        )}
+
         {/* Progress Indicator */}
-        <div className="mb-12">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center flex-1">
-                <div className="flex flex-col items-center flex-1">
-                  {/* Step Circle */}
-                  <div className={`
-                    relative flex items-center justify-center w-12 h-12 rounded-full border-2 font-semibold text-sm transition-all duration-500
-                    ${index < currentStep
-                      ? 'border-brand-light-pink bg-brand-light-pink text-white shadow-lg shadow-brand-light-pink/30'
-                      : index === currentStep
-                      ? 'border-brand-light-pink bg-transparent text-brand-light-pink shadow-lg shadow-brand-light-pink/20 ring-4 ring-brand-light-pink/10'
-                      : 'border-zinc-700 bg-zinc-900/50 text-zinc-500'
-                    }
-                  `}>
-                    {index < currentStep ? (
-                      <Check className="w-5 h-5" />
-                    ) : (
-                      <span>{index + 1}</span>
-                    )}
-                  </div>
-
-                  {/* Step Title */}
-                  <div className={`
-                    mt-3 text-xs font-medium text-center transition-colors duration-300 hidden sm:block
-                    ${index <= currentStep ? 'text-zinc-300' : 'text-zinc-600'}
-                  `}>
-                    {step.title}
-                  </div>
-                </div>
-
-                {/* Connector Line */}
-                {index < steps.length - 1 && (
-                  <div className="flex-1 h-0.5 mx-2 -mt-6">
-                    <div className={`
-                      h-full transition-all duration-500
-                      ${index < currentStep
-                        ? 'bg-gradient-to-r from-brand-light-pink to-brand-dark-pink'
-                        : 'bg-zinc-800'
-                      }
-                    `} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <ProgressIndicator
+          steps={steps}
+          currentStep={currentStep}
+          onStepClick={(index) => setCurrentStep(index)}
+          allowStepNavigation={true}
+        />
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Step Content Card */}
-          <div className="relative bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-8 sm:p-12 overflow-hidden mb-8">
-            {/* Accent gradient overlay */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-light-pink to-transparent opacity-60" />
+          {/* Step Content with Animated Transitions */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStepInfo?.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{
+                type: 'spring',
+                stiffness: 100,
+                damping: 20,
+              }}
+              className="relative bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-8 sm:p-12 overflow-hidden mb-8"
+            >
+              {/* Decorative gradient */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-light-pink to-transparent opacity-60" />
 
-            {/* Floating decorative elements */}
-            <div className="absolute top-8 right-8 w-32 h-32 bg-violet-500/5 rounded-full blur-3xl" />
-            <div className="absolute bottom-8 left-8 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-3xl" />
+              {/* Floating decorative elements */}
+              <div className="absolute top-8 right-8 w-32 h-32 bg-violet-500/5 rounded-full blur-3xl" />
+              <div className="absolute bottom-8 left-8 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-3xl" />
 
-            <div className="relative">
-              {/* Step 1: Submission Type */}
-              {currentStep === 0 && (
-                <div className="space-y-6 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Select Submission Type
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Choose between one-time post or pay-to-release content
-                    </p>
-                  </div>
-                  <SubmissionTypeSelector
-                    value={submissionType}
-                    onChange={(value) => setValue('submissionType', value)}
-                  />
-                </div>
-              )}
-
-              {/* Step 2: Content Style */}
-              {currentStep === 1 && (
-                <div className="space-y-6 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Select Content Style
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      What type of content are you submitting?
-                    </p>
-                  </div>
-                  <ContentStyleSelector
-                    value={contentStyle}
-                    onChange={(value) => setValue('contentStyle', value)}
-                    submissionType={submissionType}
-                  />
-                </div>
-              )}
-
-              {/* Step 3: Content Details */}
-              {currentStep === 2 && (
-                <div className="space-y-8 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Content Details
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Provide details about your {contentStyle === 'poll' ? 'poll' : contentStyle === 'game' ? 'game' : contentStyle === 'bundle' ? 'bundle' : 'content'}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* Model Name */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Model/Influencer Name
-                      </label>
-                      <input
-                        {...register('modelName')}
-                        type="text"
-                        placeholder="Enter model name"
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
+              <div className="relative">
+                {/* Render step content based on currentStepInfo.id */}
+                {currentStepInfo?.id === 'platform-type' && (
+                  <StepContent title="Platform & Submission Type">
+                    <div className="space-y-8">
+                      <PlatformSelector
+                        value={platform}
+                        onChange={(value) => setValue('platform', value)}
                       />
-                      {errors.modelName && (
-                        <p className="text-sm text-red-400 mt-1">{errors.modelName.message}</p>
-                      )}
-                    </div>
-
-                    {/* Priority */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Priority
-                      </label>
-                      <select
-                        {...register('priority')}
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      >
-                        <option value="low">Low</option>
-                        <option value="normal">Normal</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
-                      </select>
-                    </div>
-
-                    {/* Platform */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Platform
-                      </label>
-                      <select
-                        {...register('platform')}
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      >
-                        <option value="onlyfans">OnlyFans</option>
-                        <option value="fansly">Fansly</option>
-                        <option value="instagram">Instagram</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-
-                    {/* Caption */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Caption
-                      </label>
-                      <textarea
-                        {...register('caption')}
-                        rows={4}
-                        placeholder="Enter your caption..."
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all resize-none"
+                      <Divider />
+                      <SubmissionTypeSelector
+                        value={submissionType}
+                        onChange={(value) => setValue('submissionType', value)}
                       />
                     </div>
+                  </StepContent>
+                )}
 
-                    {/* Style-Specific Fields */}
-                    {contentStyle === 'poll' && (
-                      <>
-                        <div className="sm:col-span-2">
-                          <div className="border-t border-zinc-700/50 pt-6 mb-4">
-                            <h3 className="text-xl font-medium text-white mb-1">Poll Configuration</h3>
-                            <p className="text-sm text-zinc-400">Set up your poll options and duration</p>
-                          </div>
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Poll Question
-                          </label>
-                          <input
-                            {...register('metadata.pollQuestion' as any)}
-                            type="text"
-                            placeholder="What question do you want to ask?"
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Poll Duration (hours)
-                          </label>
-                          <input
-                            {...register('metadata.pollDuration' as any, { valueAsNumber: true })}
-                            type="number"
-                            min="1"
-                            max="168"
-                            placeholder="24"
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {contentStyle === 'game' && (
-                      <>
-                        <div className="sm:col-span-2">
-                          <div className="border-t border-zinc-700/50 pt-6 mb-4">
-                            <h3 className="text-xl font-medium text-white mb-1">Game Configuration</h3>
-                            <p className="text-sm text-zinc-400">Define your interactive game details</p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Game Type
-                          </label>
-                          <select
-                            {...register('metadata.gameType' as any)}
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          >
-                            <option value="">Select type...</option>
-                            <option value="trivia">Trivia</option>
-                            <option value="challenge">Challenge</option>
-                            <option value="prediction">Prediction</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Prize Description
-                          </label>
-                          <input
-                            {...register('metadata.prizeDescription' as any)}
-                            type="text"
-                            placeholder="What can they win?"
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Game Rules
-                          </label>
-                          <textarea
-                            {...register('metadata.gameRules' as any)}
-                            rows={3}
-                            placeholder="Explain how to play..."
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all resize-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Entry Cost <span className="text-zinc-500 text-xs">(Optional)</span>
-                          </label>
-                          <input
-                            {...register('metadata.entryCost' as any, { valueAsNumber: true })}
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {contentStyle === 'bundle' && (
-                      <>
-                        <div className="sm:col-span-2">
-                          <div className="border-t border-zinc-700/50 pt-6 mb-4">
-                            <h3 className="text-xl font-medium text-white mb-1">Bundle Configuration</h3>
-                            <p className="text-sm text-zinc-400">Package multiple items together</p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Bundle Items Count
-                          </label>
-                          <input
-                            {...register('metadata.bundleItemsCount' as any, { valueAsNumber: true })}
-                            type="number"
-                            min="2"
-                            placeholder="5"
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-sm font-medium text-zinc-300 mb-2">
-                            Bundle Description
-                          </label>
-                          <textarea
-                            {...register('metadata.bundleDescription' as any)}
-                            rows={3}
-                            placeholder="Describe what's included in this bundle..."
-                            className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all resize-none"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Common fields for all styles */}
-                    {/* Drive Link */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Drive Link <span className="text-zinc-500 text-xs">(Optional)</span>
-                      </label>
-                      <input
-                        {...register('driveLink')}
-                        type="url"
-                        placeholder="https://drive.google.com/..."
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
+                {currentStepInfo?.id === 'style-components' && (
+                  <StepContent title="Content Style & Components">
+                    <div className="space-y-8">
+                      <ContentStyleSelector
+                        value={contentStyle}
+                        onChange={(value) => setValue('contentStyle', value as any)}
+                        submissionType={submissionType}
+                      />
+                      <Divider />
+                      <ComponentSelector
+                        selected={selectedComponents}
+                        onChange={(components) =>
+                          setValue('selectedComponents', components)
+                        }
+                        recommendations={recommendations}
+                        disabled={forcedComponents}
                       />
                     </div>
+                  </StepContent>
+                )}
 
-                    {/* Notes */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Notes <span className="text-zinc-500 text-xs">(Optional)</span>
-                      </label>
-                      <textarea
-                        {...register('notes')}
-                        rows={3}
-                        placeholder="Any additional notes or instructions..."
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+                {currentStepInfo?.id === 'details' && (
+                  <StepContent title="Content Details">
+                    <ContentDetailsFields
+                      register={register}
+                      setValue={setValue}
+                      watch={watch}
+                      errors={errors}
+                    />
+                  </StepContent>
+                )}
 
-              {/* Step 4: Release Schedule (PTR only) */}
-              {currentStep === 3 && isPTR && (
-                <div className="space-y-8 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Release Schedule
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Set when this content should be released
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* Release Date */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Release Date <span className="text-brand-light-pink">*</span>
-                      </label>
-                      <input
-                        {...register('releaseSchedule.releaseDate')}
-                        type="date"
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    {/* Release Time */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Release Time
-                      </label>
-                      <input
-                        {...register('releaseSchedule.releaseTime')}
-                        type="time"
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    {/* Timezone */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Timezone
-                      </label>
-                      <select
-                        {...register('releaseSchedule.timezone')}
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      >
-                        <option value="UTC">UTC</option>
-                        <option value="America/New_York">Eastern Time</option>
-                        <option value="America/Chicago">Central Time</option>
-                        <option value="America/Denver">Mountain Time</option>
-                        <option value="America/Los_Angeles">Pacific Time</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 5: Pricing (PTR/PPV) */}
-              {currentStep === (isPTR ? 4 : 3) && (isPTR || contentStyle === 'ppv') && (
-                <div className="space-y-8 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Pricing
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Set pricing for this content
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* Minimum Price */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Minimum Price ($)
-                      </label>
-                      <input
-                        {...register('pricing.minimumPrice', { valueAsNumber: true })}
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    {/* Pricing Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Pricing Type
-                      </label>
-                      <select
-                        {...register('pricing.pricingType')}
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
-                      >
-                        <option value="fixed">Fixed Price</option>
-                        <option value="range">Price Range</option>
-                        <option value="negotiable">Negotiable</option>
-                      </select>
-                    </div>
-
-                    {/* Pricing Notes */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-300 mb-2">
-                        Pricing Notes <span className="text-zinc-500 text-xs">(Optional)</span>
-                      </label>
-                      <textarea
-                        {...register('pricing.pricingNotes')}
-                        rows={3}
-                        placeholder="Any pricing details or notes..."
-                        className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 6: File Upload */}
-              {currentStep === steps.length - 2 && (
-                <div className="space-y-6 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Upload Files
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Upload images, videos, or other files for this submission
-                    </p>
-                  </div>
-
-                  {submissionId ? (
-                    <FileUploadZone submissionId={submissionId} />
-                  ) : (
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-                      <p className="text-sm text-amber-200/80 font-light">
-                        Save the submission first to upload files
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 7: Review & Submit */}
-              {currentStep === steps.length - 1 && (
-                <div className="space-y-6 animate-fade-in-up">
-                  <div className="space-y-2">
-                    <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
-                      Review & Submit
-                    </h2>
-                    <p className="text-lg text-zinc-400 font-light">
-                      Review your submission details before finalizing
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Submission Type & Style */}
-                    <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                      <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-zinc-500 mb-1">Type</p>
-                          <p className="text-white font-medium">{submissionType === 'otp' ? 'One-Time Post (OTP)' : 'Pay-to-Release (PTR)'}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-zinc-500 mb-1">Content Style</p>
-                          <p className="text-white font-medium capitalize">{contentStyle}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Content Details */}
-                    <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                      <h3 className="text-sm font-medium text-zinc-400 mb-3">Content Details</h3>
-                      <div className="space-y-3">
-                        {watch('modelName') && (
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Model/Influencer</p>
-                            <p className="text-white">{watch('modelName')}</p>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Priority</p>
-                            <p className="text-white capitalize">{watch('priority')}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Platform</p>
-                            <p className="text-white capitalize">{watch('platform')}</p>
-                          </div>
-                        </div>
-                        {watch('caption') && (
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Caption</p>
-                            <p className="text-white text-sm line-clamp-3">{watch('caption')}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Release Schedule (PTR only) */}
-                    {isPTR && watch('releaseSchedule.releaseDate') && (
-                      <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                        <h3 className="text-sm font-medium text-zinc-400 mb-3">Release Schedule</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Release Date</p>
-                            <p className="text-white">{watch('releaseSchedule.releaseDate')}</p>
-                          </div>
-                          {watch('releaseSchedule.releaseTime') && (
-                            <div>
-                              <p className="text-xs text-zinc-500 mb-1">Release Time</p>
-                              <p className="text-white">{watch('releaseSchedule.releaseTime')}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Pricing (PTR/PPV) */}
-                    {(isPTR || contentStyle === 'ppv') && watch('pricing.minimumPrice') && (
-                      <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                        <h3 className="text-sm font-medium text-zinc-400 mb-3">Pricing</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Minimum Price</p>
-                            <p className="text-white">${watch('pricing.minimumPrice')}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Pricing Type</p>
-                            <p className="text-white capitalize">{watch('pricing.pricingType')}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Ready to Submit */}
-                    <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
-                      <p className="text-white font-medium mb-1">Ready to submit?</p>
-                      <p className="text-sm text-zinc-400">
-                        Click Submit below to create your {submissionType === 'otp' ? 'OTP' : 'PTR'} submission.
-                        {!submissionId && ' Files can be uploaded after creation.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+                {/* Add other step renderings as needed */}
+              </div>
+            </motion.div>
+          </AnimatePresence>
 
           {/* Navigation Buttons */}
           <div className="flex items-center justify-between">
-            <button
+            <motion.button
               type="button"
               onClick={onCancel}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className="px-6 py-3 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-all duration-200"
             >
               Cancel
-            </button>
+            </motion.button>
 
             <div className="flex items-center space-x-3">
               {currentStep > 0 && (
-                <button
+                <motion.button
                   type="button"
-                  onClick={() => setCurrentStep(currentStep - 1)}
-                  className="px-6 py-3 bg-zinc-800/50 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 rounded-xl transition-all duration-200"
+                  onClick={handlePrevious}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="group inline-flex items-center gap-2 px-6 py-3 bg-zinc-800/50 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 rounded-xl transition-all duration-200"
                 >
-                  Back
-                </button>
+                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                  <span>Back</span>
+                </motion.button>
               )}
 
               {currentStep < steps.length - 1 ? (
-                <button
+                <motion.button
                   type="button"
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  className="group inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink hover:from-brand-dark-pink hover:to-brand-light-pink text-white font-medium transition-all duration-300 shadow-lg shadow-brand-light-pink/20 hover:shadow-brand-light-pink/40 hover:scale-105"
+                  onClick={handleNext}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20"
                 >
-                  <span>Next</span>
-                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </button>
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-brand-dark-pink to-brand-light-pink"
+                    initial={{ x: '100%' }}
+                    whileHover={{ x: 0 }}
+                    transition={{ type: 'tween', duration: 0.3 }}
+                  />
+                  <span className="relative">Next</span>
+                  <ChevronRight className="relative w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </motion.button>
               ) : (
-                <button
+                <motion.button
                   type="submit"
                   disabled={isSubmitting}
-                  className="group inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink hover:from-brand-dark-pink hover:to-brand-light-pink text-white font-medium transition-all duration-300 shadow-lg shadow-brand-light-pink/20 hover:shadow-brand-light-pink/40 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  whileHover={{ scale: isSubmitting ? 1 : 1.05 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.95 }}
+                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{isEditMode ? 'Update' : 'Submit'}</span>
-                </button>
+                  {isSubmitting && (
+                    <Loader2 className="relative w-4 h-4 animate-spin" />
+                  )}
+                  <span className="relative">
+                    {isEditMode ? 'Update' : 'Submit'}
+                  </span>
+                  <Sparkles className="relative w-4 h-4" />
+                </motion.button>
               )}
             </div>
           </div>
@@ -723,4 +452,37 @@ export function SubmissionForm({
       </div>
     </div>
   );
-}
+});
+
+// Helper Components
+const StepContent = memo(function StepContent({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-6 animate-fade-in-up">
+      <div className="space-y-2">
+        <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
+          {title}
+        </h2>
+      </div>
+      {children}
+    </div>
+  );
+});
+
+const Divider = memo(function Divider() {
+  return (
+    <div className="relative">
+      <div className="absolute inset-0 flex items-center">
+        <div className="w-full border-t border-zinc-800/50"></div>
+      </div>
+      <div className="relative flex justify-center text-sm">
+        <span className="px-4 bg-zinc-900/40 text-zinc-500">and</span>
+      </div>
+    </div>
+  );
+});

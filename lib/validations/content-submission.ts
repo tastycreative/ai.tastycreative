@@ -9,8 +9,33 @@ export const contentStyleSchema = z.enum(['normal', 'poll', 'game', 'ppv', 'bund
 // Priority enum
 export const prioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 
-// Content type enum
-export const contentTypeSchema = z.enum(['photo', 'video', 'carousel', 'story']);
+// Content type enum - expanded for detailed tracking
+export const contentTypeSchema = z.enum([
+  'photo',
+  'video',
+  'photo_set',
+  'video_set',
+  'mixed', // Photos + Videos
+  'gif',
+  'livestream',
+  'audio',
+  'text',
+]);
+
+// Component module enum
+export const componentModuleSchema = z.enum(['pricing', 'release', 'upload']);
+export type ComponentModule = z.infer<typeof componentModuleSchema>;
+
+// Platform enum
+export const platformSchema = z.enum(['onlyfans', 'fansly']);
+
+// Pricing category enum
+export const pricingCategorySchema = z.enum([
+  'PORN_ACCURATE',
+  'PORN_SCAM',
+  'GF_ACCURATE',
+  'GF_SCAM',
+]);
 
 // Base submission input
 export const createSubmissionInputSchema = z.object({
@@ -18,23 +43,33 @@ export const createSubmissionInputSchema = z.object({
   submissionType: submissionTypeSchema,
   contentStyle: contentStyleSchema,
 
+  // Platform selection
+  platform: platformSchema.default('onlyfans'),
+
+  // Component modules selection
+  selectedComponents: z.array(componentModuleSchema).default([]),
+
   // Optional content details
   modelId: z.string().optional(),
   modelName: z.string().optional(),
   priority: prioritySchema.default('normal'),
   caption: z.string().optional(),
   driveLink: z.string().url().optional().or(z.literal('')),
+
+  // Enhanced content metadata
   contentType: contentTypeSchema.optional(),
-  contentCount: z.number().int().positive().optional(),
-  contentLength: z.string().optional(),
+  contentCount: z.string().optional(), // Changed to string: "1 Video", "3 Photos"
+  contentLength: z.string().optional(), // Duration: "8:43" or "8 mins 43 secs"
 
   // Tags
   contentTags: z.array(z.string()).default([]),
-  externalCreatorTags: z.string().optional(),
+  externalCreatorTags: z.string().optional(), // "@username @username2"
   internalModelTags: z.array(z.string()).default([]),
 
+  // Pricing category
+  pricingCategory: pricingCategorySchema.default('PORN_ACCURATE'),
+
   // Metadata
-  platform: z.string().default('onlyfans'),
   notes: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 });
@@ -77,6 +112,41 @@ export type PricingInput = z.infer<typeof pricingInputSchema>;
 export const createSubmissionWithPricingSchema = createSubmissionWithScheduleSchema.extend({
   pricing: pricingInputSchema.optional(),
 });
+
+// Complete submission with component validation
+export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema
+  .refine(
+    (data) => {
+      // PTR submissions must have release component
+      if (data.submissionType === 'ptr' && !data.selectedComponents.includes('release')) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'PTR submissions require Release Schedule component',
+      path: ['selectedComponents'],
+    }
+  )
+  .refine(
+    (data) => {
+      // If release component is selected for PTR, must have release date
+      if (
+        data.selectedComponents.includes('release') &&
+        data.submissionType === 'ptr' &&
+        !data.releaseSchedule?.releaseDate
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Release date required when Release component is enabled for PTR',
+      path: ['releaseSchedule', 'releaseDate'],
+    }
+  );
+
+export type CreateSubmissionWithComponents = z.infer<typeof createSubmissionWithComponentsSchema>;
 
 // File category enum
 export const fileCategorySchema = z.enum(['image', 'video', 'document', 'other']);

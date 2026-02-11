@@ -1,232 +1,138 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
-import { trpc } from '../trpc-client';
-import type {
-  CreateSubmissionInput,
-  UpdateSubmissionInput,
-  ListSubmissionsInput,
-} from '../validations/content-submission';
-
 /**
- * List submissions with optional filters
+ * DESIGN-ONLY MODE: Content Submission Hooks
+ *
+ * Pure design/UI hooks with no backend dependencies.
+ * All data is logged to console for demonstration purposes.
  */
-export function useContentSubmissions(input?: ListSubmissionsInput) {
-  const { user } = useUser();
 
-  return trpc.contentSubmission.list.useQuery(input || {}, {
-    enabled: !!user,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-    gcTime: 1000 * 60 * 5, // 5 minutes
-  });
-}
+import { useState } from 'react';
+import type { CreateSubmissionWithComponents } from '../validations/content-submission';
 
 /**
- * Get single submission by ID
- */
-export function useContentSubmission(id: string) {
-  const { user } = useUser();
-
-  return trpc.contentSubmission.getById.useQuery(
-    { id },
-    {
-      enabled: !!user && !!id,
-      staleTime: 1000 * 60 * 2,
-      gcTime: 1000 * 60 * 5,
-    }
-  );
-}
-
-/**
- * Create new submission
+ * Create new submission (DESIGN ONLY)
+ * Returns mock mutation with async handler
  */
 export function useCreateSubmission() {
-  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
 
-  return trpc.contentSubmission.create.useMutation({
-    onSuccess: () => {
-      // Invalidate submission list
-      queryClient.invalidateQueries({ queryKey: ['contentSubmission', 'list'] });
-    },
-  });
+  const mutateAsync = async (data: CreateSubmissionWithComponents) => {
+    setIsPending(true);
+    console.log('📝 [DESIGN MODE] Content Submission Created:', data);
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    setIsPending(false);
+
+    // Return mock success response
+    return {
+      id: `mock-${Date.now()}`,
+      ...data,
+      status: 'DRAFT',
+      createdAt: new Date().toISOString(),
+    };
+  };
+
+  return {
+    mutateAsync,
+    isPending,
+  };
 }
 
 /**
- * Update existing submission
+ * Update existing submission (DESIGN ONLY)
  */
 export function useUpdateSubmission() {
-  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
 
-  return trpc.contentSubmission.update.useMutation({
-    onSuccess: (data) => {
-      // Invalidate submission list
-      queryClient.invalidateQueries({ queryKey: ['contentSubmission', 'list'] });
-      // Update single submission cache
-      queryClient.invalidateQueries({ queryKey: ['contentSubmission', 'getById', { id: data.id }] });
-    },
-  });
+  const mutateAsync = async ({ id, ...data }: any) => {
+    setIsPending(true);
+    console.log('✏️ [DESIGN MODE] Content Submission Updated:', { id, ...data });
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    setIsPending(false);
+
+    return {
+      id,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
+  return {
+    mutateAsync,
+    isPending,
+  };
 }
 
 /**
- * Delete submission
- */
-export function useDeleteSubmission() {
-  const queryClient = useQueryClient();
-
-  return trpc.contentSubmission.delete.useMutation({
-    onSuccess: () => {
-      // Invalidate submission list
-      queryClient.invalidateQueries({ queryKey: ['contentSubmission', 'list'] });
-    },
-  });
-}
-
-/**
- * Get presigned URL for file upload
- */
-export function useGetPresignedUrl() {
-  return trpc.submissionFiles.getPresignedUrl.useMutation();
-}
-
-/**
- * Record uploaded file
- */
-export function useRecordFileUpload() {
-  const queryClient = useQueryClient();
-
-  return trpc.submissionFiles.recordUpload.useMutation({
-    onSuccess: (data) => {
-      // Invalidate file list for this submission
-      queryClient.invalidateQueries({
-        queryKey: ['submissionFiles', 'list', { submissionId: data.submissionId }],
-      });
-    },
-  });
-}
-
-/**
- * List files for a submission
- */
-export function useSubmissionFiles(submissionId: string) {
-  const { user } = useUser();
-
-  return trpc.submissionFiles.list.useQuery(
-    { submissionId },
-    {
-      enabled: !!user && !!submissionId,
-      staleTime: 1000 * 60 * 2,
-    }
-  );
-}
-
-/**
- * Delete file
- */
-export function useDeleteFile() {
-  const queryClient = useQueryClient();
-
-  return trpc.submissionFiles.delete.useMutation({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['submissionFiles', 'list'] });
-    },
-  });
-}
-
-/**
- * Update file order
- */
-export function useUpdateFileOrder() {
-  const queryClient = useQueryClient();
-
-  return trpc.submissionFiles.updateOrder.useMutation({
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['submissionFiles', 'list', { submissionId: variables.submissionId }],
-      });
-    },
-  });
-}
-
-/**
- * Complete file upload flow (presigned URL + upload + record)
+ * File upload hook (DESIGN ONLY - returns mock)
  */
 export function useFileUpload() {
-  const getPresignedUrl = useGetPresignedUrl();
-  const recordUpload = useRecordFileUpload();
-
   const uploadFile = async (
     file: File,
     submissionId: string,
-    options?: {
-      onProgress?: (progress: number) => void;
-    }
+    options?: { onProgress?: (progress: number) => void }
   ) => {
-    try {
-      // Step 1: Get presigned URL
-      const presignedData = await getPresignedUrl.mutateAsync({
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        submissionId,
-      });
+    console.log('📁 [DESIGN MODE] File Upload:', { fileName: file.name, submissionId });
 
-      // Step 2: Upload to S3
-      const xhr = new XMLHttpRequest();
-
-      return new Promise((resolve, reject) => {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable && options?.onProgress) {
-            const progress = (e.loaded / e.total) * 100;
-            options.onProgress(progress);
-          }
-        });
-
-        xhr.addEventListener('load', async () => {
-          if (xhr.status === 200) {
-            // Step 3: Record file metadata
-            try {
-              // Determine file category
-              let fileCategory: 'image' | 'video' | 'document' | 'other' = 'other';
-              if (file.type.startsWith('image/')) fileCategory = 'image';
-              else if (file.type.startsWith('video/')) fileCategory = 'video';
-              else if (file.type.includes('pdf') || file.type.includes('document')) fileCategory = 'document';
-
-              const fileRecord = await recordUpload.mutateAsync({
-                submissionId,
-                awsS3Key: presignedData.s3Key,
-                awsS3Url: presignedData.fileUrl,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                fileCategory,
-              });
-
-              resolve(fileRecord);
-            } catch (error) {
-              reject(error);
-            }
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Upload failed'));
-        });
-
-        xhr.open('PUT', presignedData.uploadUrl);
-        xhr.setRequestHeader('Content-Type', file.type);
-        xhr.send(file);
-      });
-    } catch (error) {
-      console.error('File upload failed:', error);
-      throw error;
+    // Simulate upload progress
+    if (options?.onProgress) {
+      for (let i = 0; i <= 100; i += 20) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        options.onProgress(i);
+      }
     }
+
+    return {
+      id: `mock-file-${Date.now()}`,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+    };
   };
 
   return {
     uploadFile,
-    isUploading: getPresignedUrl.isPending || recordUpload.isPending,
+    isUploading: false,
+  };
+}
+
+/**
+ * List files for submission (DESIGN ONLY - returns empty)
+ */
+export function useSubmissionFiles(submissionId: string) {
+  return {
+    data: [] as any[],
+    isLoading: false,
+    error: null,
+    refetch: async () => ({ data: [] }),
+  };
+}
+
+/**
+ * Delete file (DESIGN ONLY)
+ */
+export function useDeleteFile() {
+  const [isPending, setIsPending] = useState(false);
+
+  const mutateAsync = async (data: { id: string }) => {
+    setIsPending(true);
+    console.log('🗑️ [DESIGN MODE] File Deleted:', data.id);
+
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    setIsPending(false);
+
+    return { success: true };
+  };
+
+  return {
+    mutateAsync,
+    isPending,
   };
 }
