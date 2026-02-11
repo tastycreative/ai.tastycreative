@@ -7,6 +7,8 @@ import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import VaultFolderDropdown from "@/components/generate-content/shared/VaultFolderDropdown";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
   Video,
   Upload,
@@ -218,7 +220,8 @@ export default function FPSBoostPage() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
-  
+  const { refreshCredits } = useCredits();
+
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
@@ -558,6 +561,10 @@ export default function FPSBoostPage() {
         if (job.status === "completed") {
           console.log("✅ Job completed!");
           setIsGenerating(false);
+
+          // Refresh credits after successful completion
+          refreshCredits();
+
           await fetchJobVideos(jobId);
           return;
         } else if (job.status === "failed") {
@@ -1145,6 +1152,19 @@ export default function FPSBoostPage() {
           </div>
         </div>
       </div>
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="fps-boost"
+        modifiers={[
+          ...(params.targetFPS >= 60 ? [{
+            label: `High FPS Target (${params.targetFPS})`,
+            multiplier: params.targetFPS / 30,
+            description: 'Higher FPS targets cost more credits'
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }

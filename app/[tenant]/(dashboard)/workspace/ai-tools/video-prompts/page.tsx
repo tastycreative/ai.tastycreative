@@ -124,7 +124,7 @@ export default function VideoPrompts() {
       {/* Header */}
       <div className="bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-900/80 dark:to-gray-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 shadow-lg">
         <div className="flex items-center space-x-2 sm:space-x-3 mb-0">
-          <div className="p-1.5 sm:p-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg">
+          <div className="p-1.5 sm:p-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-lg">
             <PlayCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
           </div>
           <div>
@@ -148,7 +148,7 @@ export default function VideoPrompts() {
           {!uploadedImage ? (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl p-6 xs:p-7 sm:p-8 text-center cursor-pointer hover:border-red-400 dark:hover:border-red-500 transition-colors active:scale-[0.99]"
+              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl p-6 xs:p-7 sm:p-8 text-center cursor-pointer hover:border-[#5DC3F8] transition-colors active:scale-[0.99]"
             >
               <Upload className="w-8 h-8 xs:w-10 xs:h-10 sm:w-12 sm:h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3 sm:mb-4" />
               <p className="text-gray-600 dark:text-gray-400 mb-1.5 sm:mb-2 text-xs xs:text-sm">
@@ -185,7 +185,7 @@ export default function VideoPrompts() {
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing}
-                className="w-full bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-3 xs:px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs xs:text-sm sm:text-base active:scale-95"
+                className="w-full bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-3 xs:px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs xs:text-sm sm:text-base active:scale-95"
               >
                 {isAnalyzing ? (
                   <>
@@ -305,7 +305,7 @@ export default function VideoPrompts() {
             <div className="flex space-x-1.5 sm:space-x-2">
               <button
                 onClick={handleCopyPrompt}
-                className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 rounded-lg transition-colors text-xs xs:text-sm active:scale-95"
+                className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] hover:shadow-lg text-white px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 rounded-lg transition-colors text-xs xs:text-sm active:scale-95"
               >
                 <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Copy</span>

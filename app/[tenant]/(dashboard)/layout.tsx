@@ -94,7 +94,10 @@ export default function DashboardLayout({
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [flyoutPosition, setFlyoutPosition] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const flyoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const params = useParams();
   const tenant = params.tenant as string;
@@ -544,6 +547,39 @@ export default function DashboardLayout({
     setMounted(true);
   }, []);
 
+  // Handle click outside user dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
+      // Don't close if clicking inside the user dropdown
+      if (userDropdownRef.current && userDropdownRef.current.contains(target)) {
+        return;
+      }
+      
+      // Don't close if clicking the user dropdown button
+      if (userDropdownButtonRef.current && userDropdownButtonRef.current.contains(target)) {
+        return;
+      }
+      
+      // Don't close if clicking inside any portal dropdown (like OrganizationSwitcher)
+      const portalElements = document.querySelectorAll('[data-dropdown-portal]');
+      for (const portal of Array.from(portalElements)) {
+        if (portal.contains(target)) {
+          return;
+        }
+      }
+      
+      // Close the dropdown if clicking outside
+      setUserDropdownOpen(false);
+    };
+
+    if (userDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [userDropdownOpen]);
+
   const isNavItemActive = (href: string) => {
     if (href === `//dashboard`) {
       return pathname === `//dashboard`;
@@ -867,9 +903,9 @@ export default function DashboardLayout({
         onMouseLeave={handleMouseLeave}
         className={classNames(
           isActive
-            ? "bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25 scale-[1.02]"
-            : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white hover:scale-[1.02] hover:shadow-md",
-          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
+            ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02]"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
           isInSection ? "pl-6 xs:pl-7 sm:pl-8" : "",
           !sidebarOpen ? "justify-center" : "",
         )}
@@ -878,7 +914,7 @@ export default function DashboardLayout({
           className={classNames(
             isActive
               ? "text-white"
-              : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
+              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground",
             "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
             sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
             isActive ? "scale-110" : "group-hover:scale-110",
@@ -962,17 +998,17 @@ export default function DashboardLayout({
             onClick={handleSectionToggle}
             className={classNames(
               isSectionActive
-                ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-l-2 border-blue-500"
+                ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-l-2 border-[#EC67A1]"
                 : "",
-              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
+              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#EC67A1] focus:ring-offset-2 dark:focus:ring-offset-sidebar",
             )}
           >
             <span className="flex items-center">
               <SectionIcon
                 className={classNames(
                   isSectionActive
-                    ? "text-blue-400"
-                    : "text-gray-400 dark:text-gray-400",
+                    ? "text-[#5DC3F8]"
+                    : "text-sidebar-foreground/50",
                   "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-transform duration-300 group-hover:scale-110",
                 )}
               />
@@ -1006,16 +1042,16 @@ export default function DashboardLayout({
               }}
               className={classNames(
                 isSectionActive || hoveredSection === section.name
-                  ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white"
-                  : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white",
-                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  ? "bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-sidebar-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]",
               )}
             >
               <SectionIcon
                 className={classNames(
                   isSectionActive
-                    ? "text-blue-400"
-                    : "text-gray-400 dark:text-gray-400",
+                    ? "text-[#5DC3F8]"
+                    : "text-sidebar-foreground/50",
                   "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300 hover:scale-110",
                 )}
               />
@@ -1027,7 +1063,7 @@ export default function DashboardLayout({
               createPortal(
                 <div
                   data-flyout
-                  className="fixed bg-gray-800 dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-700 dark:border-gray-600 z-[100] animate-fadeIn"
+                  className="fixed bg-sidebar rounded-lg shadow-2xl border border-sidebar-border z-[100] animate-fadeIn"
                   style={{
                     left: `${flyoutPosition.x + 8}px`,
                     top: `${flyoutPosition.y}px`,
@@ -1051,9 +1087,9 @@ export default function DashboardLayout({
                     style={{ background: "transparent" }}
                   />
                   {/* Section header */}
-                  <div className="px-3 py-2.5 border-b border-gray-700 dark:border-gray-600 bg-gray-900/50 rounded-t-lg">
-                    <span className="text-sm font-semibold text-white flex items-center gap-2">
-                      <SectionIcon className="h-4 w-4 text-blue-400" />
+                  <div className="px-3 py-2.5 border-b border-sidebar-border bg-sidebar-accent rounded-t-lg">
+                    <span className="text-sm font-semibold text-sidebar-foreground flex items-center gap-2">
+                      <SectionIcon className="h-4 w-4 text-[#5DC3F8]" />
                       {section.name}
                     </span>
                   </div>
@@ -1080,14 +1116,14 @@ export default function DashboardLayout({
                             }}
                             className={classNames(
                               isActive
-                                ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
-                                : "text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white",
+                                ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white"
+                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                               "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200",
                             )}
                           >
                             <ItemIcon
                               className={classNames(
-                                isActive ? "text-white" : "text-gray-400",
+                                isActive ? "text-white" : "text-sidebar-foreground/50",
                                 "h-4 w-4 flex-shrink-0",
                               )}
                             />
@@ -1097,7 +1133,7 @@ export default function DashboardLayout({
                       })}
                   </div>
                   {/* Arrow pointer */}
-                  <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-gray-800 dark:bg-gray-900 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+                  <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-sidebar rotate-45 border-l border-b border-sidebar-border"></div>
                 </div>,
                 document.body,
               )}
@@ -1125,12 +1161,12 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0a0f] relative overflow-hidden">
+    <div className="flex h-screen bg-background relative overflow-hidden">
       {/* Background ambient effects */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#EC67A1]/10 dark:bg-[#F774B9]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[#5DC3F8]/10 dark:bg-[#EC67A1]/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-[#EC67A1]/5 to-[#5DC3F8]/5 rounded-full blur-3xl" />
       </div>
 
       {/* Desktop Sidebar - Modern Glass Design */}
@@ -1141,17 +1177,17 @@ export default function DashboardLayout({
         )}
       >
         {/* Sidebar Glass Container */}
-        <div className="flex-1 m-3 rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/20">
+        <div className="flex-1 m-3 rounded-3xl bg-sidebar backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-2xl shadow-black/20">
           {/* Sidebar Header with Logo */}
-          <div className="p-5 border-b border-white/[0.06]">
+          <div className="p-5 border-b border-sidebar-border">
             <div className="flex items-center justify-between">
               {sidebarOpen ? (
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 flex-shrink-0">
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-sidebar-foreground via-[#EC67A1] to-[#5DC3F8] bg-clip-text text-transparent">
                       Creative Ink
                     </h1>
                     {!permissionsLoading && currentOrganization ? (
@@ -1163,26 +1199,26 @@ export default function DashboardLayout({
                             className="w-3 h-3 rounded object-cover flex-shrink-0"
                           />
                         ) : (
-                          <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                          <Building2 className="w-3 h-3 text-[#5DC3F8] flex-shrink-0" />
                         )}
-                        <p className="text-[10px] text-white/50 font-medium tracking-wide truncate">
+                        <p className="text-[10px] text-sidebar-foreground/50 font-medium tracking-wide truncate">
                           {currentOrganization.name}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-[11px] text-white/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                      <p className="text-[11px] text-sidebar-foreground/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
                     )}
                   </div>
                 </div>
               ) : (
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 mx-auto">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center shadow-lg shadow-[#EC67A1]/30 mx-auto">
                   <Sparkles className="w-6 h-6 text-white" />
                 </div>
               )}
               {sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex-shrink-0"
+                  className="p-2.5 rounded-xl text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 flex-shrink-0"
                   title="Collapse sidebar"
                 >
                   <ChevronLeft className="w-5 h-5" />
@@ -1192,7 +1228,7 @@ export default function DashboardLayout({
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="w-full mt-4 p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
+                className="w-full mt-4 p-2.5 rounded-xl text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 flex items-center justify-center"
                 title="Expand sidebar"
               >
                 <ChevronRight className="w-5 h-5" />
@@ -1204,13 +1240,13 @@ export default function DashboardLayout({
               <div className="w-full mt-4">
                 {permissionsLoading ? (
                   <div className="animate-pulse">
-                    <div className="h-12 bg-white/5 rounded-lg" />
+                    <div className="h-12 bg-sidebar-accent rounded-lg" />
                   </div>
                 ) : (
                   <>
                     {/* Profile Selector - for switching between Instagram profiles */}
                     <div className="w-full">
-                      <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
+                      <div className="text-[10px] font-semibold text-sidebar-foreground/30 uppercase tracking-wider mb-2 px-1">
                         Active Profile
                       </div>
                       <GlobalProfileSelector />
@@ -1245,15 +1281,15 @@ export default function DashboardLayout({
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-5 border-t border-white/[0.06]">
+          <div className="p-5 border-t border-sidebar-border">
             {sidebarOpen ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ThemeToggle />
                 </div>
-                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent border border-sidebar-border">
                   <CreditCard className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-semibold text-white/80">
+                  <span className="text-sm font-semibold text-sidebar-foreground/80">
                     {currentOrganization?.availableCredits ?? 0} Credits
                   </span>
                 </div>
@@ -1261,7 +1297,7 @@ export default function DashboardLayout({
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <ThemeToggle />
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sidebar-accent border border-sidebar-border" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
@@ -1286,7 +1322,7 @@ export default function DashboardLayout({
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "absolute left-0 top-0 bottom-0 w-80 bg-[#0d0d12] border-r border-white/10 flex flex-col transition-transform duration-300 ease-out",
+            "absolute left-0 top-0 bottom-0 w-80 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out",
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
@@ -1358,12 +1394,12 @@ export default function DashboardLayout({
           </nav>
 
           {/* Mobile Footer */}
-          <div className="p-5 border-t border-white/[0.06]">
+          <div className="p-5 border-t border-sidebar-border">
             <div className="flex items-center justify-between">
               <ThemeToggle />
-              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5">
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-sidebar-accent">
                 <CreditCard className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-white/80">
+                <span className="text-sm font-semibold text-sidebar-foreground/80">
                   {currentOrganization?.availableCredits ?? 0} Credits
                 </span>
               </div>
@@ -1375,11 +1411,11 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         {/* Mobile Header Bar */}
-        <div className="lg:hidden bg-[#0d0d12]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
+        <div className="lg:hidden bg-header backdrop-blur-xl border-b border-header-border px-4 py-3">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
+              className="p-2 rounded-xl text-header-muted hover:text-header-foreground hover:bg-sidebar-accent transition-all"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -1387,7 +1423,7 @@ export default function DashboardLayout({
             </button>
             <div className="flex items-center gap-2">
               <NotificationBell />
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center">
                 <span className="text-white text-xs font-bold">{initials}</span>
               </div>
             </div>
@@ -1397,7 +1433,7 @@ export default function DashboardLayout({
         {/* Content area */}
         <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
           {/* Modern Top Header */}
-          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#0a0a0f]/80 border-b border-white/[0.04]">
+          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-header border-b border-header-border">
             <div className="px-6 lg:px-8 py-4">
               <div className="flex items-center justify-between">
                 {/* Left Side - Progress & Breadcrumb Area */}
@@ -1411,30 +1447,41 @@ export default function DashboardLayout({
                   <NotificationBell />
 
                   {/* User Menu */}
-                  <div className="relative group">
-                    <button className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center ring-2 ring-white/10">
+                  <div className="relative">
+                    <button
+                      ref={userDropdownButtonRef}
+                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                      className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-primary/10 border border-header-border hover:border-[#EC67A1]/30 transition-all duration-200"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
                         <span className="text-white text-xs font-bold">{initials}</span>
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-medium text-white/90">{firstName}</p>
-                        <p className="text-[10px] text-white/40 truncate max-w-[120px]">{email}</p>
+                        <p className="text-sm font-medium text-header-foreground">{firstName}</p>
+                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">{email}</p>
                       </div>
-                      <ChevronDown className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+                      <ChevronDown className={`w-4 h-4 text-header-muted transition-all duration-200 ${userDropdownOpen ? 'rotate-180 text-header-foreground' : ''}`} />
                     </button>
 
                     {/* User Dropdown */}
-                    <div className="absolute right-0 mt-2 w-72 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
-                      <div className="px-4 py-3 border-b border-white/[0.06]">
-                        <p className="text-sm font-semibold text-white">{firstName}</p>
-                        <p className="text-xs text-white/50 truncate">{email}</p>
+                    {userDropdownOpen && (
+                      <div
+                        ref={userDropdownRef}
+                        className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl shadow-black/30 dark:shadow-black/50 animate-fadeIn z-50"
+                      >
+                      <div className="px-4 py-3 border-b border-sidebar-border">
+                        <p className="text-sm font-semibold text-sidebar-foreground">{firstName}</p>
+                        <p className="text-xs text-sidebar-foreground/60 dark:text-sidebar-foreground/50 truncate">{email}</p>
                       </div>
 
                       {/* Organization Switcher Section */}
                       {!permissionsLoading && (
-                        <div className="px-3 py-3 border-b border-white/[0.06]">
+                        <div
+                          className="px-3 py-3 border-b border-sidebar-border"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="mb-2">
-                            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider px-1">
+                            <p className="text-[10px] font-semibold text-sidebar-foreground/50 dark:text-sidebar-foreground/40 uppercase tracking-wider px-1">
                               Organization
                             </p>
                           </div>
@@ -1445,7 +1492,8 @@ export default function DashboardLayout({
                       <div className="py-1">
                         <Link
                           href={`/${tenant}/settings`}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
                         >
                           <Settings className="w-4 h-4" />
                           Settings
@@ -1453,7 +1501,8 @@ export default function DashboardLayout({
                         {(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN') && (
                           <Link
                             href={`/${tenant}/billing`}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
                           >
                             <CreditCard className="w-4 h-4" />
                             Billing
@@ -1462,23 +1511,28 @@ export default function DashboardLayout({
                         {isAdmin && (
                           <Link
                             href={`/${tenant}/admin`}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/70 dark:text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
                           >
                             <Shield className="w-4 h-4" />
                             Admin Panel
                           </Link>
                         )}
                       </div>
-                      <div className="border-t border-white/[0.06] pt-1 mt-1">
+                      <div className="border-t border-sidebar-border pt-1 mt-1">
                         <button
-                          onClick={() => signOut({ redirectUrl: "/" })}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            signOut({ redirectUrl: "/" });
+                          }}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all"
                         >
                           <ChevronRight className="w-4 h-4" />
                           Sign Out
                         </button>
                       </div>
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1500,7 +1554,7 @@ export default function DashboardLayout({
       {/* Tooltip for collapsed sidebar */}
       {!sidebarOpen && hoveredItem && (
         <div
-          className="hidden lg:block fixed z-50 px-3 py-2 bg-[#1a1a24] text-white text-sm rounded-xl shadow-xl border border-white/10 pointer-events-none animate-fadeIn"
+          className="hidden lg:block fixed z-50 px-3 py-2 bg-sidebar text-sidebar-foreground text-sm rounded-xl shadow-xl border border-sidebar-border pointer-events-none animate-fadeIn"
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
@@ -1508,7 +1562,7 @@ export default function DashboardLayout({
           }}
         >
           {hoveredItem}
-          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-[#1a1a24] rotate-45 border-l border-b border-white/10" />
+          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-sidebar rotate-45 border-l border-b border-sidebar-border" />
         </div>
       )}
     </div>

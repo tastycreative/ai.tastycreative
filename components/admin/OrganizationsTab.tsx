@@ -292,28 +292,28 @@ export default function OrganizationsTab() {
   const getRoleIcon = (role: string) => {
     switch (role.toUpperCase()) {
       case 'OWNER':
-        return <Crown className="w-4 h-4 text-yellow-500" />;
+        return <Crown className="w-4 h-4 text-[#F774B9]" />;
       case 'ADMIN':
-        return <Shield className="w-4 h-4 text-blue-500" />;
+        return <Shield className="w-4 h-4 text-[#EC67A1]" />;
       case 'MANAGER':
-        return <Users className="w-4 h-4 text-purple-500" />;
+        return <Users className="w-4 h-4 text-[#5DC3F8]" />;
       default:
-        return <User className="w-4 h-4 text-gray-500" />;
+        return <User className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { bg: string; text: string; label: string }> = {
-      TRIAL: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-300', label: 'Trial' },
-      ACTIVE: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-300', label: 'Active' },
-      PAST_DUE: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-800 dark:text-yellow-300', label: 'Past Due' },
-      CANCELLED: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-800 dark:text-red-300', label: 'Cancelled' },
-      PAUSED: { bg: 'bg-gray-100 dark:bg-gray-900/30', text: 'text-gray-800 dark:text-gray-300', label: 'Paused' },
+    const statusMap: Record<string, { bg: string; border: string; icon: string; label: string }> = {
+      TRIAL: { bg: 'bg-blue-50/50 dark:bg-blue-950/30', border: 'border-[#5DC3F8]/30', icon: 'text-[#5DC3F8]', label: 'Trial' },
+      ACTIVE: { bg: 'bg-green-50/50 dark:bg-green-950/30', border: 'border-green-500/30', icon: 'text-green-600 dark:text-green-400', label: 'Active' },
+      PAST_DUE: { bg: 'bg-yellow-50/50 dark:bg-yellow-950/30', border: 'border-yellow-500/30', icon: 'text-yellow-600 dark:text-yellow-400', label: 'Past Due' },
+      CANCELLED: { bg: 'bg-red-50/50 dark:bg-red-950/30', border: 'border-red-500/30', icon: 'text-red-600 dark:text-red-400', label: 'Cancelled' },
+      PAUSED: { bg: 'bg-muted/50', border: 'border-border', icon: 'text-muted-foreground', label: 'Paused' },
     };
 
     const statusInfo = statusMap[status] || statusMap.TRIAL;
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.bg} ${statusInfo.text}`}>
+      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusInfo.bg} ${statusInfo.border} text-foreground`}>
         {statusInfo.label}
       </span>
     );
@@ -327,9 +327,9 @@ export default function OrganizationsTab() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Organizations Management</h3>
+        <h3 className="text-lg font-semibold text-foreground">Organizations Management</h3>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#EC67A1]"></div>
         </div>
       </div>
     );
@@ -339,31 +339,31 @@ export default function OrganizationsTab() {
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div>
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Organizations Management</h3>
-        <p className="text-gray-600 dark:text-gray-400">Manage organizations, members, and permissions</p>
+        <h3 className="text-xl font-semibold text-foreground mb-2">Organizations Management</h3>
+        <p className="text-muted-foreground">Manage organizations, members, and permissions</p>
       </div>
 
       {/* Alerts */}
       {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between">
+        <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <span className="text-red-800 dark:text-red-200">{error}</span>
+            <span className="text-foreground">{error}</span>
           </div>
-          <button onClick={() => setError(null)}>
-            <X className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <button onClick={() => setError(null)} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
 
       {success && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
+        <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <span className="text-green-800 dark:text-green-200">{success}</span>
+            <span className="text-foreground">{success}</span>
           </div>
-          <button onClick={() => setSuccess(null)}>
-            <X className="w-5 h-5 text-green-600 dark:text-green-400" />
+          <button onClick={() => setSuccess(null)} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -371,18 +371,18 @@ export default function OrganizationsTab() {
       {/* Search and Actions */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search organizations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-border bg-background rounded-lg focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <button
           onClick={() => setShowCreateOrgModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors active:scale-95"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-lg hover:from-[#E1518E] hover:to-[#EC67A1] transition-all active:scale-95 shadow-lg shadow-[#EC67A1]/25"
         >
           <Plus className="w-5 h-5" />
           <span>Create Organization</span>
@@ -392,19 +392,19 @@ export default function OrganizationsTab() {
       {/* Organizations List */}
       <div className="space-y-4 flex-1 overflow-auto min-h-0 mt-4">
         {filteredOrganizations.map((org) => (
-          <div key={org.id} className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-lg p-6 hover:shadow-md transition-shadow">
+          <div key={org.id} className="bg-card border border-border rounded-lg p-6 hover:shadow-md hover:border-[#EC67A1]/30 transition-all">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-4">
                 {org.logoUrl ? (
-                  <img src={org.logoUrl} alt={org.name} className="w-12 h-12 rounded-lg" />
+                  <img src={org.logoUrl} alt={org.name} className="w-12 h-12 rounded-lg border border-border" />
                 ) : (
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-lg flex items-center justify-center shadow-sm">
                     <Building2 className="w-6 h-6 text-white" />
                   </div>
                 )}
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{org.name}</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">/{org.slug}</p>
+                  <h4 className="text-lg font-semibold text-foreground">{org.name}</h4>
+                  <p className="text-sm text-muted-foreground">/{org.slug}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -414,27 +414,27 @@ export default function OrganizationsTab() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Plan</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                <p className="text-xs text-muted-foreground mb-1">Plan</p>
+                <p className="text-sm font-medium text-foreground">
                   {org.subscriptionPlan?.displayName || 'Free'}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Members</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{org.memberCount}</p>
+                <p className="text-xs text-muted-foreground mb-1">Members</p>
+                <p className="text-sm font-medium text-foreground">{org.memberCount}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Workspaces</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{org.workspaceCount}</p>
+                <p className="text-xs text-muted-foreground mb-1">Workspaces</p>
+                <p className="text-sm font-medium text-foreground">{org.workspaceCount}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credits Used</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{org.creditsUsedThisMonth}</p>
+                <p className="text-xs text-muted-foreground mb-1">Credits Used</p>
+                <p className="text-sm font-medium text-foreground">{org.creditsUsedThisMonth}</p>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+            <div className="border-t border-border pt-4 mb-4">
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => {
@@ -442,9 +442,9 @@ export default function OrganizationsTab() {
                     setSelectedPlanId(org.subscriptionPlan?.id || 'none');
                     setShowChangePlanModal(true);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors border border-purple-200 dark:border-purple-800"
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-background border border-[#EC67A1]/30 text-foreground rounded-lg hover:bg-[#F774B9]/10 hover:border-[#EC67A1] transition-all"
                 >
-                  <Crown className="w-4 h-4" />
+                  <Crown className="w-4 h-4 text-[#F774B9]" />
                   Change Plan
                 </button>
                 <button
@@ -452,70 +452,70 @@ export default function OrganizationsTab() {
                     setSelectedOrg(org);
                     setShowPermissionsModal(true);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-200 dark:border-blue-800"
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-background border border-[#5DC3F8]/30 text-foreground rounded-lg hover:bg-[#5DC3F8]/10 hover:border-[#5DC3F8] transition-all"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4 text-[#5DC3F8]" />
                   Manage Permissions
                 </button>
               </div>
             </div>
 
             {/* Members Section */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="border-t border-border pt-4">
               <div className="flex items-center justify-between mb-3">
-                <h5 className="text-sm font-medium text-gray-900 dark:text-white">Team Members</h5>
+                <h5 className="text-sm font-medium text-foreground">Team Members</h5>
                 <button
                   onClick={() => {
                     setSelectedOrg(org);
                     setShowAddMemberModal(true);
                   }}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                  className="text-xs text-[#5DC3F8] hover:text-[#EC67A1] font-medium transition-colors"
                 >
                   Add Member
                 </button>
               </div>
               <div className="space-y-2">
                 {org.members.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                  <div key={member.id} className="flex items-center justify-between p-2 bg-muted/50 border border-border rounded-lg hover:border-[#EC67A1]/30 transition-colors">
                     <div className="flex items-center gap-3">
                       {member.user.avatarUrl ? (
-                        <img src={member.user.avatarUrl} alt={`${member.user.firstName || ''} ${member.user.lastName || ''}`.trim() || 'User'} className="w-8 h-8 rounded-full" />
+                        <img src={member.user.avatarUrl} alt={`${member.user.firstName || ''} ${member.user.lastName || ''}`.trim() || 'User'} className="w-8 h-8 rounded-full border border-border" />
                       ) : (
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-full flex items-center justify-center">
                           <User className="w-4 h-4 text-white" />
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <p className="text-sm font-medium text-foreground">
                           {member.user.firstName || member.user.lastName
                             ? `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim()
                             : 'Unnamed User'}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{member.user.email}</p>
+                        <p className="text-xs text-muted-foreground">{member.user.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-2">
                         {getRoleIcon(member.role)}
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full border text-foreground ${
                           member.role === 'OWNER'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                            ? 'bg-yellow-50/50 dark:bg-yellow-950/30 border-[#F774B9]/30'
                             : member.role === 'ADMIN'
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                            ? 'bg-red-50/50 dark:bg-red-950/30 border-[#EC67A1]/30'
                             : member.role === 'MANAGER'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            ? 'bg-purple-50/50 dark:bg-purple-950/30 border-[#5DC3F8]/30'
                             : member.role === 'CREATOR'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                            ? 'bg-green-50/50 dark:bg-green-950/30 border-green-500/30'
                             : member.role === 'VIEWER'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+                            ? 'bg-blue-50/50 dark:bg-blue-950/30 border-[#5DC3F8]/30'
+                            : 'bg-muted/50 border-border'
                         }`}>
                           {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
                         </span>
                       </div>
                       <button
                         onClick={() => handleRemoveMember(member.id)}
-                        className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded active:scale-95"
+                        className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors active:scale-95"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -536,22 +536,22 @@ export default function OrganizationsTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-lg w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full my-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Organization</h2>
+              <h2 className="text-2xl font-bold text-foreground">Create New Organization</h2>
               <button
                 onClick={() => setShowCreateOrgModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Organization Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -570,37 +570,37 @@ export default function OrganizationsTab() {
                       .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
                     setNewOrgSlug(slug);
                   }}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-all placeholder:text-muted-foreground"
                   placeholder="Acme Inc."
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Slug <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">/</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">/</span>
                   <input
                     type="text"
                     value={newOrgSlug}
                     onChange={(e) => setNewOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-                    className="w-full pl-6 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full pl-6 pr-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-all placeholder:text-muted-foreground"
                     placeholder="acme-inc"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">URL-friendly identifier (lowercase, hyphens allowed)</p>
+                <p className="mt-1 text-xs text-muted-foreground">URL-friendly identifier (lowercase, hyphens allowed)</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Owner <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={newOrgOwnerId}
                   onChange={(e) => setNewOrgOwnerId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-all"
                 >
                   <option value="">Select owner...</option>
                   {(users || []).filter(u => u.inDatabase).map((user) => (
@@ -620,14 +620,14 @@ export default function OrganizationsTab() {
                   setNewOrgSlug('');
                   setNewOrgOwnerId('');
                 }}
-                className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95"
+                className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateOrganization}
                 disabled={!newOrgName || !newOrgSlug || !newOrgOwnerId || creatingOrg}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25 flex items-center gap-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-lg hover:from-[#E1518E] hover:to-[#EC67A1] font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EC67A1]/25 flex items-center gap-2"
               >
                 {creatingOrg ? (
                   <>
@@ -649,11 +649,11 @@ export default function OrganizationsTab() {
         <div className="fixed h-full inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowAddMemberModal(false)} />
-            <div className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-lg w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Add Team Member</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">to {selectedOrg.name}</p>
+                <h2 className="text-2xl font-bold text-foreground">Add Team Member</h2>
+                <p className="text-sm text-muted-foreground mt-1">to {selectedOrg.name}</p>
               </div>
               <button
                 onClick={() => {
@@ -661,21 +661,21 @@ export default function OrganizationsTab() {
                   setSelectedUserId('');
                   setSelectedRole('MEMBER');
                 }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Select User <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] transition-all"
                   autoFocus
                 >
                   <option value="">Choose a user...</option>
@@ -687,19 +687,19 @@ export default function OrganizationsTab() {
                       </option>
                     ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {(users || []).filter((user) => user.inDatabase && !selectedOrg.members.some((m) => m.userId === user.id)).length} users available
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Role <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] transition-all"
                 >
                   <option value="MEMBER">Member - Standard access</option>
                   <option value="CREATOR">Creator - Create content</option>
@@ -718,14 +718,14 @@ export default function OrganizationsTab() {
                   setSelectedUserId('');
                   setSelectedRole('MEMBER');
                 }}
-                className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95"
+                className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddMember}
                 disabled={!selectedUserId || !selectedRole || addingMember}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25 flex items-center gap-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-lg hover:from-[#5DC3F8]/90 hover:to-[#EC67A1]/90 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#5DC3F8]/25 flex items-center gap-2"
               >
                 {addingMember ? (
                   <>
@@ -754,16 +754,16 @@ export default function OrganizationsTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-lg w-full border border-gray-200 dark:border-gray-700"
+              className="relative bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Crown className="w-6 h-6 text-purple-600" />
+                  <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <Crown className="w-6 h-6 text-[#F774B9]" />
                     Change Subscription Plan
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{selectedOrg.name}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{selectedOrg.name}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -771,27 +771,27 @@ export default function OrganizationsTab() {
                     setSelectedOrg(null);
                     setSelectedPlanId('');
                   }}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
               <div className="mb-6">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Plan:</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                <p className="text-sm text-muted-foreground mb-1">Current Plan:</p>
+                <p className="text-lg font-semibold text-foreground">
                   {selectedOrg.subscriptionPlan?.displayName || 'No Plan'}
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   New Plan <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                  className="w-full px-4 py-2.5 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-[#F774B9] focus:border-[#F774B9] transition-all"
                   autoFocus
                 >
                   <option value="">Select a plan...</option>
@@ -814,14 +814,14 @@ export default function OrganizationsTab() {
                     setSelectedPlanId('');
                   }}
                   disabled={changingPlan}
-                  className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95 disabled:opacity-50"
+                  className="px-5 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted font-medium transition-all active:scale-95 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleChangePlan}
                   disabled={!selectedPlanId || changingPlan}
-                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-purple-600 disabled:hover:to-purple-700 shadow-lg shadow-purple-500/25 flex items-center gap-2"
+                  className="px-5 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-lg hover:from-[#E1518E] hover:to-[#EC67A1] font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EC67A1]/25 flex items-center gap-2"
                 >
                   {changingPlan ? (
                     <>

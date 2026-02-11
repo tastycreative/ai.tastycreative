@@ -147,10 +147,10 @@ export function AIVoiceAccountsTable({
 
   if (loading) {
     return (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8">
+      <div className="bg-card border border-border rounded-xl p-8">
         <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-          <span className="ml-3 text-gray-400">Loading voices...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-mid-pink"></div>
+          <span className="ml-3 text-muted-foreground">Loading voices...</span>
         </div>
       </div>
     );
@@ -158,13 +158,13 @@ export function AIVoiceAccountsTable({
 
   if (voices.length === 0) {
     return (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8">
+      <div className="bg-card border border-border rounded-xl p-8">
         <div className="text-center">
-          <Volume2 className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">
+          <Volume2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">
             No Voice Accounts Found
           </h3>
-          <p className="text-gray-400">
+          <p className="text-muted-foreground">
             Add your first AI voice account to get started.
           </p>
         </div>
@@ -173,42 +173,42 @@ export function AIVoiceAccountsTable({
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-700/50">
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+            <tr className="border-b border-border">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Voice
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Voice ID
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Category
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Details
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Status
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Usage
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">
                 Added
               </th>
-              <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">
+              <th className="text-right px-6 py-4 text-sm font-medium text-muted-foreground">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/50">
+          <tbody className="divide-y divide-border">
             {voices.map((voice) => (
               <tr
                 key={voice.id}
-                className="hover:bg-slate-700/30 transition-colors"
+                className="hover:bg-muted transition-colors"
               >
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-3">
@@ -217,8 +217,8 @@ export function AIVoiceAccountsTable({
                       disabled={!voice.previewUrl}
                       className={`p-2 rounded-lg transition-all ${
                         voice.previewUrl
-                          ? "bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                          : "bg-gray-500/20 text-gray-500 cursor-not-allowed"
+                          ? "bg-brand-mid-pink/20 hover:bg-brand-mid-pink/30 text-brand-mid-pink"
+                          : "bg-muted text-muted-foreground cursor-not-allowed"
                       }`}
                     >
                       {playingId === voice.id ? (
@@ -228,9 +228,9 @@ export function AIVoiceAccountsTable({
                       )}
                     </button>
                     <div>
-                      <p className="font-medium text-white">{voice.name}</p>
+                      <p className="font-medium text-foreground">{voice.name}</p>
                       {voice.description && (
-                        <p className="text-xs text-gray-400 truncate max-w-[200px]">
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
                           {voice.description}
                         </p>
                       )}
@@ -239,18 +239,18 @@ export function AIVoiceAccountsTable({
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-2">
-                    <code className="text-xs bg-slate-900/50 px-2 py-1 rounded text-gray-300 font-mono">
+                    <code className="text-xs bg-muted px-2 py-1 rounded text-foreground font-mono">
                       {voice.elevenlabsVoiceId.slice(0, 12)}...
                     </code>
                     <button
                       onClick={() => handleCopyId(voice.elevenlabsVoiceId)}
-                      className="p-1 hover:bg-slate-700/50 rounded transition-colors"
+                      className="p-1 hover:bg-muted rounded transition-colors"
                       title="Copy Voice ID"
                     >
                       {copiedId === voice.elevenlabsVoiceId ? (
-                        <Check className="h-3.5 w-3.5 text-green-400" />
+                        <Check className="h-3.5 w-3.5 text-green-500" />
                       ) : (
-                        <Copy className="h-3.5 w-3.5 text-gray-400" />
+                        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </button>
                   </div>
@@ -265,22 +265,22 @@ export function AIVoiceAccountsTable({
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-300 space-y-0.5">
+                  <div className="text-sm text-foreground space-y-0.5">
                     {voice.gender && (
                       <p>
-                        <span className="text-gray-500">Gender:</span>{" "}
+                        <span className="text-muted-foreground">Gender:</span>{" "}
                         {voice.gender}
                       </p>
                     )}
                     {voice.accent && (
                       <p>
-                        <span className="text-gray-500">Accent:</span>{" "}
+                        <span className="text-muted-foreground">Accent:</span>{" "}
                         {voice.accent}
                       </p>
                     )}
                     {voice.age && (
                       <p>
-                        <span className="text-gray-500">Age:</span> {voice.age}
+                        <span className="text-muted-foreground">Age:</span> {voice.age}
                       </p>
                     )}
                   </div>
@@ -292,22 +292,22 @@ export function AIVoiceAccountsTable({
                   >
                     {voice.isActive ? (
                       <>
-                        <ToggleRight className="h-6 w-6 text-green-400" />
-                        <span className="text-sm text-green-400">Active</span>
+                        <ToggleRight className="h-6 w-6 text-green-500" />
+                        <span className="text-sm text-green-500">Active</span>
                       </>
                     ) : (
                       <>
-                        <ToggleLeft className="h-6 w-6 text-gray-500" />
-                        <span className="text-sm text-gray-500">Inactive</span>
+                        <ToggleLeft className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Inactive</span>
                       </>
                     )}
                   </button>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="text-sm text-gray-300">{voice.usageCount}</span>
+                  <span className="text-sm text-foreground">{voice.usageCount}</span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-muted-foreground">
                     {formatDate(voice.createdAt)}
                   </span>
                 </td>
@@ -315,7 +315,7 @@ export function AIVoiceAccountsTable({
                   <div className="flex items-center justify-end space-x-2">
                     <button
                       onClick={() => onViewDetails(voice)}
-                      className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-gray-400 hover:text-white"
+                      className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                       title="View Details"
                     >
                       <Eye className="h-4 w-4" />
@@ -329,14 +329,14 @@ export function AIVoiceAccountsTable({
                         onClick={() =>
                           handleDropdownToggle(voice.id, dropdownButtonRefs.current.get(voice.id) || null)
                         }
-                        className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors text-gray-400 hover:text-white"
+                        className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                       {openDropdown === voice.id && dropdownPosition && createPortal(
                         <div 
                           data-dropdown-menu
-                          className="fixed w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[100]"
+                          className="fixed w-40 bg-card border border-border rounded-lg shadow-xl z-[100]"
                           style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
                         >
                           <button
@@ -344,7 +344,7 @@ export function AIVoiceAccountsTable({
                               onDelete(voice.id);
                               setOpenDropdown(null);
                             }}
-                            className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                            className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
                             <span>Delete</span>

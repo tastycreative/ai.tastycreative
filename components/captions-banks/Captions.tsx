@@ -778,8 +778,8 @@ export function Captions() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+          <div className="w-10 h-10 border-4 border-[#EC67A1]/30 border-t-[#EC67A1] rounded-full animate-spin" />
+          <p className="text-sm text-header-muted">Loading...</p>
         </div>
       </div>
     );
@@ -789,25 +789,25 @@ export function Captions() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <User className="w-8 h-8 text-gray-400" />
+          <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <User className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No profiles found</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Create an Instagram profile first</p>
+          <h3 className="text-lg font-semibold text-sidebar-foreground mb-2">No profiles found</h3>
+          <p className="text-sm text-header-muted">Create an Instagram profile first</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {/* Toast */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border ${
             toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' :
             toast.type === 'error' ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' :
-            'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+            'bg-[#5DC3F8]/5 dark:bg-[#5DC3F8]/10 border-[#5DC3F8]/30 dark:border-[#5DC3F8]/20 text-[#5DC3F8]'
           }`}>
             {toast.type === 'success' && <Check className="w-5 h-5" />}
             {toast.type === 'error' && <AlertCircle className="w-5 h-5" />}
@@ -825,7 +825,7 @@ export function Captions() {
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-sidebar-foreground tracking-tight flex items-center gap-3">
                 Caption Bank
                 {isAllProfiles && (
                   <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 rounded-full text-sm font-medium text-pink-600 dark:text-pink-400 flex items-center gap-1">
@@ -834,18 +834,18 @@ export function Captions() {
                   </span>
                 )}
                 {isSharedProfile && !isAllProfiles && (
-                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-full text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <span className="px-3 py-1 bg-[#5DC3F8]/10 dark:bg-[#5DC3F8]/20 border border-[#5DC3F8]/30 dark:border-[#5DC3F8]/20 rounded-full text-sm font-medium text-[#5DC3F8] flex items-center gap-1">
                     <Share2 className="w-4 h-4" />
                     Shared
                   </span>
                 )}
               </h1>
-              <p className="mt-1 text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-header-muted">
                 {isAllProfiles 
                   ? "Viewing captions from all profiles"
                   : isSharedProfile
-                    ? <>Viewing captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span> {getSharedProfileOwnerName && <span className="text-blue-500">(shared by {getSharedProfileOwnerName})</span>}</>
-                    : <>Manage captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span></>
+                    ? <>Viewing captions for <span className="text-[#EC67A1] font-medium">{selectedProfile?.name}</span> {getSharedProfileOwnerName && <span className="text-[#5DC3F8]">(shared by {getSharedProfileOwnerName})</span>}</>
+                    : <>Manage captions for <span className="text-[#EC67A1] font-medium">{selectedProfile?.name}</span></>
                 }
               </p>
             </div>
@@ -855,7 +855,7 @@ export function Captions() {
               <button
                 onClick={() => { fetchStats(); setShowStatsModal(true); }}
                 disabled={isAllProfiles}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-10 px-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-sidebar-foreground hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <BarChart3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Stats</span>
@@ -864,7 +864,7 @@ export function Captions() {
               {!isAllProfiles && (
                 <button
                   onClick={() => setShowImportModal(true)}
-                  className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                  className="h-10 px-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-sidebar-foreground hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
                 >
                   <Upload className="w-4 h-4" />
                   <span className="hidden sm:inline">Import</span>
@@ -873,7 +873,7 @@ export function Captions() {
 
               <button
                 onClick={() => handleExportCaptions('csv')}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                className="h-10 px-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-sidebar-foreground hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export</span>
@@ -882,10 +882,10 @@ export function Captions() {
               <button
                 onClick={findDuplicates}
                 disabled={isCheckingDuplicates || captions.length < 2 || isAllProfiles}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-10 px-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-sidebar-foreground hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCheckingDuplicates ? (
-                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-zinc-400 dark:border-zinc-500 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Layers className="w-4 h-4" />
                 )}
@@ -895,7 +895,7 @@ export function Captions() {
               {!isAllProfiles && (
                 <button
                   onClick={() => setShowNewCaptionModal(true)}
-                  className="h-10 px-5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-violet-500/25"
+                  className="h-10 px-5 bg-[#EC67A1] hover:bg-[#E1518E] text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-[#EC67A1]/25"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add Caption</span>
@@ -909,7 +909,7 @@ export function Captions() {
         {isAllProfiles && (
           <div className="mb-6 bg-gradient-to-r from-pink-50 via-violet-50 to-blue-50 dark:from-pink-900/20 dark:via-violet-900/20 dark:to-blue-900/20 border border-pink-200 dark:border-pink-800 rounded-xl p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-pink-500 flex-shrink-0" />
-            <p className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="text-sm text-sidebar-foreground">
               <span className="font-medium text-pink-600 dark:text-pink-400">All Profiles Mode:</span> Viewing captions from all profiles. Select a specific profile to add, edit, or delete captions.
             </p>
           </div>
@@ -917,33 +917,33 @@ export function Captions() {
 
         {/* Shared Profile Info Banner */}
         {isSharedProfile && !isAllProfiles && (
-          <div className="mb-6 bg-gradient-to-r from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-teal-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
-            <Share2 className="w-5 h-5 text-blue-500 flex-shrink-0" />
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              <span className="font-medium text-blue-600 dark:text-blue-400">Shared Profile:</span> This profile was shared with you{getSharedProfileOwnerName && ` by ${getSharedProfileOwnerName}`}. You can view, edit, add, and manage captions collaboratively.
+          <div className="mb-6 bg-gradient-to-r from-[#5DC3F8]/5 via-[#5DC3F8]/10 to-[#5DC3F8]/5 dark:from-[#5DC3F8]/10 dark:via-[#5DC3F8]/20 dark:to-[#5DC3F8]/10 border border-[#5DC3F8]/30 dark:border-[#5DC3F8]/20 rounded-xl p-4 flex items-center gap-3">
+            <Share2 className="w-5 h-5 text-[#5DC3F8] flex-shrink-0" />
+            <p className="text-sm text-sidebar-foreground">
+              <span className="font-medium text-[#5DC3F8]">Shared Profile:</span> This profile was shared with you{getSharedProfileOwnerName && ` by ${getSharedProfileOwnerName}`}. You can view, edit, add, and manage captions collaboratively.
             </p>
           </div>
         )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Captions</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{captions.length}</p>
+                <p className="text-sm text-header-muted">Total Captions</p>
+                <p className="text-2xl font-bold text-sidebar-foreground mt-1">{captions.length}</p>
               </div>
-              <div className="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center">
-                <FileText className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+              <div className="w-12 h-12 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 rounded-xl flex items-center justify-center">
+                <FileText className="w-6 h-6 text-[#EC67A1]" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Favorites</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{captions.filter(c => c.isFavorite).length}</p>
+                <p className="text-sm text-header-muted">Favorites</p>
+                <p className="text-2xl font-bold text-sidebar-foreground mt-1">{captions.filter(c => c.isFavorite).length}</p>
               </div>
               <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center">
                 <Star className="w-6 h-6 text-amber-600 dark:text-amber-400" />
@@ -951,11 +951,11 @@ export function Captions() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Categories</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                <p className="text-sm text-header-muted">Categories</p>
+                <p className="text-2xl font-bold text-sidebar-foreground mt-1">
                   {new Set(captions.map(c => c.captionCategory)).size}
                 </p>
               </div>
@@ -965,33 +965,33 @@ export function Captions() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Usage</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                <p className="text-sm text-header-muted">Total Usage</p>
+                <p className="text-2xl font-bold text-sidebar-foreground mt-1">
                   {captions.reduce((acc, c) => acc + c.usageCount, 0)}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div className="w-12 h-12 bg-[#5DC3F8]/10 dark:bg-[#5DC3F8]/20 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-[#5DC3F8]" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Search & Filters */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 mb-6">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 dark:text-zinc-500" />
               <input
                 type="text"
                 placeholder="Search captions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 pl-12 pr-4 bg-gray-50 dark:bg-gray-800 border-0 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full h-11 pl-12 pr-4 bg-zinc-50 dark:bg-zinc-800 border-0 rounded-xl text-sidebar-foreground placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
               />
             </div>
 
@@ -1002,7 +1002,7 @@ export function Captions() {
                 className={`h-11 px-4 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                   showFavoritesOnly
                     ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-2 border-amber-300 dark:border-amber-700'
-                    : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    : 'bg-zinc-50 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
               >
                 <Star className={`w-4 h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
@@ -1013,14 +1013,14 @@ export function Captions() {
                 onClick={() => setShowFilters(!showFilters)}
                 className={`h-11 px-4 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                   showFilters || selectedCategory !== 'All' || selectedType !== 'All' || selectedBank !== 'All'
-                    ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-2 border-violet-300 dark:border-violet-700'
-                    : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 text-[#EC67A1] border-2 border-[#EC67A1]/30 dark:border-[#EC67A1]/40'
+                    : 'bg-zinc-50 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
               >
                 <Filter className="w-4 h-4" />
                 Filters
                 {(selectedCategory !== 'All' || selectedType !== 'All' || selectedBank !== 'All') && (
-                  <span className="w-5 h-5 bg-violet-600 text-white text-xs rounded-full flex items-center justify-center">
+                  <span className="w-5 h-5 bg-[#EC67A1] text-white text-xs rounded-full flex items-center justify-center">
                     {[selectedCategory !== 'All', selectedType !== 'All', selectedBank !== 'All'].filter(Boolean).length}
                   </span>
                 )}
@@ -1034,7 +1034,7 @@ export function Captions() {
                     setSortBy(field as typeof sortBy);
                     setSortOrder(order as typeof sortOrder);
                   }}
-                  className="h-11 pl-4 pr-10 bg-gray-50 dark:bg-gray-800 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="h-11 pl-4 pr-10 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 >
                   <option value="createdAt-desc">Newest First</option>
                   <option value="createdAt-asc">Oldest First</option>
@@ -1044,13 +1044,13 @@ export function Captions() {
                   <option value="caption-asc">A to Z</option>
                   <option value="caption-desc">Z to A</option>
                 </select>
-                <SortAsc className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <SortAsc className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
               </div>
 
-              <div className="flex items-center bg-gray-50 dark:bg-gray-800 rounded-xl p-1">
+              <div className="flex items-center bg-zinc-50 dark:bg-zinc-800 rounded-xl p-1">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow' : ''}`}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-zinc-700 shadow' : ''}`}
                 >
                   <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -1070,36 +1070,36 @@ export function Captions() {
 
           {/* Expanded Filters */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Category</label>
+                  <label className="block text-xs font-semibold text-header-muted uppercase tracking-wider mb-2">Category</label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     <option value="All">All Categories</option>
                     {captionCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Type</label>
+                  <label className="block text-xs font-semibold text-header-muted uppercase tracking-wider mb-2">Type</label>
                   <select
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     <option value="All">All Types</option>
                     {captionTypes.map(type => <option key={type} value={type}>{type}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Bank</label>
+                  <label className="block text-xs font-semibold text-header-muted uppercase tracking-wider mb-2">Bank</label>
                   <select
                     value={selectedBank}
                     onChange={(e) => setSelectedBank(e.target.value)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     <option value="All">All Banks</option>
                     {captionBanks.map(bank => <option key={bank} value={bank}>{bank}</option>)}
@@ -1109,7 +1109,7 @@ export function Captions() {
               {(selectedCategory !== 'All' || selectedType !== 'All' || selectedBank !== 'All') && (
                 <button
                   onClick={() => { setSelectedCategory('All'); setSelectedType('All'); setSelectedBank('All'); }}
-                  className="mt-3 text-sm text-violet-600 dark:text-violet-400 hover:underline"
+                  className="mt-3 text-sm text-[#EC67A1] hover:underline"
                 >
                   Clear all filters
                 </button>
@@ -1120,11 +1120,11 @@ export function Captions() {
 
         {/* Bulk Actions Bar */}
         {selectedCaptions.size > 0 && !isAllProfiles && (
-          <div className="bg-violet-600 rounded-2xl p-4 mb-6 flex items-center justify-between shadow-lg shadow-violet-500/20">
+          <div className="bg-[#EC67A1] rounded-2xl p-4 mb-6 flex items-center justify-between shadow-lg shadow-[#EC67A1]/20">
             <div className="flex items-center gap-3 text-white">
               <CheckSquare className="w-5 h-5" />
               <span className="font-semibold">{selectedCaptions.size} selected</span>
-              <button onClick={clearSelection} className="text-violet-200 hover:text-white text-sm underline">
+              <button onClick={clearSelection} className="text-[#EC67A1]/70 hover:text-white text-sm underline">
                 Clear
               </button>
             </div>
@@ -1156,7 +1156,7 @@ export function Captions() {
 
         {/* Results Count */}
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-header-muted">
             {filteredCaptions.length} caption{filteredCaptions.length !== 1 ? 's' : ''}
             {searchDebounce && ` matching "${searchDebounce}"`}
             {isAllProfiles && " (All Profiles)"}
@@ -1164,7 +1164,7 @@ export function Captions() {
           {filteredCaptions.length > 0 && !isAllProfiles && (
             <button
               onClick={() => selectedCaptions.size === filteredCaptions.length ? clearSelection() : selectAllVisible()}
-              className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+              className="text-sm text-[#EC67A1] hover:underline"
             >
               {selectedCaptions.size === filteredCaptions.length ? 'Deselect all' : 'Select all'}
             </button>
@@ -1174,21 +1174,21 @@ export function Captions() {
         {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-[#EC67A1]/30 border-t-[#EC67A1] rounded-full animate-spin" />
           </div>
         ) : filteredCaptions.length === 0 ? (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-gray-400" />
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-12 text-center">
+            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No captions found</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            <h3 className="text-lg font-semibold text-sidebar-foreground mb-2">No captions found</h3>
+            <p className="text-sm text-header-muted mb-6">
               {searchDebounce ? 'Try a different search term' : 'Get started by adding your first caption'}
             </p>
             {!searchDebounce && (
               <button
                 onClick={() => setShowNewCaptionModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] text-white rounded-xl text-sm font-semibold transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Caption
@@ -1206,14 +1206,14 @@ export function Captions() {
               return (
                 <div
                   key={caption.id}
-                  className={`group bg-white dark:bg-gray-900 rounded-2xl border transition-all duration-200 ${
+                  className={`group bg-white dark:bg-zinc-900 rounded-2xl border transition-all duration-200 ${
                     isSelected
-                      ? 'border-violet-500 ring-2 ring-violet-500/20'
-                      : 'border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
+                      ? 'border-[#EC67A1] ring-2 ring-[#EC67A1]/20'
+                      : 'border-zinc-100 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-700'
                   }`}
                 >
                   {/* Card Header */}
-                  <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-center gap-3">
                       {!isAllProfiles && (
                         <button
@@ -1221,9 +1221,9 @@ export function Captions() {
                           className="opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-violet-600" />
+                            <CheckSquare className="w-5 h-5 text-[#EC67A1]" />
                           ) : (
-                            <Square className="w-5 h-5 text-gray-400" />
+                            <Square className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
                           )}
                         </button>
                       )}
@@ -1233,7 +1233,7 @@ export function Captions() {
                           {caption.profileName}
                         </span>
                       )}
-                      <span className="px-2.5 py-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-xs font-semibold rounded-lg">
+                      <span className="px-2.5 py-1 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 text-[#EC67A1] text-xs font-semibold rounded-lg">
                         {caption.captionCategory}
                       </span>
                       {cooldownStatus.inCooldown && (
@@ -1267,36 +1267,36 @@ export function Captions() {
                           value={inlineEditValue}
                           onChange={(e) => setInlineEditValue(e.target.value)}
                           onKeyDown={handleInlineKeyDown}
-                          className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+                          className="w-full p-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-sidebar-foreground resize-none focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                           rows={4}
                           autoFocus
                         />
                         <div className="flex items-center gap-2">
                           <button
                             onClick={saveInlineEdit}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-[#EC67A1] text-white text-xs font-medium rounded-lg hover:bg-[#E1518E] transition-colors"
                           >
                             <Check className="w-3 h-3" /> Save
                           </button>
                           <button
                             onClick={cancelInlineEdit}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-sidebar-foreground text-xs font-medium rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
                           >
                             <X className="w-3 h-3" /> Cancel
                           </button>
-                          <span className="text-xs text-gray-400">Ctrl+Enter to save</span>
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500">Ctrl+Enter to save</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-4 cursor-pointer" title="Double-click to edit">
+                      <p className="text-sm text-sidebar-foreground line-clamp-4 cursor-pointer" title="Double-click to edit">
                         {caption.caption}
                       </p>
                     )}
                   </div>
 
                   {/* Card Footer */}
-                  <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 rounded-b-2xl">
-                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center justify-between p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 rounded-b-2xl">
+                    <div className="flex items-center gap-4 text-xs text-header-muted">
                       <span className="flex items-center gap-1">
                         <Copy className="w-3.5 h-3.5" />
                         {caption.usageCount}
@@ -1312,7 +1312,7 @@ export function Captions() {
                         className={`p-2 rounded-lg transition-colors ${
                           copiedId === caption.id
                             ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600'
-                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500'
+                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-700 text-gray-500'
                         }`}
                         title="Copy"
                       >
@@ -1322,7 +1322,7 @@ export function Captions() {
                         <>
                           <button
                             onClick={() => openEditModal(caption)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 rounded-lg transition-colors"
+                            className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-gray-500 rounded-lg transition-colors"
                             title="Edit"
                           >
                             <Edit className="w-4 h-4" />
@@ -1344,10 +1344,10 @@ export function Captions() {
           </div>
         ) : (
           /* List View */
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
                   {!isAllProfiles && (
                     <th className="w-12 px-4 py-3">
                       <button
@@ -1355,23 +1355,23 @@ export function Captions() {
                         className="p-1"
                       >
                         {selectedCaptions.size === filteredCaptions.length && filteredCaptions.length > 0 ? (
-                          <CheckSquare className="w-5 h-5 text-violet-600" />
+                          <CheckSquare className="w-5 h-5 text-[#EC67A1]" />
                         ) : (
-                          <Square className="w-5 h-5 text-gray-400" />
+                          <Square className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
                         )}
                       </button>
                     </th>
                   )}
                   {isAllProfiles && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Profile</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-header-muted uppercase tracking-wider">Profile</th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Caption</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Used</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-header-muted uppercase tracking-wider">Caption</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-header-muted uppercase tracking-wider">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-header-muted uppercase tracking-wider">Used</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-header-muted uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {filteredCaptions.map((caption) => {
                   const cooldownStatus = isCaptionInCooldown(caption);
                   const isSelected = selectedCaptions.has(caption.id);
@@ -1380,15 +1380,15 @@ export function Captions() {
                   return (
                     <tr
                       key={caption.id}
-                      className={`group transition-colors ${isSelected ? 'bg-violet-50 dark:bg-violet-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                      className={`group transition-colors ${isSelected ? 'bg-[#EC67A1]/5 dark:bg-[#EC67A1]/10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}
                     >
                       {!isAllProfiles && (
                         <td className="px-4 py-4">
                           <button onClick={() => toggleCaptionSelection(caption.id)} className="p-1">
                             {isSelected ? (
-                              <CheckSquare className="w-5 h-5 text-violet-600" />
+                              <CheckSquare className="w-5 h-5 text-[#EC67A1]" />
                             ) : (
-                              <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
+                              <Square className="w-5 h-5 text-zinc-300 dark:text-zinc-600 group-hover:text-zinc-400 dark:group-hover:text-zinc-500" />
                             )}
                           </button>
                         </td>
@@ -1423,18 +1423,18 @@ export function Captions() {
                                   value={inlineEditValue}
                                   onChange={(e) => setInlineEditValue(e.target.value)}
                                   onKeyDown={handleInlineKeyDown}
-                                  className="w-full p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                  className="w-full p-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground resize-none focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                                   rows={3}
                                   autoFocus
                                 />
                                 <div className="flex items-center gap-2">
-                                  <button onClick={saveInlineEdit} className="px-2 py-1 bg-violet-600 text-white text-xs rounded hover:bg-violet-700">Save</button>
-                                  <button onClick={cancelInlineEdit} className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">Cancel</button>
+                                  <button onClick={saveInlineEdit} className="px-2 py-1 bg-[#EC67A1] text-white text-xs rounded hover:bg-[#E1518E]">Save</button>
+                                  <button onClick={cancelInlineEdit} className="px-2 py-1 bg-zinc-200 dark:bg-zinc-700 text-sidebar-foreground text-xs rounded">Cancel</button>
                                 </div>
                               </div>
                             ) : (
                               <>
-                                <p className={`text-sm text-gray-900 dark:text-white line-clamp-2 ${!isAllProfiles ? 'cursor-pointer' : ''}`} title={!isAllProfiles ? "Double-click to edit" : undefined}>{caption.caption}</p>
+                                <p className={`text-sm text-sidebar-foreground line-clamp-2 ${!isAllProfiles ? 'cursor-pointer' : ''}`} title={!isAllProfiles ? "Double-click to edit" : undefined}>{caption.caption}</p>
                                 {cooldownStatus.inCooldown && (
                                   <span className="inline-flex items-center gap-1 mt-1 text-xs text-amber-600 dark:text-amber-400">
                                     <Clock className="w-3 h-3" />
@@ -1447,12 +1447,12 @@ export function Captions() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="inline-flex px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg">
+                        <span className="inline-flex px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-sidebar-foreground text-xs font-medium rounded-lg">
                           {caption.captionCategory}
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{caption.usageCount}</span>
+                        <span className="text-sm font-semibold text-sidebar-foreground">{caption.usageCount}</span>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-end gap-1">
@@ -1466,7 +1466,7 @@ export function Captions() {
                           </button>
                           {!isAllProfiles && (
                             <>
-                              <button onClick={() => openEditModal(caption)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 rounded-lg">
+                              <button onClick={() => openEditModal(caption)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-gray-500 rounded-lg">
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button onClick={() => handleDeleteCaption(caption.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-600 rounded-lg">
@@ -1488,32 +1488,32 @@ export function Captions() {
       {/* Add Caption Modal */}
       {showNewCaptionModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add Caption</h2>
-              <button onClick={() => setShowNewCaptionModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-xl font-bold text-sidebar-foreground">Add Caption</h2>
+              <button onClick={() => setShowNewCaptionModal(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <form onSubmit={handleAddCaption} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Caption *</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Caption *</label>
                 <textarea
                   value={newCaption.caption}
                   onChange={(e) => setNewCaption({ ...newCaption, caption: e.target.value })}
                   rows={4}
                   placeholder="Enter your caption..."
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] resize-none"
                   required
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Category *</label>
                   <select
                     value={newCaption.captionCategory}
                     onChange={(e) => setNewCaption({ ...newCaption, captionCategory: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                     required
                   >
                     <option value="">Select...</option>
@@ -1521,11 +1521,11 @@ export function Captions() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type *</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Type *</label>
                   <select
                     value={newCaption.captionTypes}
                     onChange={(e) => setNewCaption({ ...newCaption, captionTypes: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                     required
                   >
                     <option value="">Select...</option>
@@ -1533,11 +1533,11 @@ export function Captions() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bank *</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Bank *</label>
                   <select
                     value={newCaption.captionBanks}
                     onChange={(e) => setNewCaption({ ...newCaption, captionBanks: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                     required
                   >
                     <option value="">Select...</option>
@@ -1546,38 +1546,38 @@ export function Captions() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Tags</label>
                 <input
                   type="text"
                   value={newCaption.tags}
                   onChange={(e) => setNewCaption({ ...newCaption, tags: e.target.value })}
                   placeholder="Add tags separated by commas"
-                  className="w-full h-11 px-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full h-11 px-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Notes</label>
                 <textarea
                   value={newCaption.notes}
                   onChange={(e) => setNewCaption({ ...newCaption, notes: e.target.value })}
                   rows={2}
                   placeholder="Add any notes..."
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC67A1] resize-none"
                 />
               </div>
             </form>
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
               <button
                 type="button"
                 onClick={() => setShowNewCaptionModal(false)}
-                className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium transition-colors"
+                className="px-5 py-2.5 text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddCaption}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] disabled:opacity-50 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
               >
                 {isSubmitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 Add Caption
@@ -1591,87 +1591,87 @@ export function Captions() {
       {/* Edit Caption Modal */}
       {showEditCaptionModal && editingCaption && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Edit Caption</h2>
-              <button onClick={() => setShowEditCaptionModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-xl font-bold text-sidebar-foreground">Edit Caption</h2>
+              <button onClick={() => setShowEditCaptionModal(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <form onSubmit={handleEditCaption} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Caption *</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Caption *</label>
                 <textarea
                   value={editingCaption.caption}
                   onChange={(e) => setEditingCaption({ ...editingCaption, caption: e.target.value })}
                   rows={4}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1] resize-none"
                   required
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Category</label>
                   <select
                     value={editingCaption.captionCategory}
                     onChange={(e) => setEditingCaption({ ...editingCaption, captionCategory: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     {captionCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Type</label>
                   <select
                     value={editingCaption.captionTypes}
                     onChange={(e) => setEditingCaption({ ...editingCaption, captionTypes: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     {captionTypes.map(type => <option key={type} value={type}>{type}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bank</label>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">Bank</label>
                   <select
                     value={editingCaption.captionBanks}
                     onChange={(e) => setEditingCaption({ ...editingCaption, captionBanks: e.target.value })}
-                    className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   >
                     {captionBanks.map(bank => <option key={bank} value={bank}>{bank}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Tags</label>
                 <input
                   type="text"
                   value={editingCaption.tags || ''}
                   onChange={(e) => setEditingCaption({ ...editingCaption, tags: e.target.value })}
-                  className="w-full h-11 px-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full h-11 px-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Notes</label>
                 <textarea
                   value={editingCaption.notes || ''}
                   onChange={(e) => setEditingCaption({ ...editingCaption, notes: e.target.value })}
                   rows={2}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1] resize-none"
                 />
               </div>
             </form>
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
               <button
                 type="button"
                 onClick={() => setShowEditCaptionModal(false)}
-                className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium transition-colors"
+                className="px-5 py-2.5 text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditCaption}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] disabled:opacity-50 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
               >
                 {isSubmitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 Save Changes
@@ -1685,53 +1685,53 @@ export function Captions() {
       {/* Import Modal */}
       {showImportModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
                   <Upload className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Import Captions</h2>
+                <h2 className="text-xl font-bold text-sidebar-foreground">Import Captions</h2>
               </div>
-              <button onClick={() => { setShowImportModal(false); setImportData(""); }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+              <button onClick={() => { setShowImportModal(false); setImportData(""); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload File</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Upload File</label>
                 <div className="flex items-center gap-3">
                   <input ref={fileInputRef} type="file" accept=".csv,.json" onChange={handleFileUpload} className="hidden" />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl hover:border-violet-500 dark:hover:border-violet-500 transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-violet-600"
+                    className="flex-1 h-24 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl hover:border-[#EC67A1] dark:hover:border-[#EC67A1] transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-[#EC67A1]"
                   >
                     <Upload className="w-6 h-6" />
                     <span className="text-sm font-medium">Click to upload CSV or JSON</span>
                   </button>
                 </div>
               </div>
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Format</h4>
-                <p className="text-xs text-blue-600 dark:text-blue-400">
+              <div className="p-4 bg-[#5DC3F8]/5 dark:bg-[#5DC3F8]/10 rounded-xl border border-[#5DC3F8]/30 dark:border-[#5DC3F8]/20">
+                <h4 className="text-sm font-semibold text-[#5DC3F8] mb-1">Format</h4>
+                <p className="text-xs text-[#5DC3F8]">
                   JSON: {`[{"caption": "...", "captionCategory": "...", "captionTypes": "...", "captionBanks": "..."}]`}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview / Paste Data</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Preview / Paste Data</label>
                 <textarea
                   value={importData}
                   onChange={(e) => setImportData(e.target.value)}
                   rows={8}
                   placeholder="Paste JSON data here..."
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-mono text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl font-mono text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
               <button
                 onClick={() => { setShowImportModal(false); setImportData(""); }}
-                className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium transition-colors"
+                className="px-5 py-2.5 text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1752,15 +1752,15 @@ export function Captions() {
       {/* Stats Modal */}
       {showStatsModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
                   <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Statistics</h2>
+                <h2 className="text-xl font-bold text-sidebar-foreground">Statistics</h2>
               </div>
-              <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+              <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -1768,35 +1768,35 @@ export function Captions() {
               {stats ? (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalCaptions}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total</p>
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-bold text-sidebar-foreground">{stats.totalCaptions}</p>
+                      <p className="text-xs text-header-muted mt-1">Total</p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.favoriteCaptions}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Favorites</p>
+                      <p className="text-xs text-header-muted mt-1">Favorites</p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">{stats.totalUsage}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Usage</p>
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-bold text-[#EC67A1]">{stats.totalUsage}</p>
+                      <p className="text-xs text-header-muted mt-1">Total Usage</p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.captionsInCooldown?.length || 0}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">In Cooldown</p>
+                      <p className="text-xs text-header-muted mt-1">In Cooldown</p>
                     </div>
                   </div>
 
                   {stats.mostUsed && stats.mostUsed.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-sidebar-foreground mb-3 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4" /> Most Used
                       </h3>
                       <div className="space-y-2">
                         {stats.mostUsed.slice(0, 5).map((item, i) => (
-                          <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                            <span className="w-6 h-6 bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-xs font-bold rounded-full flex items-center justify-center">{i + 1}</span>
-                            <p className="flex-1 text-sm text-gray-900 dark:text-white truncate">{item.caption}</p>
-                            <span className="text-sm font-semibold text-violet-600 dark:text-violet-400">{item.usageCount}x</span>
+                          <div key={item.id} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
+                            <span className="w-6 h-6 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 text-[#EC67A1] text-xs font-bold rounded-full flex items-center justify-center">{i + 1}</span>
+                            <p className="flex-1 text-sm text-sidebar-foreground truncate">{item.caption}</p>
+                            <span className="text-sm font-semibold text-[#EC67A1]">{item.usageCount}x</span>
                           </div>
                         ))}
                       </div>
@@ -1805,14 +1805,14 @@ export function Captions() {
 
                   {stats.categoryStats && stats.categoryStats.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-sidebar-foreground mb-3 flex items-center gap-2">
                         <Tag className="w-4 h-4" /> By Category
                       </h3>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {stats.categoryStats.map(cat => (
-                          <div key={cat.category} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{cat.category}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{cat.count} captions · {cat.totalUsage} uses</p>
+                          <div key={cat.category} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
+                            <p className="text-sm font-medium text-sidebar-foreground truncate">{cat.category}</p>
+                            <p className="text-xs text-header-muted">{cat.count} captions · {cat.totalUsage} uses</p>
                           </div>
                         ))}
                       </div>
@@ -1833,60 +1833,60 @@ export function Captions() {
       {/* Bulk Move Modal */}
       {showBulkMoveModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center">
-                  <MoveRight className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                <div className="w-10 h-10 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 rounded-xl flex items-center justify-center">
+                  <MoveRight className="w-5 h-5 text-[#EC67A1]" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Move Captions</h2>
+                  <h2 className="text-lg font-bold text-sidebar-foreground">Move Captions</h2>
                   <p className="text-sm text-gray-500">{selectedCaptions.size} selected</p>
                 </div>
               </div>
-              <button onClick={() => setShowBulkMoveModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+              <button onClick={() => setShowBulkMoveModal(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">Leave empty to keep current value.</p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Category</label>
                 <select
                   value={bulkMoveTarget.category}
                   onChange={(e) => setBulkMoveTarget(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 >
                   <option value="">Keep current</option>
                   {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Type</label>
                 <select
                   value={bulkMoveTarget.type}
                   onChange={(e) => setBulkMoveTarget(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 >
                   <option value="">Keep current</option>
                   {types.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bank</label>
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Bank</label>
                 <select
                   value={bulkMoveTarget.bank}
                   onChange={(e) => setBulkMoveTarget(prev => ({ ...prev, bank: e.target.value }))}
-                  className="w-full h-11 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full h-11 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                 >
                   <option value="">Keep current</option>
                   {banks.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-              <button onClick={() => setShowBulkMoveModal(false)} className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl font-medium">Cancel</button>
-              <button onClick={handleBulkMove} className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold">Move</button>
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+              <button onClick={() => setShowBulkMoveModal(false)} className="px-5 py-2.5 text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium">Cancel</button>
+              <button onClick={handleBulkMove} className="px-5 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] text-white rounded-xl font-semibold">Move</button>
             </div>
           </div>
         </div>,
@@ -1896,14 +1896,14 @@ export function Captions() {
       {/* Duplicates Modal */}
       {showDuplicatesModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
                   <Layers className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Duplicates</h2>
+                  <h2 className="text-lg font-bold text-sidebar-foreground">Duplicates</h2>
                   <p className="text-sm text-gray-500">{duplicateGroups.length > 0 ? `${duplicateGroups.length} group(s) found` : 'No duplicates'}</p>
                 </div>
               </div>
@@ -1914,7 +1914,7 @@ export function Captions() {
                     Remove All
                   </button>
                 )}
-                <button onClick={() => setShowDuplicatesModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                <button onClick={() => setShowDuplicatesModal(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
@@ -1925,26 +1925,26 @@ export function Captions() {
                   <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <Check className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">All Clear!</h3>
+                  <h3 className="text-lg font-semibold text-sidebar-foreground">All Clear!</h3>
                   <p className="text-sm text-gray-500 mt-1">No duplicate captions found.</p>
                 </div>
               ) : (
                 duplicateGroups.map((group, idx) => (
-                  <div key={group.original.id} className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50">
+                  <div key={group.original.id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Group {idx + 1}</span>
+                        <span className="text-sm font-semibold text-sidebar-foreground">Group {idx + 1}</span>
                         <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-medium rounded-full">{group.similarity}% similar</span>
                       </div>
                       <button onClick={() => mergeDuplicates(group, true)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg flex items-center gap-1">
                         <Merge className="w-3 h-3" /> Keep First
                       </button>
                     </div>
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
                       <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/10 flex items-start gap-3">
                         <span className="px-2 py-0.5 bg-emerald-600 text-white text-xs font-bold rounded">KEEP</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{group.original.caption}</p>
+                          <p className="text-sm text-sidebar-foreground line-clamp-2">{group.original.caption}</p>
                           <p className="text-xs text-gray-500 mt-1">{group.original.captionCategory} · Used {group.original.usageCount}x</p>
                         </div>
                       </div>
@@ -1952,7 +1952,7 @@ export function Captions() {
                         <div key={dup.id} className="p-4 bg-red-50/30 dark:bg-red-900/10 flex items-start gap-3">
                           <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">DUP</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{dup.caption}</p>
+                            <p className="text-sm text-sidebar-foreground line-clamp-2">{dup.caption}</p>
                             <p className="text-xs text-gray-500 mt-1">{dup.captionCategory} · Used {dup.usageCount}x</p>
                           </div>
                           <button

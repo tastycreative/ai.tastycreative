@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { deductCredits } from '@/lib/credits';
 
 // Validation schema for face swap serverless requests
 const faceSwapServerlessSchema = z.object({
@@ -36,7 +37,37 @@ export async function POST(req: NextRequest) {
 
     // Validate the request body
     const validatedData = faceSwapServerlessSchema.parse(body);
-    
+
+    // Get user's organization for credit deduction
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: 'User organization not found' },
+        { status: 400 }
+      );
+    }
+
+    // Deduct credits before making the API call
+    const featureKey = 'face_swap';
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        error: creditResult.error || 'Failed to deduct credits',
+        insufficientCredits: creditResult.error?.includes('Insufficient credits')
+      }, { status: 400 });
+    }
+
+    console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
+
     // Generate unique job ID
     const jobId = uuidv4();
     

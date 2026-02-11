@@ -152,18 +152,18 @@ export function GenerationsTable({
 
   if (loading) {
     return (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-700/50">
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="p-6 border-b border-border">
           <div className="flex items-center space-x-4">
-            <div className="h-10 w-64 bg-slate-700/50 rounded-lg animate-pulse" />
-            <div className="h-10 w-40 bg-slate-700/50 rounded-lg animate-pulse" />
+            <div className="h-10 w-64 bg-muted rounded-lg animate-pulse" />
+            <div className="h-10 w-40 bg-muted rounded-lg animate-pulse" />
           </div>
         </div>
         <div className="p-6 space-y-4">
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="h-16 bg-slate-700/30 rounded-lg animate-pulse"
+              className="h-16 bg-muted rounded-lg animate-pulse"
             />
           ))}
         </div>
@@ -172,17 +172,17 @@ export function GenerationsTable({
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
       {/* Header with filters */}
-      <div className="p-6 border-b border-slate-700/50">
+      <div className="p-6 border-b border-border">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <FileText className="h-5 w-5 text-green-400" />
+            <FileText className="h-5 w-5 text-brand-mid-pink" />
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-foreground">
                 All Generations
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 {totalCount.toLocaleString()} total generations
               </p>
             </div>
@@ -192,26 +192,26 @@ export function GenerationsTable({
           <div className="flex flex-wrap items-center gap-3">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search text or voice..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
+                className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
               />
             </div>
 
             {/* User Filter */}
             <div className="relative min-w-[180px]">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Filter by User ID..."
                 value={selectedUser}
                 onChange={(e) => onUserChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
+                className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
               />
             </div>
 
@@ -219,9 +219,9 @@ export function GenerationsTable({
             <div className="relative" ref={voiceDropdownRef}>
               <button
                 onClick={() => setIsVoiceDropdownOpen(!isVoiceDropdownOpen)}
-                className="flex items-center space-x-2 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white hover:bg-slate-600/50 transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors"
               >
-                <Mic className="h-4 w-4 text-gray-400" />
+                <Mic className="h-4 w-4 text-muted-foreground" />
                 <span className="max-w-[120px] truncate">
                   {selectedVoice
                     ? voiceModels.find((v) => v.id === selectedVoice)?.name ||
@@ -229,21 +229,21 @@ export function GenerationsTable({
                     : "All Voices"}
                 </span>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform ${
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${
                     isVoiceDropdownOpen ? "rotate-180" : ""
                   }`}
                 />
               </button>
 
               {isVoiceDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 max-h-72 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20">
+                <div className="absolute right-0 mt-2 w-64 max-h-72 overflow-y-auto bg-card border border-border rounded-lg shadow-xl z-20">
                   <button
                     onClick={() => {
                       onVoiceChange("");
                       setIsVoiceDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700/50 transition-colors ${
-                      !selectedVoice ? "text-green-400 bg-slate-700/30" : "text-gray-300"
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors ${
+                      !selectedVoice ? "text-brand-mid-pink bg-muted" : "text-foreground"
                     }`}
                   >
                     All Voices
@@ -255,14 +255,14 @@ export function GenerationsTable({
                         onVoiceChange(voice.id);
                         setIsVoiceDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700/50 transition-colors flex items-center justify-between ${
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between ${
                         selectedVoice === voice.id
-                          ? "text-green-400 bg-slate-700/30"
-                          : "text-gray-300"
+                          ? "text-brand-mid-pink bg-muted"
+                          : "text-foreground"
                       }`}
                     >
                       <span className="truncate">{voice.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">
+                      <span className="text-xs text-muted-foreground ml-2">
                         {voice.generationCount}
                       </span>
                     </button>
@@ -274,7 +274,7 @@ export function GenerationsTable({
             {/* Search Button */}
             <button
               onClick={onSearch}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg text-sm text-white font-medium transition-all"
+              className="px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 rounded-lg text-sm text-white font-medium transition-all shadow-lg shadow-brand-blue/25"
             >
               Search
             </button>
@@ -283,7 +283,7 @@ export function GenerationsTable({
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center space-x-1 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-900/50 rounded-lg text-sm text-red-400 transition-colors"
+                className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-sm text-red-500 transition-colors"
               >
                 <X className="h-4 w-4" />
                 <span>Clear</span>
@@ -297,37 +297,37 @@ export function GenerationsTable({
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="bg-slate-700/30">
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+            <tr className="bg-muted border-b border-border">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 User
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Voice
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Text
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Credits
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Model
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/30">
+          <tbody className="divide-y divide-border">
             {generations.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
-                  <FileText className="h-12 w-12 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-400">No generations found</p>
-                  <p className="text-sm text-gray-500">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-foreground">No generations found</p>
+                  <p className="text-sm text-muted-foreground">
                     Try adjusting your filters
                   </p>
                 </td>
@@ -336,21 +336,21 @@ export function GenerationsTable({
               generations.map((generation) => (
                 <tr
                   key={generation.id}
-                  className="hover:bg-slate-700/20 transition-colors"
+                  className="hover:bg-muted transition-colors"
                 >
                   {/* User */}
                   <td className="px-4 py-3">
                     <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 bg-gradient-to-br from-brand-blue to-brand-mid-pink rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-blue/25">
                         <span className="text-white text-xs font-semibold">
                           {generation.userName?.charAt(0)?.toUpperCase() || "?"}
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate max-w-[120px]">
+                        <p className="text-sm font-medium text-foreground truncate max-w-[120px]">
                           {generation.userName || "Unknown"}
                         </p>
-                        <p className="text-xs text-gray-400 truncate max-w-[120px]">
+                        <p className="text-xs text-muted-foreground truncate max-w-[120px]">
                           {generation.userEmail || generation.userId}
                         </p>
                       </div>
@@ -360,8 +360,8 @@ export function GenerationsTable({
                   {/* Voice */}
                   <td className="px-4 py-3">
                     <div className="flex items-center space-x-2">
-                      <Mic className="h-4 w-4 text-green-400 flex-shrink-0" />
-                      <span className="text-sm text-white truncate max-w-[100px]">
+                      <Mic className="h-4 w-4 text-brand-mid-pink flex-shrink-0" />
+                      <span className="text-sm text-foreground truncate max-w-[100px]">
                         {generation.voiceName}
                       </span>
                     </div>
@@ -370,7 +370,7 @@ export function GenerationsTable({
                   {/* Text */}
                   <td className="px-4 py-3">
                     <div className="max-w-xs">
-                      <p className="text-sm text-gray-300 truncate">
+                      <p className="text-sm text-foreground truncate">
                         {truncateText(generation.text, 60)}
                       </p>
                       {generation.text.length > 60 && (
@@ -382,7 +382,7 @@ export function GenerationsTable({
                                 : generation.id
                             )
                           }
-                          className="text-xs text-green-400 hover:text-green-300 mt-1"
+                          className="text-xs text-brand-mid-pink hover:text-brand-light-pink mt-1"
                         >
                           {expandedText === generation.id
                             ? "Show less"
@@ -390,8 +390,8 @@ export function GenerationsTable({
                         </button>
                       )}
                       {expandedText === generation.id && (
-                        <div className="mt-2 p-2 bg-slate-700/50 rounded-lg">
-                          <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                        <div className="mt-2 p-2 bg-muted rounded-lg">
+                          <p className="text-sm text-foreground whitespace-pre-wrap">
                             {generation.text}
                           </p>
                         </div>
@@ -415,7 +415,7 @@ export function GenerationsTable({
 
                   {/* Date */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center space-x-1 text-sm text-gray-400">
+                    <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{formatDate(generation.createdAt)}</span>
                     </div>
@@ -427,15 +427,15 @@ export function GenerationsTable({
                       {generation.audioUrl && (
                         <button
                           onClick={() => handlePlayAudio(generation)}
-                          className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+                          className="p-2 hover:bg-muted rounded-lg transition-colors"
                           title={
                             playingId === generation.id ? "Pause" : "Play"
                           }
                         >
                           {playingId === generation.id ? (
-                            <Pause className="h-4 w-4 text-green-400" />
+                            <Pause className="h-4 w-4 text-brand-mid-pink" />
                           ) : (
-                            <Play className="h-4 w-4 text-gray-400 hover:text-green-400" />
+                            <Play className="h-4 w-4 text-muted-foreground hover:text-brand-mid-pink" />
                           )}
                         </button>
                       )}
@@ -447,10 +447,10 @@ export function GenerationsTable({
                               : generation.id
                           )
                         }
-                        className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
                         title="View details"
                       >
-                        <Eye className="h-4 w-4 text-gray-400 hover:text-white" />
+                        <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                       </button>
                     </div>
                   </td>
@@ -463,8 +463,8 @@ export function GenerationsTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="px-6 py-4 border-t border-slate-700/50 flex items-center justify-between">
-          <p className="text-sm text-gray-400">
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
             Showing {(page - 1) * 20 + 1} -{" "}
             {Math.min(page * 20, totalCount)} of {totalCount.toLocaleString()}
           </p>
@@ -473,9 +473,9 @@ export function GenerationsTable({
             <button
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
-              className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ChevronLeft className="h-5 w-5 text-gray-400" />
+              <ChevronLeft className="h-5 w-5 text-muted-foreground" />
             </button>
 
             <div className="flex items-center space-x-1">
@@ -497,8 +497,8 @@ export function GenerationsTable({
                     onClick={() => onPageChange(pageNum)}
                     className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                       page === pageNum
-                        ? "bg-green-600 text-white"
-                        : "text-gray-400 hover:bg-slate-700/50"
+                        ? "bg-brand-mid-pink text-white shadow-lg shadow-brand-mid-pink/25"
+                        : "text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     {pageNum}
@@ -510,9 +510,9 @@ export function GenerationsTable({
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
-              className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ChevronRight className="h-5 w-5 text-gray-400" />
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </button>
           </div>
         </div>

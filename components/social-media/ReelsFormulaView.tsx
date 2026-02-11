@@ -242,20 +242,20 @@ export default function ReelsFormulaView() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-purple-600/20 to-pink-600/20 border border-purple-500/30">
-              <Sparkles className="w-7 h-7 text-purple-400" />
+          <h2 className="text-3xl font-bold text-foreground flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20 border border-[var(--color-brand-mid-pink)]/30">
+              <Sparkles className="w-7 h-7 text-[var(--color-brand-mid-pink)]" />
             </div>
             Reels Formula Cheat Sheet
           </h2>
-          <p className="text-gray-400 mt-2">
+          <p className="text-muted-foreground mt-2">
             Proven formulas, hooks, and templates to create viral reels
           </p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-3 shadow-xl">
+      <div className="bg-card border-2 border-border rounded-2xl p-3 shadow-xl">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -267,8 +267,8 @@ export default function ReelsFormulaView() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all font-semibold ${
                   activeTab === tab.id
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-600/30"
-                    : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] hover:text-gray-300"
+                    ? "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-light-pink)] text-white shadow-lg"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -292,14 +292,14 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 via-[var(--color-brand-light-pink)]/10 to-[var(--color-brand-mid-pink)]/20 border-2 border-[var(--color-brand-mid-pink)]/30 rounded-2xl p-6 shadow-xl"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20">
-                  <AlertCircle className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                <div className="p-2 rounded-xl bg-[var(--color-brand-mid-pink)]/20">
+                  <AlertCircle className="w-6 h-6 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
                 </div>
-                <div className="text-sm text-purple-100">
-                  <strong className="text-white text-base">Pro Tip:</strong> The first 3 seconds determine if viewers keep watching.
+                <div className="text-sm text-muted-foreground">
+                  <strong className="text-foreground text-base">Pro Tip:</strong> The first 3 seconds determine if viewers keep watching.
                   Use these hooks to grab attention immediately!
                 </div>
               </div>
@@ -311,11 +311,11 @@ export default function ReelsFormulaView() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl hover:border-purple-500/30 transition-all"
+                className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl hover:border-[var(--color-brand-mid-pink)]/30 transition-all"
               >
-                <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-600/20 to-pink-600/20">
-                    <TrendingUp className="w-5 h-5 text-purple-400" />
+                <h3 className="text-xl font-bold text-foreground mb-5 flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20">
+                    <TrendingUp className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                   </div>
                   {section.category}
                 </h3>
@@ -324,20 +324,20 @@ export default function ReelsFormulaView() {
                     <motion.div
                       key={i}
                       whileHover={{ x: 4 }}
-                      className="flex items-start justify-between gap-3 p-4 bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl hover:from-purple-600/10 hover:to-pink-600/10 transition-all group border border-transparent hover:border-purple-500/20"
+                      className="flex items-start justify-between gap-3 p-4 bg-muted rounded-xl hover:bg-[var(--color-brand-mid-pink)]/10 transition-all group border border-transparent hover:border-[var(--color-brand-mid-pink)]/20"
                     >
-                      <span className="text-gray-300 flex-1 font-medium">{hook}</span>
+                      <span className="text-foreground flex-1 font-medium">{hook}</span>
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => copyToClipboard(hook)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-purple-600/20 rounded-lg"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-[var(--color-brand-mid-pink)]/20 rounded-lg"
                         title="Copy to clipboard"
                       >
                         {copiedText === hook ? (
                           <Check className="w-5 h-5 text-green-400" />
                         ) : (
-                          <Copy className="w-5 h-5 text-purple-400" />
+                          <Copy className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                         )}
                       </motion.button>
                     </motion.div>
@@ -354,13 +354,13 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 via-[var(--color-brand-light-pink)]/10 to-[var(--color-brand-mid-pink)]/20 border-2 border-[var(--color-brand-mid-pink)]/30 rounded-2xl p-6 shadow-xl"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20">
-                  <AlertCircle className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                <div className="p-2 rounded-xl bg-[var(--color-brand-mid-pink)]/20">
+                  <AlertCircle className="w-6 h-6 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
                 </div>
-                <div className="text-sm text-purple-100">
+                <div className="text-sm text-muted-foreground">
                   These proven structures help organize your content for maximum impact. Adapt timing based on your content.
                 </div>
               </div>
@@ -372,32 +372,32 @@ export default function ReelsFormulaView() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl hover:border-purple-500/30 transition-all"
+                className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl hover:border-[var(--color-brand-mid-pink)]/30 transition-all"
               >
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-purple-400" />
+                    <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-2">
+                      <BookOpen className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                       {structure.name}
                     </h3>
-                    <p className="text-sm text-gray-400">{structure.description}</p>
+                    <p className="text-sm text-muted-foreground">{structure.description}</p>
                   </div>
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => copyToClipboard(structure.formula)}
-                    className="p-3 hover:bg-purple-600/20 rounded-xl transition-colors border border-purple-500/20"
+                    className="p-3 hover:bg-[var(--color-brand-mid-pink)]/20 rounded-xl transition-colors border border-[var(--color-brand-mid-pink)]/20"
                     title="Copy formula"
                   >
                     {copiedText === structure.formula ? (
                       <Check className="w-5 h-5 text-green-400" />
                     ) : (
-                      <Copy className="w-5 h-5 text-purple-400" />
+                      <Copy className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                     )}
                   </motion.button>
                 </div>
-                <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-5 border border-purple-500/10">
-                  <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                <div className="bg-muted rounded-xl p-5 border border-[var(--color-brand-mid-pink)]/10">
+                  <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
                     {structure.formula}
                   </pre>
                 </div>
@@ -412,14 +412,14 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 via-[var(--color-brand-light-pink)]/10 to-[var(--color-brand-mid-pink)]/20 border-2 border-[var(--color-brand-mid-pink)]/30 rounded-2xl p-6 shadow-xl"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20">
-                  <AlertCircle className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                <div className="p-2 rounded-xl bg-[var(--color-brand-mid-pink)]/20">
+                  <AlertCircle className="w-6 h-6 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
                 </div>
-                <div className="text-sm text-purple-100">
-                  <strong className="text-white text-base">Always include a CTA!</strong> Tell viewers exactly what you want them to do next.
+                <div className="text-sm text-muted-foreground">
+                  <strong className="text-foreground text-base">Always include a CTA!</strong> Tell viewers exactly what you want them to do next.
                 </div>
               </div>
             </motion.div>
@@ -430,11 +430,11 @@ export default function ReelsFormulaView() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl hover:border-purple-500/30 transition-all"
+                className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl hover:border-[var(--color-brand-mid-pink)]/30 transition-all"
               >
-                <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-600/20 to-pink-600/20">
-                    <MessageSquare className="w-5 h-5 text-purple-400" />
+                <h3 className="text-xl font-bold text-foreground mb-5 flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20">
+                    <MessageSquare className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                   </div>
                   {section.category}
                 </h3>
@@ -443,20 +443,20 @@ export default function ReelsFormulaView() {
                     <motion.div
                       key={i}
                       whileHover={{ x: 4 }}
-                      className="flex items-start justify-between gap-3 p-4 bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl hover:from-purple-600/10 hover:to-pink-600/10 transition-all group border border-transparent hover:border-purple-500/20"
+                      className="flex items-start justify-between gap-3 p-4 bg-muted rounded-xl hover:bg-[var(--color-brand-mid-pink)]/10 transition-all group border border-transparent hover:border-[var(--color-brand-mid-pink)]/20"
                     >
-                      <span className="text-gray-300 flex-1 font-medium">{cta}</span>
+                      <span className="text-foreground flex-1 font-medium">{cta}</span>
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => copyToClipboard(cta)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-purple-600/20 rounded-lg"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-[var(--color-brand-mid-pink)]/20 rounded-lg"
                         title="Copy to clipboard"
                       >
                         {copiedText === cta ? (
                           <Check className="w-5 h-5 text-green-400" />
                         ) : (
-                          <Copy className="w-5 h-5 text-purple-400" />
+                          <Copy className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                         )}
                       </motion.button>
                     </motion.div>
@@ -473,14 +473,14 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 via-[var(--color-brand-light-pink)]/10 to-[var(--color-brand-mid-pink)]/20 border-2 border-[var(--color-brand-mid-pink)]/30 rounded-2xl p-6 shadow-xl"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20">
-                  <AlertCircle className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                <div className="p-2 rounded-xl bg-[var(--color-brand-mid-pink)]/20">
+                  <AlertCircle className="w-6 h-6 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
                 </div>
-                <div className="text-sm text-purple-100">
-                  <strong className="text-white text-base">Note:</strong> These are general guidelines. Test different times to find what works best for YOUR audience!
+                <div className="text-sm text-muted-foreground">
+                  <strong className="text-foreground text-base">Note:</strong> These are general guidelines. Test different times to find what works best for YOUR audience!
                 </div>
               </div>
             </motion.div>
@@ -491,11 +491,11 @@ export default function ReelsFormulaView() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl hover:border-purple-500/30 transition-all"
+                className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl hover:border-[var(--color-brand-mid-pink)]/30 transition-all"
               >
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-600/20 to-pink-600/20">
-                    <Clock className="w-5 h-5 text-purple-400" />
+                <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20">
+                    <Clock className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                   </div>
                   {timeSlot.day}
                 </h3>
@@ -505,14 +505,14 @@ export default function ReelsFormulaView() {
                       <motion.span
                         key={i}
                         whileHover={{ scale: 1.05 }}
-                        className="px-5 py-3 bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-purple-200 rounded-xl font-semibold shadow-lg border border-purple-500/20"
+                        className="px-5 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)]/30 to-[var(--color-brand-light-pink)]/30 text-[var(--color-brand-mid-pink)] rounded-xl font-semibold shadow-lg border border-[var(--color-brand-mid-pink)]/20"
                       >
                         {time}
                       </motion.span>
                     ))}
                   </div>
-                  <p className="text-sm text-gray-400 italic flex items-center gap-2">
-                    <span className="text-purple-400">ℹ️</span>
+                  <p className="text-sm text-muted-foreground italic flex items-center gap-2">
+                    <span className="text-[var(--color-brand-mid-pink)]">ℹ️</span>
                     {timeSlot.note}
                   </p>
                 </div>
@@ -522,26 +522,26 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-blue-600/20 via-cyan-600/20 to-blue-600/20 border-2 border-blue-500/30 rounded-2xl p-6 shadow-xl shadow-blue-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-blue)]/20 via-[var(--color-brand-blue)]/10 to-[var(--color-brand-blue)]/20 border-2 border-[var(--color-brand-blue)]/30 rounded-2xl p-6 shadow-xl"
             >
-              <h4 className="font-bold text-blue-300 mb-4 text-lg flex items-center gap-2">
+              <h4 className="font-bold text-[var(--color-brand-blue)] mb-4 text-lg flex items-center gap-2">
                 <span>💡</span> Pro Tips for Timing:
               </h4>
-              <ul className="text-sm text-blue-100 space-y-2">
+              <ul className="text-sm text-muted-foreground space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-0.5">•</span>
+                  <span className="text-[var(--color-brand-blue)] mt-0.5">•</span>
                   <span>Post consistently at the same times to train your audience</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-0.5">•</span>
+                  <span className="text-[var(--color-brand-blue)] mt-0.5">•</span>
                   <span>Check your Instagram Insights to see when YOUR followers are most active</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-0.5">•</span>
+                  <span className="text-[var(--color-brand-blue)] mt-0.5">•</span>
                   <span>Consider time zones if you have an international audience</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-0.5">•</span>
+                  <span className="text-[var(--color-brand-blue)] mt-0.5">•</span>
                   <span>Test posting at different times for 2 weeks and track engagement</span>
                 </li>
               </ul>
@@ -555,13 +555,13 @@ export default function ReelsFormulaView() {
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-600/10"
+              className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 via-[var(--color-brand-light-pink)]/10 to-[var(--color-brand-mid-pink)]/20 border-2 border-[var(--color-brand-mid-pink)]/30 rounded-2xl p-6 shadow-xl"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20">
-                  <AlertCircle className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                <div className="p-2 rounded-xl bg-[var(--color-brand-mid-pink)]/20">
+                  <AlertCircle className="w-6 h-6 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
                 </div>
-                <div className="text-sm text-purple-100">
+                <div className="text-sm text-muted-foreground">
                   Use these templates as starting points. Add your unique personality and style to stand out!
                 </div>
               </div>
@@ -575,31 +575,31 @@ export default function ReelsFormulaView() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: idx * 0.05 }}
                   whileHover={{ y: -4 }}
-                  className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl hover:border-purple-500/30 hover:shadow-2xl hover:shadow-purple-600/10 transition-all"
+                  className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl hover:border-[var(--color-brand-mid-pink)]/30 transition-all"
                 >
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                        <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-600/30 to-pink-600/30">
-                          <Video className="w-5 h-5 text-purple-400" />
+                      <h3 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-gradient-to-br from-[var(--color-brand-mid-pink)]/30 to-[var(--color-brand-light-pink)]/30">
+                          <Video className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
                         </div>
                         {template.name}
                       </h3>
-                      <span className="text-xs font-semibold text-purple-300 bg-purple-600/20 px-3 py-1.5 rounded-lg border border-purple-500/20">
+                      <span className="text-xs font-semibold text-[var(--color-brand-mid-pink)] bg-[var(--color-brand-mid-pink)]/20 px-3 py-1.5 rounded-lg border border-[var(--color-brand-mid-pink)]/20">
                         ⏱️ {template.duration}
                       </span>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-4 border border-purple-500/10">
-                      <div className="text-xs font-bold text-purple-400 mb-2 uppercase tracking-wide">📋 Structure</div>
-                      <div className="text-sm text-gray-300 leading-relaxed">{template.structure}</div>
+                    <div className="bg-muted rounded-xl p-4 border border-[var(--color-brand-mid-pink)]/10">
+                      <div className="text-xs font-bold text-[var(--color-brand-mid-pink)] mb-2 uppercase tracking-wide">📋 Structure</div>
+                      <div className="text-sm text-foreground leading-relaxed">{template.structure}</div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-4 border border-purple-500/10">
-                      <div className="text-xs font-bold text-purple-400 mb-2 uppercase tracking-wide">💡 Tips</div>
-                      <div className="text-sm text-gray-300 leading-relaxed">{template.tips}</div>
+                    <div className="bg-muted rounded-xl p-4 border border-[var(--color-brand-mid-pink)]/10">
+                      <div className="text-xs font-bold text-[var(--color-brand-mid-pink)] mb-2 uppercase tracking-wide">💡 Tips</div>
+                      <div className="text-sm text-foreground leading-relaxed">{template.tips}</div>
                     </div>
                   </div>
                 </motion.div>

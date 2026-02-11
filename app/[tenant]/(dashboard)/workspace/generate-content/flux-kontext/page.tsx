@@ -27,6 +27,8 @@ import { useApiClient } from '@/lib/apiClient';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import { ReferenceSelector } from '@/components/reference-bank/ReferenceSelector';
 import { ReferenceItem } from '@/hooks/useReferenceBank';
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from '@/components/credits/CreditCalculator';
 
 interface JobStatus {
   id: string;
@@ -102,6 +104,7 @@ const formatDuration = (milliseconds: number) => {
 
 export default function FluxKontextPage() {
   const { user } = useUser();
+  const { refreshCredits } = useCredits();
   const [selectedImages, setSelectedImages] = useState<ImageFile[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentJob, setCurrentJob] = useState<JobStatus | null>(null);
@@ -696,6 +699,9 @@ export default function FluxKontextPage() {
           setLastJobDuration(duration);
           setIsProcessing(false);
           setJobStartTime(null);
+
+          // Refresh credits after successful completion
+          refreshCredits();
 
           if (job.resultUrls && job.resultUrls.length > 0) {
             setResultImages(job.resultUrls);
@@ -1746,6 +1752,13 @@ export default function FluxKontextPage() {
           isOpen={true}
         />
       )}
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="flux-kontext"
+        modifiers={[]}
+        position="bottom-right"
+      />
     </div>
   );
 }

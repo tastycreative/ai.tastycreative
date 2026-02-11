@@ -416,31 +416,31 @@ export default function MyInfluencersPage() {
         <div className="text-center space-y-4">
           <div className="relative w-16 h-16 mx-auto">
             <div className="absolute inset-0 rounded-full border-2 border-zinc-200 dark:border-zinc-800" />
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-brand-mid-pink animate-spin" />
           </div>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading profiles...</p>
+          <p className="text-sm text-header-muted">Loading profiles...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen bg-[#F8F8F8] dark:bg-[#1a1625]">
       {/* Header */}
-      <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border-b border-zinc-200/60 dark:border-zinc-800/60">
+      <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/90 dark:bg-[#1a1625]/90 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/25">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] shadow-lg shadow-[#EC67A1]/30">
                 <Users className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-zinc-900 dark:text-white tracking-tight">Influencers</h1>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">{profiles.length} profile{profiles.length !== 1 ? "s" : ""}</p>
+                <h1 className="text-xl font-semibold text-sidebar-foreground tracking-tight">Influencers</h1>
+                <p className="text-xs text-header-muted">{profiles.length} profile{profiles.length !== 1 ? "s" : ""}</p>
               </div>
             </div>
             <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all shadow-lg shadow-zinc-900/10 dark:shadow-white/10">
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-medium rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-lg shadow-[#EC67A1]/30">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New Profile</span>
             </button>
@@ -453,20 +453,20 @@ export default function MyInfluencersPage() {
         <div className="space-y-4 mb-8">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
               <input type="text" placeholder="Search profiles..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 pl-11 pr-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-zinc-400" />
+                className="w-full h-11 pl-11 pr-4 text-sm text-sidebar-foreground bg-white dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all placeholder:text-header-muted" />
             </div>
-            <div className="inline-flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl">
+            <div className="inline-flex items-center p-1 bg-white dark:bg-[#1a1625]/50 rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
               {[{ key: "all", label: "All", count: profiles.length }, { key: "mine", label: "Mine", count: myProfilesCount }, { key: "shared", label: "Shared", count: sharedProfilesCount }].map((filter) => (
                 <button key={filter.key} onClick={() => setFilterMode(filter.key as FilterMode)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"}`}>
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-sidebar-foreground shadow-sm" : "text-header-muted hover:text-sidebar-foreground"}`}>
                   {filter.label}<span className="ml-1.5 text-xs opacity-60">{filter.count}</span>
                 </button>
               ))}
             </div>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="h-11 px-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all">
+              className="h-11 px-4 text-sm text-sidebar-foreground bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all">
               <option value="name">Sort: Name</option>
               <option value="dateCreated">Sort: Date Created</option>
               <option value="dateUpdated">Sort: Last Updated</option>
@@ -478,7 +478,7 @@ export default function MyInfluencersPage() {
           {/* Tag Filter */}
           {TAG_CATEGORIES.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tags:</span>
+              <span className="text-xs font-medium text-header-muted">Tags:</span>
               {TAG_CATEGORIES.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 const tagCount = profiles.filter(p => p.tags?.includes(tag)).length;
@@ -489,8 +489,8 @@ export default function MyInfluencersPage() {
                     onClick={() => setSelectedTags(isSelected ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag])}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                       isSelected
-                        ? "bg-violet-500 text-white shadow-sm"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-sm"
+                        : "bg-white dark:bg-[#1a1625]/50 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-[#1a1625]/70 border border-[#EC67A1]/10"
                     }`}
                   >
                     {tag}
@@ -501,7 +501,7 @@ export default function MyInfluencersPage() {
               {selectedTags.length > 0 && (
                 <button
                   onClick={() => setSelectedTags([])}
-                  className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                  className="text-xs font-medium text-[#EC67A1] dark:text-[#F774B9] hover:underline"
                 >
                   Clear all
                 </button>
@@ -512,20 +512,20 @@ export default function MyInfluencersPage() {
 
         {error && (
           <div className="mb-8 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl">
-            <div className="flex items-center gap-3"><AlertCircle className="w-5 h-5 text-red-500" /><p className="text-sm text-red-600 dark:text-red-400">{error}</p></div>
+            <div className="flex items-center gap-3"><AlertCircle className="w-5 h-5 text-red-500" /><p className="text-sm text-red-600 dark:text-red-300">{error}</p></div>
           </div>
         )}
 
         {filteredProfiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 flex items-center justify-center mb-8 shadow-xl">
-              <Users className="w-12 h-12 text-zinc-400 dark:text-zinc-500" />
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#EC67A1]/10 to-[#F774B9]/10 dark:from-[#EC67A1]/20 dark:to-[#F774B9]/20 flex items-center justify-center mb-8 shadow-xl border border-[#EC67A1]/20">
+              <Users className="w-12 h-12 text-[#EC67A1] dark:text-[#F774B9]" />
             </div>
-            <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">{searchQuery ? "No profiles found" : "No influencer profiles yet"}</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm mb-8">{searchQuery ? "Try adjusting your search or filters" : "Create your first influencer profile with comprehensive Model Bible documentation"}</p>
+            <h3 className="text-xl font-semibold text-sidebar-foreground mb-2">{searchQuery ? "No profiles found" : "No influencer profiles yet"}</h3>
+            <p className="text-sm text-header-muted text-center max-w-sm mb-8">{searchQuery ? "Try adjusting your search or filters" : "Create your first influencer profile with comprehensive Model Bible documentation"}</p>
             {!searchQuery && (
               <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-semibold rounded-xl hover:from-violet-700 hover:to-fuchsia-700 transition-all shadow-xl shadow-violet-500/30">
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-semibold rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-xl shadow-[#EC67A1]/30">
                 <Plus className="w-4 h-4" />Create Profile
               </button>
             )}
@@ -579,8 +579,8 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
   const color = getCompletenessColor(completeness.percentage);
 
   return (
-    <div className="group relative bg-white dark:bg-zinc-900 rounded-2xl shadow-sm shadow-zinc-200/60 dark:shadow-zinc-950/60 overflow-hidden hover:shadow-2xl hover:shadow-zinc-300/40 dark:hover:shadow-black/40 hover:-translate-y-1 transition-all duration-300">
-      <div className="relative aspect-[4/5] bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 overflow-hidden">
+    <div className="group relative bg-white dark:bg-[#1a1625]/50 rounded-2xl shadow-sm shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/5 overflow-hidden hover:shadow-2xl hover:shadow-[#EC67A1]/20 dark:hover:shadow-[#EC67A1]/10 hover:-translate-y-1 transition-all duration-300 border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+      <div className="relative aspect-[4/5] bg-gradient-to-br from-[#EC67A1]/5 to-[#F774B9]/5 dark:from-[#EC67A1]/10 dark:to-[#F774B9]/10 overflow-hidden">
         {profile.profileImageUrl ? (
           <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
@@ -590,8 +590,8 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
         <div className="absolute top-3 left-3 flex flex-wrap gap-2">
           {profile.isFavorite && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Star className="w-3 h-3 fill-current" />Favorite</span>}
           {profile.isDefault && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Star className="w-3 h-3" />Default</span>}
-          {!isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Share2 className="w-3 h-3" />Shared</span>}
-          {profile.organizationId && isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Building2 className="w-3 h-3" />Org</span>}
+          {!isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#5DC3F8]/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Share2 className="w-3 h-3" />Shared</span>}
+          {profile.organizationId && isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EC67A1]/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Building2 className="w-3 h-3" />Org</span>}
           <span className={`inline-flex items-center gap-1 px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg ${
             color === "emerald" ? "bg-emerald-500/90" : color === "amber" ? "bg-amber-500/90" : "bg-red-500/90"
           }`}>
@@ -604,26 +604,26 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
               <MoreVertical className="w-4 h-4 text-white" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden z-20">
-                <button onClick={() => { onEdit(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
-                  <Edit3 className="w-4 h-4 text-zinc-400" />Edit Profile
+              <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-[#1a1625] rounded-xl shadow-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 overflow-hidden z-20">
+                <button onClick={() => { onEdit(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-sidebar-foreground hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 flex items-center gap-3 transition-colors">
+                  <Edit3 className="w-4 h-4 text-[#EC67A1]" />Edit Profile
                 </button>
-                <button onClick={() => { onToggleFavorite(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
-                  <Star className={`w-4 h-4 ${profile.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-zinc-400'}`} />{profile.isFavorite ? 'Unfavorite' : 'Favorite'}
+                <button onClick={() => { onToggleFavorite(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-sidebar-foreground hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 flex items-center gap-3 transition-colors">
+                  <Star className={`w-4 h-4 ${profile.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-[#EC67A1]'}`} />{profile.isFavorite ? 'Unfavorite' : 'Favorite'}
                 </button>
                 {isOwn && !profile.isDefault && (
-                  <button onClick={() => { onSetDefault(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
-                    <Star className="w-4 h-4 text-zinc-400" />Set as Default
+                  <button onClick={() => { onSetDefault(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-sidebar-foreground hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 flex items-center gap-3 transition-colors">
+                    <Star className="w-4 h-4 text-[#EC67A1]" />Set as Default
                   </button>
                 )}
                 {isOwn && (
-                  <button onClick={() => { onToggleShare(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
-                    <Share2 className="w-4 h-4 text-zinc-400" />{profile.organizationId ? "Unshare" : "Share with Org"}
+                  <button onClick={() => { onToggleShare(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-sidebar-foreground hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 flex items-center gap-3 transition-colors">
+                    <Share2 className="w-4 h-4 text-[#EC67A1]" />{profile.organizationId ? "Unshare" : "Share with Org"}
                   </button>
                 )}
                 {canDelete && (
                   <>
-                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                    <div className="border-t border-[#EC67A1]/10 dark:border-[#EC67A1]/20" />
                     <button onClick={() => { onDelete(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-3 transition-colors">
                       <Trash2 className="w-4 h-4" />Delete
                     </button>
@@ -641,20 +641,20 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
       </div>
       <div className="p-4">
         <div className="mb-3">
-          <h3 className="text-base font-semibold text-zinc-900 dark:text-white truncate">{profile.name}</h3>
-          {profile.instagramUsername && <p className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 mt-0.5"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
-          {!isOwn && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Shared by {ownerName}</p>}
+          <h3 className="text-base font-semibold text-sidebar-foreground truncate">{profile.name}</h3>
+          {profile.instagramUsername && <p className="text-sm text-header-muted flex items-center gap-1.5 mt-0.5"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
+          {!isOwn && <p className="text-xs text-header-muted mt-1">Shared by {ownerName}</p>}
         </div>
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"><Camera className="w-3.5 h-3.5" />{totalPosts} posts</span>
-            <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            <span className="inline-flex items-center gap-1.5 text-xs text-header-muted"><Camera className="w-3.5 h-3.5" />{totalPosts} posts</span>
+            <span className="text-xs font-semibold text-sidebar-foreground">
               {completeness.filledCount}/{completeness.totalSections} sections
             </span>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Profile Complete</span>
+              <span className="text-[10px] font-medium text-header-muted uppercase tracking-wider">Profile Complete</span>
               <span className={`text-[10px] font-bold ${
                 color === "emerald" ? "text-emerald-600 dark:text-emerald-400" : 
                 color === "amber" ? "text-amber-600 dark:text-amber-400" : 
@@ -663,7 +663,7 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
                 {getCompletenessLabel(completeness.percentage)}
               </span>
             </div>
-            <div className="relative h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+            <div className="relative h-1.5 bg-zinc-100 dark:bg-[#1a1625]/70 rounded-full overflow-hidden border border-[#EC67A1]/10">
               <div 
                 className={`absolute left-0 top-0 h-full transition-all duration-500 rounded-full ${
                   color === "emerald" ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : 
@@ -677,9 +677,9 @@ function ProfileCard({ profile, isOwn, canEdit, canDelete, ownerName, onEdit, on
 
           {/* Tags */}
           {profile.tags && profile.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
               {profile.tags.map((tag) => (
-                <span key={tag} className="inline-flex items-center px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-medium rounded-md">
+                <span key={tag} className="inline-flex items-center px-2 py-0.5 bg-white dark:bg-[#1a1625]/50 text-[#EC67A1] dark:text-[#F774B9] text-xs font-medium rounded-md border border-[#EC67A1]/20">
                   {tag}
                 </span>
               ))}
@@ -797,17 +797,17 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{mode === "create" ? "Create Profile" : "Edit Profile"}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-5 h-5 text-zinc-500" /></button>
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+          <h2 className="text-lg font-semibold text-sidebar-foreground">{mode === "create" ? "Create Profile" : "Edit Profile"}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-[#F774B9]/10 dark:hover:bg-[#EC67A1]/10 rounded-lg transition-colors"><X className="w-5 h-5 text-header-muted" /></button>
         </div>
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-44 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
+          <div className="w-44 border-r border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#1a1625]/50 overflow-y-auto">
             <nav className="p-2 space-y-0.5">
               {sections.map((section) => { const Icon = section.icon; return (
                 <button key={section.id} onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl transition-all ${activeSection === section.id ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-900/50"}`}>
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl transition-all ${activeSection === section.id ? "bg-white dark:bg-[#1a1625] text-sidebar-foreground shadow-sm border border-[#EC67A1]/20" : "text-header-muted hover:text-sidebar-foreground hover:bg-white/50 dark:hover:bg-[#1a1625]/70"}`}>
                   <Icon className="w-4 h-4" />{section.name}
                 </button>
               ); })}
@@ -819,7 +819,7 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                 {/* Profile Image Upload */}
                 <div className="flex items-start gap-6 mb-6">
                   <div className="relative group">
-                    <div className="w-24 h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden ring-2 ring-zinc-200 dark:ring-zinc-700">
+                    <div className="w-24 h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden ring-2 ring-[#EC67A1]/20 dark:ring-[#EC67A1]/30">
                       {formData.profileImageUrl ? (
                         <img src={formData.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
@@ -878,11 +878,11 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                     />
                   </div>
                   <div className="flex-1 pt-1">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-white mb-1">Profile Picture</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">Upload an image for this influencer profile. Max 5MB.</p>
+                    <p className="text-sm font-medium text-sidebar-foreground mb-1">Profile Picture</p>
+                    <p className="text-xs text-header-muted mb-3">Upload an image for this influencer profile. Max 5MB.</p>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}
-                        className="px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/50 hover:bg-violet-100 dark:hover:bg-violet-950 rounded-lg transition-colors disabled:opacity-50">
+                        className="px-3 py-1.5 text-xs font-medium text-[#EC67A1] dark:text-[#F774B9] bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 hover:bg-[#EC67A1]/20 dark:hover:bg-[#EC67A1]/30 rounded-lg transition-colors disabled:opacity-50">
                         {uploadingImage ? 'Uploading...' : 'Upload'}
                       </button>
                       {formData.profileImageUrl && (
@@ -896,28 +896,28 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                 </div>
                 <FormField label="Profile Name" required>
                   <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Luna Rose"
-                    className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" />
+                    className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all" />
                 </FormField>
                 <FormField label="Description">
                   <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} placeholder="Brief description..."
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none" />
                 </FormField>
                 <FormField label="Instagram Username">
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
                     <input type="text" value={formData.instagramUsername} onChange={(e) => setFormData({ ...formData, instagramUsername: e.target.value.replace("@", "") })} placeholder="username"
-                      className="w-full h-11 pl-9 pr-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" />
+                      className="w-full h-11 pl-9 pr-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all" />
                   </div>
                 </FormField>
                 {isOwner && (
                   <div className="flex items-center gap-6 pt-2">
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={formData.isDefault} onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">Default profile</span>
+                      <input type="checkbox" checked={formData.isDefault} onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })} className="w-5 h-5 rounded-md border-[#EC67A1]/30 text-brand-mid-pink focus:ring-[#EC67A1]/20 focus:ring-offset-0" />
+                      <span className="text-sm text-sidebar-foreground">Default profile</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={formData.shareWithOrganization} onChange={(e) => setFormData({ ...formData, shareWithOrganization: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">Share with org</span>
+                      <input type="checkbox" checked={formData.shareWithOrganization} onChange={(e) => setFormData({ ...formData, shareWithOrganization: e.target.checked })} className="w-5 h-5 rounded-md border-[#EC67A1]/30 text-brand-mid-pink focus:ring-[#EC67A1]/20 focus:ring-offset-0" />
+                      <span className="text-sm text-sidebar-foreground">Share with org</span>
                     </label>
                   </div>
                 )}
@@ -940,8 +940,8 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                         }}
                         className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                           formData.tags.includes(tag)
-                            ? 'bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border-2 border-violet-500'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-2 border-transparent hover:border-zinc-300 dark:hover:border-zinc-600'
+                            ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white border-2 border-[#EC67A1]'
+                            : 'bg-zinc-100 dark:bg-[#1a1625]/50 text-sidebar-foreground border-2 border-transparent hover:border-[#EC67A1]/30'
                         }`}
                       >
                         {tag}
@@ -954,29 +954,29 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
             {activeSection === "identity" && (
               <FormSection title="Basic Identity">
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Age"><input type="text" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="e.g., 24" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Location"><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="e.g., Los Angeles, CA" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Nationality"><input type="text" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} placeholder="e.g., American" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Occupation"><input type="text" value={formData.occupation} onChange={(e) => setFormData({ ...formData, occupation: e.target.value })} placeholder="e.g., Fitness model" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Age"><input type="text" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="e.g., 24" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Location"><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="e.g., Los Angeles, CA" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Nationality"><input type="text" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} placeholder="e.g., American" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Occupation"><input type="text" value={formData.occupation} onChange={(e) => setFormData({ ...formData, occupation: e.target.value })} placeholder="e.g., Fitness model" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 </div>
-                <FormField label="Relationship Status"><input type="text" value={formData.relationshipStatus} onChange={(e) => setFormData({ ...formData, relationshipStatus: e.target.value })} placeholder="e.g., Single" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <FormField label="Relationship Status"><input type="text" value={formData.relationshipStatus} onChange={(e) => setFormData({ ...formData, relationshipStatus: e.target.value })} placeholder="e.g., Single" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
               </FormSection>
             )}
             {activeSection === "backstory" && (
               <FormSection title="Backstory & Lore">
                 <FormField label="Background Story">
                   <textarea value={formData.backstory} onChange={(e) => setFormData({ ...formData, backstory: e.target.value })} rows={4} placeholder="Write 2-3 sentences about her 'life story'..."
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Family"><input type="text" value={formData.family} onChange={(e) => setFormData({ ...formData, family: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Pets"><input type="text" value={formData.pets} onChange={(e) => setFormData({ ...formData, pets: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Education"><input type="text" value={formData.education} onChange={(e) => setFormData({ ...formData, education: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Past Jobs"><input type="text" value={formData.pastJobs} onChange={(e) => setFormData({ ...formData, pastJobs: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Family"><input type="text" value={formData.family} onChange={(e) => setFormData({ ...formData, family: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Pets"><input type="text" value={formData.pets} onChange={(e) => setFormData({ ...formData, pets: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Education"><input type="text" value={formData.education} onChange={(e) => setFormData({ ...formData, education: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Past Jobs"><input type="text" value={formData.pastJobs} onChange={(e) => setFormData({ ...formData, pastJobs: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 </div>
                 <FormField label="How she got into content creation">
                   <textarea value={formData.contentCreationOrigin} onChange={(e) => setFormData({ ...formData, contentCreationOrigin: e.target.value })} rows={2}
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
               </FormSection>
             )}
@@ -990,7 +990,7 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                         if (current.includes(trait)) setFormData({ ...formData, coreTraits: current.filter((t) => t !== trait) });
                         else setFormData({ ...formData, coreTraits: [...current, trait] });
                       }}
-                        className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${(formData.coreTraits || []).includes(trait) ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"}`}>
+                        className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${(formData.coreTraits || []).includes(trait) ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/30" : "bg-zinc-100 dark:bg-[#1a1625]/50 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-[#1a1625]/70 border border-[#EC67A1]/10"}`}>
                         {trait}
                       </button>
                     ))}
@@ -998,25 +998,25 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                 </FormField>
                 <FormField label="Personality Description">
                   <textarea value={formData.personalityDescription} onChange={(e) => setFormData({ ...formData, personalityDescription: e.target.value })} rows={3} placeholder="2-3 sentences describing how she comes across..."
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
                 <div className="grid grid-cols-3 gap-4">
-                  <FormField label="Morning Vibe"><input type="text" value={formData.morningVibe} onChange={(e) => setFormData({ ...formData, morningVibe: e.target.value })} placeholder="Sleepy, cozy" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Afternoon Vibe"><input type="text" value={formData.afternoonVibe} onChange={(e) => setFormData({ ...formData, afternoonVibe: e.target.value })} placeholder="Playful, chatty" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Night Vibe"><input type="text" value={formData.nightVibe} onChange={(e) => setFormData({ ...formData, nightVibe: e.target.value })} placeholder="Flirty, spicy" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Morning Vibe"><input type="text" value={formData.morningVibe} onChange={(e) => setFormData({ ...formData, morningVibe: e.target.value })} placeholder="Sleepy, cozy" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Afternoon Vibe"><input type="text" value={formData.afternoonVibe} onChange={(e) => setFormData({ ...formData, afternoonVibe: e.target.value })} placeholder="Playful, chatty" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Night Vibe"><input type="text" value={formData.nightVibe} onChange={(e) => setFormData({ ...formData, nightVibe: e.target.value })} placeholder="Flirty, spicy" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 </div>
               </FormSection>
             )}
             {activeSection === "content" && (
               <FormSection title="Content & Niche">
-                <FormField label="Primary Niche"><input type="text" value={formData.primaryNiche} onChange={(e) => setFormData({ ...formData, primaryNiche: e.target.value })} placeholder="e.g., Fitness / GFE / Cosplay" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <FormField label="Primary Niche"><input type="text" value={formData.primaryNiche} onChange={(e) => setFormData({ ...formData, primaryNiche: e.target.value })} placeholder="e.g., Fitness / GFE / Cosplay" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Feed Aesthetic"><input type="text" value={formData.feedAesthetic} onChange={(e) => setFormData({ ...formData, feedAesthetic: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Common Themes"><input type="text" value={formData.commonThemes} onChange={(e) => setFormData({ ...formData, commonThemes: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Feed Aesthetic"><input type="text" value={formData.feedAesthetic} onChange={(e) => setFormData({ ...formData, feedAesthetic: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Common Themes"><input type="text" value={formData.commonThemes} onChange={(e) => setFormData({ ...formData, commonThemes: e.target.value })} className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 </div>
                 <FormField label="What Makes Her Unique">
                   <textarea value={formData.uniqueHook} onChange={(e) => setFormData({ ...formData, uniqueHook: e.target.value })} rows={3} placeholder="What's her hook?"
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
               </FormSection>
             )}
@@ -1040,51 +1040,51 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
             )}
             {activeSection === "communication" && (
               <FormSection title="Communication Style">
-                <FormField label="Tone"><input type="text" value={formData.tone} onChange={(e) => setFormData({ ...formData, tone: e.target.value })} placeholder='e.g., Casual, uses lowercase, lots of "haha"' className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <FormField label="Tone"><input type="text" value={formData.tone} onChange={(e) => setFormData({ ...formData, tone: e.target.value })} placeholder='e.g., Casual, uses lowercase, lots of "haha"' className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 <FormField label="Signature Phrases">
                   <textarea value={(formData.signaturePhrases || []).join("\n")} onChange={(e) => setFormData({ ...formData, signaturePhrases: e.target.value.split("\n").filter(Boolean) })} rows={3} placeholder="One phrase per line..."
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Sample Greeting"><textarea value={formData.sampleGreeting} onChange={(e) => setFormData({ ...formData, sampleGreeting: e.target.value })} rows={2} placeholder="How she greets new subs..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
-                  <FormField label="Sample Flirty"><textarea value={formData.sampleFlirty} onChange={(e) => setFormData({ ...formData, sampleFlirty: e.target.value })} rows={2} placeholder="Flirty example..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                  <FormField label="Sample Greeting"><textarea value={formData.sampleGreeting} onChange={(e) => setFormData({ ...formData, sampleGreeting: e.target.value })} rows={2} placeholder="How she greets new subs..." className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
+                  <FormField label="Sample Flirty"><textarea value={formData.sampleFlirty} onChange={(e) => setFormData({ ...formData, sampleFlirty: e.target.value })} rows={2} placeholder="Flirty example..." className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
                 </div>
-                <FormField label="Sample PPV Pitch"><textarea value={formData.samplePPV} onChange={(e) => setFormData({ ...formData, samplePPV: e.target.value })} rows={2} placeholder="How she sells PPV..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                <FormField label="Sample PPV Pitch"><textarea value={formData.samplePPV} onChange={(e) => setFormData({ ...formData, samplePPV: e.target.value })} rows={2} placeholder="How she sells PPV..." className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
               </FormSection>
             )}
             {activeSection === "visual" && (
               <FormSection title="Visual Reference">
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Hair"><input type="text" value={formData.hair} onChange={(e) => setFormData({ ...formData, hair: e.target.value })} placeholder="e.g., Long brunette" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Eyes"><input type="text" value={formData.eyes} onChange={(e) => setFormData({ ...formData, eyes: e.target.value })} placeholder="e.g., Hazel" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Body Type"><input type="text" value={formData.bodyType} onChange={(e) => setFormData({ ...formData, bodyType: e.target.value })} placeholder="e.g., Athletic" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
-                  <FormField label="Tattoos/Piercings"><input type="text" value={formData.tattoosPiercings} onChange={(e) => setFormData({ ...formData, tattoosPiercings: e.target.value })} placeholder="e.g., Small rose on wrist" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Hair"><input type="text" value={formData.hair} onChange={(e) => setFormData({ ...formData, hair: e.target.value })} placeholder="e.g., Long brunette" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Eyes"><input type="text" value={formData.eyes} onChange={(e) => setFormData({ ...formData, eyes: e.target.value })} placeholder="e.g., Hazel" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Body Type"><input type="text" value={formData.bodyType} onChange={(e) => setFormData({ ...formData, bodyType: e.target.value })} placeholder="e.g., Athletic" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
+                  <FormField label="Tattoos/Piercings"><input type="text" value={formData.tattoosPiercings} onChange={(e) => setFormData({ ...formData, tattoosPiercings: e.target.value })} placeholder="e.g., Small rose on wrist" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
                 </div>
-                <FormField label="Moodboard Keywords"><input type="text" value={formData.moodboardKeywords} onChange={(e) => setFormData({ ...formData, moodboardKeywords: e.target.value })} placeholder="e.g., golden hour, beach vibes, mirror selfies" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <FormField label="Moodboard Keywords"><input type="text" value={formData.moodboardKeywords} onChange={(e) => setFormData({ ...formData, moodboardKeywords: e.target.value })} placeholder="e.g., golden hour, beach vibes, mirror selfies" className="w-full h-11 px-4 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all text-sidebar-foreground" /></FormField>
               </FormSection>
             )}
             {activeSection === "faqs" && (
               <FormSection title="FAQs & Scenarios">
-                <FormField label='"Are you real?"'><textarea value={formData.faqAreYouReal} onChange={(e) => setFormData({ ...formData, faqAreYouReal: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
-                <FormField label='"Can we meet up?"'><textarea value={formData.faqMeetUp} onChange={(e) => setFormData({ ...formData, faqMeetUp: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
-                <FormField label='"Can I get free content?"'><textarea value={formData.faqFreeContent} onChange={(e) => setFormData({ ...formData, faqFreeContent: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
-                <FormField label="Fan gets too attached"><textarea value={formData.faqTooAttached} onChange={(e) => setFormData({ ...formData, faqTooAttached: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                <FormField label='"Are you real?"'><textarea value={formData.faqAreYouReal} onChange={(e) => setFormData({ ...formData, faqAreYouReal: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
+                <FormField label='"Can we meet up?"'><textarea value={formData.faqMeetUp} onChange={(e) => setFormData({ ...formData, faqMeetUp: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
+                <FormField label='"Can I get free content?"'><textarea value={formData.faqFreeContent} onChange={(e) => setFormData({ ...formData, faqFreeContent: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
+                <FormField label="Fan gets too attached"><textarea value={formData.faqTooAttached} onChange={(e) => setFormData({ ...formData, faqTooAttached: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" /></FormField>
               </FormSection>
             )}
             {activeSection === "team" && (
               <FormSection title="Team Notes">
                 <FormField label="Internal Notes">
                   <textarea value={formData.internalNotes} onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })} rows={6} placeholder="Notes for the team (not part of the persona)..."
-                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                    className="w-full px-4 py-3 text-sm bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1] transition-all resize-none text-sidebar-foreground" />
                 </FormField>
               </FormSection>
             )}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
-          <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Cancel</button>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-[#1a1625]/50">
+          <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-sidebar-foreground hover:text-sidebar-foreground transition-colors">Cancel</button>
           <button onClick={handleSubmit} disabled={saving || !formData.name.trim()}
-            className="px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-semibold rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg">
+            className="px-6 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-sm font-semibold rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-[#EC67A1]/30">
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><CheckCircle className="w-4 h-4" />{mode === "create" ? "Create" : "Save"}</>}
           </button>
         </div>
@@ -1127,20 +1127,20 @@ function DeleteProfileModal({ profile, onClose, onSuccess }: { profile: Influenc
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-200 dark:border-zinc-800">
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-md p-6 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
         <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center mx-auto mb-5"><Trash2 className="w-7 h-7 text-red-600 dark:text-red-400" /></div>
-        <h3 className="text-xl font-semibold text-zinc-900 dark:text-white text-center mb-2">
+        <h3 className="text-xl font-semibold text-sidebar-foreground text-center mb-2">
           {isSharedProfile ? "Delete Shared Profile" : "Delete Profile"}
         </h3>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-6">
+        <p className="text-sm text-header-muted text-center mb-6">
           {isSharedProfile ? (
-            <>Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This will remove the profile from your organization. The profile owner will still have access to their profile.</>
+            <>Are you sure you want to delete <span className="font-semibold text-sidebar-foreground">{profile.name}</span>? This will remove the profile from your organization. The profile owner will still have access to their profile.</>
           ) : (
-            <>Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This action cannot be undone and will permanently delete the profile and all associated data.</>
+            <>Are you sure you want to delete <span className="font-semibold text-sidebar-foreground">{profile.name}</span>? This action cannot be undone and will permanently delete the profile and all associated data.</>
           )}
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-sidebar-foreground bg-zinc-100 dark:bg-[#1a1625]/50 hover:bg-zinc-200 dark:hover:bg-[#1a1625]/70 rounded-xl transition-colors border border-[#EC67A1]/10">Cancel</button>
           <button onClick={handleDelete} disabled={deleting} className="flex-1 px-5 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete
           </button>
@@ -1160,9 +1160,9 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
         {/* Header */}
-        <div className="relative h-40 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 flex-shrink-0">
+        <div className="relative h-40 bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex-shrink-0">
           {profile.profileImageUrl && <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-5">
@@ -1245,7 +1245,7 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
               {/* SECTION 2: Backstory & Lore */}
               {(bible.backstory || bible.family || bible.pets || bible.education || bible.pastJobs || bible.contentCreationOrigin || bible.city || bible.livingSituation) && (
                 <DetailSection title="Backstory & Lore" icon={BookOpen}>
-                  {bible.backstory && <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">{bible.backstory}</p>}
+                  {bible.backstory && <p className="text-sm text-header-muted leading-relaxed mb-4">{bible.backstory}</p>}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {bible.family && <InfoPill label="Family" value={bible.family} />}
                     {bible.pets && <InfoPill label="Pets" value={bible.pets} />}
@@ -1254,7 +1254,7 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
                     {bible.city && <InfoPill label="City" value={bible.city} />}
                     {bible.livingSituation && <InfoPill label="Living Situation" value={bible.livingSituation} />}
                   </div>
-                  {bible.contentCreationOrigin && <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">How she got into content creation</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.contentCreationOrigin}</p></div>}
+                  {bible.contentCreationOrigin && <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">How she got into content creation</p><p className="text-sm text-sidebar-foreground">{bible.contentCreationOrigin}</p></div>}
                 </DetailSection>
               )}
 
@@ -1262,7 +1262,7 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
               {((bible.coreTraits?.length ?? 0) > 0 || bible.personalityDescription || bible.morningVibe || bible.afternoonVibe || bible.nightVibe) && (
                 <DetailSection title="Personality" icon={Heart}>
                   {bible.coreTraits && bible.coreTraits.length > 0 && <div className="flex flex-wrap gap-2 mb-4">{bible.coreTraits.map((trait) => <span key={trait} className="px-4 py-2 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 text-sm font-medium rounded-xl">{trait}</span>)}</div>}
-                  {bible.personalityDescription && <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">{bible.personalityDescription}</p>}
+                  {bible.personalityDescription && <p className="text-sm text-header-muted leading-relaxed mb-4">{bible.personalityDescription}</p>}
                   {(bible.morningVibe || bible.afternoonVibe || bible.nightVibe) && (
                     <div className="grid grid-cols-3 gap-3">
                       {bible.morningVibe && <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl text-center"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">☀️ Morning</p><p className="text-sm text-amber-600 dark:text-amber-400">{bible.morningVibe}</p></div>}
@@ -1300,14 +1300,14 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
               {/* SECTION 6: Communication Style */}
               {(bible.tone || (bible.signaturePhrases?.length ?? 0) > 0 || bible.messageLength || bible.capitalization || bible.punctuation || bible.responseSpeed) && (
                 <DetailSection title="Communication Style" icon={MessageCircle}>
-                  {bible.tone && <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4"><span className="font-semibold text-zinc-900 dark:text-white">Tone:</span> {bible.tone}</p>}
+                  {bible.tone && <p className="text-sm text-header-muted mb-4"><span className="font-semibold text-sidebar-foreground">Tone:</span> {bible.tone}</p>}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                     {bible.messageLength && <InfoPill label="Message Length" value={bible.messageLength} />}
                     {bible.capitalization && <InfoPill label="Capitalization" value={bible.capitalization} />}
                     {bible.punctuation && <InfoPill label="Punctuation" value={bible.punctuation} />}
                     {bible.responseSpeed && <InfoPill label="Response Speed" value={bible.responseSpeed} />}
                   </div>
-                  {bible.signaturePhrases && bible.signaturePhrases.length > 0 && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 font-medium">Signature Phrases</p><div className="flex flex-wrap gap-2">{bible.signaturePhrases.map((phrase, i) => <span key={i} className="px-3 py-1.5 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 text-xs font-medium rounded-lg">&ldquo;{phrase}&rdquo;</span>)}</div></div>}
+                  {bible.signaturePhrases && bible.signaturePhrases.length > 0 && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-2 font-medium">Signature Phrases</p><div className="flex flex-wrap gap-2">{bible.signaturePhrases.map((phrase, i) => <span key={i} className="px-3 py-1.5 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 text-xs font-medium rounded-lg">&ldquo;{phrase}&rdquo;</span>)}</div></div>}
                 </DetailSection>
               )}
 
@@ -1327,18 +1327,18 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
               {(bible.instagramBio || bible.instagramPostingStyle || bible.instagramStoryVibe || bible.instagramDMApproach || bible.onlyfansWelcome || bible.onlyfansMassDM || bible.onlyfansPPVStyle || bible.redditSubreddits || bible.redditPostingCadence || bible.redditTitleStyle || bible.twitterVoice || bible.twitterEngagement) && (
                 <DetailSection title="Platform Presence" icon={Instagram}>
                   <div className="space-y-3">
-                    {bible.instagramBio && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Bio</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramBio}</p></div>}
-                    {bible.instagramPostingStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Posting Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramPostingStyle}</p></div>}
-                    {bible.instagramStoryVibe && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Story Vibe</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramStoryVibe}</p></div>}
-                    {bible.instagramDMApproach && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram DM Approach</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramDMApproach}</p></div>}
-                    {bible.onlyfansWelcome && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans Welcome Message</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansWelcome}</p></div>}
-                    {bible.onlyfansMassDM && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans Mass DM Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansMassDM}</p></div>}
-                    {bible.onlyfansPPVStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans PPV Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansPPVStyle}</p></div>}
-                    {bible.redditSubreddits && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Subreddits</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditSubreddits}</p></div>}
-                    {bible.redditPostingCadence && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Posting Cadence</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditPostingCadence}</p></div>}
-                    {bible.redditTitleStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Title Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditTitleStyle}</p></div>}
-                    {bible.twitterVoice && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Twitter Voice</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.twitterVoice}</p></div>}
-                    {bible.twitterEngagement && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Twitter Engagement</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.twitterEngagement}</p></div>}
+                    {bible.instagramBio && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Instagram Bio</p><p className="text-sm text-sidebar-foreground">{bible.instagramBio}</p></div>}
+                    {bible.instagramPostingStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Instagram Posting Style</p><p className="text-sm text-sidebar-foreground">{bible.instagramPostingStyle}</p></div>}
+                    {bible.instagramStoryVibe && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Instagram Story Vibe</p><p className="text-sm text-sidebar-foreground">{bible.instagramStoryVibe}</p></div>}
+                    {bible.instagramDMApproach && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Instagram DM Approach</p><p className="text-sm text-sidebar-foreground">{bible.instagramDMApproach}</p></div>}
+                    {bible.onlyfansWelcome && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">OnlyFans Welcome Message</p><p className="text-sm text-sidebar-foreground">{bible.onlyfansWelcome}</p></div>}
+                    {bible.onlyfansMassDM && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">OnlyFans Mass DM Style</p><p className="text-sm text-sidebar-foreground">{bible.onlyfansMassDM}</p></div>}
+                    {bible.onlyfansPPVStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">OnlyFans PPV Style</p><p className="text-sm text-sidebar-foreground">{bible.onlyfansPPVStyle}</p></div>}
+                    {bible.redditSubreddits && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Reddit Subreddits</p><p className="text-sm text-sidebar-foreground">{bible.redditSubreddits}</p></div>}
+                    {bible.redditPostingCadence && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Reddit Posting Cadence</p><p className="text-sm text-sidebar-foreground">{bible.redditPostingCadence}</p></div>}
+                    {bible.redditTitleStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Reddit Title Style</p><p className="text-sm text-sidebar-foreground">{bible.redditTitleStyle}</p></div>}
+                    {bible.twitterVoice && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Twitter Voice</p><p className="text-sm text-sidebar-foreground">{bible.twitterVoice}</p></div>}
+                    {bible.twitterEngagement && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-header-muted mb-1 font-medium">Twitter Engagement</p><p className="text-sm text-sidebar-foreground">{bible.twitterEngagement}</p></div>}
                   </div>
                 </DetailSection>
               )}
@@ -1352,13 +1352,13 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
                     {bible.bodyType && <InfoPill label="Body Type" value={bible.bodyType} />}
                     {bible.tattoosPiercings && <InfoPill label="Tattoos/Piercings" value={bible.tattoosPiercings} />}
                   </div>
-                  {bible.signatureVisualLook && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl mb-4"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Signature Visual Look</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.signatureVisualLook}</p></div>}
+                  {bible.signatureVisualLook && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl mb-4"><p className="text-xs text-header-muted mb-1 font-medium">Signature Visual Look</p><p className="text-sm text-sidebar-foreground">{bible.signatureVisualLook}</p></div>}
                   {bible.moodboardKeywords && (
                     <div className="p-4 bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-xl">
                       <p className="text-xs text-violet-600 dark:text-violet-400 mb-2 font-medium">Moodboard Keywords</p>
                       <div className="flex flex-wrap gap-2">
                         {bible.moodboardKeywords.split(",").map((keyword, i) => (
-                          <span key={i} className="px-3 py-1.5 bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 text-sm rounded-lg">{keyword.trim()}</span>
+                          <span key={i} className="px-3 py-1.5 bg-white/80 dark:bg-zinc-800/80 text-sidebar-foreground text-sm rounded-lg">{keyword.trim()}</span>
                         ))}
                       </div>
                     </div>
@@ -1381,11 +1381,11 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
               {(bible.faqAreYouReal || bible.faqMeetUp || bible.faqFreeContent || bible.faqRealName || bible.faqVoiceNotes || bible.faqTooAttached) && (
                 <DetailSection title="FAQ Responses" icon={FileText}>
                   <div className="space-y-3">
-                    {bible.faqAreYouReal && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Are you real?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqAreYouReal}</p></div>}
-                    {bible.faqMeetUp && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can we meet up?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqMeetUp}</p></div>}
-                    {bible.faqVoiceNotes && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can you send voice notes?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqVoiceNotes}</p></div>}
-                    {bible.faqFreeContent && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can I get free content?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqFreeContent}</p></div>}
-                    {bible.faqRealName && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;What&apos;s your real name?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqRealName}</p></div>}
+                    {bible.faqAreYouReal && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-sidebar-foreground mb-2">&ldquo;Are you real?&rdquo;</p><p className="text-sm text-header-muted italic">{bible.faqAreYouReal}</p></div>}
+                    {bible.faqMeetUp && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-sidebar-foreground mb-2">&ldquo;Can we meet up?&rdquo;</p><p className="text-sm text-header-muted italic">{bible.faqMeetUp}</p></div>}
+                    {bible.faqVoiceNotes && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-sidebar-foreground mb-2">&ldquo;Can you send voice notes?&rdquo;</p><p className="text-sm text-header-muted italic">{bible.faqVoiceNotes}</p></div>}
+                    {bible.faqFreeContent && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-sidebar-foreground mb-2">&ldquo;Can I get free content?&rdquo;</p><p className="text-sm text-header-muted italic">{bible.faqFreeContent}</p></div>}
+                    {bible.faqRealName && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-sidebar-foreground mb-2">&ldquo;What&apos;s your real name?&rdquo;</p><p className="text-sm text-header-muted italic">{bible.faqRealName}</p></div>}
                     {bible.faqTooAttached && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">⚠️ Fan gets too attached</p><p className="text-sm text-amber-600 dark:text-amber-400 italic">{bible.faqTooAttached}</p></div>}
                   </div>
                 </DetailSection>
@@ -1397,7 +1397,7 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
                   <div className="grid grid-cols-2 gap-3">
                     {bible.pricingMenu.filter(item => item.price).map((item, i) => (
                       <div key={i} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
-                        <span className="text-sm text-zinc-700 dark:text-zinc-300">{item.item}</span>
+                        <span className="text-sm text-sidebar-foreground">{item.item}</span>
                         <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">${item.price}</span>
                       </div>
                     ))}
@@ -1411,7 +1411,7 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
                   <div className="space-y-3">
                     {bible.dayChatter && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">☀️ Day Chatter Notes</p><p className="text-sm text-amber-600 dark:text-amber-400">{bible.dayChatter}</p></div>}
                     {bible.nightChatter && <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl"><p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">🌙 Night Chatter Notes</p><p className="text-sm text-indigo-600 dark:text-indigo-400">{bible.nightChatter}</p></div>}
-                    {bible.internalNotes && <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl border-l-4 border-zinc-400 dark:border-zinc-600"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">📝 Internal Notes</p><p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap">{bible.internalNotes}</p></div>}
+                    {bible.internalNotes && <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl border-l-4 border-zinc-400 dark:border-zinc-600"><p className="text-xs font-semibold text-sidebar-foreground mb-2">📝 Internal Notes</p><p className="text-sm text-header-muted whitespace-pre-wrap">{bible.internalNotes}</p></div>}
                   </div>
                 </DetailSection>
               )}
@@ -1419,13 +1419,13 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
           ) : (
             <div className="text-center py-16">
               <div className="w-20 h-20 rounded-3xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-6"><BookOpen className="w-10 h-10 text-zinc-400 dark:text-zinc-500" /></div>
-              <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">No Model Bible</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Edit this profile to add Model Bible details.</p>
+              <h3 className="text-xl font-semibold text-sidebar-foreground mb-2">No Model Bible</h3>
+              <p className="text-sm text-header-muted">Edit this profile to add Model Bible details.</p>
             </div>
           )}
         </div>
         <div className="flex justify-end px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
-          <button onClick={onClose} className="px-6 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">Close</button>
+          <button onClick={onClose} className="px-6 py-2.5 text-sm font-medium text-sidebar-foreground bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">Close</button>
         </div>
       </div>
     </div>,
@@ -1434,17 +1434,17 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
 }
 
 function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="space-y-5"><h3 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{title}</h3>{children}</div>;
+  return <div className="space-y-5"><h3 className="text-lg font-semibold text-sidebar-foreground tracking-tight">{title}</h3>{children}</div>;
 }
 
 function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return <div><label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">{label}{required && <span className="text-red-500 ml-1">*</span>}</label>{children}</div>;
+  return <div><label className="block text-sm font-medium text-sidebar-foreground mb-2">{label}{required && <span className="text-red-500 ml-1">*</span>}</label>{children}</div>;
 }
 
 function DetailSection({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
-  return <div><h3 className="text-sm font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Icon className="w-4 h-4 text-violet-500" />{title}</h3>{children}</div>;
+  return <div><h3 className="text-sm font-semibold text-sidebar-foreground mb-4 flex items-center gap-2"><Icon className="w-4 h-4 text-violet-500" />{title}</h3>{children}</div>;
 }
 
 function InfoPill({ label, value }: { label: string; value: string }) {
-  return <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1 font-medium">{label}</p><p className="text-sm font-semibold text-zinc-900 dark:text-white">{value}</p></div>;
+  return <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-[10px] uppercase tracking-wider text-header-muted mb-1 font-medium">{label}</p><p className="text-sm font-semibold text-sidebar-foreground">{value}</p></div>;
 }

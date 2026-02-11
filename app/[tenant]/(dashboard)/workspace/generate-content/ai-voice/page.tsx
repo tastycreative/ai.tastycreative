@@ -21,6 +21,8 @@ import {
   AudioWaveform,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 
 interface Voice {
   id: string;
@@ -87,6 +89,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
 };
 
 export default function VoiceGeneratorPage() {
+  const { refreshCredits } = useCredits();
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const [text, setText] = useState("");
@@ -251,7 +254,10 @@ export default function VoiceGeneratorPage() {
 
       setLocalAudioUrls(prev => new Map(prev).set(newAudio.id, audioUrl));
       setGeneratedAudios(prev => [newAudio, ...prev]);
-      
+
+      // Refresh credits after successful generation
+      refreshCredits();
+
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.play();
@@ -902,6 +908,24 @@ export default function VoiceGeneratorPage() {
           border: none;
         }
       `}</style>
+
+      {/* Credit Calculator */}
+      <CreditCalculator
+        path="ai-voice"
+        modifiers={[
+          ...(text.length > 500 ? [{
+            label: `Long Text (${text.length} chars)`,
+            multiplier: Math.ceil(text.length / 500),
+            description: 'Credits scale with text length (per 500 characters)'
+          }] : []),
+          ...(modelId === 'eleven_turbo_v2_5' ? [{
+            label: 'Turbo V2.5 Model',
+            multiplier: 1.5,
+            description: 'Turbo model costs 50% more credits for faster generation'
+          }] : []),
+        ]}
+        position="bottom-right"
+      />
     </div>
   );
 }

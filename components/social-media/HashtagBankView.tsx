@@ -243,13 +243,13 @@ export default function HashtagBankView() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-xl">
-              <Hash className="w-7 h-7 text-blue-400" />
+          <h2 className="text-3xl font-bold text-foreground flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-[var(--color-brand-mid-pink)]/20 rounded-xl">
+              <Hash className="w-7 h-7 text-[var(--color-brand-blue)]" />
             </div>
             Hashtag Bank
           </h2>
-          <p className="text-gray-400 text-sm mt-2 ml-1">
+          <p className="text-muted-foreground text-sm mt-2 ml-1">
             Pre-made hashtag sets for easy copy & paste
           </p>
         </div>
@@ -257,7 +257,7 @@ export default function HashtagBankView() {
           {hashtagSets.length > 0 && (
             <button
               onClick={() => openSetModal()}
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all hover:scale-105 text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30"
+              className="px-5 py-2.5 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:opacity-90 text-white rounded-xl transition-all text-sm font-medium flex items-center gap-2 shadow-lg"
             >
               <Plus className="w-4 h-4" />
               Add Set
@@ -268,30 +268,30 @@ export default function HashtagBankView() {
 
       {/* Empty State or Content */}
       {loading && hashtagSets.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-muted-foreground">
           <div className="animate-pulse">Loading hashtag sets...</div>
         </div>
       ) : hashtagSets.length === 0 ? (
-        <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-16 text-center shadow-2xl">
-          <div className="inline-block p-5 bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-2xl mb-6">
-            <Hash className="w-20 h-20 text-blue-400 animate-pulse" />
+        <div className="bg-card border-2 border-border rounded-2xl p-16 text-center shadow-2xl">
+          <div className="inline-block p-5 bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-[var(--color-brand-mid-pink)]/20 rounded-2xl mb-6">
+            <Hash className="w-20 h-20 text-[var(--color-brand-blue)] animate-pulse" />
           </div>
-          <h3 className="text-2xl font-bold text-white mb-3">
+          <h3 className="text-2xl font-bold text-foreground mb-3">
             Create Your Hashtag Library
           </h3>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto text-lg">
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">
             Start with our 9 pre-made sets or create your own custom collections
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <button
               onClick={initializeTemplate}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all hover:scale-105 shadow-lg shadow-blue-600/30 font-medium"
+              className="px-8 py-4 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:opacity-90 text-white rounded-xl transition-all shadow-lg font-medium"
             >
               # Use Pre-made Sets
             </button>
             <button
               onClick={() => openSetModal()}
-              className="px-8 py-4 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 shadow-lg font-medium"
+              className="px-8 py-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all shadow-lg font-medium"
             >
               ✨ Create Custom Set
             </button>
@@ -302,13 +302,13 @@ export default function HashtagBankView() {
           {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search hashtags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-[#1a1a1a] border-2 border-[#2a2a2a] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
+                className="w-full pl-12 pr-4 py-3 bg-background border-2 border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-[var(--color-brand-blue)] transition-all"
               />
             </div>
 
@@ -319,8 +319,8 @@ export default function HashtagBankView() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-5 py-2.5 rounded-xl whitespace-nowrap transition-all font-medium ${
                     selectedCategory === category
-                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30 scale-105"
-                      : "bg-[#1a1a1a] text-gray-400 hover:bg-[#2a2a2a] hover:scale-105"
+                      ? "bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] text-white shadow-lg"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -331,12 +331,12 @@ export default function HashtagBankView() {
 
           {/* Hashtag Sets Grid */}
           {filteredSets.length === 0 ? (
-            <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-16 text-center">
-              <div className="inline-block p-4 bg-gray-600/10 rounded-2xl mb-4">
-                <Hash className="w-16 h-16 text-gray-600" />
+            <div className="bg-card border-2 border-border rounded-2xl p-16 text-center">
+              <div className="inline-block p-4 bg-muted rounded-2xl mb-4">
+                <Hash className="w-16 h-16 text-muted-foreground" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">No hashtags found</h3>
-              <p className="text-gray-400 text-lg">Try a different search or category</p>
+              <h3 className="text-2xl font-bold text-foreground mb-2">No hashtags found</h3>
+              <p className="text-muted-foreground text-lg">Try a different search or category</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -348,7 +348,7 @@ export default function HashtagBankView() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     whileHover={{ y: -4 }}
-                    className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-6 hover:border-[#3a3a3a] transition-all hover:shadow-2xl group"
+                    className="bg-card border-2 border-border rounded-2xl p-6 hover:border-[var(--color-brand-blue)]/30 transition-all shadow-xl group"
                   >
                     <div className="flex items-start justify-between mb-5">
                       <div className="flex items-start gap-4 flex-1">
@@ -356,13 +356,13 @@ export default function HashtagBankView() {
                           <Icon className={`w-7 h-7 text-${set.color}-400`} />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-xl font-bold text-white mb-2">
+                          <h3 className="text-xl font-bold text-foreground mb-2">
                             {set.name}
                           </h3>
                           {set.description && (
-                            <p className="text-sm text-gray-400 mb-3">{set.description}</p>
+                            <p className="text-sm text-muted-foreground mb-3">{set.description}</p>
                           )}
-                          <span className="inline-flex items-center gap-2 text-xs bg-gradient-to-r from-${set.color}-600/20 to-${set.color}-600/10 text-${set.color}-400 px-3 py-1.5 rounded-lg font-medium">
+                          <span className={`inline-flex items-center gap-2 text-xs bg-gradient-to-r from-${set.color}-600/20 to-${set.color}-600/10 text-${set.color}-400 px-3 py-1.5 rounded-lg font-medium`}>
                             <Hash className="w-3 h-3" />
                             {set.hashtags.length} hashtags
                           </span>
@@ -373,8 +373,8 @@ export default function HashtagBankView() {
                           onClick={() => copyToClipboard(set.hashtags, set.id)}
                           className={`p-2.5 rounded-xl transition-all hover:scale-110 ${
                             copiedId === set.id
-                              ? "bg-green-600/20 text-green-400 shadow-lg shadow-green-600/30"
-                              : "bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-400"
+                              ? "bg-green-600/20 text-green-400 shadow-lg"
+                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
                           }`}
                           title="Copy all hashtags"
                         >
@@ -386,10 +386,10 @@ export default function HashtagBankView() {
                         </button>
                         <button
                           onClick={() => openSetModal(set)}
-                          className="p-2.5 hover:bg-blue-600/20 rounded-xl transition-all hover:scale-110"
+                          className="p-2.5 hover:bg-[var(--color-brand-blue)]/20 rounded-xl transition-all hover:scale-110"
                           title="Edit set"
                         >
-                          <Edit2 className="w-4 h-4 text-blue-400" />
+                          <Edit2 className="w-4 h-4 text-[var(--color-brand-blue)]" />
                         </button>
                         <button
                           onClick={() => deleteSet(set.id)}
@@ -402,18 +402,18 @@ export default function HashtagBankView() {
                     </div>
 
                     {/* Hashtag Preview */}
-                    <div className="bg-[#0f0f0f] border border-[#2a2a2a] rounded-xl p-5 max-h-44 overflow-y-auto">
+                    <div className="bg-muted border border-border rounded-xl p-5 max-h-44 overflow-y-auto">
                       <div className="flex flex-wrap gap-2.5">
                         {set.hashtags.slice(0, 15).map((tag, idx) => (
                           <span
                             key={idx}
-                            className="text-sm text-blue-400 hover:text-blue-300 cursor-default px-2 py-1 bg-blue-600/10 rounded-lg transition-colors hover:bg-blue-600/20"
+                            className="text-sm text-[var(--color-brand-blue)] hover:opacity-80 cursor-default px-2 py-1 bg-[var(--color-brand-blue)]/10 rounded-lg transition-colors hover:bg-[var(--color-brand-blue)]/20"
                           >
                             {tag}
                           </span>
                         ))}
                         {set.hashtags.length > 15 && (
-                          <span className="text-sm text-gray-500 px-2 py-1 bg-[#1a1a1a] rounded-lg font-medium">
+                          <span className="text-sm text-muted-foreground px-2 py-1 bg-muted rounded-lg font-medium">
                             +{set.hashtags.length - 15} more
                           </span>
                         )}
@@ -446,20 +446,20 @@ export default function HashtagBankView() {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: "spring", duration: 0.5 }}
-            className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="bg-card border-2 border-border rounded-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <div className="p-2 bg-blue-600/20 rounded-xl">
-                  <Hash className="w-6 h-6 text-blue-400" />
+              <h3 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                <div className="p-2 bg-[var(--color-brand-blue)]/20 rounded-xl">
+                  <Hash className="w-6 h-6 text-[var(--color-brand-blue)]" />
                 </div>
                 {editingSet ? 'Edit Hashtag Set' : 'Create New Hashtag Set'}
               </h3>
               <button
                 onClick={() => setShowSetModal(false)}
-                className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
+                className="p-2.5 hover:bg-muted rounded-xl transition-all hover:scale-110"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 

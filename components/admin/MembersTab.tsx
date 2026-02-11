@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2 } from 'lucide-react';
+import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { InviteMembersModal } from '../InviteMembersModal';
 import { useOrganization } from '@/lib/hooks/useOrganization';
+import { useBillingInfo } from '@/lib/hooks/useBilling.query';
 
 interface MemberData {
   id: string;
@@ -30,6 +31,7 @@ export default function MembersTab() {
   const params = useParams();
   const tenant = params.tenant as string;
   const { currentOrganization, loading: orgLoading } = useOrganization();
+  const { data: billingInfo } = useBillingInfo();
   const [users, setUsers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,10 @@ export default function MembersTab() {
   const [sortBy, setSortBy] = useState<'name' | 'email' | 'created' | 'activity'>('created');
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [showLimitError, setShowLimitError] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [showBulkRemoveModal, setShowBulkRemoveModal] = useState(false);
+  const [isBulkRemoving, setIsBulkRemoving] = useState(false);
 
   useEffect(() => {
     if (tenant && currentOrganization) {
@@ -106,6 +112,81 @@ export default function MembersTab() {
     }
   };
 
+  const handleBulkRemove = async () => {
+    if (selectedMembers.size === 0) return;
+
+    setIsBulkRemoving(true);
+    try {
+      const removePromises = Array.from(selectedMembers).map(memberId =>
+        fetch(`/api/tenant/${tenant}/members?memberId=${memberId}`, {
+          method: 'DELETE',
+        })
+      );
+
+      const results = await Promise.allSettled(removePromises);
+      const failedRemovals = results.filter(result => result.status === 'rejected').length;
+
+      if (failedRemovals > 0) {
+        alert(`Failed to remove ${failedRemovals} member(s). Please try again.`);
+      } else {
+        alert(`Successfully removed ${selectedMembers.size} member(s) from the organization.`);
+      }
+
+      // Refresh the member list
+      await fetchUsers();
+      setSelectedMembers(new Set());
+      setShowBulkRemoveModal(false);
+    } catch (error) {
+      console.error('Error bulk removing members:', error);
+      alert('Failed to remove members. Please try again.');
+    } finally {
+      setIsBulkRemoving(false);
+    }
+  };
+
+  const handleSelectMember = (memberId: string, checked: boolean) => {
+    setSelectedMembers(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(memberId);
+      } else {
+        newSet.delete(memberId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // Only select members that are not owners
+      const selectableMembers = filteredUsers.filter(user => user.role !== 'OWNER');
+      setSelectedMembers(new Set(selectableMembers.map(user => user.id)));
+    } else {
+      setSelectedMembers(new Set());
+    }
+  };
+
+  const handleInviteClick = () => {
+    // Check if we have billing info and member limits
+    if (!billingInfo) {
+      setIsInviteModalOpen(true);
+      return;
+    }
+
+    const currentMembers = billingInfo.usage.members.current;
+    const maxMembers = billingInfo.usage.members.max;
+
+    // Check if we've reached the member limit
+    if (currentMembers >= maxMembers) {
+      setShowLimitError(true);
+      setTimeout(() => setShowLimitError(false), 5000); // Hide after 5 seconds
+      return;
+    }
+
+    // Open the invite modal
+    setIsInviteModalOpen(true);
+  };
+
   const filteredUsers = users
     .filter((user) => {
       const searchLower = searchTerm.toLowerCase();
@@ -159,9 +240,9 @@ export default function MembersTab() {
   if (loading) {
     return (
       <div className="space-y-3 xs:space-y-4">
-        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Organization Members</h3>
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Organization Members</h3>
         <div className="flex items-center justify-center py-8 xs:py-12">
-          <div className="animate-spin rounded-full h-6 w-6 xs:h-8 xs:w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-6 w-6 xs:h-8 xs:w-8 border-b-2 border-[#EC67A1]"></div>
         </div>
       </div>
     );
@@ -170,12 +251,12 @@ export default function MembersTab() {
   if (error) {
     return (
       <div className="space-y-3 xs:space-y-4">
-        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Organization Members</h3>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 xs:p-4">
-          <p className="text-red-800 dark:text-red-200 text-xs xs:text-sm sm:text-base">Error: {error}</p>
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Organization Members</h3>
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 xs:p-4">
+          <p className="text-destructive text-xs xs:text-sm sm:text-base">Error: {error}</p>
           <button
             onClick={fetchUsers}
-            className="mt-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white px-3 xs:px-4 py-1.5 xs:py-2 rounded-lg text-xs xs:text-sm font-medium transition-all"
+            className="mt-2 bg-[#EC67A1] hover:bg-[#F774B9] active:scale-95 text-white px-3 xs:px-4 py-1.5 xs:py-2 rounded-lg text-xs xs:text-sm font-medium transition-all shadow-md shadow-[#EC67A1]/25"
           >
             Retry
           </button>
@@ -187,28 +268,39 @@ export default function MembersTab() {
   return (
     <div className="space-y-3 xs:space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 xs:gap-4">
-        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Organization Members</h3>
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Organization Members</h3>
         
         <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+          {/* Bulk Remove Button */}
+          {selectedMembers.size > 0 && (
+            <button
+              onClick={() => setShowBulkRemoveModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-600/30 text-xs xs:text-sm font-medium active:scale-95"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Remove ({selectedMembers.size})</span>
+            </button>
+          )}
+
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5 xs:w-4 xs:h-4" />
+            <Search className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 xs:w-4 xs:h-4" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 xs:pl-10 pr-3 xs:pr-4 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-xs xs:text-sm"
+              className="pl-8 xs:pl-10 pr-3 xs:pr-4 py-1.5 xs:py-2 border border-border bg-card rounded-lg focus:ring-2 focus:ring-[#EC67A1] focus:border-transparent text-foreground placeholder-muted-foreground text-xs xs:text-sm transition-all"
             />
           </div>
 
           {/* Sort Dropdown */}
           <div className="relative">
-            <Filter className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5 xs:w-4 xs:h-4" />
+            <Filter className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 xs:w-4 xs:h-4" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="pl-8 xs:pl-10 pr-7 xs:pr-8 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white text-xs xs:text-sm appearance-none"
+              className="pl-8 xs:pl-10 pr-7 xs:pr-8 py-1.5 xs:py-2 border border-border bg-card rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent text-foreground text-xs xs:text-sm appearance-none transition-all"
             >
               <option value="created">Newest First</option>
               <option value="name">Name</option>
@@ -220,8 +312,8 @@ export default function MembersTab() {
           {/* Invite Members Button */}
           {currentOrganization && (
             <button
-              onClick={() => setIsInviteModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl text-xs xs:text-sm font-medium"
+              onClick={handleInviteClick}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#F774B9] hover:to-[#EC67A1] text-white rounded-lg transition-all shadow-lg shadow-[#EC67A1]/25 hover:shadow-xl hover:shadow-[#F774B9]/30 text-xs xs:text-sm font-medium active:scale-95"
             >
               <UserPlus className="w-4 h-4" />
               <span className="hidden xs:inline">Invite Members</span>
@@ -231,54 +323,112 @@ export default function MembersTab() {
         </div>
       </div>
 
+      {/* Member Limit Error Message */}
+      {showLimitError && billingInfo && (
+        <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl p-4 shadow-md animate-slideIn">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200 mb-1">
+                Member Limit Reached
+              </h4>
+              <p className="text-sm text-rose-700 dark:text-rose-300 mb-2">
+                You've reached your plan's member limit of <span className="font-semibold">{billingInfo.usage.members.max} members</span>.
+                Currently, you have <span className="font-semibold">{billingInfo.usage.members.current} members</span> in your organization.
+              </p>
+              <p className="text-sm text-rose-600 dark:text-rose-400">
+                Please upgrade your plan to invite more team members.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowLimitError(false)}
+              className="text-rose-400 hover:text-rose-600 dark:text-rose-500 dark:hover:text-rose-300 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Members Count */}
-      <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
-        <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
-          Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredUsers.length}</span> of{' '}
-          <span className="font-semibold text-blue-600 dark:text-blue-400">{users.length}</span> total members
+      <div className="bg-gradient-to-r from-[#EC67A1]/5 to-[#5DC3F8]/5 border border-[#EC67A1]/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
+        <p className="text-xs xs:text-sm text-foreground/80">
+          Showing <span className="font-semibold text-[#EC67A1]">{filteredUsers.length}</span> of{' '}
+          <span className="font-semibold text-[#5DC3F8]">{users.length}</span> total members
         </p>
       </div>
 
       {/* Users Table */}
-      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
+      <div className="bg-card/50 backdrop-blur-sm border border-border rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
-            <thead className="bg-gradient-to-r from-gray-50 to-blue-50/30 dark:from-gray-900/50 dark:to-blue-900/20 border-b border-gray-200/50 dark:border-gray-700/30">
+          <table className="w-full min-w-[850px]">
+            <thead className="bg-gradient-to-r from-[#EC67A1]/5 to-[#5DC3F8]/5 border-b border-border">
               <tr>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-2 xs:px-3 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider w-12">
+                  <button
+                    onClick={() => handleSelectAll(selectedMembers.size !== filteredUsers.filter(u => u.role !== 'OWNER').length)}
+                    className="text-muted-foreground hover:text-[#EC67A1] transition-colors"
+                  >
+                    {selectedMembers.size === filteredUsers.filter(u => u.role !== 'OWNER').length && filteredUsers.filter(u => u.role !== 'OWNER').length > 0 ? (
+                      <CheckSquare className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Contact
                 </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Activity
                 </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Dates
                 </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/30">
+            <tbody className="divide-y divide-border">
               {filteredUsers.map((user, index) => (
                 <tr 
                   key={user.id}
                   className={`${
                     index % 2 === 0 
-                      ? 'bg-white/50 dark:bg-gray-900/20' 
-                      : 'bg-gray-50/30 dark:bg-gray-800/20'
-                  } hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-200`}
+                      ? 'bg-card/30' 
+                      : 'bg-accent/30'
+                  } hover:bg-[#EC67A1]/5 transition-colors duration-200`}
                 >
+                  {/* Select Checkbox */}
+                  <td className="px-2 xs:px-3 py-2.5 xs:py-3 sm:py-4 w-12">
+                    <button
+                      onClick={() => handleSelectMember(user.id, !selectedMembers.has(user.id))}
+                      disabled={user.role === 'OWNER'}
+                      className={`text-muted-foreground hover:text-[#EC67A1] transition-colors ${
+                        user.role === 'OWNER' ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {selectedMembers.has(user.id) ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
+
                   {/* User Info */}
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <div className="flex items-center space-x-2 xs:space-x-3">
-                      <div className="w-8 h-8 xs:w-10 xs:h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 xs:w-10 xs:h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#EC67A1]/25">
                         {user.imageUrl ? (
                           <img src={user.imageUrl} alt={user.firstName || 'User'} className="w-full h-full object-cover" />
                         ) : (
@@ -286,12 +436,12 @@ export default function MembersTab() {
                         )}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white text-xs xs:text-sm">
+                        <p className="font-semibold text-foreground text-xs xs:text-sm">
                           {user.firstName && user.lastName
                             ? `${user.firstName} ${user.lastName}`
                             : user.firstName || user.lastName || 'Anonymous User'}
                         </p>
-                        <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-[10px] xs:text-xs text-muted-foreground">
                           ID: {user.clerkId.slice(-8)}
                         </p>
                       </div>
@@ -301,8 +451,8 @@ export default function MembersTab() {
                   {/* Contact Info */}
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <div className="flex items-center space-x-1 text-xs xs:text-sm">
-                      <Mail className="w-3 h-3 xs:w-4 xs:h-4 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px] xs:max-w-none">
+                      <Mail className="w-3 h-3 xs:w-4 xs:h-4 text-[#5DC3F8] flex-shrink-0" />
+                      <span className="text-foreground/80 truncate max-w-[120px] xs:max-w-none">
                         {user.email || 'No email'}
                       </span>
                     </div>
@@ -314,19 +464,19 @@ export default function MembersTab() {
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value as 'OWNER' | 'ADMIN' | 'MANAGER' | 'CREATOR' | 'VIEWER' | 'MEMBER')}
                       disabled={updatingRoles.has(user.id) || user.role === 'OWNER'}
-                      className={`px-2 xs:px-3 py-1 rounded-full text-[10px] xs:text-xs font-medium border-0 cursor-pointer transition-colors ${
+                      className={`px-2 xs:px-3 py-1 rounded-full text-[10px] xs:text-xs font-medium border border-border cursor-pointer transition-colors ${
                         updatingRoles.has(user.id) || user.role === 'OWNER'
-                          ? 'opacity-50 cursor-not-allowed bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                          ? 'opacity-50 cursor-not-allowed bg-[#EC67A1]/20 text-[#EC67A1] border-[#EC67A1]/30'
                           : user.role === 'ADMIN'
-                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+                          ? 'bg-[#F774B9]/10 text-[#F774B9] border-[#F774B9]/30 hover:bg-[#F774B9]/20'
                           : user.role === 'MANAGER'
-                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                          ? 'bg-[#5DC3F8]/10 text-[#5DC3F8] border-[#5DC3F8]/30 hover:bg-[#5DC3F8]/20'
                           : user.role === 'CREATOR'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                          ? 'bg-[#EC67A1]/10 text-[#EC67A1] border-[#EC67A1]/30 hover:bg-[#EC67A1]/20'
                           : user.role === 'VIEWER'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800/50'
-                      } focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                          ? 'bg-[#5DC3F8]/10 text-[#5DC3F8] border-[#5DC3F8]/30 hover:bg-[#5DC3F8]/20'
+                          : 'bg-accent text-foreground hover:bg-accent/80'
+                      } focus:ring-2 focus:ring-[#EC67A1] focus:outline-none`}
                     >
                       <option value="OWNER">Owner</option>
                       <option value="ADMIN">Admin</option>
@@ -336,7 +486,7 @@ export default function MembersTab() {
                       <option value="MEMBER">Member</option>
                     </select>
                     {updatingRoles.has(user.id) && (
-                      <div className="mt-1 text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
+                      <div className="mt-1 text-[10px] xs:text-xs text-muted-foreground">
                         Updating...
                       </div>
                     )}
@@ -345,34 +495,34 @@ export default function MembersTab() {
                   {/* Activity Stats */}
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <div className="flex flex-col gap-1 xs:grid xs:grid-cols-2 xs:gap-2 text-[10px] xs:text-xs min-w-[140px]">
-                      <div className="bg-blue-100/50 dark:bg-blue-900/30 rounded px-2 py-1 text-center">
-                        <span className="font-semibold text-blue-800 dark:text-blue-300">{user._count.influencers}</span>
-                        <span className="text-blue-600 dark:text-blue-400 ml-1">Influencers</span>
+                      <div className="bg-[#EC67A1]/10 border border-[#EC67A1]/20 rounded px-2 py-1 text-center">
+                        <span className="font-semibold text-[#EC67A1]">{user._count.influencers}</span>
+                        <span className="text-foreground/70 ml-1">Influencers</span>
                       </div>
-                      <div className="bg-purple-100/50 dark:bg-purple-900/30 rounded px-2 py-1 text-center">
-                        <span className="font-semibold text-purple-800 dark:text-purple-300">{user._count.jobs}</span>
-                        <span className="text-purple-600 dark:text-purple-400 ml-1">Jobs</span>
+                      <div className="bg-[#F774B9]/10 border border-[#F774B9]/20 rounded px-2 py-1 text-center">
+                        <span className="font-semibold text-[#F774B9]">{user._count.jobs}</span>
+                        <span className="text-foreground/70 ml-1">Jobs</span>
                       </div>
-                      <div className="bg-emerald-100/50 dark:bg-emerald-900/30 rounded px-2 py-1 text-center">
-                        <span className="font-semibold text-emerald-800 dark:text-emerald-300">{user._count.images}</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 ml-1">Images</span>
+                      <div className="bg-[#5DC3F8]/10 border border-[#5DC3F8]/20 rounded px-2 py-1 text-center">
+                        <span className="font-semibold text-[#5DC3F8]">{user._count.images}</span>
+                        <span className="text-foreground/70 ml-1">Images</span>
                       </div>
-                      <div className="bg-orange-100/50 dark:bg-orange-900/30 rounded px-2 py-1 text-center">
-                        <span className="font-semibold text-orange-800 dark:text-orange-300">{user._count.videos}</span>
-                        <span className="text-orange-600 dark:text-orange-400 ml-1">Videos</span>
+                      <div className="bg-accent border border-border rounded px-2 py-1 text-center">
+                        <span className="font-semibold text-foreground">{user._count.videos}</span>
+                        <span className="text-foreground/70 ml-1">Videos</span>
                       </div>
                     </div>
                   </td>
 
                   {/* Dates */}
-                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-xs xs:text-sm text-gray-600 dark:text-gray-300">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-xs xs:text-sm text-foreground/80">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <Calendar className="w-3 h-3 text-[#EC67A1] flex-shrink-0" />
                         <span className="whitespace-nowrap">Joined: {new Date(user.joinedAt).toLocaleDateString()}</span>
                       </div>
                       {user.lastSignInAt && (
-                        <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        <div className="text-[10px] xs:text-xs text-muted-foreground whitespace-nowrap">
                           Last active: {new Date(user.lastSignInAt).toLocaleDateString()}
                         </div>
                       )}
@@ -381,8 +531,8 @@ export default function MembersTab() {
 
                   {/* Actions */}
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
-                    <button className="p-1.5 xs:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group active:scale-95">
-                      <Eye className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                    <button className="p-1.5 xs:p-2 hover:bg-accent rounded-lg transition-colors group active:scale-95 border border-transparent hover:border-[#5DC3F8]/30">
+                      <Eye className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-muted-foreground group-hover:text-[#5DC3F8]" />
                     </button>
                   </td>
                 </tr>
@@ -394,9 +544,9 @@ export default function MembersTab() {
 
       {filteredUsers.length === 0 && (
         <div className="text-center py-8 xs:py-12">
-          <User className="w-10 h-10 xs:w-12 xs:h-12 text-gray-400 mx-auto mb-3 xs:mb-4" />
-          <h3 className="text-base xs:text-lg font-medium text-gray-900 dark:text-white mb-2">No users found</h3>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-500 dark:text-gray-400">
+          <User className="w-10 h-10 xs:w-12 xs:h-12 text-muted-foreground mx-auto mb-3 xs:mb-4" />
+          <h3 className="text-base xs:text-lg font-medium text-foreground mb-2">No users found</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-muted-foreground">
             {searchTerm ? 'Try adjusting your search terms' : 'No users have signed up yet'}
           </p>
         </div>
@@ -410,7 +560,83 @@ export default function MembersTab() {
           isOpen={isInviteModalOpen}
           onClose={() => setIsInviteModalOpen(false)}
           onSuccess={fetchUsers}
+          currentMembers={billingInfo?.usage.members.current}
+          maxMembers={billingInfo?.usage.members.max}
         />
+      )}
+
+      {/* Bulk Remove Confirmation Modal */}
+      {showBulkRemoveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBulkRemoveModal(false)} />
+
+          {/* Modal */}
+          <div className="relative bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground">Remove Members</h2>
+              <button
+                onClick={() => setShowBulkRemoveModal(false)}
+                className="p-1.5 hover:bg-accent rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+              {/* Warning */}
+              <div className="flex items-start gap-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl mb-4">
+                <AlertCircle className="w-6 h-6 text-red-400 shrink-0" />
+                <div>
+                  <h3 className="font-medium text-red-600 dark:text-red-400">This action cannot be undone</h3>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/70 mt-1">
+                    You are about to remove <span className="font-semibold">{selectedMembers.size}</span> member{selectedMembers.size !== 1 ? 's' : ''} from the organization.
+                    They will lose access to all organization resources and data.
+                  </p>
+                </div>
+              </div>
+
+              {/* Selected Members List */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">Members to be removed:</h4>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {filteredUsers
+                    .filter(user => selectedMembers.has(user.id))
+                    .map(user => (
+                      <div key={user.id} className="text-sm text-muted-foreground bg-accent/50 rounded px-2 py-1">
+                        {user.firstName && user.lastName
+                          ? `${user.firstName} ${user.lastName}`
+                          : user.firstName || user.lastName || 'Anonymous User'}
+                        {user.email && ` (${user.email})`}
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBulkRemoveModal(false)}
+                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 text-foreground rounded-lg transition-colors font-medium"
+                  disabled={isBulkRemoving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkRemove}
+                  disabled={isBulkRemoving}
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBulkRemoving ? 'Removing...' : 'Remove Members'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

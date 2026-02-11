@@ -65,10 +65,10 @@ const LazyImage = memo(function LazyImage({
           decoding="async"
         />
       ) : (
-        <div className="w-full h-full bg-gray-800 animate-pulse" />
+        <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
       )}
       {isInView && !isLoaded && (
-        <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+        <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
       )}
     </div>
   );
@@ -117,7 +117,7 @@ const LazyVideoThumbnail = memo(function LazyVideoThumbnail({
           }}
         />
       ) : (
-        <div className="w-full h-full bg-gray-800 animate-pulse" />
+        <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
       )}
     </div>
   );
@@ -408,12 +408,12 @@ const VaultGridItem = memo(function VaultGridItem({
 
   return (
     <div
-      className={`vault-item group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer active:scale-95 ${
+      className={`vault-item group bg-white dark:bg-[#1a1625]/50 rounded-lg sm:rounded-xl border transition-all cursor-pointer active:scale-95 ${
         isInCompare
-          ? 'border-cyan-500 ring-2 ring-cyan-500/30'
+          ? 'border-[#5DC3F8] ring-2 ring-[#5DC3F8]/30'
           : isSelected
-          ? 'border-blue-500 ring-2 ring-blue-500/30'
-          : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'
+          ? 'border-[#EC67A1] ring-2 ring-[#EC67A1]/30'
+          : 'border-[#EC67A1]/20 dark:border-[#EC67A1]/30 hover:border-[#EC67A1]/50 hover:shadow-lg'
       }`}
       onClick={handleClick}
     >
@@ -435,8 +435,8 @@ const VaultGridItem = memo(function VaultGridItem({
           <div className="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
             <div className={`p-1.5 rounded-lg transition-all ${
               isInCompare
-                ? 'bg-cyan-500/20 text-cyan-400'
-                : 'bg-gray-900/90 text-gray-400'
+                ? 'bg-[#5DC3F8]/20 text-[#5DC3F8]'
+                : 'bg-white/90 dark:bg-[#1a1625]/90 text-header-muted'
             }`}>
               <Columns2 className="w-4 h-4" />
             </div>
@@ -450,7 +450,7 @@ const VaultGridItem = memo(function VaultGridItem({
           } ${compareMode ? 'hidden' : ''}`}
         >
           <label 
-            className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 bg-gray-900/90 backdrop-blur rounded-lg cursor-pointer hover:bg-gray-700 transition-colors active:scale-95"
+            className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 bg-white/90 dark:bg-[#1a1625]/90 backdrop-blur rounded-lg cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors active:scale-95"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -460,7 +460,7 @@ const VaultGridItem = memo(function VaultGridItem({
                 e.stopPropagation();
                 onSelect(item.id);
               }}
-              className="w-5 h-5 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
+              className="w-5 h-5 sm:w-4 sm:h-4 text-[#EC67A1] bg-white dark:bg-[#1a1625] border-[#EC67A1]/30 rounded focus:ring-[#EC67A1] shadow-sm cursor-pointer"
             />
           </label>
         </div>
@@ -472,7 +472,7 @@ const VaultGridItem = memo(function VaultGridItem({
             <LazyImage
               src={item.awsS3Url}
               alt={item.fileName}
-              className="w-full h-full rounded-lg bg-gray-800 relative overflow-hidden"
+              className="w-full h-full rounded-lg bg-zinc-100 dark:bg-zinc-800 relative overflow-hidden"
               onError={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
                 if (!img.dataset.retried) {
@@ -482,7 +482,7 @@ const VaultGridItem = memo(function VaultGridItem({
               }}
             />
           ) : item.fileType.startsWith('video/') ? (
-            <div className="relative w-full h-full bg-gray-800 rounded-lg overflow-hidden">
+            <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden">
               <LazyVideoThumbnail
                 src={item.awsS3Url}
                 className="w-full h-full"
@@ -498,8 +498,8 @@ const VaultGridItem = memo(function VaultGridItem({
               <Music4 className="w-10 sm:w-12 h-10 sm:h-12 text-purple-400" />
             </div>
           ) : (
-            <div className="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center">
-              <FileIcon className="w-10 sm:w-12 h-10 sm:h-12 text-gray-600" />
+            <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+              <FileIcon className="w-10 sm:w-12 h-10 sm:h-12 text-zinc-400 dark:text-zinc-600" />
             </div>
           )}
         </div>
@@ -510,31 +510,31 @@ const VaultGridItem = memo(function VaultGridItem({
         >
           {item.metadata && (
             <div
-              className="p-1.5 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg"
+              className="p-1.5 sm:p-1.5 bg-gradient-to-br from-[#5DC3F8]/20 to-[#EC67A1]/20 backdrop-blur shadow-sm rounded-lg"
               title="AI Generated - Click to view details"
             >
-              <Sparkles className="w-4 sm:w-4 h-4 sm:h-4 text-cyan-400" />
+              <Sparkles className="w-4 sm:w-4 h-4 sm:h-4 text-[#5DC3F8]" />
             </div>
           )}
           <button
             onClick={(e) => onDownload(item, e)}
-            className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors active:scale-95 touch-manipulation"
+            className="p-2 sm:p-1.5 bg-white/90 dark:bg-[#1a1625]/90 backdrop-blur shadow-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors active:scale-95 touch-manipulation"
             title="Download"
           >
-            <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-300" />
+            <Download className="w-4 sm:w-4 h-4 sm:h-4 text-sidebar-foreground" />
           </button>
           {canEdit && (
             <button
               onClick={handleDeleteClick}
-              className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors active:scale-95 touch-manipulation"
+              className="p-2 sm:p-1.5 bg-white/90 dark:bg-[#1a1625]/90 backdrop-blur shadow-sm rounded-lg hover:bg-red-50 dark:hover:bg-red-900/50 transition-colors active:scale-95 touch-manipulation"
             >
-              <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-400" />
+              <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-500 dark:text-red-400" />
             </button>
           )}
         </div>
       </div>
       <div className="px-2 sm:px-3 pb-2 sm:pb-3">
-        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate leading-tight">
+        <p className="text-xs sm:text-sm font-medium text-sidebar-foreground truncate leading-tight">
           {item.fileName}
         </p>
         {showGeneratorInfo && (
@@ -543,10 +543,10 @@ const VaultGridItem = memo(function VaultGridItem({
           </p>
         )}
         <div className="flex items-center justify-between mt-1">
-          <span className="text-xs sm:text-xs text-gray-500 font-medium">
+          <span className="text-xs sm:text-xs text-header-muted font-medium">
             {formatFileSize(item.fileSize)}
           </span>
-          <span className="text-[10px] sm:text-xs text-gray-600 hidden sm:inline">
+          <span className="text-[10px] sm:text-xs text-header-muted hidden sm:inline">
             {item.createdAt.toLocaleDateString()}
           </span>
         </div>
@@ -606,10 +606,10 @@ const VaultListItem = memo(function VaultListItem({
   return (
     <div
       onClick={handleClick}
-      className={`vault-item group flex items-center gap-2 sm:gap-4 p-2.5 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer active:scale-[0.99] touch-manipulation ${
+      className={`vault-item group flex items-center gap-2 sm:gap-4 p-2.5 sm:p-3 bg-white dark:bg-[#1a1625]/50 rounded-lg border transition-all cursor-pointer active:scale-[0.99] touch-manipulation ${
         isSelected
-          ? 'border-blue-500 ring-2 ring-blue-500/30'
-          : 'border-gray-800 hover:border-gray-700'
+          ? 'border-[#EC67A1] ring-2 ring-[#EC67A1]/30'
+          : 'border-[#EC67A1]/20 dark:border-[#EC67A1]/30 hover:border-[#EC67A1]/50'
       }`}
     >
       <div
@@ -620,7 +620,7 @@ const VaultListItem = memo(function VaultListItem({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <label className="flex items-center justify-center w-8 h-8 cursor-pointer hover:bg-gray-800 rounded-lg transition-colors">
+        <label className="flex items-center justify-center w-8 h-8 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
           <input
             type="checkbox"
             checked={isSelected}
@@ -628,11 +628,11 @@ const VaultListItem = memo(function VaultListItem({
               e.stopPropagation();
               onSelect(item.id);
             }}
-            className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+            className="w-4 h-4 text-[#EC67A1] bg-white dark:bg-[#1a1625] border-[#EC67A1]/30 rounded focus:ring-[#EC67A1] flex-shrink-0 cursor-pointer"
           />
         </label>
       </div>
-      <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
+      <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
         {item.fileType.startsWith('image/') ? (
           <LazyImage
             src={item.awsS3Url}
@@ -647,7 +647,7 @@ const VaultListItem = memo(function VaultListItem({
             }}
           />
         ) : item.fileType.startsWith('video/') ? (
-          <div className="relative w-full h-full bg-gray-800">
+          <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-800">
             <LazyVideoThumbnail
               src={item.awsS3Url}
               className="w-full h-full"
@@ -662,24 +662,24 @@ const VaultListItem = memo(function VaultListItem({
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <FileIcon className="w-4 sm:w-5 h-4 sm:h-5 text-gray-500" />
+            <FileIcon className="w-4 sm:w-5 h-4 sm:h-5 text-header-muted" />
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm sm:text-sm font-medium text-gray-200 truncate leading-tight">
+        <p className="text-sm sm:text-sm font-medium text-sidebar-foreground truncate leading-tight">
           {item.fileName}
         </p>
         {showGeneratorInfo && (
-          <p className="text-[10px] sm:text-xs text-amber-300 truncate">
+          <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-300 truncate">
             Generated by {item.metadata?.generatedByName || item.creatorName || 'Unknown creator'}
           </p>
         )}
-        <p className="text-xs sm:text-xs text-gray-500 mt-0.5">
+        <p className="text-xs sm:text-xs text-header-muted mt-0.5">
           {formatFileSize(item.fileSize)}
         </p>
       </div>
-      <div className="text-[10px] sm:text-xs text-gray-600 items-center gap-1 hidden md:flex">
+      <div className="text-[10px] sm:text-xs text-header-muted items-center gap-1 hidden md:flex">
         <Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
         {item.createdAt.toLocaleDateString()}
       </div>
@@ -690,17 +690,17 @@ const VaultListItem = memo(function VaultListItem({
       >
         <button
           onClick={(e) => onDownload(item, e)}
-          className="p-2 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95 touch-manipulation"
+          className="p-2 sm:p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors active:scale-95 touch-manipulation"
           title="Download"
         >
-          <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-400" />
+          <Download className="w-4 sm:w-4 h-4 sm:h-4 text-header-muted" />
         </button>
         {canEdit && (
           <button
             onClick={handleDeleteClick}
-            className="p-2 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors active:scale-95 touch-manipulation"
+            className="p-2 sm:p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors active:scale-95 touch-manipulation"
           >
-            <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-400" />
+            <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-500 dark:text-red-400" />
           </button>
         )}
       </div>
@@ -836,17 +836,17 @@ const FolderTreeItem = memo(function FolderTreeItem({
             onChange={(e) => setEditingFolderName(e.target.value)} 
             onKeyPress={(e) => e.key === 'Enter' && onUpdateFolder()} 
             autoFocus 
-            className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" 
+            className="flex-1 px-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/20 rounded-xl text-sidebar-foreground focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1]" 
           />
-          <button onClick={onUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
-          <button onClick={onCancelEdit} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
+          <button onClick={onUpdateFolder} className="p-1.5 text-emerald-600 dark:text-emerald-400"><Check className="w-4 h-4" /></button>
+          <button onClick={onCancelEdit} className="p-1.5 text-header-muted"><X className="w-4 h-4" /></button>
         </div>
       ) : (
         <div 
           className={`group w-full flex items-center gap-2 py-2.5 rounded-xl transition-all cursor-pointer ${
             isDragOver 
-              ? 'bg-blue-500/20 text-blue-300 border-2 border-dashed border-blue-500/50 ring-1 ring-blue-500/30'
-              : isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'
+              ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] dark:text-[#5DC3F8] border-2 border-dashed border-[#5DC3F8]/50 ring-1 ring-[#5DC3F8]/30'
+              : isActive ? 'bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-[#E1518E] dark:text-[#F774B9] border border-[#EC67A1]/30' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-sidebar-foreground border border-transparent'
           }`}
           style={{ paddingLeft: `${level * 12 + 8}px`, paddingRight: '12px' }}
           draggable={!folder.isDefault}
@@ -859,7 +859,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
           {hasSubfolders && (
             <button 
               onClick={(e) => { e.stopPropagation(); onToggleExpand(folder.id); }}
-              className="p-0.5 hover:bg-white/10 rounded transition-colors flex-shrink-0"
+              className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
             >
               {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </button>
@@ -880,7 +880,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
                   onToggleFolderSelection?.(folder.id);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-4 h-4 text-violet-600 bg-gray-800 border-gray-600 rounded focus:ring-violet-500 cursor-pointer"
+                className="w-4 h-4 text-[#EC67A1] bg-white dark:bg-[#1a1625] border-[#EC67A1]/30 rounded focus:ring-[#EC67A1] cursor-pointer"
               />
             </div>
           )}
@@ -904,7 +904,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
           </div>
           
           {/* Item count */}
-          <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#EC67A1]/30 text-[#E1518E] dark:text-[#F774B9]' : 'bg-zinc-100 dark:bg-zinc-800 text-header-muted'}`}>
             {itemCount}
           </span>
           
@@ -912,40 +912,40 @@ const FolderTreeItem = memo(function FolderTreeItem({
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
             <button 
               onClick={(e) => { e.stopPropagation(); onCreateSubfolder(folder.id); }} 
-              className="p-1 hover:bg-white/10 rounded-lg" 
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg" 
               title="Create subfolder"
             >
-              <FolderPlus className="w-3.5 h-3.5 text-gray-500" />
+              <FolderPlus className="w-3.5 h-3.5 text-header-muted" />
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onOpenShareModal(folder); }} 
-              className="p-1 hover:bg-white/10 rounded-lg" 
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg" 
               title="Share"
             >
-              <Share2 className="w-3.5 h-3.5 text-gray-500" />
+              <Share2 className="w-3.5 h-3.5 text-header-muted" />
             </button>
             {!folder.isDefault && (
               <>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onMoveFolder(folder); }} 
-                  className="p-1 hover:bg-white/10 rounded-lg" 
+                  className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg" 
                   title="Move folder"
                 >
-                  <Move className="w-3.5 h-3.5 text-gray-500" />
+                  <Move className="w-3.5 h-3.5 text-header-muted" />
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEditFolder(folder); }} 
-                  className="p-1 hover:bg-white/10 rounded-lg" 
+                  className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg" 
                   title="Rename"
                 >
-                  <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                  <Edit2 className="w-3.5 h-3.5 text-header-muted" />
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }} 
-                  className="p-1 hover:bg-white/10 rounded-lg" 
+                  className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" 
                   title="Delete"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <Trash2 className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
                 </button>
               </>
             )}
@@ -3182,11 +3182,11 @@ export function VaultContent() {
         <div className="fixed bottom-4 right-4 z-[100] animate-slideUp">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-xl ${
             toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-500/30' : 
-            toast.type === 'error' ? 'bg-red-500/20 text-red-100 border border-red-500/30' : 'bg-violet-500/20 text-violet-100 border border-violet-500/30'
+            toast.type === 'error' ? 'bg-red-500/20 text-red-100 border border-red-500/30' : 'bg-[#EC67A1]/20 text-[#F774B9] border border-[#EC67A1]/30'
           }`}>
             {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-400" />}
             {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
-            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-violet-400" />}
+            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-[#EC67A1]" />}
             <p className="text-sm font-medium">{toast.message}</p>
             <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70"><X className="w-4 h-4" /></button>
           </div>
@@ -3198,11 +3198,11 @@ export function VaultContent() {
       {isAddingNew && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setIsAddingNew(false); setNewFiles([]); }} />
-          <div className="relative glass-card rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg animate-slideUp max-h-[90vh] sm:max-h-none overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/[0.06]">
-              <h3 className="text-base sm:text-lg font-semibold text-white">Upload Files</h3>
-              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
+          <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg animate-slideUp max-h-[90vh] sm:max-h-none overflow-hidden border border-[#EC67A1]/20">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#EC67A1]/10">
+              <h3 className="text-base sm:text-lg font-semibold text-sidebar-foreground">Upload Files</h3>
+              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-header-muted" />
               </button>
             </div>
             <div className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[60vh] sm:max-h-none vault-scroll">
@@ -3210,15 +3210,15 @@ export function VaultContent() {
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                 onDrop={(e) => { e.preventDefault(); setIsDragging(false); setNewFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-                className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 transition-all ${isDragging ? 'border-violet-500 bg-violet-500/10' : 'border-white/20 hover:border-white/30 hover:bg-white/5'}`}
+                className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 transition-all ${isDragging ? 'border-[#EC67A1] bg-[#EC67A1]/10' : 'border-[#EC67A1]/30 hover:border-[#EC67A1]/50 hover:bg-[#EC67A1]/5'}`}
               >
                 <div className="flex flex-col items-center gap-3">
-                  <div className={`p-3 rounded-full ${isDragging ? 'bg-blue-500/20' : 'bg-gray-800'}`}>
-                    <Upload className={`w-6 h-6 ${isDragging ? 'text-blue-400' : 'text-gray-400'}`} />
+                  <div className={`p-3 rounded-full ${isDragging ? 'bg-[#5DC3F8]/20' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+                    <Upload className={`w-6 h-6 ${isDragging ? 'text-[#5DC3F8]' : 'text-header-muted'}`} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium text-gray-200">Tap to select files</p>
-                    <p className="text-xs text-gray-500 mt-1 hidden sm:block">or drag and drop</p>
+                    <p className="text-sm font-medium text-sidebar-foreground">Tap to select files</p>
+                    <p className="text-xs text-header-muted mt-1 hidden sm:block">or drag and drop</p>
                   </div>
                   <input type="file" accept="image/*,video/*,audio/*" multiple onChange={(e) => setNewFiles(prev => [...prev, ...Array.from(e.target.files || [])])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 </div>
@@ -3226,22 +3226,22 @@ export function VaultContent() {
               {newFiles.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-300">{newFiles.length} file(s) selected</p>
-                    <button onClick={() => setNewFiles([])} className="text-xs text-red-400 hover:text-red-300">Clear all</button>
+                    <p className="text-sm font-medium text-sidebar-foreground">{newFiles.length} file(s) selected</p>
+                    <button onClick={() => setNewFiles([])} className="text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300">Clear all</button>
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-2 vault-scroll">
                     {newFiles.map((file, index) => (
-                      <div key={index} className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
-                        <div className="p-2 bg-gray-700 rounded-lg">
-                          {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-blue-400" /> :
-                           file.type.startsWith('video/') ? <VideoIcon className="w-4 h-4 text-purple-400" /> :
-                           file.type.startsWith('audio/') ? <Music4 className="w-4 h-4 text-pink-400" /> : <FileIcon className="w-4 h-4 text-gray-400" />}
+                      <div key={index} className="flex items-center gap-3 p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                        <div className="p-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg">
+                          {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-[#5DC3F8]" /> :
+                           file.type.startsWith('video/') ? <VideoIcon className="w-4 h-4 text-purple-500 dark:text-purple-400" /> :
+                           file.type.startsWith('audio/') ? <Music4 className="w-4 h-4 text-[#EC67A1]" /> : <FileIcon className="w-4 h-4 text-header-muted" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-200 truncate">{file.name}</p>
-                          <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                          <p className="text-sm font-medium text-sidebar-foreground truncate">{file.name}</p>
+                          <p className="text-xs text-header-muted">{formatFileSize(file.size)}</p>
                         </div>
-                        <button onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== index))} className="p-1 hover:bg-gray-700 rounded"><X className="w-4 h-4 text-gray-500" /></button>
+                        <button onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== index))} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"><X className="w-4 h-4 text-header-muted" /></button>
                       </div>
                     ))}
                   </div>
@@ -3250,18 +3250,18 @@ export function VaultContent() {
               {uploadProgress > 0 && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Uploading...</span>
-                    <span className="text-blue-400 font-medium">{uploadProgress}%</span>
+                    <span className="text-header-muted">Uploading...</span>
+                    <span className="text-[#5DC3F8] font-medium">{uploadProgress}%</span>
                   </div>
-                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                  <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#5DC3F8] rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                   </div>
                 </div>
               )}
             </div>
-            <div className="flex gap-3 p-4 sm:p-5 border-t border-gray-700">
-              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); setUploadProgress(0); }} disabled={uploadProgress > 0} className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={handleAddItem} disabled={newFiles.length === 0 || uploadProgress > 0} className="flex-1 px-4 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            <div className="flex gap-3 p-4 sm:p-5 border-t border-[#EC67A1]/10">
+              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); setUploadProgress(0); }} disabled={uploadProgress > 0} className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={handleAddItem} disabled={newFiles.length === 0 || uploadProgress > 0} className="flex-1 px-4 py-2.5 text-white bg-[#EC67A1] hover:bg-[#E1518E] rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                 {uploadProgress > 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload
               </button>
             </div>
@@ -3274,19 +3274,19 @@ export function VaultContent() {
       {showMoveModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} />
-          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-gray-700">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
-              <h3 className="text-base sm:text-lg font-semibold text-white">{isCopyMode ? 'Copy' : 'Move'} {selectedItems.size} item(s)</h3>
-              <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+          <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-[#EC67A1]/20">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#EC67A1]/10">
+              <h3 className="text-base sm:text-lg font-semibold text-sidebar-foreground">{isCopyMode ? 'Copy' : 'Move'} {selectedItems.size} item(s)</h3>
+              <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-5 h-5 text-header-muted" /></button>
             </div>
             <div className="p-4 sm:p-5 space-y-4">
               <div className="flex gap-2">
-                <button onClick={() => setIsCopyMode(false)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${!isCopyMode ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}><Move className="w-4 h-4" /> Move</button>
-                <button onClick={() => setIsCopyMode(true)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${isCopyMode ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}><Copy className="w-4 h-4" /> Copy</button>
+                <button onClick={() => setIsCopyMode(false)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${!isCopyMode ? 'bg-[#5DC3F8] text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}><Move className="w-4 h-4" /> Move</button>
+                <button onClick={() => setIsCopyMode(true)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${isCopyMode ? 'bg-emerald-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}><Copy className="w-4 h-4" /> Copy</button>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Destination folder</label>
-                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-600 bg-gray-800 vault-scroll">
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Destination folder</label>
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50 vault-scroll">
                   {(() => {
                     // Build tree-based folder picker
                     const renderFolderTree = (
@@ -3308,17 +3308,17 @@ export function VaultContent() {
                             disabled={isExcluded}
                             className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ${
                               isExcluded
-                                ? 'text-gray-600 cursor-not-allowed opacity-50'
+                                ? 'text-header-muted cursor-not-allowed opacity-50'
                                 : moveToFolderId === folder.id
-                                  ? 'bg-violet-500/20 text-violet-300 border-l-2 border-violet-500'
-                                  : 'text-gray-300 hover:bg-white/5'
+                                  ? 'bg-[#EC67A1]/20 text-[#E1518E] dark:text-[#F774B9] border-l-2 border-[#EC67A1]'
+                                  : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                             }`}
                             style={{ paddingLeft: `${12 + depth * 16}px` }}
                           >
-                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
+                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-header-muted" />
                             <span className="truncate">{folder.name}</span>
                             {isExcluded && (
-                              <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">(current)</span>
+                              <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">(current)</span>
                             )}
                           </button>,
                           ...renderFolderTree(foldersForProfile, folder.id, depth + 1, excludeFolderIds),
@@ -3349,7 +3349,7 @@ export function VaultContent() {
                               if (!hasVisibleFolders) return null;
                               return (
                                 <div key={profile.id}>
-                                  <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/80 sticky top-0">
+                                  <div className="px-3 py-1.5 text-[10px] font-semibold text-header-muted uppercase tracking-wider bg-zinc-100/80 dark:bg-zinc-800/80 sticky top-0">
                                     {profile.name}
                                   </div>
                                   {renderFolderTree(profileFolders, null, 0, excludeIds)}
@@ -3358,7 +3358,7 @@ export function VaultContent() {
                             })}
                             {sharedFolders.filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId).length > 0 && (
                               <div>
-                                <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/80 sticky top-0">
+                                <div className="px-3 py-1.5 text-[10px] font-semibold text-header-muted uppercase tracking-wider bg-zinc-100/80 dark:bg-zinc-800/80 sticky top-0">
                                   Shared Folders
                                 </div>
                                 {sharedFolders
@@ -3371,13 +3371,13 @@ export function VaultContent() {
                                       onClick={() => setMoveToFolderId(sf.folderId)}
                                       className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ${
                                         moveToFolderId === sf.folderId
-                                          ? 'bg-violet-500/20 text-violet-300 border-l-2 border-violet-500'
-                                          : 'text-gray-300 hover:bg-white/5'
+                                          ? 'bg-[#EC67A1]/20 text-[#E1518E] dark:text-[#F774B9] border-l-2 border-[#EC67A1]'
+                                          : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                                       }`}
                                     >
-                                      <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
+                                      <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-header-muted" />
                                       <span className="truncate">{sf.folderName}</span>
-                                      <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">from {sf.ownerName}</span>
+                                      <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">from {sf.ownerName}</span>
                                     </button>
                                   ))}
                               </div>
@@ -3391,8 +3391,8 @@ export function VaultContent() {
                               if (visibleNonDefault.length === 0) return null;
                               return (
                                 <div key={profile.id}>
-                                  <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/80 sticky top-0 flex items-center gap-1">
-                                    {profile.id === selectedProfileId && <span className="text-violet-400">●</span>}
+                                  <div className="px-3 py-1.5 text-[10px] font-semibold text-header-muted uppercase tracking-wider bg-zinc-100/80 dark:bg-zinc-800/80 sticky top-0 flex items-center gap-1">
+                                    {profile.id === selectedProfileId && <span className="text-[#EC67A1]">●</span>}
                                     {profile.name}
                                   </div>
                                   {renderFolderTree(profileFolders, null, 0, excludeIds)}
@@ -3401,7 +3401,7 @@ export function VaultContent() {
                             })}
                             {sharedFolders.filter(sf => sf.permission === 'EDIT').length > 0 && (
                               <div>
-                                <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/80 sticky top-0">
+                                <div className="px-3 py-1.5 text-[10px] font-semibold text-header-muted uppercase tracking-wider bg-zinc-100/80 dark:bg-zinc-800/80 sticky top-0">
                                   Shared Folders
                                 </div>
                                 {sharedFolders
@@ -3414,13 +3414,13 @@ export function VaultContent() {
                                       onClick={() => setMoveToFolderId(sf.folderId)}
                                       className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ${
                                         moveToFolderId === sf.folderId
-                                          ? 'bg-violet-500/20 text-violet-300 border-l-2 border-violet-500'
-                                          : 'text-gray-300 hover:bg-white/5'
+                                          ? 'bg-[#EC67A1]/20 text-[#E1518E] dark:text-[#F774B9] border-l-2 border-[#EC67A1]'
+                                          : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                                       }`}
                                     >
-                                      <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
+                                      <FolderOpen className="w-3.5 h-3.5 flex-shrink-0 text-header-muted" />
                                       <span className="truncate">{sf.folderName}</span>
-                                      <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">from {sf.ownerName}</span>
+                                      <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">from {sf.ownerName}</span>
                                     </button>
                                   ))}
                               </div>
@@ -3433,7 +3433,7 @@ export function VaultContent() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors">Cancel</button>
+                <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors">Cancel</button>
                 <button
                   onClick={async () => {
                     if (!moveToFolderId) { showToast('Select a destination folder', 'error'); return; }
@@ -3465,7 +3465,7 @@ export function VaultContent() {
                     finally { setIsMoving(false); }
                   }}
                   disabled={!moveToFolderId || isMoving}
-                  className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${isCopyMode ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${isCopyMode ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5DC3F8] hover:bg-[#4AB3E8]'}`}
                 >
                   {isMoving ? <Loader2 className="w-4 h-4 animate-spin" /> : isCopyMode ? <Copy className="w-4 h-4" /> : <Move className="w-4 h-4" />} {isCopyMode ? 'Copy' : 'Move'}
                 </button>
@@ -3480,25 +3480,25 @@ export function VaultContent() {
       {showMoveFolderModal && folderToMove && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowMoveFolderModal(false); setFolderToMove(null); setMoveFolderDestinationId(null); }} />
-          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-gray-700">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+          <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-[#EC67A1]/20">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#EC67A1]/10">
               <div>
-                <h3 className="text-base sm:text-lg font-semibold text-white">Move Folder</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Moving &ldquo;{folderToMove.name}&rdquo;</p>
+                <h3 className="text-base sm:text-lg font-semibold text-sidebar-foreground">Move Folder</h3>
+                <p className="text-xs text-header-muted mt-0.5">Moving &ldquo;{folderToMove.name}&rdquo;</p>
               </div>
-              <button onClick={() => { setShowMoveFolderModal(false); setFolderToMove(null); setMoveFolderDestinationId(null); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => { setShowMoveFolderModal(false); setFolderToMove(null); setMoveFolderDestinationId(null); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-5 h-5 text-header-muted" /></button>
             </div>
             <div className="p-4 sm:p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Destination</label>
-                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-700 bg-gray-800/50">
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Destination</label>
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50">
                   {/* Root level option */}
                   <button
                     onClick={() => setMoveFolderDestinationId(null)}
-                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors border-b border-gray-700/50 ${
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors border-b border-[#EC67A1]/10 ${
                       moveFolderDestinationId === null 
-                        ? 'bg-blue-600/20 text-blue-300 border-l-2 border-l-blue-500' 
-                        : 'text-gray-300 hover:bg-white/5'
+                        ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] border-l-2 border-l-[#5DC3F8]' 
+                        : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
                   >
                     <FolderOpen className="w-4 h-4 flex-shrink-0" />
@@ -3523,20 +3523,20 @@ export function VaultContent() {
                             disabled={isInvalid}
                             className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
                               isInvalid 
-                                ? 'text-gray-600 cursor-not-allowed opacity-50' 
+                                ? 'text-header-muted cursor-not-allowed opacity-50' 
                                 : isSelected 
-                                  ? 'bg-blue-600/20 text-blue-300 border-l-2 border-l-blue-500' 
-                                  : 'text-gray-300 hover:bg-white/5'
+                                  ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] border-l-2 border-l-[#5DC3F8]' 
+                                  : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                             }`}
                             style={{ paddingLeft: `${depth * 16 + 12}px` }}
                           >
-                            {isSelected ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-blue-400" /> : <FolderClosed className="w-4 h-4 flex-shrink-0" />}
+                            {isSelected ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-[#5DC3F8]" /> : <FolderClosed className="w-4 h-4 flex-shrink-0" />}
                             <span className="truncate">{folder.name}</span>
                             {isInvalid && folder.id === folderToMove.id && (
-                              <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">(source)</span>
+                              <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">(source)</span>
                             )}
                             {isInvalid && folder.id !== folderToMove.id && (
-                              <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">(child)</span>
+                              <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">(child)</span>
                             )}
                           </button>
                           {children.length > 0 && children.map(child => renderFolderOption(child, depth + 1))}
@@ -3559,7 +3559,7 @@ export function VaultContent() {
               <div className="flex gap-3">
                 <button 
                   onClick={() => { setShowMoveFolderModal(false); setFolderToMove(null); setMoveFolderDestinationId(null); }} 
-                  className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -3570,7 +3570,7 @@ export function VaultContent() {
                     }
                   }}
                   disabled={isMovingFolder || (moveFolderDestinationId === folderToMove.parentId)}
-                  className="flex-1 px-4 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 text-white bg-[#5DC3F8] hover:bg-[#4AB3E8] rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isMovingFolder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Move className="w-4 h-4" />} Move
                 </button>
@@ -3585,25 +3585,25 @@ export function VaultContent() {
       {showBulkMoveFoldersModal && selectedFolderIds.size > 0 && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowBulkMoveFoldersModal(false); setBulkMoveFolderDestinationId(null); }} />
-          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-gray-700">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+          <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-[#EC67A1]/20">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#EC67A1]/10">
               <div>
-                <h3 className="text-base sm:text-lg font-semibold text-white">Move {selectedFolderIds.size} Folder(s)</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Select destination for the selected folders</p>
+                <h3 className="text-base sm:text-lg font-semibold text-sidebar-foreground">Move {selectedFolderIds.size} Folder(s)</h3>
+                <p className="text-xs text-header-muted mt-0.5">Select destination for the selected folders</p>
               </div>
-              <button onClick={() => { setShowBulkMoveFoldersModal(false); setBulkMoveFolderDestinationId(null); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => { setShowBulkMoveFoldersModal(false); setBulkMoveFolderDestinationId(null); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-5 h-5 text-header-muted" /></button>
             </div>
             <div className="p-4 sm:p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Destination</label>
-                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-700 bg-gray-800/50">
+                <label className="block text-sm font-medium text-sidebar-foreground mb-2">Destination</label>
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50">
                   {/* Root level option */}
                   <button
                     onClick={() => setBulkMoveFolderDestinationId(null)}
-                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors border-b border-gray-700/50 ${
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors border-b border-[#EC67A1]/10 ${
                       bulkMoveFolderDestinationId === null 
-                        ? 'bg-blue-600/20 text-blue-300 border-l-2 border-l-blue-500' 
-                        : 'text-gray-300 hover:bg-white/5'
+                        ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] border-l-2 border-l-[#5DC3F8]' 
+                        : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
                   >
                     <FolderOpen className="w-4 h-4 flex-shrink-0" />
@@ -3633,20 +3633,20 @@ export function VaultContent() {
                             disabled={isInvalid}
                             className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
                               isInvalid 
-                                ? 'text-gray-600 cursor-not-allowed opacity-50' 
+                                ? 'text-header-muted cursor-not-allowed opacity-50' 
                                 : isSelected 
-                                  ? 'bg-blue-600/20 text-blue-300 border-l-2 border-l-blue-500' 
-                                  : 'text-gray-300 hover:bg-white/5'
+                                  ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] border-l-2 border-l-[#5DC3F8]' 
+                                  : 'text-sidebar-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
                             }`}
                             style={{ paddingLeft: `${depth * 16 + 12}px` }}
                           >
-                            {isSelected ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-blue-400" /> : <FolderClosed className="w-4 h-4 flex-shrink-0" />}
+                            {isSelected ? <FolderOpen className="w-4 h-4 flex-shrink-0 text-[#5DC3F8]" /> : <FolderClosed className="w-4 h-4 flex-shrink-0" />}
                             <span className="truncate">{folder.name}</span>
                             {selectedFolderIds.has(folder.id) && (
-                              <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">(selected)</span>
+                              <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">(selected)</span>
                             )}
                             {isInvalid && !selectedFolderIds.has(folder.id) && (
-                              <span className="text-[10px] text-gray-500 ml-auto flex-shrink-0">(child)</span>
+                              <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">(child)</span>
                             )}
                           </button>
                           {children.length > 0 && children.map(child => renderFolderOption(child, depth + 1))}
@@ -3670,14 +3670,14 @@ export function VaultContent() {
               <div className="flex gap-3">
                 <button 
                   onClick={() => { setShowBulkMoveFoldersModal(false); setBulkMoveFolderDestinationId(null); }} 
-                  className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleBulkMoveFolders}
                   disabled={isBulkMovingFolders}
-                  className="flex-1 px-4 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 text-white bg-[#5DC3F8] hover:bg-[#4AB3E8] rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isBulkMovingFolders ? <Loader2 className="w-4 h-4 animate-spin" /> : <Move className="w-4 h-4" />} Move {selectedFolderIds.size}
                 </button>
@@ -3712,26 +3712,26 @@ export function VaultContent() {
               {previewItem.fileType.startsWith('image/') ? <img src={previewItem.awsS3Url} alt={previewItem.fileName} className="max-w-full max-h-[75vh] sm:max-h-[85vh] object-contain rounded-lg" /> :
                previewItem.fileType.startsWith('video/') ? <video src={previewItem.awsS3Url} controls autoPlay playsInline className="max-w-full max-h-[75vh] sm:max-h-[85vh] rounded-lg" /> :
                previewItem.fileType.startsWith('audio/') ? (
-                 <div className="bg-gray-900 rounded-2xl p-6 sm:p-8 text-center border border-gray-700 mx-4">
-                   <Music4 className="w-16 sm:w-20 h-16 sm:h-20 text-purple-400 mx-auto mb-4" />
-                   <p className="text-white font-medium mb-4 text-sm sm:text-base truncate max-w-[250px] sm:max-w-none mx-auto">{previewItem.fileName}</p>
+                 <div className="bg-white dark:bg-[#1a1625] rounded-2xl p-6 sm:p-8 text-center border border-[#EC67A1]/20 mx-4">
+                   <Music4 className="w-16 sm:w-20 h-16 sm:h-20 text-[#EC67A1] mx-auto mb-4" />
+                   <p className="text-sidebar-foreground font-medium mb-4 text-sm sm:text-base truncate max-w-[250px] sm:max-w-none mx-auto">{previewItem.fileName}</p>
                    <audio src={previewItem.awsS3Url} controls autoPlay className="w-full" />
                  </div>
                ) : (
-                 <div className="bg-gray-900 rounded-2xl p-6 sm:p-8 text-center border border-gray-700 mx-4"><FileIcon className="w-16 sm:w-20 h-16 sm:h-20 text-gray-600 mx-auto mb-4" /><p className="text-gray-400 text-sm sm:text-base">Preview not available</p></div>
+                 <div className="bg-white dark:bg-[#1a1625] rounded-2xl p-6 sm:p-8 text-center border border-[#EC67A1]/20 mx-4"><FileIcon className="w-16 sm:w-20 h-16 sm:h-20 text-header-muted mx-auto mb-4" /><p className="text-header-muted text-sm sm:text-base">Preview not available</p></div>
                )}
             </div>
             
             {/* Info panel - shows generation parameters */}
             {showPreviewInfo && previewItem.metadata && (
-              <div className="hidden sm:block w-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-2xl p-5 overflow-y-auto max-h-[85vh] animate-slideUp">
-                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-700">
-                  <div className="p-2 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-lg">
-                    <Wand2 className="w-5 h-5 text-cyan-400" />
+              <div className="hidden sm:block w-80 bg-white/95 dark:bg-[#1a1625]/95 backdrop-blur border border-[#EC67A1]/20 rounded-2xl p-5 overflow-y-auto max-h-[85vh] animate-slideUp">
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#EC67A1]/10">
+                  <div className="p-2 bg-gradient-to-br from-[#5DC3F8]/20 to-[#EC67A1]/20 rounded-lg">
+                    <Wand2 className="w-5 h-5 text-[#5DC3F8]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-white">Generation Info</h3>
-                    <p className="text-xs text-gray-400">AI-generated content</p>
+                    <h3 className="text-sm font-semibold text-sidebar-foreground">Generation Info</h3>
+                    <p className="text-xs text-header-muted">AI-generated content</p>
                   </div>
                 </div>
                 
@@ -3739,20 +3739,20 @@ export function VaultContent() {
                   {/* Generated By - show who created this content */}
                   {previewItem.metadata.generatedByName && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Generated By</label>
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 rounded-lg p-2.5 border border-violet-500/20">
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Generated By</label>
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 rounded-lg p-2.5 border border-[#EC67A1]/20">
                         {previewItem.metadata.generatedByImageUrl ? (
                           <img 
                             src={previewItem.metadata.generatedByImageUrl} 
                             alt={previewItem.metadata.generatedByName}
-                            className="w-7 h-7 rounded-full object-cover ring-2 ring-violet-500/30"
+                            className="w-7 h-7 rounded-full object-cover ring-2 ring-[#EC67A1]/30"
                           />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center">
                             <User className="w-4 h-4 text-white" />
                           </div>
                         )}
-                        <span className="text-sm font-medium text-violet-200">
+                        <span className="text-sm font-medium text-[#E1518E] dark:text-[#F774B9]">
                           {previewItem.metadata.generatedByName}
                         </span>
                       </div>
@@ -3762,10 +3762,10 @@ export function VaultContent() {
                   {/* Source/Type */}
                   {(previewItem.metadata.source || previewItem.metadata.generationType) && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Source</label>
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Source</label>
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-cyan-400" />
-                        <span className="text-sm text-gray-200">
+                        <Sparkles className="w-4 h-4 text-[#5DC3F8]" />
+                        <span className="text-sm text-sidebar-foreground">
                           {previewItem.metadata.source === 'seedream-i2i' ? 'SeeDream 4.5 Image-to-Image' :
                            previewItem.metadata.source || previewItem.metadata.generationType || 'Unknown'}
                         </span>
@@ -3776,8 +3776,8 @@ export function VaultContent() {
                   {/* Prompt */}
                   {previewItem.metadata.prompt && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Prompt</label>
-                      <p className="text-sm text-gray-200 bg-gray-800/50 rounded-lg p-3 max-h-32 overflow-y-auto leading-relaxed">
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Prompt</label>
+                      <p className="text-sm text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800/50 rounded-lg p-3 max-h-32 overflow-y-auto leading-relaxed">
                         {previewItem.metadata.prompt}
                       </p>
                     </div>
@@ -3788,17 +3788,17 @@ export function VaultContent() {
                     <div className="grid grid-cols-2 gap-3">
                       {previewItem.metadata.resolution && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Resolution</label>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Resolution</label>
                           <div className="flex items-center gap-2">
-                            <Maximize2 className="w-4 h-4 text-purple-400" />
-                            <span className="text-sm text-gray-200">{previewItem.metadata.resolution}</span>
+                            <Maximize2 className="w-4 h-4 text-[#EC67A1]" />
+                            <span className="text-sm text-sidebar-foreground">{previewItem.metadata.resolution}</span>
                           </div>
                         </div>
                       )}
                       {previewItem.metadata.size && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensions</label>
-                          <span className="text-sm text-gray-200">{previewItem.metadata.size}</span>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Dimensions</label>
+                          <span className="text-sm text-sidebar-foreground">{previewItem.metadata.size}</span>
                         </div>
                       )}
                     </div>
@@ -3807,8 +3807,8 @@ export function VaultContent() {
                   {/* Model */}
                   {previewItem.metadata.model && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Model</label>
-                      <span className="text-sm text-gray-200">{previewItem.metadata.model}</span>
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Model</label>
+                      <span className="text-sm text-sidebar-foreground">{previewItem.metadata.model}</span>
                     </div>
                   )}
                   
@@ -3827,13 +3827,13 @@ export function VaultContent() {
                     
                     return (
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Image{refImages.length > 1 ? 's' : ''}</label>
+                        <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Reference Image{refImages.length > 1 ? 's' : ''}</label>
                         <div className="grid grid-cols-2 gap-1.5">
                           {displayedImages.map((url, idx) => (
                             <button 
                               key={idx} 
                               onClick={() => setReferenceImagePopup(url)}
-                              className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-0.5 cursor-pointer"
+                              className="block rounded-lg overflow-hidden border border-[#EC67A1]/20 hover:border-[#EC67A1]/50 transition-all bg-zinc-100 dark:bg-zinc-800/50 p-0.5 cursor-pointer"
                               title="Click to view full size"
                             >
                               <img 
@@ -3848,7 +3848,7 @@ export function VaultContent() {
                         {refImages.length > 4 && (
                           <button
                             onClick={() => setShowAllReferenceImages(!showAllReferenceImages)}
-                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors cursor-pointer"
+                            className="text-xs text-[#EC67A1] hover:text-[#F774B9] transition-colors cursor-pointer"
                           >
                             {showAllReferenceImages 
                               ? 'Show less' 
@@ -3863,12 +3863,12 @@ export function VaultContent() {
                   {/* Reference Video - Show full video with max dimensions */}
                   {previewItem.metadata.referenceVideoUrl && (
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Video</label>
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Reference Video</label>
                       <a 
                         href={previewItem.metadata.referenceVideoUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-1"
+                        className="block rounded-lg overflow-hidden border border-[#EC67A1]/20 hover:border-[#EC67A1]/50 transition-all bg-zinc-100 dark:bg-zinc-800/50 p-1"
                         title="Click to view full size"
                       >
                         <video 
@@ -3887,8 +3887,8 @@ export function VaultContent() {
                   {/* Negative Prompt */}
                   {previewItem.metadata.negativePrompt && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Negative Prompt</label>
-                      <p className="text-sm text-gray-400 bg-gray-800/50 rounded-lg p-3 max-h-24 overflow-y-auto">
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Negative Prompt</label>
+                      <p className="text-sm text-header-muted bg-zinc-100 dark:bg-zinc-800/50 rounded-lg p-3 max-h-24 overflow-y-auto">
                         {previewItem.metadata.negativePrompt}
                       </p>
                     </div>
@@ -3899,26 +3899,26 @@ export function VaultContent() {
                     <div className="grid grid-cols-2 gap-3">
                       {previewItem.metadata.steps && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Steps</label>
-                          <span className="text-sm text-gray-200">{previewItem.metadata.steps}</span>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Steps</label>
+                          <span className="text-sm text-sidebar-foreground">{previewItem.metadata.steps}</span>
                         </div>
                       )}
                       {previewItem.metadata.cfgScale && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">CFG Scale</label>
-                          <span className="text-sm text-gray-200">{previewItem.metadata.cfgScale}</span>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">CFG Scale</label>
+                          <span className="text-sm text-sidebar-foreground">{previewItem.metadata.cfgScale}</span>
                         </div>
                       )}
                       {previewItem.metadata.seed && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Seed</label>
-                          <span className="text-xs text-gray-200 font-mono">{previewItem.metadata.seed}</span>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Seed</label>
+                          <span className="text-xs text-sidebar-foreground font-mono">{previewItem.metadata.seed}</span>
                         </div>
                       )}
                       {previewItem.metadata.sampler && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sampler</label>
-                          <span className="text-sm text-gray-200">{previewItem.metadata.sampler}</span>
+                          <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Sampler</label>
+                          <span className="text-sm text-sidebar-foreground">{previewItem.metadata.sampler}</span>
                         </div>
                       )}
                     </div>
@@ -3926,9 +3926,9 @@ export function VaultContent() {
                   
                   {/* Generated At */}
                   {previewItem.metadata.generatedAt && (
-                    <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Generated</label>
-                      <span className="text-sm text-gray-400">
+                    <div className="space-y-1 pt-2 border-t border-[#EC67A1]/10">
+                      <label className="text-xs font-medium text-header-muted uppercase tracking-wider">Generated</label>
+                      <span className="text-sm text-header-muted">
                         {new Date(previewItem.metadata.generatedAt).toLocaleString()}
                       </span>
                     </div>
@@ -3940,16 +3940,16 @@ export function VaultContent() {
           
           {/* Bottom action bar */}
           <div 
-            className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-full px-3 sm:px-6 py-2 sm:py-3 max-w-[90vw]"
+            className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 bg-white/80 dark:bg-[#1a1625]/80 backdrop-blur border border-[#EC67A1]/20 rounded-full px-3 sm:px-6 py-2 sm:py-3 max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-white text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[200px]">{previewItem.fileName}</span>
-            <span className="text-gray-400 text-xs sm:text-sm hidden sm:inline">{formatFileSize(previewItem.fileSize)}</span>
+            <span className="text-sidebar-foreground text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[200px]">{previewItem.fileName}</span>
+            <span className="text-header-muted text-xs sm:text-sm hidden sm:inline">{formatFileSize(previewItem.fileSize)}</span>
             {/* Info button - only show if metadata exists */}
             {previewItem.metadata && (
               <button 
                 onClick={() => setShowPreviewInfo(!showPreviewInfo)} 
-                className={`p-1.5 sm:p-2 rounded-full transition-colors hidden sm:block ${showPreviewInfo ? 'bg-cyan-500/30 text-cyan-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                className={`p-1.5 sm:p-2 rounded-full transition-colors hidden sm:block ${showPreviewInfo ? 'bg-[#5DC3F8]/30 text-[#5DC3F8]' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                 title="View generation info"
               >
                 <Info className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
@@ -3959,114 +3959,114 @@ export function VaultContent() {
             {previewItem.metadata?.source === 'seedream-i2i' && (
               <button 
                 onClick={() => handleReuseInSeeDreamI2I(previewItem)}
-                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#5DC3F8]/20 hover:bg-[#5DC3F8]/30 rounded-full transition-colors"
                 title="Reuse settings in SeeDream I2I"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#5DC3F8]" />
               </button>
             )}
             {/* Reuse in SeeDream T2I button - only for seedream-t2i source items */}
             {previewItem.metadata?.source === 'seedream-t2i' && (
               <button 
                 onClick={() => handleReuseInSeeDreamT2I(previewItem)}
-                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#5DC3F8]/20 hover:bg-[#5DC3F8]/30 rounded-full transition-colors"
                 title="Reuse settings in SeeDream T2I"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#5DC3F8]" />
               </button>
             )}
             {/* Reuse in FLUX T2I button - only for flux-t2i source items */}
             {previewItem.metadata?.source === 'flux-t2i' && (
               <button 
                 onClick={() => handleReuseInFluxT2I(previewItem)}
-                className="p-1.5 sm:p-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-full transition-colors"
                 title="Reuse settings in FLUX T2I"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-purple-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#EC67A1]" />
               </button>
             )}
             {/* Reuse in FLUX Style Transfer button - only for flux-style-transfer source items */}
             {previewItem.metadata?.source === 'flux-style-transfer' && (
               <button 
                 onClick={() => handleReuseInFluxStyleTransfer(previewItem)}
-                className="p-1.5 sm:p-2 bg-pink-500/20 hover:bg-pink-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#F774B9]/20 hover:bg-[#F774B9]/30 rounded-full transition-colors"
                 title="Reuse settings in FLUX Style Transfer"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#F774B9]" />
               </button>
             )}
             {/* Reuse in SeeDream T2V button - only for seedream-t2v source items */}
             {previewItem.metadata?.source === 'seedream-t2v' && (
               <button 
                 onClick={() => handleReuseInSeeDreamT2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#5DC3F8]/20 hover:bg-[#5DC3F8]/30 rounded-full transition-colors"
                 title="Reuse settings in SeeDream T2V"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#5DC3F8]" />
               </button>
             )}
             {/* Reuse in SeeDream I2V button - only for seedream-i2v source items */}
             {previewItem.metadata?.source === 'seedream-i2v' && (
               <button 
                 onClick={() => handleReuseInSeeDreamI2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#5DC3F8]/20 hover:bg-[#5DC3F8]/30 rounded-full transition-colors"
                 title="Reuse settings in SeeDream I2V"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#5DC3F8]" />
               </button>
             )}
             {/* Reuse in Kling T2V button - only for kling-t2v source items */}
             {previewItem.metadata?.source === 'kling-t2v' && (
               <button 
                 onClick={() => handleReuseInKlingT2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-full transition-colors"
                 title="Reuse settings in Kling T2V"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#EC67A1]" />
               </button>
             )}
             {/* Reuse in Kling I2V button - only for kling-i2v source items */}
             {previewItem.metadata?.source === 'kling-i2v' && (
               <button 
                 onClick={() => handleReuseInKlingI2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-full transition-colors"
                 title="Reuse settings in Kling I2V"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#EC67A1]" />
               </button>
             )}
             {/* Reuse in Kling Motion Control button - only for kling-motion-control source items */}
             {previewItem.metadata?.source === 'kling-motion-control' && (
               <button 
                 onClick={() => handleReuseInKlingMotionControl(previewItem)}
-                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-full transition-colors"
                 title="Reuse settings in Kling Motion Control"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#EC67A1]" />
               </button>
             )}
             {/* Reuse in Kling Multi-I2V button - only for kling-multi-i2v source items */}
             {previewItem.metadata?.source === 'kling-multi-i2v' && (
               <button 
                 onClick={() => handleReuseInKlingMultiI2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 rounded-full transition-colors"
                 title="Reuse settings in Kling Multi-Image to Video"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#EC67A1]" />
               </button>
             )}
             {/* Reuse in Wan T2V button - only for wan-t2v source items */}
             {previewItem.metadata?.source === 'wan-t2v' && (
               <button 
                 onClick={() => handleReuseInWanT2V(previewItem)}
-                className="p-1.5 sm:p-2 bg-pink-500/20 hover:bg-pink-500/30 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 bg-[#F774B9]/20 hover:bg-[#F774B9]/30 rounded-full transition-colors"
                 title="Reuse settings in Text to Video Studio"
               >
-                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#F774B9]" />
               </button>
             )}
             <button onClick={(e) => handleDownloadSingleFile(previewItem, e)} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors" title="Download"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></button>
-            {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
+            {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-500 dark:text-red-400" /></button>}
           </div>
         </div>,
         document.body
@@ -4076,87 +4076,87 @@ export function VaultContent() {
       {showShareModal && folderToShare && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowShareModal(false); setFolderToShare(null); setSelectedUserToShare(null); setUserSearchQuery(''); setShareNote(''); }} />
-          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-hidden animate-slideUp border-t sm:border border-gray-700">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+          <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-hidden animate-slideUp border-t sm:border border-[#EC67A1]/20">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#EC67A1]/10">
               <div className="flex-1 min-w-0">
-                <h3 className="text-base sm:text-lg font-semibold text-white">Share Folder</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-sidebar-foreground">Share Folder</h3>
                 <p 
-                  className="text-xs sm:text-sm text-gray-400 truncate max-w-[200px] sm:max-w-none" 
+                  className="text-xs sm:text-sm text-header-muted truncate max-w-[200px] sm:max-w-none" 
                   title={folderToShare.name}
                 >
                   {folderToShare.name}
                 </p>
               </div>
-              <button onClick={() => { setShowShareModal(false); setFolderToShare(null); setSelectedUserToShare(null); setUserSearchQuery(''); setShareNote(''); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => { setShowShareModal(false); setFolderToShare(null); setSelectedUserToShare(null); setUserSearchQuery(''); setShareNote(''); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex-shrink-0"><X className="w-5 h-5 text-header-muted" /></button>
             </div>
             <div className="p-4 sm:p-5 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(85vh-120px)] sm:max-h-[calc(90vh-120px)] vault-scroll">
               {shareModalLoading ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#5DC3F8]" /></div>
               ) : (
                 <>
                   <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-300">Share with user</label>
+                    <label className="block text-sm font-medium text-sidebar-foreground">Share with user</label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                      <input type="text" placeholder="Search users..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
+                      <input type="text" placeholder="Search users..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-lg text-sidebar-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1]" />
                     </div>
-                    <div className="max-h-32 overflow-y-auto border border-gray-700 rounded-lg vault-scroll">
+                    <div className="max-h-32 overflow-y-auto border border-[#EC67A1]/20 rounded-lg vault-scroll">
                       {availableUsers.filter(user => { const q = userSearchQuery.toLowerCase(); return user.displayName.toLowerCase().includes(q) || (user.email?.toLowerCase().includes(q) ?? false); }).filter(user => !currentShares.some(s => s.sharedWithClerkId === user.clerkId)).slice(0, 10).map(user => (
-                        <button key={user.clerkId} onClick={() => setSelectedUserToShare(user)} className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${selectedUserToShare?.clerkId === user.clerkId ? 'bg-blue-600/20' : 'hover:bg-gray-800'}`}>
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">{user.displayName.charAt(0).toUpperCase()}</div>
+                        <button key={user.clerkId} onClick={() => setSelectedUserToShare(user)} className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${selectedUserToShare?.clerkId === user.clerkId ? 'bg-[#5DC3F8]/20' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center text-white text-sm font-medium flex-shrink-0">{user.displayName.charAt(0).toUpperCase()}</div>
                           <div className="flex-1 min-w-0">
                             <p 
-                              className="text-sm font-medium text-gray-200 truncate" 
+                              className="text-sm font-medium text-sidebar-foreground truncate" 
                               title={user.displayName}
                             >
                               {user.displayName}
                             </p>
-                            {user.email && <p className="text-xs text-gray-500 truncate" title={user.email}>{user.email}</p>}
+                            {user.email && <p className="text-xs text-header-muted truncate" title={user.email}>{user.email}</p>}
                           </div>
-                          {selectedUserToShare?.clerkId === user.clerkId && <Check className="w-5 h-5 text-blue-400 flex-shrink-0" />}
+                          {selectedUserToShare?.clerkId === user.clerkId && <Check className="w-5 h-5 text-[#5DC3F8] flex-shrink-0" />}
                         </button>
                       ))}
-                      {availableUsers.length === 0 && <p className="text-center py-4 text-gray-500 text-sm">No users available</p>}
+                      {availableUsers.length === 0 && <p className="text-center py-4 text-header-muted text-sm">No users available</p>}
                     </div>
                     {selectedUserToShare && (
                       <>
                         <div className="flex gap-2">
-                          <button onClick={() => setSharePermission('VIEW')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'VIEW' ? 'bg-blue-600/20 text-blue-400 border border-blue-500' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}><Eye className="w-4 h-4" /> View only</button>
-                          <button onClick={() => setSharePermission('EDIT')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'EDIT' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}><Edit2 className="w-4 h-4" /> Can edit</button>
+                          <button onClick={() => setSharePermission('VIEW')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'VIEW' ? 'bg-[#5DC3F8]/20 text-[#5DC3F8] border border-[#5DC3F8]' : 'bg-zinc-100 dark:bg-zinc-800 text-header-muted hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}><Eye className="w-4 h-4" /> View only</button>
+                          <button onClick={() => setSharePermission('EDIT')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'EDIT' ? 'bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500' : 'bg-zinc-100 dark:bg-zinc-800 text-header-muted hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}><Edit2 className="w-4 h-4" /> Can edit</button>
                         </div>
-                        <input type="text" placeholder="Add a note (optional)" value={shareNote} onChange={(e) => setShareNote(e.target.value)} className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                        <button onClick={handleShareFolder} disabled={shareModalLoading} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">
+                        <input type="text" placeholder="Add a note (optional)" value={shareNote} onChange={(e) => setShareNote(e.target.value)} className="w-full px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-lg text-sidebar-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1]" />
+                        <button onClick={handleShareFolder} disabled={shareModalLoading} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] text-white rounded-lg font-medium transition-colors disabled:opacity-50">
                           {shareModalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share with {selectedUserToShare.displayName}
                         </button>
                       </>
                     )}
                   </div>
-                  <div className="pt-4 border-t border-gray-700">
+                  <div className="pt-4 border-t border-[#EC67A1]/10">
                     <div className="flex items-center justify-between mb-3">
-                      <label className="text-sm font-medium text-gray-300">Currently shared with</label>
-                      <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">{currentShares.length}</span>
+                      <label className="text-sm font-medium text-sidebar-foreground">Currently shared with</label>
+                      <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-header-muted px-2 py-1 rounded-full">{currentShares.length}</span>
                     </div>
                     {currentShares.length === 0 ? (
-                      <div className="text-center py-6 border border-dashed border-gray-700 rounded-lg"><Users className="w-8 h-8 text-gray-600 mx-auto mb-2" /><p className="text-sm text-gray-500">Not shared yet</p></div>
+                      <div className="text-center py-6 border border-dashed border-[#EC67A1]/20 rounded-lg"><Users className="w-8 h-8 text-header-muted mx-auto mb-2" /><p className="text-sm text-header-muted">Not shared yet</p></div>
                     ) : (
                       <div className="space-y-2">
                         {currentShares.map((share) => (
-                          <div key={share.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                          <div key={share.id} className="flex items-center justify-between p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">{share.sharedWithUser?.displayName?.charAt(0).toUpperCase() || '?'}</div>
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center text-white text-sm font-medium flex-shrink-0">{share.sharedWithUser?.displayName?.charAt(0).toUpperCase() || '?'}</div>
                               <div className="flex-1 min-w-0">
                                 <p 
-                                  className="text-sm font-medium text-gray-200 truncate" 
+                                  className="text-sm font-medium text-sidebar-foreground truncate" 
                                   title={share.sharedWithUser?.displayName || share.sharedWithClerkId}
                                 >
                                   {share.sharedWithUser?.displayName || share.sharedWithClerkId}
                                 </p>
-                                {share.sharedWithUser?.email && <p className="text-xs text-gray-500 truncate" title={share.sharedWithUser.email}>{share.sharedWithUser.email}</p>}
+                                {share.sharedWithUser?.email && <p className="text-xs text-header-muted truncate" title={share.sharedWithUser.email}>{share.sharedWithUser.email}</p>}
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className={`text-xs px-2 py-1 rounded-full ${share.permission === 'EDIT' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'}`}>{share.permission}</span>
-                              <button onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'User')} className="p-1.5 hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                              <span className={`text-xs px-2 py-1 rounded-full ${share.permission === 'EDIT' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400' : 'bg-[#5DC3F8]/20 text-[#5DC3F8]'}`}>{share.permission}</span>
+                              <button onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'User')} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" /></button>
                             </div>
                           </div>
                         ))}
@@ -4179,16 +4179,16 @@ export function VaultContent() {
       )}
 
       {/* Main Layout */}
-      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-[#0a0a0f] rounded-2xl glass-card overflow-hidden relative">
+      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-white dark:bg-[#0a0a0f] rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 shadow-lg overflow-hidden relative">
         {/* Background ambient effects */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-64 h-64 bg-violet-500/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-fuchsia-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-[#EC67A1]/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[#F774B9]/5 rounded-full blur-3xl" />
         </div>
 
         {/* Sidebar */}
         <div 
-          className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto h-full glass-card border-r border-white/[0.06] flex flex-col rounded-l-2xl overflow-hidden ${
+          className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto h-full bg-zinc-50/95 dark:bg-[#1a1625]/95 backdrop-blur border-r border-[#EC67A1]/10 flex flex-col rounded-l-2xl overflow-hidden ${
             isResizingSidebar ? '' : 'transition-transform duration-300 ease-in-out'
           } relative`}
           style={{ 
@@ -4198,30 +4198,30 @@ export function VaultContent() {
             transition: isResizingSidebar ? 'none' : undefined,
           }}
         >
-          <div className="p-5 border-b border-white/[0.06]">
+          <div className="p-5 border-b border-[#EC67A1]/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-xl flex items-center justify-center shadow-lg shadow-[#EC67A1]/25">
                   <HardDrive className="w-5 h-5 text-white" />
                 </div>
-                <span className="font-semibold text-white">Media Vault</span>
+                <span className="font-semibold text-sidebar-foreground">Media Vault</span>
               </div>
-              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <PanelLeftClose className="w-5 h-5 text-gray-400" />
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
+                <PanelLeftClose className="w-5 h-5 text-header-muted" />
               </button>
             </div>
           </div>
 
           {/* Admin View Mode Toggle */}
           {isAdmin && !adminLoading && (
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <div className="flex items-center gap-2 p-1 bg-white/5 rounded-xl">
+            <div className="px-4 py-3 border-b border-[#EC67A1]/10">
+              <div className="flex items-center gap-2 p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl">
                 <button
                   onClick={() => { setAdminViewMode('personal'); setSelectedContentCreator(null); setSelectedCreatorFolderId(null); setCreatorFolders([]); setCreatorProfiles([]); }}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     adminViewMode === 'personal'
-                      ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25'
+                      : 'text-header-muted hover:text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700'
                   }`}
                 >
                   <HardDrive className="w-4 h-4" />
@@ -4232,7 +4232,7 @@ export function VaultContent() {
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     adminViewMode === 'creators'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      : 'text-header-muted hover:text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700'
                   }`}
                 >
                   <Crown className="w-4 h-4" />
@@ -4244,8 +4244,8 @@ export function VaultContent() {
 
           {/* Content Creator Selection (Admin only) */}
           {isAdmin && adminViewMode === 'creators' && (
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Content Creators</label>
+            <div className="px-4 py-3 border-b border-[#EC67A1]/10">
+              <label className="text-xs font-semibold text-header-muted uppercase tracking-wider mb-2 block">Content Creators</label>
               <select
                 value={selectedContentCreator?.id || 'all'}
                 onChange={(e) => {
@@ -4264,25 +4264,25 @@ export function VaultContent() {
                     }
                   }
                 }}
-                className="w-full px-3 py-2.5 bg-gray-900 border border-white/10 rounded-xl text-sm text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors [&>option]:bg-gray-900 [&>option]:text-gray-200"
+                className="w-full px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-xl text-sm text-sidebar-foreground focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-colors [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-sidebar-foreground"
               >
-                <option value="all" className="bg-gray-900 text-gray-200">All Content Creators ({contentCreators.length})</option>
+                <option value="all" className="bg-white dark:bg-zinc-800 text-sidebar-foreground">All Content Creators ({contentCreators.length})</option>
                 {contentCreators.map((creator) => (
-                  <option key={creator.id} value={creator.id} className="bg-gray-900 text-gray-200">
+                  <option key={creator.id} value={creator.id} className="bg-white dark:bg-zinc-800 text-sidebar-foreground">
                     {`${creator.firstName || ''} ${creator.lastName || ''}`.trim() || creator.email || 'Unknown'}
                   </option>
                 ))}
               </select>
               {contentCreators.length === 0 && !loadingCreatorItems && (
-                <p className="text-xs text-gray-500 mt-2">No content creators found</p>
+                <p className="text-xs text-header-muted mt-2">No content creators found</p>
               )}
             </div>
           )}
 
           {/* Current Profile Display - controlled by global sidebar selector */}
           {adminViewMode === 'personal' && selectedProfileId && (
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-xl">
+            <div className="px-4 py-3 border-b border-[#EC67A1]/10">
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl">
                 {isAllProfiles ? (
                   <>
                     <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -4290,21 +4290,21 @@ export function VaultContent() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <span 
-                        className="text-sm font-medium text-gray-200 truncate block" 
+                        className="text-sm font-medium text-sidebar-foreground truncate block" 
                         title="All Profiles"
                       >
                         All Profiles
                       </span>
-                      <span className="text-[10px] text-gray-500">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] text-header-muted">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#EC67A1] to-[#F774B9] rounded-lg flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-medium text-white">{selectedProfile?.name?.charAt(0) || '?'}</span>
                     </div>
                     <span 
-                      className="text-sm font-medium text-gray-200 truncate flex-1 min-w-0" 
+                      className="text-sm font-medium text-sidebar-foreground truncate flex-1 min-w-0" 
                       title={selectedProfile?.name}
                     >
                       {selectedProfile?.name}
@@ -4319,12 +4319,12 @@ export function VaultContent() {
             {adminViewMode === 'personal' && (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</span>
+                  <span className="text-xs font-semibold text-header-muted uppercase tracking-wider">Folders</span>
                   <div className="flex items-center gap-1">
                     {folderSelectionMode && selectedFolderIds.size > 0 && (
                       <button
                         onClick={() => setShowBulkMoveFoldersModal(true)}
-                        className="px-2 py-1 text-[10px] font-medium bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-lg hover:opacity-90 transition-opacity"
+                        className="px-2 py-1 text-[10px] font-medium bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-lg hover:opacity-90 transition-opacity"
                         title={`Move ${selectedFolderIds.size} selected folder(s)`}
                       >
                         Move {selectedFolderIds.size}
@@ -4332,14 +4332,14 @@ export function VaultContent() {
                     )}
                     <button
                       onClick={toggleFolderSelectionMode}
-                      className={`p-1.5 rounded-lg transition-colors ${folderSelectionMode ? 'bg-violet-500/20 text-violet-400' : 'hover:bg-white/10 text-gray-400'}`}
+                      className={`p-1.5 rounded-lg transition-colors ${folderSelectionMode ? 'bg-[#EC67A1]/20 text-[#EC67A1]' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-header-muted'}`}
                       title={folderSelectionMode ? 'Cancel selection' : 'Select folders to move'}
                       disabled={!selectedProfileId || isAllProfiles}
                     >
                       <CheckSquare className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId || isAllProfiles} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50" title={isAllProfiles ? 'Select a specific profile to create folders' : undefined}>
-                      <Plus className="w-4 h-4 text-gray-400" />
+                    <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId || isAllProfiles} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50" title={isAllProfiles ? 'Select a specific profile to create folders' : undefined}>
+                      <Plus className="w-4 h-4 text-header-muted" />
                     </button>
                   </div>
                 </div>
@@ -4347,11 +4347,11 @@ export function VaultContent() {
                 {showNewFolderInput && (
                   <div className="mb-3">
                     {parentFolderForNew && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 mb-2 bg-white/5 rounded-lg border border-white/10">
-                        <FolderOpen className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                      <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-header-muted mb-2 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg border border-[#EC67A1]/10">
+                        <FolderOpen className="w-3.5 h-3.5 text-[#EC67A1] flex-shrink-0" />
                         <span className="flex-shrink-0">Creating subfolder in:</span>
                         <span 
-                          className="font-medium text-violet-300 truncate" 
+                          className="font-medium text-[#EC67A1] truncate" 
                           title={visibleFolders.find(f => f.id === parentFolderForNew)?.name}
                         >
                           {visibleFolders.find(f => f.id === parentFolderForNew)?.name}
@@ -4359,9 +4359,9 @@ export function VaultContent() {
                       </div>
                     )}
                     <div className="flex items-center gap-2">
-                      <input type="text" value={folderNameInput} onChange={(e) => setFolderNameInput(e.target.value)} placeholder="Folder name" onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
-                      <button onClick={handleCreateFolder} disabled={!folderNameInput.trim()} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl disabled:opacity-50"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => { setShowNewFolderInput(false); setFolderNameInput(''); setParentFolderForNew(null); }} className="p-2 bg-white/10 text-gray-400 rounded-xl"><X className="w-4 h-4" /></button>
+                      <input type="text" value={folderNameInput} onChange={(e) => setFolderNameInput(e.target.value)} placeholder="Folder name" onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-xl text-sidebar-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1]" />
+                      <button onClick={handleCreateFolder} disabled={!folderNameInput.trim()} className="p-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-xl disabled:opacity-50"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => { setShowNewFolderInput(false); setFolderNameInput(''); setParentFolderForNew(null); }} className="p-2 bg-zinc-200 dark:bg-zinc-700 text-header-muted rounded-xl"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )}
@@ -4411,8 +4411,8 @@ export function VaultContent() {
                         
                         return (
                           <div key={profile.id} className="mb-3">
-                            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 border-b border-white/5 mb-1">
-                              <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${isOwned ? 'bg-gradient-to-br from-violet-500/50 to-fuchsia-500/50' : 'bg-gradient-to-br from-amber-500/50 to-orange-500/50'}`}>
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-header-muted border-b border-[#EC67A1]/10 mb-1">
+                              <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${isOwned ? 'bg-gradient-to-br from-[#EC67A1]/50 to-[#F774B9]/50' : 'bg-gradient-to-br from-amber-500/50 to-orange-500/50'}`}>
                                 <span className="text-[10px] font-medium text-white">{profile.name?.charAt(0) || '?'}</span>
                               </div>
                               <div className="flex-1 min-w-0">
@@ -4425,7 +4425,7 @@ export function VaultContent() {
                                   </span>
                                   {profile.instagramUsername && (
                                     <span 
-                                      className="text-gray-600 flex-shrink-0" 
+                                      className="text-header-muted flex-shrink-0" 
                                       title={`@${profile.instagramUsername}`}
                                     >
                                       @{profile.instagramUsername}
@@ -4434,7 +4434,7 @@ export function VaultContent() {
                                 </div>
                                 {!isOwned && ownerName && (
                                   <div 
-                                    className="text-[10px] text-amber-400 mt-0.5 truncate" 
+                                    className="text-[10px] text-amber-500 mt-0.5 truncate" 
                                     title={`Shared by ${ownerName}`}
                                   >
                                     Shared by {ownerName}
@@ -4537,15 +4537,15 @@ export function VaultContent() {
                 {sharedFolders.length > 0 && (
                   <div className="mt-6">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Shared with me</span>
-                      <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">{sharedFolders.length}</span>
+                      <span className="text-xs font-semibold text-header-muted uppercase tracking-wider">Shared with me</span>
+                      <span className="text-xs bg-[#EC67A1]/20 text-[#EC67A1] px-2 py-0.5 rounded-full">{sharedFolders.length}</span>
                     </div>
                     <div className="space-y-1">
                       {sharedFolders.map((shared) => {
                         const isActive = selectedSharedFolder?.folderId === shared.folderId && adminViewMode === 'personal';
                         return (
-                          <button key={shared.id} onClick={() => { loadSharedFolderItems(shared); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
-                            <Users className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-violet-400' : 'text-gray-500'}`} />
+                          <button key={shared.id} onClick={() => { loadSharedFolderItems(shared); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isActive ? 'bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-[#EC67A1] border border-[#EC67A1]/30' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-header-muted border border-transparent'}`}>
+                            <Users className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#EC67A1]' : 'text-header-muted'}`} />
                             <div className="flex-1 min-w-0 text-left">
                               <span 
                                 className="text-sm font-medium truncate block" 
@@ -4554,13 +4554,13 @@ export function VaultContent() {
                                 {shared.folderName}
                               </span>
                               <span 
-                                className="text-xs text-gray-500 truncate block" 
+                                className="text-xs text-header-muted truncate block" 
                                 title={`From ${shared.sharedBy}`}
                               >
                                 From {shared.sharedBy}
                               </span>
                             </div>
-                            <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${shared.permission === 'EDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-gray-500'}`}>{shared.permission === 'EDIT' ? 'Edit' : 'View'}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${shared.permission === 'EDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-200 dark:bg-zinc-700 text-header-muted'}`}>{shared.permission === 'EDIT' ? 'Edit' : 'View'}</span>
                           </button>
                         );
                       })}
@@ -4573,22 +4573,22 @@ export function VaultContent() {
             {/* Admin Creator View - Stats */}
             {isAdmin && adminViewMode === 'creators' && (
               <div className="space-y-4">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator Stats</div>
+                <div className="text-xs font-semibold text-header-muted uppercase tracking-wider mb-3">Creator Stats</div>
                 {selectedContentCreator ? (
-                  <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-[#EC67A1]/10">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
                         <UserCheck className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p 
-                          className="text-sm font-medium text-white truncate" 
+                          className="text-sm font-medium text-sidebar-foreground truncate" 
                           title={`${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Unknown'}
                         >
                           {`${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Unknown'}
                         </p>
                         <p 
-                          className="text-xs text-gray-500 truncate" 
+                          className="text-xs text-header-muted truncate" 
                           title={selectedContentCreator.email || 'No email'}
                         >
                           {selectedContentCreator.email || 'No email'}
@@ -4596,30 +4596,30 @@ export function VaultContent() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-white/5 rounded-lg text-center">
-                        <p className="text-lg font-semibold text-white">{contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).length}</p>
-                        <p className="text-xs text-gray-500">Items</p>
+                      <div className="p-2 bg-zinc-200 dark:bg-zinc-700/50 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-sidebar-foreground">{contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).length}</p>
+                        <p className="text-xs text-header-muted">Items</p>
                       </div>
-                      <div className="p-2 bg-white/5 rounded-lg text-center">
-                        <p className="text-lg font-semibold text-white">{formatFileSize(contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).reduce((acc, i) => acc + i.fileSize, 0))}</p>
-                        <p className="text-xs text-gray-500">Total Size</p>
+                      <div className="p-2 bg-zinc-200 dark:bg-zinc-700/50 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-sidebar-foreground">{formatFileSize(contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).reduce((acc, i) => acc + i.fileSize, 0))}</p>
+                        <p className="text-xs text-header-muted">Total Size</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                    <p className="text-sm text-gray-400 mb-2">All Creators</p>
+                  <div className="p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-[#EC67A1]/10">
+                    <p className="text-sm text-header-muted mb-2">All Creators</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-white/5 rounded-lg text-center">
-                        <p className="text-lg font-semibold text-white">{creatorTotalItems}</p>
-                        <p className="text-xs text-gray-500">Total Items</p>
+                      <div className="p-2 bg-zinc-200 dark:bg-zinc-700/50 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-sidebar-foreground">{creatorTotalItems}</p>
+                        <p className="text-xs text-header-muted">Total Items</p>
                       </div>
-                      <div className="p-2 bg-white/5 rounded-lg text-center">
-                        <p className="text-lg font-semibold text-white">{formatFileSize(creatorTotalSize)}</p>
-                        <p className="text-xs text-gray-500">Total Size</p>
+                      <div className="p-2 bg-zinc-200 dark:bg-zinc-700/50 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-sidebar-foreground">{formatFileSize(creatorTotalSize)}</p>
+                        <p className="text-xs text-header-muted">Total Size</p>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+                    <div className="mt-3 flex items-center gap-3 text-xs text-header-muted">
                       <span className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {creatorImageCount}</span>
                       <span className="flex items-center gap-1"><VideoIcon className="w-3 h-3" /> {creatorVideoCount}</span>
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {contentCreators.length} creators</span>
@@ -4631,8 +4631,8 @@ export function VaultContent() {
                 {selectedContentCreator && creatorFolders.length > 0 && (
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Creator Folders</span>
-                      <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">{creatorFolders.length}</span>
+                      <span className="text-xs font-semibold text-header-muted uppercase tracking-wider">Creator Folders</span>
+                      <span className="text-xs bg-[#EC67A1]/20 text-[#EC67A1] px-2 py-0.5 rounded-full">{creatorFolders.length}</span>
                     </div>
                     
                     {/* All Items option */}
@@ -4640,13 +4640,13 @@ export function VaultContent() {
                       onClick={() => { setSelectedCreatorFolderId(null); setSidebarOpen(false); }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 ${
                         !selectedCreatorFolderId 
-                          ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' 
-                          : 'hover:bg-white/5 text-gray-400 border border-transparent'
+                          ? 'bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-[#EC67A1] border border-[#EC67A1]/30' 
+                          : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-header-muted border border-transparent'
                       }`}
                     >
-                      <Folder className={`w-4 h-4 ${!selectedCreatorFolderId ? 'text-violet-400' : 'text-gray-500'}`} />
+                      <Folder className={`w-4 h-4 ${!selectedCreatorFolderId ? 'text-[#EC67A1]' : 'text-header-muted'}`} />
                       <span className="flex-1 text-sm font-medium text-left">All Items</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${!selectedCreatorFolderId ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${!selectedCreatorFolderId ? 'bg-[#EC67A1]/30 text-[#EC67A1]' : 'bg-zinc-200 dark:bg-zinc-700 text-header-muted'}`}>
                         {contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).length}
                       </span>
                     </button>
@@ -4658,10 +4658,10 @@ export function VaultContent() {
                       
                       return (
                         <div key={profile.id} className="mb-3">
-                          <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-header-muted">
                             <span className="truncate">{profile.name}</span>
                             {profile.instagramUsername && (
-                              <span className="text-gray-600">@{profile.instagramUsername}</span>
+                              <span className="text-header-muted">@{profile.instagramUsername}</span>
                             )}
                           </div>
                           <div className="space-y-1">
@@ -4673,13 +4673,13 @@ export function VaultContent() {
                                   onClick={() => { setSelectedCreatorFolderId(folder.id); setSidebarOpen(false); }}
                                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
                                     isActive 
-                                      ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' 
-                                      : 'hover:bg-white/5 text-gray-400 border border-transparent'
+                                      ? 'bg-gradient-to-r from-[#EC67A1]/20 to-[#F774B9]/20 text-[#EC67A1] border border-[#EC67A1]/30' 
+                                      : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-header-muted border border-transparent'
                                   }`}
                                 >
                                   {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
                                   <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-[#EC67A1]/30 text-[#EC67A1]' : 'bg-zinc-200 dark:bg-zinc-700 text-header-muted'}`}>
                                     {folder.itemCount}
                                   </span>
                                 </button>
@@ -4697,14 +4697,14 @@ export function VaultContent() {
 
           {/* Storage Stats Footer */}
           {adminViewMode === 'personal' && selectedProfileId && (
-            <div className="p-4 border-t border-white/[0.06]">
-              <div className="text-xs text-gray-400 mb-2">
+            <div className="p-4 border-t border-[#EC67A1]/10">
+              <div className="text-xs text-header-muted mb-2">
                 {isAllProfiles ? 'Total storage (all profiles)' : 'Storage used'}
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-semibold text-white">{formatFileSize(totalSize)}</span>
+                <span className="text-lg font-semibold text-sidebar-foreground">{formatFileSize(totalSize)}</span>
               </div>
-              <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+              <div className="mt-2 flex items-center gap-4 text-xs text-header-muted">
                 <span className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {imageCount}</span>
                 <span className="flex items-center gap-1"><VideoIcon className="w-3 h-3" /> {videoCount}</span>
                 <span className="flex items-center gap-1"><FileIcon className="w-3 h-3" /> {totalItems}</span>
@@ -4716,7 +4716,7 @@ export function VaultContent() {
           {/* Resize Handle */}
           <div
             className={`hidden lg:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize group z-10 ${
-              isResizingSidebar ? 'bg-violet-500/50' : 'bg-transparent hover:bg-violet-500/30'
+              isResizingSidebar ? 'bg-[#EC67A1]/50' : 'bg-transparent hover:bg-[#EC67A1]/30'
             }`}
             onMouseDown={handleMouseDownResize}
             style={{
@@ -4728,17 +4728,17 @@ export function VaultContent() {
             {/* Visible indicator on hover */}
             <div className={`absolute top-1/2 -translate-y-1/2 left-0 w-full h-20 transition-all ${
               isResizingSidebar 
-                ? 'bg-gradient-to-b from-violet-500/50 via-violet-500 to-violet-500/50' 
-                : 'bg-gradient-to-b from-violet-500/0 via-violet-500/30 to-violet-500/0 group-hover:via-violet-500/60'
+                ? 'bg-gradient-to-b from-[#EC67A1]/50 via-[#EC67A1] to-[#EC67A1]/50' 
+                : 'bg-gradient-to-b from-[#EC67A1]/0 via-[#EC67A1]/30 to-[#EC67A1]/0 group-hover:via-[#EC67A1]/60'
             }`} />
             
             {/* Grip dots indicator */}
             <div className={`absolute top-1/2 -translate-y-1/2 left-0.5 flex flex-col gap-1 transition-opacity ${
               isResizingSidebar ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}>
-              <div className="w-0.5 h-0.5 rounded-full bg-violet-300" />
-              <div className="w-0.5 h-0.5 rounded-full bg-violet-300" />
-              <div className="w-0.5 h-0.5 rounded-full bg-violet-300" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#F774B9]" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#F774B9]" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#F774B9]" />
             </div>
             
             {/* Extended hover area for easier grabbing */}
@@ -4753,13 +4753,13 @@ export function VaultContent() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden w-full relative">
-          <div className="glass-card border-b border-white/[0.06] px-4 sm:px-6 py-3 sm:py-4">
+          <div className="bg-zinc-50/95 dark:bg-[#1a1625]/95 backdrop-blur border-b border-[#EC67A1]/10 px-4 sm:px-6 py-3 sm:py-4">
             {/* Mobile header row */}
             <div className="flex items-center gap-3 lg:hidden mb-3">
-              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
-                <Menu className="w-5 h-5 text-gray-300" />
+              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded-xl transition-colors">
+                <Menu className="w-5 h-5 text-header-muted" />
               </button>
-              <h1 className="text-lg font-semibold text-white truncate flex-1">
+              <h1 className="text-lg font-semibold text-sidebar-foreground truncate flex-1">
                 {isViewingCreators 
                   ? (selectedContentCreator 
                       ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
@@ -4769,7 +4769,7 @@ export function VaultContent() {
                     : (selectedFolder?.name || 'Select a folder')}
               </h1>
               {!isViewingShared && !isViewingCreators && (
-                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl transition-colors disabled:opacity-50 shadow-lg shadow-violet-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
+                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="p-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-xl transition-colors disabled:opacity-50 shadow-lg shadow-[#EC67A1]/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
                   <Upload className="w-5 h-5" />
                 </button>
               )}
@@ -4777,7 +4777,7 @@ export function VaultContent() {
               {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
                 <button
                   onClick={() => setShowExportModal(true)}
-                  className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  className="p-2 bg-[#5DC3F8] hover:bg-[#4ab3e8] text-white rounded-lg transition-colors"
                   title="Platform Export"
                 >
                   <FileOutput className="w-5 h-5" />
@@ -4788,7 +4788,7 @@ export function VaultContent() {
             {/* Desktop header row */}
             <div className="hidden lg:flex items-center justify-between gap-1.5 xl:gap-3">
               <div className="flex-shrink min-w-0 max-w-[30%] xl:max-w-none">
-                <h1 className="text-sm xl:text-xl font-semibold text-white truncate">
+                <h1 className="text-sm xl:text-xl font-semibold text-sidebar-foreground truncate">
                   {isViewingCreators 
                     ? (selectedContentCreator 
                         ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
@@ -4798,40 +4798,40 @@ export function VaultContent() {
                       : (selectedFolder?.name || 'Select a folder')}
                 </h1>
                 {isAllProfiles && !selectedFolder && (
-                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Users className="w-3.5 h-3.5" /> Viewing all {profiles.length} profiles
                   </p>
                 )}
                 {isViewingShared && selectedSharedFolder && (
-                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
-                    {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
+                    {!canEdit && <span className="text-amber-500 ml-2">(View only)</span>}
                   </p>
                 )}
                 {isViewingCreators && (
-                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
-                    <Crown className="w-3.5 h-3.5 text-amber-400" /> 
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
+                    <Crown className="w-3.5 h-3.5 text-amber-500" /> 
                     Content Creator Generations
-                    <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full ml-2">Admin View</span>
+                    <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full ml-2">Admin View</span>
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-1 xl:gap-3 flex-shrink-0">
                 <div className="relative w-24 xl:w-64">
-                  <Search className="absolute left-2 xl:left-3 top-1/2 -translate-y-1/2 w-3.5 xl:w-4 h-3.5 xl:h-4 text-gray-500" />
-                  <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-7 xl:pl-9 pr-2 xl:pr-4 py-1.5 xl:py-2.5 bg-white/5 border border-white/10 rounded-lg xl:rounded-xl text-xs xl:text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
+                  <Search className="absolute left-2 xl:left-3 top-1/2 -translate-y-1/2 w-3.5 xl:w-4 h-3.5 xl:h-4 text-header-muted" />
+                  <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-7 xl:pl-9 pr-2 xl:pr-4 py-1.5 xl:py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-lg xl:rounded-xl text-xs xl:text-sm text-sidebar-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-colors" />
                 </div>
-                <div className="flex items-center bg-white/5 rounded-lg xl:rounded-xl p-0.5 xl:p-1 border border-white/10">
-                  <button onClick={() => setViewMode('grid')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
-                  <button onClick={() => setViewMode('list')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
+                <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg xl:rounded-xl p-0.5 xl:p-1 border border-[#EC67A1]/20">
+                  <button onClick={() => setViewMode('grid')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25' : 'text-header-muted hover:text-sidebar-foreground'}`}><Grid3X3 className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25' : 'text-header-muted hover:text-sidebar-foreground'}`}><List className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
                 </div>
                 {!isViewingShared && !isViewingCreators && (
-                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25" title="Upload">
+                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-[#EC67A1]/25" title="Upload">
                     <Upload className="w-4 h-4" /> <span className="hidden xl:inline">Upload</span>
                   </button>
                 )}
                 {!isViewingShared && !isViewingCreators && (
-                  <button onClick={openGoogleDriveModal} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-blue-500/25" title="Google Drive">
+                  <button onClick={openGoogleDriveModal} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#4ab3e8] hover:from-[#4ab3e8] hover:to-[#3aa3d8] text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-[#5DC3F8]/25" title="Google Drive">
                     <HardDrive className="w-4 h-4" /> <span className="hidden xl:inline">Google Drive</span>
                   </button>
                 )}
@@ -4839,7 +4839,7 @@ export function VaultContent() {
                 {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
                   <button
                     onClick={() => setShowExportModal(true)}
-                    className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-fuchsia-500 to-pink-600 hover:from-fuchsia-600 hover:to-pink-700 text-white rounded-lg xl:rounded-xl font-medium transition-all shadow-lg shadow-fuchsia-500/25"
+                    className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-[#F774B9] to-[#EC67A1] hover:from-[#EC67A1] hover:to-[#E1518E] text-white rounded-lg xl:rounded-xl font-medium transition-all shadow-lg shadow-[#F774B9]/25"
                     title="Export"
                   >
                     <FileOutput className="w-4 h-4" /> <span className="hidden xl:inline">Export</span>
@@ -4850,21 +4850,21 @@ export function VaultContent() {
 
             {/* Mobile shared folder info */}
             {isViewingShared && selectedSharedFolder && (
-              <p className="text-sm text-gray-400 flex items-center gap-1 lg:hidden mb-3">
+              <p className="text-sm text-header-muted flex items-center gap-1 lg:hidden mb-3">
                 <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
-                {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
+                {!canEdit && <span className="text-amber-500 ml-2">(View only)</span>}
               </p>
             )}
             
             {/* Mobile search and view toggle */}
             <div className="flex items-center gap-2 lg:hidden mb-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-[#EC67A1]/20 rounded-xl text-sm text-sidebar-foreground placeholder-header-muted focus:ring-2 focus:ring-[#EC67A1] focus:border-[#EC67A1] transition-colors" />
               </div>
-              <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
-                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
-                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+              <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1 border border-[#EC67A1]/20">
+                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white' : 'text-header-muted hover:text-sidebar-foreground'}`}><Grid3X3 className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white' : 'text-header-muted hover:text-sidebar-foreground'}`}><List className="w-4 h-4" /></button>
               </div>
             </div>
             
@@ -4872,7 +4872,7 @@ export function VaultContent() {
             <div className="flex items-center justify-between gap-3 mt-3 lg:mt-4">
               <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0 vault-scroll">
                 {['all', 'photos', 'videos', 'audio', 'gifs'].map((filter) => (
-                  <button key={filter} onClick={() => setContentFilter(filter as any)} className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${contentFilter === filter ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}>{filter.charAt(0).toUpperCase() + filter.slice(1)}</button>
+                  <button key={filter} onClick={() => setContentFilter(filter as any)} className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${contentFilter === filter ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25' : 'text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground'}`}>{filter.charAt(0).toUpperCase() + filter.slice(1)}</button>
                 ))}
               </div>
               {filteredItems.length > 0 && (
@@ -4884,7 +4884,7 @@ export function VaultContent() {
                       setSelectionMode(true);
                     }
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${selectionMode ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${selectionMode ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25' : 'text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground'}`}
                 >
                   <Check className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span className="hidden sm:inline">{selectionMode ? 'Cancel' : 'Select'}</span>
@@ -4942,14 +4942,14 @@ export function VaultContent() {
             />
           </div>
 
-          <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-[#0a0a0f] rounded-br-2xl">
+          <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-white dark:bg-[#0a0a0f] rounded-br-2xl">
             {/* Admin Creator View - Loading/Empty States */}
             {isViewingCreators && loadingCreatorItems && (
               <div className={getGridClasses}>
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
-                    <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
-                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-white/5 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-white/5 rounded w-1/2" /></div>
+                  <div key={i} className={viewMode === 'grid' ? 'bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl p-2 sm:p-3 animate-pulse' : 'bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
+                    <div className={viewMode === 'grid' ? 'aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex-shrink-0'} />
+                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" /></div>
                   </div>
                 ))}
               </div>
@@ -4958,10 +4958,10 @@ export function VaultContent() {
             {isViewingCreators && !loadingCreatorItems && contentCreatorItems.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center mb-4 border border-amber-500/30">
-                  <Crown className="w-8 h-8 text-amber-400" />
+                  <Crown className="w-8 h-8 text-amber-500" />
                 </div>
-                <h3 className="text-lg font-medium text-white mb-1">No Content Creator Files</h3>
-                <p className="text-sm text-gray-400 max-w-sm">
+                <h3 className="text-lg font-medium text-sidebar-foreground mb-1">No Content Creator Files</h3>
+                <p className="text-sm text-header-muted max-w-sm">
                   {contentCreators.length === 0 
                     ? "No users with the Content Creator role found in the system."
                     : "Content creators haven't uploaded any files to their vault yet."}
@@ -4971,50 +4971,50 @@ export function VaultContent() {
 
             {!isViewingCreators && !selectedProfileId && !selectedSharedFolder ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><Folder className="w-8 h-8 text-violet-400" /></div>
-                <h3 className="text-lg font-medium text-white mb-1">Select a profile</h3>
-                <p className="text-sm text-gray-400">Choose a profile from the sidebar to view your files</p>
-                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-colors">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 rounded-2xl flex items-center justify-center mb-4 border border-[#EC67A1]/30"><Folder className="w-8 h-8 text-[#EC67A1]" /></div>
+                <h3 className="text-lg font-medium text-sidebar-foreground mb-1">Select a profile</h3>
+                <p className="text-sm text-header-muted">Choose a profile from the sidebar to view your files</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-colors">
                   <Menu className="w-4 h-4" /> Open sidebar
                 </button>
               </div>
             ) : !isViewingCreators && !selectedFolderId && !selectedSharedFolder ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><FolderPlus className="w-8 h-8 text-violet-400" /></div>
-                <h3 className="text-lg font-medium text-white mb-1">Create a folder</h3>
-                <p className="text-sm text-gray-400">Organize your files by creating folders</p>
-                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-colors">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 rounded-2xl flex items-center justify-center mb-4 border border-[#EC67A1]/30"><FolderPlus className="w-8 h-8 text-[#EC67A1]" /></div>
+                <h3 className="text-lg font-medium text-sidebar-foreground mb-1">Create a folder</h3>
+                <p className="text-sm text-header-muted">Organize your files by creating folders</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-colors">
                   <Menu className="w-4 h-4" /> Open sidebar
                 </button>
               </div>
             ) : (loadingItems || loadingCreatorItems) && !isViewingCreators ? (
               <div className={getGridClasses}>
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
-                    <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
-                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-white/5 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-white/5 rounded w-1/2" /></div>
+                  <div key={i} className={viewMode === 'grid' ? 'bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl p-2 sm:p-3 animate-pulse' : 'bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
+                    <div className={viewMode === 'grid' ? 'aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex-shrink-0'} />
+                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" /></div>
                   </div>
                 ))}
               </div>
             ) : allFilteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><FileIcon className="w-8 h-8 text-violet-400" /></div>
-                <h3 className="text-lg font-medium text-white mb-1">No files yet</h3>
-                <p className="text-sm text-gray-400 mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 rounded-2xl flex items-center justify-center mb-4 border border-[#EC67A1]/30"><FileIcon className="w-8 h-8 text-[#EC67A1]" /></div>
+                <h3 className="text-lg font-medium text-sidebar-foreground mb-1">No files yet</h3>
+                <p className="text-sm text-header-muted mb-4">
                   {isAllProfiles ? 'Select a specific profile to upload files' : 'Upload some files to get started'}
                 </p>
-                {!isViewingShared && !isViewingCreators && !isAllProfiles && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-violet-500/25"><Upload className="w-4 h-4" /> Upload files</button>}
+                {!isViewingShared && !isViewingCreators && !isAllProfiles && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-xl font-medium transition-all shadow-lg shadow-[#EC67A1]/25"><Upload className="w-4 h-4" /> Upload files</button>}
               </div>
             ) : viewMode === 'grid' ? (
               <>
                 {/* Selection header */}
                 {filteredItems.length > 0 && selectionMode && (
-                  <div className="flex items-center justify-between mb-2 px-3 py-2.5 glass-card rounded-xl">
+                  <div className="flex items-center justify-between mb-2 px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl">
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
-                      <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
+                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-[#EC67A1] bg-zinc-100 dark:bg-zinc-800 border-[#EC67A1]/30 rounded focus:ring-[#EC67A1] cursor-pointer" />
+                      <span className="text-xs sm:text-sm text-sidebar-foreground font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                     </div>
-                    <span className="text-xs text-gray-500">Shift+click for range</span>
+                    <span className="text-xs text-header-muted">Shift+click for range</span>
                   </div>
                 )}
                 {/* Standard Grid with lazy loaded images */}
@@ -5042,7 +5042,7 @@ export function VaultContent() {
                 </div>
                 {hasMoreItems && (
                   <div className="flex justify-center mt-4 sm:mt-6">
-                    <button onClick={loadMoreItems} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-2 border border-white/10">
+                    <button onClick={loadMoreItems} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20">
                       <Loader2 className="w-4 h-4" /> Load more ({currentFilteredItems.length - filteredItems.length})
                     </button>
                   </div>
@@ -5052,12 +5052,12 @@ export function VaultContent() {
               <>
                 {/* Selection header for list view */}
                 {filteredItems.length > 0 && selectionMode && (
-                  <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 glass-card rounded-xl mb-2">
+                  <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl mb-2">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
-                      <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
+                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-[#EC67A1] bg-zinc-100 dark:bg-zinc-800 border-[#EC67A1]/30 rounded focus:ring-[#EC67A1] cursor-pointer" />
+                      <span className="text-xs sm:text-sm text-sidebar-foreground font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                     </div>
-                    <span className="text-xs text-gray-500">Shift+click for range</span>
+                    <span className="text-xs text-header-muted">Shift+click for range</span>
                   </div>
                 )}
                 {/* Standard List with lazy loaded images */}
@@ -5082,7 +5082,7 @@ export function VaultContent() {
                 </div>
                 {hasMoreItems && (
                   <div className="flex justify-center mt-6">
-                    <button onClick={loadMoreItems} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-all flex items-center gap-2 border border-white/10">
+                    <button onClick={loadMoreItems} className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20">
                       <Loader2 className="w-4 h-4" /> Load more ({currentFilteredItems.length - filteredItems.length} remaining)
                     </button>
                   </div>
@@ -5094,33 +5094,33 @@ export function VaultContent() {
           {/* Floating Selection Action Bar */}
           {selectedItems.size > 0 && (
             <div className="fixed sm:absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 animate-slideUp w-[calc(100%-2rem)] sm:w-auto max-w-2xl">
-              <div className="flex items-center gap-1.5 sm:gap-3 glass-card backdrop-blur-xl rounded-2xl px-2.5 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-violet-500/10">
+              <div className="flex items-center gap-1.5 sm:gap-3 bg-zinc-100/95 dark:bg-[#1a1625]/95 backdrop-blur-xl border border-[#EC67A1]/20 rounded-2xl px-2.5 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-[#EC67A1]/10">
                 {/* Selection count */}
-                <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-white/10">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-violet-500 to-fuchsia-600 rounded-full flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-[#EC67A1]/20">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] rounded-full flex items-center justify-center shadow-lg shadow-[#EC67A1]/25">
                     <span className="text-xs sm:text-sm font-bold text-white">{selectedItems.size}</span>
                   </div>
-                  <span className="text-xs sm:text-sm text-gray-300 hidden sm:inline">selected</span>
+                  <span className="text-xs sm:text-sm text-header-muted hidden sm:inline">selected</span>
                 </div>
                 
                 {/* Select all */}
                 <button 
                   onClick={toggleSelectAll}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-white/10 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-header-muted hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
                 >
                   <Check className="w-4 h-4" />
                   <span className="hidden sm:inline">{selectedItems.size === currentFilteredItems.length ? 'Deselect all' : 'Select all'}</span>
                 </button>
                 
                 {/* Divider */}
-                <div className="w-px h-6 bg-white/10 hidden xs:block" />
+                <div className="w-px h-6 bg-[#EC67A1]/20 hidden xs:block" />
                 
                 {/* Actions */}
                 {canEdit && !isViewingCreators && (
                   <button 
                     onClick={handleBulkMove} 
                     disabled={isMoving}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-violet-400 hover:bg-violet-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-[#EC67A1] hover:bg-[#EC67A1]/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                     title="Move"
                   >
                     <Move className="w-4 h-4" />
@@ -5131,7 +5131,7 @@ export function VaultContent() {
                 <button
                   onClick={handleDownloadZip}
                   disabled={isDownloading}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-emerald-500 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                   title="Download"
                 >
                   {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -5140,7 +5140,7 @@ export function VaultContent() {
 
                 <button
                   onClick={() => setShowExportModal(true)}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-[#F774B9] hover:bg-[#F774B9]/20 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
                   title="Platform Export"
                 >
                   <FileOutput className="w-4 h-4" />
@@ -5151,7 +5151,7 @@ export function VaultContent() {
                   <button 
                     onClick={handleBulkDelete} 
                     disabled={isDeleting}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-red-500 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                     title="Delete"
                   >
                     {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -5160,12 +5160,12 @@ export function VaultContent() {
                 )}
                 
                 {/* Divider */}
-                <div className="w-px h-6 bg-white/10" />
+                <div className="w-px h-6 bg-[#EC67A1]/20" />
                 
                 {/* Close */}
                 <button 
                   onClick={clearSelection}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-1.5 sm:p-2 text-header-muted hover:text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                   title="Clear selection (Esc)"
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -5191,20 +5191,20 @@ export function VaultContent() {
           }}
         >
           <div
-            className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
+            className="bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-6 border-b border-gray-700 shrink-0">
+            <div className="p-6 border-b border-[#EC67A1]/10 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
+                <div className="p-3 bg-gradient-to-br from-[#5DC3F8] to-[#4ab3e8] rounded-xl">
                   <HardDrive className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-white">
+                  <h3 className="text-xl font-semibold text-sidebar-foreground">
                     Import from Google Drive
                   </h3>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-header-muted">
                     Add files to your vault
                   </p>
                 </div>
@@ -5215,30 +5215,30 @@ export function VaultContent() {
               {googleDriveImportSuccess ? (
                 <div className="text-center py-6">
                   <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 className="w-8 h-8 text-green-400" />
+                    <CheckCircle2 className="w-8 h-8 text-green-500" />
                   </div>
-                  <h4 className="text-xl font-semibold text-white mb-2">
+                  <h4 className="text-xl font-semibold text-sidebar-foreground mb-2">
                     Import Successful!
                   </h4>
-                  <p className="text-gray-400">
+                  <p className="text-header-muted">
                     {googleDriveImportSuccess.itemCount} file
                     {googleDriveImportSuccess.itemCount !== 1 ? "s" : ""} imported to your vault
                   </p>
                 </div>
               ) : !googleDriveAccessToken ? (
                 <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <HardDrive className="w-10 h-10 text-blue-400" />
+                  <div className="w-20 h-20 bg-[#5DC3F8]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <HardDrive className="w-10 h-10 text-[#5DC3F8]" />
                   </div>
-                  <h4 className="text-xl font-semibold text-white mb-2">
+                  <h4 className="text-xl font-semibold text-sidebar-foreground mb-2">
                     Connect to Google Drive
                   </h4>
-                  <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                  <p className="text-header-muted mb-6 max-w-md mx-auto">
                     To import files from Google Drive, you need to connect your account first.
                   </p>
                   <button
                     onClick={connectToGoogleDrive}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
+                    className="px-6 py-3 bg-gradient-to-r from-[#5DC3F8] to-[#4ab3e8] hover:from-[#4ab3e8] hover:to-[#3aa3d8] text-white rounded-xl font-medium shadow-lg shadow-[#5DC3F8]/25 transition-all duration-200 flex items-center gap-2 mx-auto"
                   >
                     <HardDrive className="w-5 h-5" />
                     Connect Google Drive
@@ -5248,13 +5248,13 @@ export function VaultContent() {
                 <div className="flex flex-col gap-5">
                   {/* Link Input Section */}
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <Link className="w-5 h-5 text-blue-400" />
+                    <div className="flex items-center gap-2 text-sidebar-foreground">
+                      <Link className="w-5 h-5 text-[#5DC3F8]" />
                       <span className="font-medium">Paste a Google Drive folder link to browse</span>
                     </div>
-                    <div className="flex gap-2 p-4 bg-gray-800/30 rounded-xl border border-gray-700/50">
+                    <div className="flex gap-2 p-4 bg-zinc-100/50 dark:bg-zinc-800/30 rounded-xl border border-[#EC67A1]/10">
                       <div className="flex-1 relative">
-                        <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                        <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
                         <input
                           type="text"
                           placeholder="Paste Google Drive folder link here..."
@@ -5265,13 +5265,13 @@ export function VaultContent() {
                               browseGoogleDriveLink();
                             }
                           }}
-                          className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm"
+                          className="w-full pl-10 pr-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/20 rounded-xl text-sidebar-foreground placeholder-header-muted focus:outline-none focus:border-[#5DC3F8]/50 focus:ring-1 focus:ring-[#5DC3F8]/30 transition-all text-sm"
                         />
                       </div>
                       <button
                         onClick={browseGoogleDriveLink}
                         disabled={loadingGoogleDriveFiles || !googleDriveLinkInput.trim()}
-                        className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-5 py-2.5 bg-[#5DC3F8] hover:bg-[#4ab3e8] text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Browse
                       </button>
@@ -5279,16 +5279,16 @@ export function VaultContent() {
                   </div>
 
                   {/* Breadcrumb Navigation */}
-                  <div className="flex items-center gap-1 text-sm bg-gray-800/30 rounded-xl px-4 py-2.5 overflow-x-auto">
+                  <div className="flex items-center gap-1 text-sm bg-zinc-100/50 dark:bg-zinc-800/30 rounded-xl px-4 py-2.5 overflow-x-auto">
                     {googleDriveBreadcrumbs.map((crumb, index) => (
                       <div key={index} className="flex items-center">
-                        {index > 0 && <ChevronRight className="w-4 h-4 text-gray-500 mx-1" />}
+                        {index > 0 && <ChevronRight className="w-4 h-4 text-header-muted mx-1" />}
                         <button
                           onClick={() => navigateToBreadcrumb(index)}
-                          className={`px-2 py-1 rounded-lg hover:bg-gray-700/50 transition-colors truncate max-w-[180px] ${
+                          className={`px-2 py-1 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700/50 transition-colors truncate max-w-[180px] ${
                             index === googleDriveBreadcrumbs.length - 1
-                              ? "text-blue-400 font-medium bg-blue-500/10"
-                              : "text-gray-400 hover:text-gray-300"
+                              ? "text-[#5DC3F8] font-medium bg-[#5DC3F8]/10"
+                              : "text-header-muted hover:text-sidebar-foreground"
                           }`}
                         >
                           {crumb.name}
@@ -5299,7 +5299,7 @@ export function VaultContent() {
                       <button
                         onClick={() => fetchGoogleDriveContents(currentGoogleDriveFolderId)}
                         disabled={loadingGoogleDriveFiles}
-                        className="p-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 hover:text-gray-300 rounded-lg transition-all"
+                        className="p-2 bg-zinc-200 dark:bg-zinc-700/50 hover:bg-zinc-300 dark:hover:bg-zinc-600/50 text-header-muted hover:text-sidebar-foreground rounded-lg transition-all"
                         title="Refresh"
                       >
                         <RefreshCw className={`w-4 h-4 ${loadingGoogleDriveFiles ? 'animate-spin' : ''}`} />
@@ -5314,7 +5314,7 @@ export function VaultContent() {
                           setGoogleDriveLinkInput('');
                           setGoogleDriveError(null);
                         }}
-                        className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all"
+                        className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-500 hover:text-red-400 rounded-lg transition-all"
                         title="Sign out of Google Drive"
                       >
                         <LogOut className="w-4 h-4" />
@@ -5323,7 +5323,7 @@ export function VaultContent() {
                   </div>
 
                   {googleDriveError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-start gap-3">
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                       <div>
                         <p className="font-medium">{googleDriveError.includes("permission") || googleDriveError.includes("access") ? "Access Denied" : "Error"}</p>
@@ -5335,13 +5335,13 @@ export function VaultContent() {
                   {/* Content Area */}
                   {loadingGoogleDriveFiles ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      <Loader2 className="w-6 h-6 animate-spin text-header-muted" />
                     </div>
                   ) : googleDriveFolders.length === 0 && googleDriveFiles.length === 0 && !googleDriveError ? (
-                    <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-700/30">
+                    <div className="text-center py-12 text-header-muted bg-zinc-100/50 dark:bg-zinc-800/30 rounded-xl border border-[#EC67A1]/10">
                       <Folder className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="text-base font-medium">This folder is empty</p>
-                      <p className="text-sm mt-1 text-gray-600">
+                      <p className="text-sm mt-1 text-header-muted">
                         {googleDriveBreadcrumbs.length > 1 
                           ? "Go back or paste a different folder link"
                           : "Paste a folder link above to browse its contents"}
@@ -5352,7 +5352,7 @@ export function VaultContent() {
                       {/* Folders */}
                       {googleDriveFolders.length > 0 && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-3">
+                          <label className="block text-sm font-medium text-sidebar-foreground mb-3">
                             📁 Folders ({googleDriveFolders.length})
                           </label>
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto pr-2">
@@ -5360,14 +5360,14 @@ export function VaultContent() {
                               <button
                                 key={folder.id}
                                 onClick={() => navigateToGoogleDriveFolder(folder)}
-                                className="flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl text-left transition-all border border-gray-700/50 hover:border-blue-500/30 group"
+                                className="flex items-center gap-3 px-4 py-3 bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-700/50 rounded-xl text-left transition-all border border-[#EC67A1]/10 hover:border-[#5DC3F8]/30 group"
                               >
-                                <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
-                                  <Folder className="w-5 h-5 text-yellow-400" />
+                                <div className="p-2 bg-amber-500/10 rounded-lg group-hover:bg-amber-500/20 transition-colors">
+                                  <Folder className="w-5 h-5 text-amber-500" />
                                 </div>
-                                <span className="text-sm text-gray-300 truncate flex-1">{folder.name}</span>
+                                <span className="text-sm text-sidebar-foreground truncate flex-1">{folder.name}</span>
                                 {folder.shared && (
-                                  <Users className="w-4 h-4 text-gray-500 shrink-0" />
+                                  <Users className="w-4 h-4 text-header-muted shrink-0" />
                                 )}
                               </button>
                             ))}
@@ -5378,10 +5378,10 @@ export function VaultContent() {
                       {/* Files */}
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <label className="text-sm font-medium text-gray-300">
+                          <label className="text-sm font-medium text-sidebar-foreground">
                             🖼️ Media Files ({googleDriveFiles.length})
                             {selectedGoogleDriveFiles.size > 0 && (
-                              <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                              <span className="ml-2 px-2 py-0.5 bg-[#5DC3F8]/20 text-[#5DC3F8] rounded-full text-xs">
                                 {selectedGoogleDriveFiles.size} selected
                               </span>
                             )}
@@ -5389,7 +5389,7 @@ export function VaultContent() {
                           {googleDriveFiles.length > 0 && (
                             <button
                               onClick={selectAllGoogleDriveFiles}
-                              className="text-sm text-blue-400 hover:text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                              className="text-sm text-[#5DC3F8] hover:text-[#4ab3e8] px-3 py-1 rounded-lg hover:bg-[#5DC3F8]/10 transition-colors"
                             >
                               {selectedGoogleDriveFiles.size === googleDriveFiles.length
                                 ? "Deselect All"
@@ -5399,10 +5399,10 @@ export function VaultContent() {
                         </div>
 
                         {googleDriveFiles.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl">
+                          <div className="text-center py-12 text-header-muted bg-zinc-100/50 dark:bg-zinc-800/30 rounded-xl">
                             <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
                             <p className="text-base">No media files found</p>
-                            <p className="text-sm mt-1 text-gray-600">
+                            <p className="text-sm mt-1 text-header-muted">
                               Browse into folders to find images, videos, and audio files
                             </p>
                           </div>
@@ -5414,8 +5414,8 @@ export function VaultContent() {
                                 onClick={() => toggleGoogleDriveFileSelection(file.id)}
                                 className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
                                   selectedGoogleDriveFiles.has(file.id)
-                                    ? "border-blue-500 ring-2 ring-blue-500/30"
-                                    : "border-transparent hover:border-gray-600"
+                                    ? "border-[#5DC3F8] ring-2 ring-[#5DC3F8]/30"
+                                    : "border-transparent hover:border-[#EC67A1]/30"
                                 }`}
                               >
                                 {file.mimeType?.startsWith("video/") ? (
@@ -5426,17 +5426,17 @@ export function VaultContent() {
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                      <VideoIcon className="w-8 h-8 text-gray-400 mb-1" />
-                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                    <div className="w-full h-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex flex-col items-center justify-center p-2">
+                                      <VideoIcon className="w-8 h-8 text-header-muted mb-1" />
+                                      <p className="text-xs text-header-muted text-center truncate w-full px-1">
                                         {file.name}
                                       </p>
                                     </div>
                                   )
                                 ) : file.mimeType?.startsWith("audio/") ? (
-                                  <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-2">
-                                    <Music4 className="w-8 h-8 text-violet-400 mb-1" />
-                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                  <div className="w-full h-full bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 flex flex-col items-center justify-center p-2">
+                                    <Music4 className="w-8 h-8 text-[#EC67A1] mb-1" />
+                                    <p className="text-xs text-header-muted text-center truncate w-full px-1">
                                       {file.name}
                                     </p>
                                   </div>
@@ -5447,16 +5447,16 @@ export function VaultContent() {
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-1" />
-                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                  <div className="w-full h-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex flex-col items-center justify-center p-2">
+                                    <ImageIcon className="w-8 h-8 text-header-muted mb-1" />
+                                    <p className="text-xs text-header-muted text-center truncate w-full px-1">
                                       {file.name}
                                     </p>
                                   </div>
                                 )}
                                 {selectedGoogleDriveFiles.has(file.id) && (
-                                  <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                                    <CheckCircle2 className="w-6 h-6 text-blue-400" />
+                                  <div className="absolute inset-0 bg-[#5DC3F8]/20 flex items-center justify-center">
+                                    <CheckCircle2 className="w-6 h-6 text-[#5DC3F8]" />
                                   </div>
                                 )}
                                 {file.mimeType?.startsWith("video/") && (
@@ -5481,7 +5481,7 @@ export function VaultContent() {
             </div>
 
             {!googleDriveImportSuccess && googleDriveAccessToken && (
-              <div className="p-6 border-t border-gray-700 flex gap-3 shrink-0">
+              <div className="p-6 border-t border-[#EC67A1]/10 flex gap-3 shrink-0">
                 <button
                   onClick={() => {
                     setShowGoogleDriveModal(false);
@@ -5490,14 +5490,14 @@ export function VaultContent() {
                     setGoogleDriveError(null);
                   }}
                   disabled={importingFromGoogleDrive}
-                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={importFromGoogleDrive}
                   disabled={importingFromGoogleDrive || selectedGoogleDriveFiles.size === 0}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#5DC3F8] to-[#4ab3e8] hover:from-[#4ab3e8] hover:to-[#3aa3d8] text-white rounded-xl font-medium shadow-lg shadow-[#5DC3F8]/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {importingFromGoogleDrive ? (
                     <>
@@ -5515,10 +5515,10 @@ export function VaultContent() {
             )}
 
             {!googleDriveAccessToken && (
-              <div className="p-6 border-t border-gray-700 shrink-0">
+              <div className="p-6 border-t border-[#EC67A1]/10 shrink-0">
                 <button
                   onClick={() => setShowGoogleDriveModal(false)}
-                  className="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                  className="w-full px-4 py-2.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-colors"
                 >
                   Close
                 </button>

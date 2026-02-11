@@ -84,7 +84,7 @@ function GlobalModal({ isOpen, onClose, children }: { isOpen: boolean; onClose: 
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-card rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -304,27 +304,27 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
     const statusConfig = {
       PENDING: {
         icon: Clock,
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
-        textColor: 'text-yellow-700 dark:text-yellow-300',
-        borderColor: 'border-yellow-200 dark:border-yellow-700/30'
+        bgColor: 'bg-muted',
+        textColor: 'text-foreground',
+        borderColor: 'border-yellow-500/50'
       },
       IN_PROGRESS: {
         icon: Clock,
-        bgColor: 'bg-blue-50 dark:bg-blue-900/20',
-        textColor: 'text-blue-700 dark:text-blue-300',
-        borderColor: 'border-blue-200 dark:border-blue-700/30'
+        bgColor: 'bg-muted',
+        textColor: 'text-foreground',
+        borderColor: 'border-brand-blue/50'
       },
       COMPLETED: {
         icon: CheckCircle,
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
-        textColor: 'text-green-700 dark:text-green-300',
-        borderColor: 'border-green-200 dark:border-green-700/30'
+        bgColor: 'bg-muted',
+        textColor: 'text-foreground',
+        borderColor: 'border-green-500/50'
       },
       FAILED: {
         icon: XCircle,
-        bgColor: 'bg-red-50 dark:bg-red-900/20',
-        textColor: 'text-red-700 dark:text-red-300',
-        borderColor: 'border-red-200 dark:border-red-700/30'
+        bgColor: 'bg-muted',
+        textColor: 'text-foreground',
+        borderColor: 'border-red-500/50'
       }
     };
 
@@ -363,19 +363,19 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
       });
 
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl p-6 shadow-lg backdrop-blur-sm">
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Master Production Tracker</h3>
+    <div className="bg-card border border-border rounded-xl p-6 shadow-lg">
+      <h3 className="text-xl font-semibold text-foreground mb-4">Master Production Tracker</h3>
       
       {/* Content Creator Filter */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-foreground mb-2">
           Filter by Content Creator
         </label>
         <select
           value={selectedCreatorId}
           onChange={(e) => setSelectedCreatorId(e.target.value)}
           disabled={contentCreatorsLoading}
-          className="w-full md:w-64 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full md:w-64 border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="all">All Content Creators</option>
           {contentCreators.map((creator) => (
@@ -389,45 +389,54 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
       <div className="space-y-6">
         {/* Production Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10 border border-blue-200/50 dark:border-blue-700/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">Active Jobs</h4>
-            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+          <div className="bg-muted border border-brand-blue/30 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-brand-blue" />
+              Active Jobs
+            </h4>
+            <p className="text-2xl font-bold text-foreground">
               {filteredProductionData.filter(item => item.status === 'IN_PROGRESS').length}
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Currently processing</p>
+            <p className="text-xs text-muted-foreground mt-1">Currently processing</p>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 border border-green-200/50 dark:border-green-700/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">Completed Today</h4>
-            <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+          <div className="bg-muted border border-green-500/30 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              Completed Today
+            </h4>
+            <p className="text-2xl font-bold text-foreground">
               {filteredProductionData.filter(item => item.status === 'COMPLETED' && new Date(item.createdAt || item.deadline).toDateString() === new Date().toDateString()).length}
             </p>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Jobs finished</p>
+            <p className="text-xs text-muted-foreground mt-1">Jobs finished</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/10 border border-purple-200/50 dark:border-purple-700/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">Queue Length</h4>
-            <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+          <div className="bg-muted border border-brand-mid-pink/30 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-brand-mid-pink" />
+              Queue Length
+            </h4>
+            <p className="text-2xl font-bold text-foreground">
               {filteredProductionData.filter(item => item.status === 'PENDING').length}
             </p>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Jobs waiting</p>
+            <p className="text-xs text-muted-foreground mt-1">Jobs waiting</p>
           </div>
         </div>
 
         {/* Production Table */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Production Entries</h4>
+            <h4 className="text-lg font-semibold text-foreground">Production Entries</h4>
             <div className="flex items-center space-x-2">
               {productionData.length > 0 && selectedCreatorId === 'all' && (
                 <button 
                   onClick={clearAllData}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg flex items-center space-x-2"
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-lg flex items-center space-x-2 border border-red-600 active:scale-95"
                 >
                   <span>Clear All</span>
                 </button>
               )}
               <button 
                 onClick={() => setShowAddForm(true)}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg flex items-center space-x-2"
+                className="bg-gradient-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-brand-mid-pink/25 flex items-center space-x-2 active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add New Entry</span>
@@ -435,55 +444,55 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
             </div>
           </div>
           
-          <div className="bg-white/70 dark:bg-gray-800/40 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
+          <div className="bg-card border border-border rounded-xl shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-blue-50/30 dark:from-gray-900/50 dark:to-blue-900/20 border-b border-gray-200/50 dark:border-gray-700/30">
+                <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <Calendar className="w-3 h-3" />
                         <span>Deadline</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <User className="w-3 h-3" />
                         <span>Assignee</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Influencer
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <Instagram className="w-3 h-3" />
                         <span>Instagram Source</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <Cpu className="w-3 h-3" />
                         <span>LoRA Model</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         {/* eslint-disable-next-line jsx-a11y/alt-text */}
                         <Image className="w-3 h-3" />
                         <span>Images</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <Video className="w-3 h-3" />
                         <span>Videos</span>
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
                         <FileText className="w-3 h-3" />
                         <span>Notes</span>
@@ -491,10 +500,10 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/30">
+                <tbody className="divide-y divide-border">
                   {filteredProductionData.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                         {selectedCreatorId === 'all' 
                           ? 'No production entries yet. Click "Add New Entry" to get started.'
                           : 'No production entries found for this content creator.'}
@@ -504,22 +513,18 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                     filteredProductionData.map((entry, index) => (
                       <tr 
                         key={entry.id}
-                        className={`${
-                          index % 2 === 0 
-                            ? 'bg-white/50 dark:bg-gray-900/20' 
-                            : 'bg-gray-50/30 dark:bg-gray-800/20'
-                        } hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors duration-200`}
+                        className="hover:bg-muted/50 transition-colors"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-foreground">
                           {new Date(entry.deadline).toLocaleDateString()}
                         </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm font-medium text-foreground">
                           {entry.assignee}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-foreground">
                           {entry.influencer}
                         </td>
-                        <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400 font-mono">
+                        <td className="px-4 py-3 text-sm text-brand-blue font-mono">
                           <a href={entry.instagramSource.startsWith('http') ? entry.instagramSource : `https://instagram.com/${entry.instagramSource.replace('@', '')}`} 
                              target="_blank" 
                              rel="noopener noreferrer" 
@@ -527,23 +532,23 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                             {entry.instagramSource}
                           </a>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                        <td className="px-4 py-3 text-sm text-foreground font-mono">
                           {entry.loraModel}
                         </td>
                         <td className="px-4 py-3">
                           {getStatusBadge(entry.status)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs font-medium">
+                        <td className="px-4 py-3 text-sm text-foreground text-center">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-muted text-foreground text-xs font-medium border border-brand-blue/30">
                             {entry.imagesGenerated}/{entry.imagesTarget}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 text-xs font-medium">
+                        <td className="px-4 py-3 text-sm text-foreground text-center">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-muted text-foreground text-xs font-medium border border-brand-mid-pink/30">
                             {entry.videosGenerated}/{entry.videosTarget}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">
+                        <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
                           {entry.notes}
                         </td>
                       </tr>
@@ -558,11 +563,11 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
 
       {/* Add New Entry Modal */}
       <GlobalModal isOpen={showAddForm} onClose={() => setShowAddForm(false)}>
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add New Production Entry</h3>
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h3 className="text-lg font-semibold text-foreground">Add New Production Entry</h3>
           <button
             onClick={() => setShowAddForm(false)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -571,7 +576,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Deadline
               </label>
               <input
@@ -579,19 +584,19 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                 required
                 value={formData.date}
                 onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Assignee (Content Creator)
               </label>
               <select
                 required
                 value={formData.assignee}
                 onChange={(e) => setFormData(prev => ({ ...prev, assignee: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground"
                 disabled={contentCreatorsLoading}
               >
                 <option value="">
@@ -614,7 +619,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                 })}
               </select>
               {!contentCreatorsLoading && contentCreators.length === 0 && (
-                <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
+                <p className="mt-1 text-sm text-yellow-600">
                   No content creators found. You may need to assign some users the CONTENT_CREATOR role first.
                 </p>
               )}
@@ -622,7 +627,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Influencer Name
             </label>
             <input
@@ -631,12 +636,12 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
               value={formData.influencer}
               onChange={(e) => setFormData(prev => ({ ...prev, influencer: e.target.value }))}
               placeholder="Enter influencer name"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground placeholder:text-muted-foreground"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Instagram Source (URL or @handle)
             </label>
             <input
@@ -645,12 +650,12 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
               value={formData.instagramSource}
               onChange={(e) => setFormData(prev => ({ ...prev, instagramSource: e.target.value }))}
               placeholder="@username or https://instagram.com/username"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground placeholder:text-muted-foreground"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               LoRA Model Name
             </label>
             <input
@@ -659,13 +664,13 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
               value={formData.loraModel}
               onChange={(e) => setFormData(prev => ({ ...prev, loraModel: e.target.value }))}
               placeholder="e.g. fashion_v2.1"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground placeholder:text-muted-foreground"
             />
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Target Images to Generate
               </label>
               <input
@@ -674,12 +679,12 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                 required
                 value={formData.imagesTarget}
                 onChange={(e) => setFormData(prev => ({ ...prev, imagesTarget: parseInt(e.target.value) || 0 }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Target Videos to Generate
               </label>
               <input
@@ -688,16 +693,16 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                 required
                 value={formData.videosTarget}
                 onChange={(e) => setFormData(prev => ({ ...prev, videosTarget: parseInt(e.target.value) || 0 }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink bg-background text-foreground"
               />
             </div>
           </div>
           
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end space-x-3 pt-6 border-t border-border">
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-foreground border border-border hover:bg-muted rounded-lg transition-colors active:scale-95"
               disabled={loading}
             >
               Cancel
@@ -705,7 +710,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-lg transition-all duration-200 shadow-lg disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 rounded-lg transition-all shadow-lg shadow-brand-mid-pink/25 disabled:opacity-50 active:scale-95"
             >
               {loading ? 'Creating...' : 'Add Entry'}
             </button>

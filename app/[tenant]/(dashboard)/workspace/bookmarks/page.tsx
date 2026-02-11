@@ -741,7 +741,7 @@ export default function BookmarksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50/20 dark:from-gray-950 dark:via-gray-900 dark:to-purple-950/10">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8 lg:py-12">
         {/* Main Content */}
         <main className="w-full">
@@ -750,14 +750,14 @@ export default function BookmarksPage() {
               <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
                 <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2 sm:p-2.5 md:p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl sm:rounded-2xl shadow-lg">
+                    <div className="p-2 sm:p-2.5 md:p-3 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-xl sm:rounded-2xl shadow-lg">
                       <Bookmark className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-white" />
                     </div>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white">
                       Bookmarks
                     </h1>
                   </div>
-                  <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-400 ml-0 sm:ml-[3.5rem] md:ml-[4.5rem]">
+                  <p className="text-sm sm:text-base md:text-lg text-black dark:text-white ml-0 sm:ml-[3.5rem] md:ml-[4.5rem]">
                     {posts.length} saved {posts.length === 1 ? 'item' : 'items'}
                   </p>
                 </div>
@@ -765,9 +765,9 @@ export default function BookmarksPage() {
                 <button
                   onClick={() => loadBookmarkedPosts(true)}
                   disabled={refreshing}
-                  className="group flex-shrink-0 p-2.5 sm:p-3 md:p-4 bg-white dark:bg-gray-800/80 backdrop-blur-xl rounded-xl sm:rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100">
+                  className="group flex-shrink-0 p-2.5 sm:p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-lg border-2 border-[#5DC3F8] hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100">
                   <RefreshCw
-                    className={`w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400 group-hover:rotate-180 transition-transform duration-500 ${
+                    className={`w-5 h-5 sm:w-6 sm:h-6 text-[#5DC3F8] group-hover:rotate-180 transition-transform duration-500 ${
                       refreshing ? "animate-spin" : ""
                     }`}
                   />
@@ -775,7 +775,7 @@ export default function BookmarksPage() {
               </div>
               
               {/* Decorative line */}
-              <div className="h-0.5 sm:h-1 w-full bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-full"></div>
+              <div className="h-0.5 sm:h-1 w-full bg-gradient-to-r from-[#5DC3F8]/20 via-[#EC67A1]/20 to-[#F774B9]/20 rounded-full"></div>
             </div>
 
             {/* Empty State */}
@@ -784,16 +784,16 @@ export default function BookmarksPage() {
                 <div className="relative mb-6 sm:mb-8">
                   {/* Animated rings */}
                   <div className="absolute inset-0 animate-ping opacity-20">
-                    <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+                    <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-full"></div>
                   </div>
-              <div className="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+              <div className="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-[#5DC3F8] via-[#EC67A1] to-[#F774B9] rounded-full flex items-center justify-center shadow-2xl">
                 <BookmarkX className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 text-white drop-shadow-lg" />
               </div>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-2 sm:mb-3 text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-black dark:text-white mb-2 sm:mb-3 text-center">
               No bookmarks yet
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md text-base sm:text-lg leading-relaxed px-4">
+            <p className="text-black dark:text-white text-center max-w-md text-base sm:text-lg leading-relaxed px-4">
               Your saved posts will appear here. Start exploring the feed and bookmark your favorite content!
             </p>
           </div>
@@ -803,17 +803,17 @@ export default function BookmarksPage() {
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="group relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl hover:shadow-purple-500/20 dark:hover:shadow-purple-500/10 hover:border-purple-400/50 dark:hover:border-purple-400/50 transition-all duration-500 hover:-translate-y-3 hover:scale-[1.02]"
+                className="group relative bg-white dark:bg-gray-800 rounded-3xl shadow-xl border-2 border-[#5DC3F8]/30 overflow-hidden hover:shadow-2xl hover:shadow-[#5DC3F8]/20 hover:border-[#5DC3F8] transition-all duration-500 hover:-translate-y-3 hover:scale-[1.02]"
               >
                 {/* Gradient overlay on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 via-pink-500/0 to-blue-500/0 group-hover:from-purple-500/5 group-hover:via-pink-500/5 group-hover:to-blue-500/5 transition-all duration-500 pointer-events-none rounded-3xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-[#5DC3F8]/0 via-[#EC67A1]/0 to-[#F774B9]/0 group-hover:from-[#5DC3F8]/5 group-hover:via-[#EC67A1]/5 group-hover:to-[#F774B9]/5 transition-all duration-500 pointer-events-none rounded-3xl" />
                 {/* Enhanced Post Header */}
-                <div className="relative flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-purple-50/50 via-pink-50/50 to-blue-50/50 dark:from-purple-900/10 dark:via-pink-900/10 dark:to-blue-900/10 backdrop-blur-sm">
+                <div className="relative flex items-center justify-between p-3 sm:p-4 md:p-5 border-b-2 border-[#5DC3F8]/20 bg-white dark:bg-gray-800">
                   <div className="flex items-center gap-3">
                     {/* Story ring wrapper */}
-                    <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500 shadow-lg animate-pulse">
+                    <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-[#5DC3F8] via-[#EC67A1] to-[#F774B9] shadow-lg">
                       <div className="bg-white dark:bg-gray-800 rounded-full p-[2px]">
-                        <div className="relative w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md">
+                        <div className="relative w-11 h-11 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center shadow-md">
                       {post.user.imageUrl ? (
                         <img 
                           src={post.user.imageUrl} 
@@ -829,11 +829,11 @@ export default function BookmarksPage() {
                       </div>
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 dark:text-white text-base">
+                      <p className="font-semibold text-black dark:text-white text-base">
                         {post.user.username || post.user.email.split("@")[0]}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                      <p className="text-xs text-black dark:text-white flex items-center gap-1">
+                        <span className="w-1 h-1 bg-[#5DC3F8] rounded-full"></span>
                         {formatTimeAgo(post.createdAt)}
                       </p>
                     </div>
@@ -847,9 +847,9 @@ export default function BookmarksPage() {
                           openMenuPostId === post.id ? null : post.id
                         )
                       }
-                      className="p-2.5 hover:bg-white/80 dark:hover:bg-gray-700/80 rounded-xl transition-all duration-200 active:scale-95 group-hover:bg-white/50 dark:group-hover:bg-gray-700/50"
+                      className="p-2.5 hover:bg-[#5DC3F8]/10 rounded-xl transition-all duration-200 active:scale-95"
                     >
-                      <MoreVertical className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      <MoreVertical className="w-5 h-5 text-black dark:text-white" />
                     </button>
 
                     {/* Enhanced Dropdown Menu */}
@@ -862,21 +862,21 @@ export default function BookmarksPage() {
                       const canEditPost = isOwnPost || hasOrgAccess;
                       
                       return (
-                      <div className="dropdown-menu absolute right-0 top-full mt-2 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="dropdown-menu absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-[#5DC3F8]/30 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                         {canEditPost ? (
                           <>
                             <button
                               onClick={() => handleEditPost(post)}
-                              className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 dark:hover:from-purple-900/20 dark:hover:to-pink-900/20 transition-all duration-200 flex items-center gap-3 text-gray-700 dark:text-gray-300 rounded-xl mx-1"
+                              className="w-full px-4 py-3 text-left hover:bg-[#5DC3F8]/10 transition-all duration-200 flex items-center gap-3 text-black dark:text-white rounded-xl mx-1"
                             >
-                              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                <Edit3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                              <div className="p-2 bg-[#5DC3F8]/20 rounded-lg">
+                                <Edit3 className="w-4 h-4 text-[#5DC3F8]" />
                               </div>
                               <span className="font-medium">Edit</span>
                             </button>
                             <button
                               onClick={() => handleDeletePost(post.id)}
-                              className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 dark:hover:from-red-900/20 dark:hover:to-pink-900/20 transition-all duration-200 flex items-center gap-3 text-red-600 dark:text-red-400 rounded-xl mx-1"
+                              className="w-full px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center gap-3 text-red-600 dark:text-red-400 rounded-xl mx-1"
                             >
                               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                                 <Trash2 className="w-4 h-4" />
@@ -885,10 +885,10 @@ export default function BookmarksPage() {
                             </button>
                             <button
                               onClick={() => handleCopyLink(post.id)}
-                              className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 dark:hover:from-purple-900/20 dark:hover:to-blue-900/20 transition-all duration-200 flex items-center gap-3 text-gray-700 dark:text-gray-300 rounded-xl mx-1"
+                              className="w-full px-4 py-3 text-left hover:bg-[#EC67A1]/10 transition-all duration-200 flex items-center gap-3 text-black dark:text-white rounded-xl mx-1"
                             >
-                              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                                <Link2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              <div className="p-2 bg-[#EC67A1]/20 rounded-lg">
+                                <Link2 className="w-4 h-4 text-[#EC67A1]" />
                               </div>
                               <span className="font-medium">Copy Link</span>
                             </button>
@@ -897,7 +897,7 @@ export default function BookmarksPage() {
                           <>
                             <button
                               onClick={() => handleReportPost(post.id)}
-                              className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 dark:hover:from-red-900/20 dark:hover:to-pink-900/20 transition-all duration-200 flex items-center gap-3 text-red-600 dark:text-red-400 rounded-xl mx-1"
+                              className="w-full px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center gap-3 text-red-600 dark:text-red-400 rounded-xl mx-1"
                             >
                               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                                 <Flag className="w-4 h-4" />
@@ -906,10 +906,10 @@ export default function BookmarksPage() {
                             </button>
                             <button
                               onClick={() => handleCopyLink(post.id)}
-                              className="w-full px-4 py-3 text-left hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 dark:hover:from-purple-900/20 dark:hover:to-blue-900/20 transition-all duration-200 flex items-center gap-3 text-gray-700 dark:text-gray-300 rounded-xl mx-1"
+                              className="w-full px-4 py-3 text-left hover:bg-[#EC67A1]/10 transition-all duration-200 flex items-center gap-3 text-black dark:text-white rounded-xl mx-1"
                             >
-                              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                                <Link2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              <div className="p-2 bg-[#EC67A1]/20 rounded-lg">
+                                <Link2 className="w-4 h-4 text-[#EC67A1]" />
                               </div>
                               <span className="font-medium">Copy Link</span>
                             </button>
@@ -933,28 +933,28 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Enhanced Post Actions */}
-                <div className="relative p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4 bg-gradient-to-b from-white/80 to-gray-50/80 dark:from-gray-800/80 dark:to-gray-900/80 backdrop-blur-sm">
+                <div className="relative p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4 bg-white dark:bg-gray-800">
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={() => handleLike(post.id)}
                       disabled={processingLikes.has(post.id)}
-                      className={`flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full backdrop-blur-md border ${
+                      className={`flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full border-2 ${
                         post.isLiked
-                          ? 'bg-red-100/80 dark:bg-red-900/30 border-red-200 dark:border-red-800 shadow-lg shadow-red-500/20'
-                          : 'bg-white/80 dark:bg-gray-700/50 border-gray-200/50 dark:border-gray-600/50 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:shadow-lg hover:shadow-red-500/10'
+                          ? 'bg-red-50 dark:bg-red-900/30 border-red-500 shadow-lg shadow-red-500/20'
+                          : 'bg-white dark:bg-gray-700 border-[#5DC3F8]/30 hover:bg-[#5DC3F8]/10 hover:border-[#5DC3F8] hover:shadow-lg hover:shadow-[#5DC3F8]/10'
                       }`}
                     >
                       <Heart
                         className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${
                           post.isLiked
-                            ? "fill-red-500 text-red-500 scale-110 animate-pulse"
-                            : "text-gray-600 dark:text-gray-400 group-hover:text-red-500 group-hover:scale-110"
+                            ? "fill-red-500 text-red-500 scale-110"
+                            : "text-black dark:text-white group-hover:text-[#5DC3F8] group-hover:scale-110"
                         }`}
                       />
                       <span className={`text-xs sm:text-sm font-bold ${
                         post.isLiked 
                           ? "text-red-600 dark:text-red-400" 
-                          : "text-gray-700 dark:text-gray-300 group-hover:text-red-600"
+                          : "text-black dark:text-white group-hover:text-[#5DC3F8]"
                       }`}>
                         {post.likeCount}
                       </span>
@@ -962,10 +962,10 @@ export default function BookmarksPage() {
 
                     <button
                       onClick={() => openCommentsModal(post)}
-                      className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full bg-white/80 dark:bg-gray-700/50 backdrop-blur-md border border-gray-200/50 dark:border-gray-600/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-lg hover:shadow-blue-500/10"
+                      className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full bg-white dark:bg-gray-700 border-2 border-[#5DC3F8]/30 hover:bg-[#5DC3F8]/10 hover:border-[#5DC3F8] hover:shadow-lg hover:shadow-[#5DC3F8]/10"
                     >
-                      <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
-                      <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600">
+                      <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-black dark:text-white group-hover:text-[#5DC3F8] group-hover:scale-110 transition-all duration-300" />
+                      <span className="text-xs sm:text-sm font-bold text-black dark:text-white group-hover:text-[#5DC3F8]">
                         {post.commentCount}
                       </span>
                     </button>
@@ -973,17 +973,17 @@ export default function BookmarksPage() {
                     <button
                       onClick={() => handleBookmark(post.id)}
                       disabled={processingBookmarks.has(post.id)}
-                      className={`ml-auto group transition-all duration-300 active:scale-95 p-2 sm:p-2.5 md:p-3 rounded-full backdrop-blur-md border ${
+                      className={`ml-auto group transition-all duration-300 active:scale-95 p-2 sm:p-2.5 md:p-3 rounded-full border-2 ${
                         post.isBookmarked
-                          ? 'bg-purple-100/80 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800 shadow-lg shadow-purple-500/20'
-                          : 'bg-white/80 dark:bg-gray-700/50 border-gray-200/50 dark:border-gray-600/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-lg hover:shadow-purple-500/10'
+                          ? 'bg-[#F774B9]/20 border-[#F774B9] shadow-lg shadow-[#F774B9]/20'
+                          : 'bg-white dark:bg-gray-700 border-[#5DC3F8]/30 hover:bg-[#F774B9]/10 hover:border-[#F774B9] hover:shadow-lg hover:shadow-[#F774B9]/10'
                       }`}
                     >
                       <Bookmark
                         className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${
                           post.isBookmarked
-                            ? "fill-purple-500 text-purple-500 scale-110 animate-pulse"
-                            : "text-gray-600 dark:text-gray-400 group-hover:text-purple-500 group-hover:scale-110"
+                            ? "fill-[#F774B9] text-[#F774B9] scale-110"
+                            : "text-black dark:text-white group-hover:text-[#F774B9] group-hover:scale-110"
                         }`}
                       />
                     </button>
@@ -991,12 +991,12 @@ export default function BookmarksPage() {
 
                   {/* Enhanced Caption */}
                   {post.caption && (
-                    <div className="pt-3 sm:pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
-                      <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
-                        <span className="font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                    <div className="pt-3 sm:pt-4 border-t-2 border-[#5DC3F8]/20">
+                      <p className="text-xs sm:text-sm text-black dark:text-white line-clamp-3 leading-relaxed">
+                        <span className="font-extrabold text-[#5DC3F8]">
                           {post.user.username || post.user.email.split("@")[0]}
                         </span>{" "}
-                        <span className="text-gray-700 dark:text-gray-300">
+                        <span className="text-black dark:text-white">
                           {post.caption}
                         </span>
                       </p>
@@ -1021,9 +1021,9 @@ export default function BookmarksPage() {
               }
             }}
           >
-            <div className="relative bg-white/95 dark:bg-gray-900/95 backdrop-blur-3xl rounded-2xl sm:rounded-3xl shadow-2xl shadow-purple-500/20 max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col md:flex-row border border-gray-200/50 dark:border-gray-700/50">
+            <div className="relative bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl shadow-2xl shadow-[#5DC3F8]/20 max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col md:flex-row border-2 border-[#5DC3F8]/30">
               {/* Animated gradient border */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-xl -z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#5DC3F8]/20 via-[#EC67A1]/20 to-[#F774B9]/20 rounded-3xl blur-xl -z-10" />
               {/* Left Side - Media */}
               <div className="hidden md:block md:w-1/2 bg-black relative">
                 {selectedPostForComments.imageUrls && selectedPostForComments.imageUrls.length > 0 ? (
@@ -1053,31 +1053,31 @@ export default function BookmarksPage() {
               {/* Right Side - Comments */}
               <div className="w-full md:w-1/2 flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 {/* Enhanced Header */}
-                <div className="flex items-center justify-between p-4 sm:p-5 md:p-6 border-b border-gray-200/70 dark:border-gray-700/70 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 backdrop-blur-xl">
+                <div className="flex items-center justify-between p-4 sm:p-5 md:p-6 border-b-2 border-[#5DC3F8]/30 bg-white dark:bg-gray-900">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg">
+                    <div className="p-2 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-xl shadow-lg">
                       <MessageCircle className="w-5 h-5 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                    <h2 className="text-2xl font-bold text-black dark:text-white">
                       Comments
                     </h2>
                   </div>
                   <button
                     onClick={() => setSelectedPostForComments(null)}
-                    className="p-2.5 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 rounded-xl transition-all duration-200 active:scale-95 group"
+                    className="p-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200 active:scale-95 group"
                   >
-                    <X className="w-6 h-6 text-gray-600 dark:text-gray-400 group-hover:text-red-500 transition-colors" />
+                    <X className="w-6 h-6 text-black dark:text-white group-hover:text-red-500 transition-colors" />
                   </button>
                 </div>
 
                 {/* Enhanced Comments List */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 custom-scrollbar bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 custom-scrollbar bg-white dark:bg-gray-900">
                   {comments.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mb-4">
-                        <MessageCircle className="w-10 h-10 text-purple-500 dark:text-purple-400" />
+                      <div className="w-20 h-20 bg-gradient-to-br from-[#5DC3F8]/20 to-[#EC67A1]/20 rounded-full flex items-center justify-center mb-4">
+                        <MessageCircle className="w-10 h-10 text-[#5DC3F8]" />
                       </div>
-                      <p className="text-gray-500 dark:text-gray-400 font-medium">
+                      <p className="text-black dark:text-white font-medium">
                         No comments yet. Be the first to comment!
                       </p>
                     </div>
@@ -1085,13 +1085,13 @@ export default function BookmarksPage() {
                     comments.map((comment) => (
                       <div
                         key={comment.id}
-                        className="flex gap-3 group hover:bg-gradient-to-r hover:from-purple-50/80 hover:to-pink-50/80 dark:hover:from-purple-900/20 dark:hover:to-pink-900/20 p-4 rounded-2xl transition-all duration-300 border border-transparent hover:border-purple-300/50 dark:hover:border-purple-600/50 hover:shadow-lg hover:shadow-purple-500/10 backdrop-blur-sm"
+                        className="flex gap-3 group hover:bg-[#5DC3F8]/5 p-4 rounded-2xl transition-all duration-300 border-2 border-transparent hover:border-[#5DC3F8]/30 hover:shadow-lg hover:shadow-[#5DC3F8]/10"
                       >
                         {/* Story ring around avatar */}
                         <div className="flex-shrink-0">
-                          <div className="p-[2px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500">
+                          <div className="p-[2px] rounded-full bg-gradient-to-tr from-[#5DC3F8] via-[#EC67A1] to-[#F774B9]">
                             <div className="bg-white dark:bg-gray-900 rounded-full p-[2px]">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] flex items-center justify-center shadow-md">
                           {comment.profile?.profileImageUrl || comment.user.imageUrl ? (
                             <img
                               src={comment.profile?.profileImageUrl || comment.user.imageUrl || ''}
@@ -1109,16 +1109,16 @@ export default function BookmarksPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <p className="font-extrabold text-sm bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                            <p className="font-extrabold text-sm text-[#5DC3F8]">
                               {comment.profile?.instagramUsername || comment.profile?.name || comment.user.username ||
                                 comment.user.email.split("@")[0]}
                             </p>
-                            <span className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></span>
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <span className="w-1.5 h-1.5 bg-[#5DC3F8] rounded-full"></span>
+                            <p className="text-xs font-medium text-black dark:text-white">
                               {formatTimeAgo(comment.createdAt)}
                             </p>
                           </div>
-                          <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                          <p className="text-sm text-black dark:text-white leading-relaxed">
                             {comment.content}
                           </p>
                         </div>
@@ -1136,7 +1136,7 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Enhanced Add Comment */}
-                <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 backdrop-blur-2xl">
+                <div className="p-3 sm:p-4 md:p-6 border-t-2 border-[#5DC3F8]/30 bg-white dark:bg-gray-900">
                   <div className="flex gap-2 sm:gap-3">
                     <input
                       type="text"
@@ -1149,13 +1149,13 @@ export default function BookmarksPage() {
                         }
                       }}
                       placeholder="Add a comment..."
-                      className="flex-1 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 text-sm sm:text-base bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-2 border-gray-300/50 dark:border-gray-700/50 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 placeholder:text-gray-400 hover:border-purple-300 dark:hover:border-purple-600"
+                      className="flex-1 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 text-sm sm:text-base bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] transition-all duration-200 placeholder:text-black/50 dark:placeholder:text-white/50 text-black dark:text-white hover:border-[#5DC3F8]"
                       disabled={submittingComment}
                     />
                     <button
                       onClick={handleAddComment}
                       disabled={!newComment.trim() || submittingComment}
-                      className="px-4 sm:px-5 md:px-7 py-2.5 sm:py-3 md:py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none disabled:from-gray-400 disabled:to-gray-500"
+                      className="px-4 sm:px-5 md:px-7 py-2.5 sm:py-3 md:py-3.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:shadow-xl hover:shadow-[#5DC3F8]/40 hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none disabled:from-gray-400 disabled:to-gray-500"
                     >
                       {submittingComment ? (
                         <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
@@ -1182,14 +1182,14 @@ export default function BookmarksPage() {
               }
             }}
           >
-            <div className="relative bg-white/95 dark:bg-gray-900/95 backdrop-blur-3xl rounded-3xl shadow-2xl shadow-purple-500/20 max-w-2xl w-full p-8 animate-in zoom-in-95 duration-500 border border-gray-200/50 dark:border-gray-700/50">
+            <div className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl shadow-[#5DC3F8]/20 max-w-2xl w-full p-8 animate-in zoom-in-95 duration-500 border-2 border-[#5DC3F8]/30">
               {/* Animated gradient border */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-xl -z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#5DC3F8]/20 via-[#EC67A1]/20 to-[#F774B9]/20 rounded-3xl blur-xl -z-10" />
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg">
+                <div className="p-2.5 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-xl shadow-lg">
                   <Edit3 className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                <h2 className="text-3xl font-bold text-black dark:text-white">
                   Edit Post
                 </h2>
               </div>
@@ -1200,19 +1200,19 @@ export default function BookmarksPage() {
                   setEditingPost({ ...editingPost, caption: e.target.value })
                 }
                 placeholder="Write a caption..."
-                className="w-full px-5 py-4 bg-gray-50/80 dark:bg-gray-800/80 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all duration-200 min-h-40 resize-none placeholder:text-gray-400 text-gray-700 dark:text-gray-300"
+                className="w-full px-5 py-4 bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent transition-all duration-200 min-h-40 resize-none placeholder:text-black/50 dark:placeholder:text-white/50 text-black dark:text-white"
               />
 
               <div className="flex gap-4 mt-6">
                 <button
                   onClick={() => setEditingPost(null)}
-                  className="flex-1 px-6 py-3.5 bg-gray-200/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-700 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300 active:scale-95 border-2 border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
+                  className="flex-1 px-6 py-3.5 bg-white dark:bg-gray-800 text-black dark:text-white rounded-2xl font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-300 active:scale-95 border-2 border-[#5DC3F8]/30 hover:border-[#5DC3F8]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdatePost}
-                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-2xl font-bold hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all duration-300"
+                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-2xl font-bold hover:shadow-xl hover:shadow-[#5DC3F8]/40 hover:scale-105 active:scale-95 transition-all duration-300"
                 >
                   Update
                 </button>

@@ -143,14 +143,14 @@ export function VaultEnhancements({
   }, [showSortMenu, showSettingsMenu, setShowSortMenu, setShowSettingsMenu]);
 
   return (
-    <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-white/[0.06]">
+    <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-white/6">
       <div className="flex items-center gap-2 flex-wrap">
         {/* Sort Menu */}
         <div className="relative">
           <button
             ref={sortButtonRef}
             onClick={() => setShowSortMenu(!showSortMenu)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition-all border border-white/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground transition-all border border-brand-mid-pink/10"
             title="Sort options"
           >
             <ArrowUpDown className="w-3.5 h-3.5" />
@@ -160,7 +160,7 @@ export function VaultEnhancements({
           {showSortMenu && createPortal(
             <div 
               id="sort-menu-portal"
-              className="fixed w-48 bg-gray-900 border border-white/10 rounded-xl shadow-2xl z-[9999] overflow-hidden"
+              className="fixed w-48 bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-xl shadow-2xl z-9999 p-2 space-y-1"
               style={{
                 top: `${sortMenuPosition.top}px`,
                 left: `${sortMenuPosition.left}px`,
@@ -184,8 +184,8 @@ export function VaultEnhancements({
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                       sortBy === value
-                        ? 'bg-violet-500/20 text-violet-300'
-                        : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+                        ? 'bg-brand-mid-pink/20 text-brand-mid-pink border border-brand-mid-pink/30'
+                        : 'text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -216,7 +216,7 @@ export function VaultEnhancements({
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all border ${
             showDuplicates
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-              : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
+              : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground border-brand-mid-pink/10'
           } disabled:opacity-50`}
           title={duplicatesCount > 0 ? "Toggle duplicate view" : "Find duplicates"}
         >
@@ -234,7 +234,7 @@ export function VaultEnhancements({
         {!compareMode && (
           <button
             onClick={onCompareClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition-all border border-white/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground transition-all border border-brand-mid-pink/10"
             title="Enable compare mode"
           >
             <Columns2 className="w-3.5 h-3.5" />
@@ -250,8 +250,8 @@ export function VaultEnhancements({
               disabled={selectedCount < 2}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all border ${
                 selectedCount >= 2
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30 animate-pulse'
-                  : 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed'
+                  ? 'bg-brand-blue/20 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/30 animate-pulse'
+                  : 'bg-zinc-300 dark:bg-zinc-800 text-header-muted border-zinc-400 dark:border-zinc-700 cursor-not-allowed'
               }`}
               title={selectedCount >= 2 ? "View comparison" : "Select at least 2 items"}
             >
@@ -273,12 +273,12 @@ export function VaultEnhancements({
 
         {/* Compare Mode Active Indicator */}
         {compareMode && selectedCount === 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-blue/10 text-brand-blue border border-brand-blue/20">
             <Columns2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Click items to compare (0/4)</span>
             <button
               onClick={onExitCompare}
-              className="ml-2 text-cyan-300 hover:text-cyan-200"
+              className="ml-2 text-brand-blue hover:text-brand-light-pink"
               title="Exit compare mode"
             >
               ✕
@@ -293,7 +293,7 @@ export function VaultEnhancements({
           <button
             ref={settingsButtonRef}
             onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition-all border border-white/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground transition-all border border-brand-mid-pink/10"
             title="View settings"
           >
             <Settings className="w-3.5 h-3.5" />
@@ -301,14 +301,14 @@ export function VaultEnhancements({
           {showSettingsMenu && createPortal(
             <div 
               id="settings-menu-portal"
-              className="fixed w-64 bg-gray-900 border border-white/10 rounded-xl shadow-2xl z-[9999] p-3 space-y-3"
+              className="fixed w-64 bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-xl shadow-2xl z-9999 p-3 space-y-3"
               style={{
                 top: `${settingsMenuPosition.top}px`,
                 left: `${settingsMenuPosition.left}px`,
               }}
             >
               <div>
-                <label className="text-xs font-medium text-gray-400 mb-2 block">Thumbnail Size</label>
+                <label className="text-xs font-medium text-header-muted mb-2 block">Thumbnail Size</label>
                 <div className="flex gap-2">
                   {(['small', 'medium', 'large'] as const).map((size) => (
                     <button
@@ -316,8 +316,8 @@ export function VaultEnhancements({
                       onClick={() => onThumbnailSizeChange(size)}
                       className={`flex-1 px-2 py-1.5 text-xs rounded-lg transition-colors ${
                         thumbnailSize === size
-                          ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                          : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                          ? 'bg-brand-mid-pink/20 text-brand-mid-pink border border-brand-mid-pink/30'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-header-muted hover:bg-zinc-200 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {size.charAt(0).toUpperCase() + size.slice(1)}
@@ -326,11 +326,11 @@ export function VaultEnhancements({
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Search metadata</span>
+                <span className="text-xs text-header-muted">Search metadata</span>
                 <button
                   onClick={onSearchInMetadataToggle}
                   className={`relative w-10 h-5 rounded-full transition-colors ${
-                    searchInMetadata ? 'bg-violet-500' : 'bg-gray-700'
+                    searchInMetadata ? 'bg-brand-mid-pink' : 'bg-zinc-300 dark:bg-zinc-700'
                   }`}
                 >
                   <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
@@ -339,11 +339,11 @@ export function VaultEnhancements({
                 </button>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Disable video thumbnails</span>
+                <span className="text-xs text-header-muted">Disable video thumbnails</span>
                 <button
                   onClick={onDisableVideoThumbnailsToggle}
                   className={`relative w-10 h-5 rounded-full transition-colors ${
-                    disableVideoThumbnails ? 'bg-violet-500' : 'bg-gray-700'
+                    disableVideoThumbnails ? 'bg-brand-mid-pink' : 'bg-zinc-300 dark:bg-zinc-700'
                   }`}
                 >
                   <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
@@ -357,7 +357,7 @@ export function VaultEnhancements({
         </div>
 
         {/* Results count */}
-        <span className="text-xs text-gray-500 whitespace-nowrap">
+        <span className="text-xs text-header-muted whitespace-nowrap">
           {filteredCount} {filteredCount === 1 ? 'item' : 'items'}
         </span>
       </div>
@@ -379,7 +379,7 @@ export function FavoriteStar({ isFavorite, onToggle, className = '' }: FavoriteS
       className={`p-1.5 rounded-lg transition-all hover:scale-110 ${
         isFavorite
           ? 'bg-amber-500/20 text-amber-400'
-          : 'bg-gray-900/90 text-gray-400 hover:text-amber-400'
+          : 'bg-zinc-200/90 dark:bg-zinc-800/90 text-header-muted hover:text-amber-400'
       } ${className}`}
       title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
     >

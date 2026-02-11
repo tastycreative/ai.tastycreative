@@ -65,13 +65,13 @@ export function OrganizationSwitcher() {
   const getRoleIcon = (role: string) => {
     switch (role.toUpperCase()) {
       case 'OWNER':
-        return <Crown className="w-3 h-3 text-yellow-500" />;
+        return <Crown className="w-3 h-3 text-yellow-600 dark:text-yellow-500" />;
       case 'ADMIN':
-        return <Shield className="w-3 h-3 text-blue-500" />;
+        return <Shield className="w-3 h-3 text-blue-600 dark:text-blue-500" />;
       case 'MANAGER':
-        return <Users className="w-3 h-3 text-purple-500" />;
+        return <Users className="w-3 h-3 text-purple-600 dark:text-purple-500" />;
       default:
-        return <User className="w-3 h-3 text-gray-500" />;
+        return <User className="w-3 h-3 text-sidebar-foreground/50" />;
     }
   };
 
@@ -80,7 +80,7 @@ export function OrganizationSwitcher() {
 
     if (statusUpper === 'TRIAL') {
       return (
-        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-blue-500/20 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30">
           Trial
         </span>
       );
@@ -88,7 +88,7 @@ export function OrganizationSwitcher() {
 
     if (statusUpper === 'ACTIVE') {
       return (
-        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">
+        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-green-500/20 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30">
           Active
         </span>
       );
@@ -96,7 +96,7 @@ export function OrganizationSwitcher() {
 
     if (statusUpper === 'PAST_DUE') {
       return (
-        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+        <span className="text-[8px] xs:text-[9px] px-1 xs:px-1.5 py-0.5 rounded bg-red-500/20 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-500/30">
           Past Due
         </span>
       );
@@ -107,9 +107,9 @@ export function OrganizationSwitcher() {
 
   if (loading) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-2.5 bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-        <Loader2 className="w-4 h-4 animate-spin text-white/50" />
-        <span className="text-sm text-white/50">Loading...</span>
+      <div className="flex items-center space-x-2 px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm rounded-xl border border-sidebar-border">
+        <Loader2 className="w-4 h-4 animate-spin text-sidebar-foreground/50" />
+        <span className="text-sm text-sidebar-foreground/50">Loading...</span>
       </div>
     );
   }
@@ -119,15 +119,15 @@ export function OrganizationSwitcher() {
     return (
       <Link
         href="/dashboard"
-        className="flex items-center justify-between px-3 py-2.5 bg-white/[0.05] backdrop-blur-sm hover:bg-white/[0.08] border border-white/[0.08] hover:border-blue-500/30 rounded-xl transition-all duration-200 group"
+        className="flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-primary/10 border border-sidebar-border hover:border-[#EC67A1]/30 rounded-xl transition-all duration-200 group"
       >
         <div className="flex items-center space-x-2">
-          <User className="w-4 h-4 text-white/70 group-hover:text-blue-400 transition-colors" />
-          <span className="text-sm font-medium text-white/90">
+          <User className="w-4 h-4 text-sidebar-foreground/70 group-hover:text-[#EC67A1] transition-colors" />
+          <span className="text-sm font-medium text-sidebar-foreground">
             Personal
           </span>
         </div>
-        <Plus className="w-4 h-4 text-white/40 group-hover:text-blue-400 transition-colors" />
+        <Plus className="w-4 h-4 text-sidebar-foreground/40 group-hover:text-[#EC67A1] transition-colors" />
       </Link>
     );
   }
@@ -137,9 +137,12 @@ export function OrganizationSwitcher() {
       {/* Organization Switcher Button */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
         disabled={switching}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-white/[0.05] backdrop-blur-sm hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.12] rounded-xl transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-sidebar-accent backdrop-blur-sm hover:bg-sidebar-primary/10 border border-sidebar-border hover:border-sidebar-border rounded-xl transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <div className="flex items-center space-x-2.5 min-w-0 flex-1">
           {currentOrganization?.logoUrl ? (
@@ -149,18 +152,18 @@ export function OrganizationSwitcher() {
               className="w-5 h-5 rounded object-cover flex-shrink-0"
             />
           ) : (
-            <Building2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
+            <Building2 className="w-4 h-4 text-[#5DC3F8] flex-shrink-0" />
           )}
 
           <div className="flex flex-col items-start min-w-0 flex-1">
             <div className="flex items-center space-x-1.5 w-full">
-              <span className="text-sm font-medium text-white/90 truncate">
+              <span className="text-sm font-medium text-sidebar-foreground truncate">
                 {currentOrganization?.name || 'Personal'}
               </span>
               {subscriptionInfo && getStatusBadge(subscriptionInfo.status)}
             </div>
             {subscriptionInfo && (
-              <span className="text-[10px] text-white/40">
+              <span className="text-[10px] text-sidebar-foreground/40">
                 {subscriptionInfo.planDisplayName}
               </span>
             )}
@@ -168,9 +171,9 @@ export function OrganizationSwitcher() {
         </div>
 
         {switching ? (
-          <Loader2 className="w-4 h-4 animate-spin text-blue-400 flex-shrink-0 ml-2" />
+          <Loader2 className="w-4 h-4 animate-spin text-[#5DC3F8] flex-shrink-0 ml-2" />
         ) : (
-          <ChevronDown className={`w-4 h-4 text-white/40 transition-transform duration-300 flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-sidebar-foreground/40 transition-transform duration-300 flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
         )}
       </button>
 
@@ -178,15 +181,17 @@ export function OrganizationSwitcher() {
       {isOpen && mounted && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed w-72 bg-[#0d0d12]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/[0.08] z-[9999] animate-fadeIn"
+          data-dropdown-portal="organization-switcher"
+          className="fixed w-72 bg-sidebar/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-sidebar-border z-[9999] animate-fadeIn"
           style={{
             top: buttonRef.current ? `${buttonRef.current.getBoundingClientRect().bottom + 8}px` : '0',
             left: buttonRef.current ? `${buttonRef.current.getBoundingClientRect().left}px` : '0',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+          <div className="px-4 py-3 border-b border-sidebar-border">
+            <p className="text-[10px] font-semibold text-sidebar-foreground/50 dark:text-sidebar-foreground/40 uppercase tracking-wider">
               Switch Organization
             </p>
           </div>
@@ -203,8 +208,8 @@ export function OrganizationSwitcher() {
                   disabled={switching}
                   className={`w-full text-left px-4 py-3 transition-all duration-200 flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed ${
                     isActive
-                      ? 'bg-blue-500/10 border-l-2 border-blue-500'
-                      : 'hover:bg-white/[0.03] border-l-2 border-transparent'
+                      ? 'bg-[#EC67A1]/10 dark:bg-[#EC67A1]/10 border-l-2 border-[#EC67A1]'
+                      : 'hover:bg-sidebar-accent border-l-2 border-transparent'
                   }`}
                 >
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
@@ -215,7 +220,7 @@ export function OrganizationSwitcher() {
                         className="w-9 h-9 rounded object-cover flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-sm font-bold">
                           {org.name.charAt(0).toUpperCase()}
                         </span>
@@ -226,21 +231,21 @@ export function OrganizationSwitcher() {
                       <div className="flex items-center space-x-1.5">
                         <span className={`text-sm font-medium truncate ${
                           isActive
-                            ? 'text-blue-400'
-                            : 'text-white/90'
+                            ? 'text-[#EC67A1]'
+                            : 'text-sidebar-foreground'
                         }`}>
                           {org.name}
                         </span>
                         {getRoleIcon(org.role)}
                       </div>
-                      <span className="text-[10px] text-white/40 uppercase">
+                      <span className="text-[10px] text-sidebar-foreground/40 uppercase">
                         {org.role}
                       </span>
                     </div>
                   </div>
 
                   {isActive && (
-                    <Check className="w-5 h-5 text-blue-400 flex-shrink-0 ml-2" />
+                    <Check className="w-5 h-5 text-[#EC67A1] flex-shrink-0 ml-2" />
                   )}
                 </button>
               );
@@ -248,7 +253,7 @@ export function OrganizationSwitcher() {
           </div>
 
           {/* Footer - Create New Organization */}
-          <div className="border-t border-white/[0.06] p-2">
+          <div className="border-t border-sidebar-border p-2">
             <button
               onClick={() => {
                 // Navigate to settings page to create organization
@@ -258,7 +263,7 @@ export function OrganizationSwitcher() {
                   window.location.href = '/dashboard';
                 }
               }}
-              className="w-full text-left px-4 py-2.5 text-sm text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all duration-200 flex items-center space-x-2 group"
+              className="w-full text-left px-4 py-2.5 text-sm text-[#5DC3F8] hover:bg-[#5DC3F8]/10 rounded-xl transition-all duration-200 flex items-center space-x-2 group"
             >
               <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
               <span className="font-medium">Create New Organization</span>

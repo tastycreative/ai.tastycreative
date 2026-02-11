@@ -74,6 +74,13 @@ export default function BillingPageClient() {
         // Remove query params but stay on current page
         const currentPath = window.location.pathname;
         router.replace(currentPath);
+      } else if (searchParams.get('member_slots_added')) {
+        toast.success('Member slots added successfully! Your team capacity has been increased.');
+        setHasShownToast(true);
+        refetchBilling(); // Refresh billing info
+        // Remove query params but stay on current page
+        const currentPath = window.location.pathname;
+        router.replace(currentPath);
       } else if (searchParams.get('canceled')) {
         toast.info('Checkout canceled');
         setHasShownToast(true);
@@ -210,14 +217,14 @@ export default function BillingPageClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-blue-50/50 to-white dark:from-gray-950 dark:via-blue-950/40 dark:to-gray-950 text-gray-900 dark:text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-20">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-foreground">
             Billing & Subscription
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300">
+          <p className="text-lg text-muted-foreground">
             Manage your subscription and view usage statistics
           </p>
         </div>
@@ -252,31 +259,31 @@ export default function BillingPageClient() {
             }
           }}
         >
-          <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800">
+          <div className="bg-card rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border">
             {confirmModal.type === 'plan' ? (
               <>
-                <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                <h3 className="text-2xl font-bold mb-4 text-foreground">
                   {billingInfo?.organization?.subscriptionStatus === 'ACTIVE' ? 'Change Plan?' : 'Subscribe to Plan?'}
                 </h3>
                 <div className="mb-6">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
-                    <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <div className="bg-muted rounded-xl p-4 mb-4 border border-brand-mid-pink/30">
+                    <p className="text-lg font-semibold text-foreground mb-2">
                       {confirmModal.data.displayName || confirmModal.data.name}
                     </p>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    <p className="text-3xl font-bold text-brand-blue">
                       {confirmModal.data.price}
-                      <span className="text-base text-gray-600 dark:text-gray-400">{confirmModal.data.period}</span>
+                      <span className="text-base text-muted-foreground">{confirmModal.data.period}</span>
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                    <p className="text-sm text-muted-foreground mt-2">
                       {confirmModal.data.credits}
                     </p>
                   </div>
                   {billingInfo?.organization?.subscriptionStatus === 'ACTIVE' ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       Your plan will be changed immediately. You'll be charged or credited the prorated difference for the remaining billing period.
                     </p>
                   ) : (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       You'll be redirected to a secure payment page to complete your subscription.
                     </p>
                   )}
@@ -284,13 +291,13 @@ export default function BillingPageClient() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setConfirmModal({ isOpen: false, type: null, data: null })}
-                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium border border-border"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleSubscribe(confirmModal.data.name)}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-mid-pink text-white rounded-lg hover:from-brand-blue/90 hover:to-brand-mid-pink/90 transition-colors font-medium shadow-lg shadow-brand-blue/25"
                   >
                     {billingInfo?.organization?.subscriptionStatus === 'ACTIVE' ? 'Change Plan' : 'Continue'}
                   </button>
@@ -298,42 +305,42 @@ export default function BillingPageClient() {
               </>
             ) : confirmModal.type === 'credits' ? (
               <>
-                <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                <h3 className="text-2xl font-bold mb-4 text-foreground">
                   Purchase Credits?
                 </h3>
                 <div className="mb-6">
-                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 mb-4">
-                    <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <div className="bg-muted rounded-xl p-4 mb-4 border border-brand-mid-pink/30">
+                    <p className="text-lg font-semibold text-foreground mb-2">
                       {confirmModal.data.name}
                     </p>
-                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                    <p className="text-3xl font-bold text-brand-mid-pink">
                       ${confirmModal.data.price}
                     </p>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      <span className="font-semibold text-purple-600 dark:text-purple-400">
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <span className="font-semibold text-brand-mid-pink">
                         {(confirmModal.data.credits + (confirmModal.data.bonus || 0)).toLocaleString()} Credits
                       </span>
                       {confirmModal.data.bonus && (
-                        <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                        <span className="text-xs text-green-500 ml-2">
                           (+{confirmModal.data.bonus} Bonus)
                         </span>
                       )}
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     This is a one-time payment. Credits will be added to your account immediately after payment and never expire.
                   </p>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setConfirmModal({ isOpen: false, type: null, data: null })}
-                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium border border-border"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handlePurchaseCredits(confirmModal.data.id)}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white rounded-lg hover:from-brand-mid-pink/90 hover:to-brand-light-pink/90 transition-colors font-medium shadow-lg shadow-brand-mid-pink/25"
                   >
                     Purchase Now
                   </button>

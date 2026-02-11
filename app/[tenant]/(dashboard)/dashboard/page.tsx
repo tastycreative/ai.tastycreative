@@ -15,22 +15,23 @@ export default async function DashboardPage() {
   const clerkId = user.id;
 
   const [totalInfluencers, totalImages, totalVideos, influencerRecords] = await Promise.all([
-    prisma.influencerLoRA.count({ where: { clerkId } }),
+    prisma.instagramProfile.count({ where: { clerkId } }),
     prisma.generatedImage.count({ where: { clerkId } }),
     prisma.generatedVideo.count({ where: { clerkId } }),
-    prisma.influencerLoRA.findMany({
+    prisma.instagramProfile.findMany({
       where: { clerkId },
-      orderBy: { uploadedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 8,
       select: {
         id: true,
         name: true,
-        displayName: true,
         description: true,
-        thumbnailUrl: true,
-        cloudinaryUrl: true,
-        uploadedAt: true,
-        usageCount: true,
+        profileImageUrl: true,
+        createdAt: true,
+        instagramUsername: true,
+        posts: {
+          select: { id: true }
+        }
       },
     }),
   ]);
@@ -39,11 +40,11 @@ export default async function DashboardPage() {
 
   const influencers = influencerRecords.map((influencer) => ({
     id: influencer.id,
-    name: influencer.displayName?.trim() || influencer.name,
-    description: influencer.description?.trim() || null,
-    thumbnailUrl: influencer.thumbnailUrl || influencer.cloudinaryUrl || null,
-    uploadedAt: influencer.uploadedAt.toISOString(),
-    usageCount: influencer.usageCount ?? 0,
+    name: influencer.name,
+    description: influencer.description || null,
+    thumbnailUrl: influencer.profileImageUrl || null,
+    uploadedAt: influencer.createdAt.toISOString(),
+    usageCount: influencer.posts.length,
   }));
 
   return (

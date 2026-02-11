@@ -369,19 +369,19 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-green-600/20 to-blue-600/20 rounded-xl">
-              <ListChecks className="w-7 h-7 text-green-400" />
+          <h2 className="text-3xl font-bold text-foreground flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-green-600/20 rounded-xl">
+              <ListChecks className="w-7 h-7 text-[var(--color-brand-blue)]" />
             </div>
             Workflow Checklist
             {isAllProfiles && (
-              <span className="ml-2 px-3 py-1 bg-pink-600/20 border border-pink-500/30 rounded-full text-sm font-medium text-pink-400 flex items-center gap-1">
+              <span className="ml-2 px-3 py-1 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-full text-sm font-medium text-[var(--color-brand-mid-pink)] flex items-center gap-1">
                 <Users className="w-4 h-4" />
                 All Profiles
               </span>
             )}
           </h2>
-          <p className="text-gray-400 text-sm mt-2 ml-1">
+          <p className="text-muted-foreground text-sm mt-2 ml-1">
             Create and customize your content creation process
           </p>
         </div>
@@ -390,14 +390,14 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             <>
               <button
                 onClick={resetChecklist}
-                className="px-5 py-2.5 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 text-sm font-medium shadow-lg"
+                className="px-5 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all hover:opacity-90 text-sm font-medium shadow-lg"
               >
                 Reset Checks
               </button>
               {!isAllProfiles && (
                 <button
                   onClick={() => openPhaseModal()}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all hover:scale-105 text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30"
+                  className="px-5 py-2.5 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:opacity-90 text-white rounded-xl transition-all text-sm font-medium flex items-center gap-2 shadow-lg"
                 >
                   <Plus className="w-4 h-4" />
                   Add Phase
@@ -410,28 +410,28 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
 
       {/* All Profiles Info Banner */}
       {isAllProfiles && (
-        <div className="bg-gradient-to-r from-pink-600/10 via-purple-600/10 to-blue-600/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3">
-          <Info className="w-5 h-5 text-pink-400 flex-shrink-0" />
-          <p className="text-sm text-gray-300">
-            <span className="font-medium text-pink-400">All Profiles Mode:</span> Viewing workflows from all profiles. Select a specific profile to create new phases or tasks.
+        <div className="bg-gradient-to-r from-[var(--color-brand-mid-pink)]/10 via-[var(--color-brand-mid-pink)]/5 to-[var(--color-brand-blue)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-xl p-4 flex items-center gap-3">
+          <Info className="w-5 h-5 text-[var(--color-brand-mid-pink)] flex-shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-[var(--color-brand-mid-pink)]">All Profiles Mode:</span> Viewing workflows from all profiles. Select a specific profile to create new phases or tasks.
           </p>
         </div>
       )}
 
       {/* Empty State or Content */}
       {loading && workflow.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-muted-foreground">
           <div className="animate-pulse">Loading workflow...</div>
         </div>
       ) : workflow.length === 0 ? (
-        <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-16 text-center shadow-2xl">
-          <div className="inline-block p-5 bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-2xl mb-6">
-            <Sparkles className="w-20 h-20 text-blue-400 animate-pulse" />
+        <div className="bg-card border-2 border-border rounded-2xl p-16 text-center shadow-2xl">
+          <div className="inline-block p-5 bg-gradient-to-br from-[var(--color-brand-blue)]/20 to-purple-600/20 rounded-2xl mb-6">
+            <Sparkles className="w-20 h-20 text-[var(--color-brand-blue)] animate-pulse" />
           </div>
-          <h3 className="text-2xl font-bold text-white mb-3">
+          <h3 className="text-2xl font-bold text-foreground mb-3">
             {isAllProfiles ? "No Workflows Found" : "Create Your Custom Workflow"}
           </h3>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto text-lg">
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">
             {isAllProfiles 
               ? "No workflows found for any profile. Select a specific profile to create one."
               : "Start with our proven 7-phase template or build your own from scratch"}
@@ -440,13 +440,13 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             <div className="flex gap-4 justify-center flex-wrap">
               <button
                 onClick={initializeTemplate}
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all hover:scale-105 shadow-lg shadow-blue-600/30 font-medium"
+                className="px-8 py-4 bg-gradient-to-r from-[var(--color-brand-blue)] to-purple-600 hover:opacity-90 text-white rounded-xl transition-all shadow-lg font-medium"
               >
                 ✨ Use 7-Phase Template
               </button>
               <button
                 onClick={() => openPhaseModal()}
-                className="px-8 py-4 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 shadow-lg font-medium"
+                className="px-8 py-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all shadow-lg font-medium"
               >
                 🎨 Start From Scratch
               </button>
@@ -457,21 +457,21 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
         <>
           {/* Overall Progress */}
           {totalProgress.total > 0 && (
-            <div className="bg-gradient-to-br from-green-600/10 via-blue-600/10 to-purple-600/10 border-2 border-green-600/20 rounded-2xl p-8 shadow-xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-blue-600/5 animate-pulse" />
+            <div className="bg-gradient-to-br from-green-600/10 via-[var(--color-brand-blue)]/10 to-purple-600/10 border-2 border-green-600/20 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-[var(--color-brand-blue)]/5 animate-pulse" />
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-foreground mb-1 flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                       Overall Progress
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       {totalProgress.completed} of {totalProgress.total} tasks completed
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+                    <div className="text-4xl font-bold bg-gradient-to-r from-green-400 to-[var(--color-brand-blue)] bg-clip-text text-transparent">
                       {Math.round((totalProgress.completed / totalProgress.total) * 100)}%
                     </div>
                     {totalProgress.completed === totalProgress.total && (
@@ -479,7 +479,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                     )}
                   </div>
                 </div>
-                <div className="w-full bg-[#1a1a1a] rounded-full h-4 overflow-hidden shadow-inner">
+                <div className="w-full bg-muted rounded-full h-4 overflow-hidden shadow-inner">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{
@@ -509,14 +509,14 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 rounded-2xl overflow-hidden transition-all hover:shadow-2xl ${
+                  className={`bg-card border-2 rounded-2xl overflow-hidden transition-all hover:shadow-2xl ${
                     isCompleted
                       ? "border-green-600/50 shadow-lg shadow-green-600/20"
-                      : "border-[#2a2a2a] hover:border-[#3a3a3a]"
+                      : "border-border hover:border-[var(--color-brand-blue)]/30"
                   }`}
                 >
                   {/* Phase Header */}
-                  <div className="p-6 flex items-center justify-between bg-gradient-to-r from-transparent to-[#ffffff05]">
+                  <div className="p-6 flex items-center justify-between bg-gradient-to-r from-transparent to-muted/30">
                     <button
                       onClick={() => togglePhase(phase.id)}
                       className="flex-1 flex items-center gap-5"
@@ -530,24 +530,24 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                         )}
                       </div>
                       <div className="text-left flex-1">
-                        <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-1">
+                        <h3 className="text-xl font-bold text-foreground flex items-center gap-3 mb-1">
                           {phase.name}
                           {isAllProfiles && phase.profileName && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-pink-600/20 rounded-lg text-xs text-pink-400 font-medium">
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-[var(--color-brand-mid-pink)]/10 rounded-lg text-xs text-[var(--color-brand-mid-pink)] font-medium">
                               <User className="w-3 h-3" />
                               {phase.profileName}
                             </span>
                           )}
                         </h3>
                         {phase.description && (
-                          <p className="text-sm text-gray-400 mb-3">{phase.description}</p>
+                          <p className="text-sm text-muted-foreground mb-3">{phase.description}</p>
                         )}
                         <div className="flex items-center gap-4">
-                          <div className="text-sm font-medium text-gray-400">
+                          <div className="text-sm font-medium text-muted-foreground">
                             {progress.completed} / {progress.total} tasks
                           </div>
                           {progress.total > 0 && (
-                            <div className="flex-1 max-w-xs bg-[#1a1a1a] rounded-full h-2.5 overflow-hidden shadow-inner">
+                            <div className="flex-1 max-w-xs bg-muted rounded-full h-2.5 overflow-hidden shadow-inner">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${progress.percentage}%` }}
@@ -563,9 +563,9 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                       </div>
                       <div className="ml-4">
                         {isExpanded ? (
-                          <ChevronDown className="w-6 h-6 text-gray-400 transition-transform" />
+                          <ChevronDown className="w-6 h-6 text-muted-foreground transition-transform" />
                         ) : (
-                          <ChevronRight className="w-6 h-6 text-gray-400 transition-transform" />
+                          <ChevronRight className="w-6 h-6 text-muted-foreground transition-transform" />
                         )}
                       </div>
                     </button>
@@ -575,10 +575,10 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                         <>
                           <button
                             onClick={() => openPhaseModal(phase)}
-                            className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
+                            className="p-2.5 hover:bg-muted rounded-xl transition-all hover:scale-110"
                             title="Edit phase"
                           >
-                            <Edit2 className="w-4 h-4 text-gray-400 hover:text-blue-400 transition-colors" />
+                            <Edit2 className="w-4 h-4 text-muted-foreground hover:text-[var(--color-brand-blue)] transition-colors" />
                           </button>
                           <button
                             onClick={() => deletePhase(phase.id)}
@@ -599,7 +599,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="border-t border-[#2a2a2a] p-6 pt-5 bg-[#0f0f0f]/50"
+                        className="border-t border-border p-6 pt-5 bg-muted/30"
                       >
                         <div className="space-y-2">
                           {phase.items.map((item, itemIndex) => (
@@ -611,7 +611,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                               className={`flex items-start gap-4 p-4 rounded-xl transition-all group relative ${
                                 item.checked
                                   ? "bg-green-600/5 hover:bg-green-600/10"
-                                  : "bg-[#1a1a1a]/50 hover:bg-[#2a2a2a]"
+                                  : "bg-muted/50 hover:bg-muted"
                               }`}
                             >
                               <button
@@ -628,16 +628,16 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                                       <CheckCircle2 className="w-4 h-4 text-white" />
                                     </motion.div>
                                   ) : (
-                                    <div className="w-6 h-6 rounded-full border-2 border-gray-600 group-hover:border-gray-400 transition-all flex items-center justify-center">
-                                      <Circle className="w-3 h-3 text-gray-600 group-hover:text-gray-400" />
+                                    <div className="w-6 h-6 rounded-full border-2 border-border group-hover:border-[var(--color-brand-blue)] transition-all flex items-center justify-center">
+                                      <Circle className="w-3 h-3 text-muted-foreground group-hover:text-[var(--color-brand-blue)]" />
                                     </div>
                                   )}
                                 </div>
                                 <span
                                   className={`flex-1 text-left text-base leading-relaxed transition-all ${
                                     item.checked
-                                      ? "text-gray-500 line-through"
-                                      : "text-gray-200 group-hover:text-white"
+                                      ? "text-muted-foreground line-through"
+                                      : "text-foreground"
                                   }`}
                                 >
                                   {item.text}
@@ -648,10 +648,10 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                                   <>
                                     <button
                                       onClick={() => openItemModal(phase.id, item)}
-                                      className="p-2 hover:bg-blue-600/20 rounded-lg transition-all hover:scale-110"
+                                      className="p-2 hover:bg-[var(--color-brand-blue)]/20 rounded-lg transition-all hover:scale-110"
                                       title="Edit item"
                                     >
-                                      <Edit2 className="w-4 h-4 text-blue-400" />
+                                      <Edit2 className="w-4 h-4 text-[var(--color-brand-blue)]" />
                                     </button>
                                     <button
                                       onClick={() => deleteItem(item.id)}
@@ -670,7 +670,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                           {!isAllProfiles && (
                             <button
                               onClick={() => openItemModal(phase.id)}
-                              className="w-full p-4 border-2 border-dashed border-[#3a3a3a] hover:border-blue-600/50 rounded-xl text-gray-400 hover:text-blue-400 transition-all flex items-center justify-center gap-2 group hover:bg-blue-600/5"
+                              className="w-full p-4 border-2 border-dashed border-border hover:border-[var(--color-brand-blue)]/50 rounded-xl text-muted-foreground hover:text-[var(--color-brand-blue)] transition-all flex items-center justify-center gap-2 group hover:bg-[var(--color-brand-blue)]/5"
                             >
                               <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
                               <span className="font-medium">Add Task</span>
@@ -694,26 +694,26 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: "spring", duration: 0.5 }}
-            className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-8 max-w-md w-full shadow-2xl"
+            className="bg-card border-2 border-border rounded-2xl p-8 max-w-md w-full shadow-2xl"
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <div className="p-2 bg-blue-600/20 rounded-xl">
-                  <ListChecks className="w-6 h-6 text-blue-400" />
+              <h3 className="text-2xl font-bold text-foreground flex items-center gap-3">
+                <div className="p-2 bg-[var(--color-brand-blue)]/20 rounded-xl">
+                  <ListChecks className="w-6 h-6 text-[var(--color-brand-blue)]" />
                 </div>
                 {editingPhase ? "Edit Phase" : "Add Phase"}
               </h3>
               <button
                 onClick={() => setShowPhaseModal(false)}
-                className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
+                className="p-2.5 hover:bg-muted rounded-xl transition-all hover:scale-110"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3">
+                <label className="block text-sm font-semibold text-foreground mb-3">
                   Phase Name *
                 </label>
                 <input
@@ -721,12 +721,12 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                   value={phaseForm.name}
                   onChange={(e) => setPhaseForm({ ...phaseForm, name: e.target.value })}
                   placeholder="e.g., Idea & Planning"
-                  className="w-full px-5 py-3 bg-[#0f0f0f] border-2 border-[#2a2a2a] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all text-base"
+                  className="w-full px-5 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] transition-all text-base"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3">
+                <label className="block text-sm font-semibold text-foreground mb-3">
                   Description
                 </label>
                 <textarea
@@ -736,19 +736,19 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                   }
                   rows={2}
                   placeholder="Brief description of this phase"
-                  className="w-full px-5 py-3 bg-[#0f0f0f] border-2 border-[#2a2a2a] rounded-xl text-white focus:outline-none focus:border-blue-500 resize-none transition-all text-base"
+                  className="w-full px-5 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] resize-none transition-all text-base"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
+                  <label className="block text-sm font-semibold text-foreground mb-3">
                     Icon
                   </label>
                   <select
                     value={phaseForm.icon}
                     onChange={(e) => setPhaseForm({ ...phaseForm, icon: e.target.value })}
-                    className="w-full px-5 py-3 bg-[#0f0f0f] border-2 border-[#2a2a2a] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all text-base cursor-pointer"
+                    className="w-full px-5 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] transition-all text-base cursor-pointer"
                   >
                     <option value="Lightbulb">💡 Lightbulb</option>
                     <option value="Video">🎥 Video</option>
@@ -762,13 +762,13 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
+                  <label className="block text-sm font-semibold text-foreground mb-3">
                     Color
                   </label>
                   <select
                     value={phaseForm.color}
                     onChange={(e) => setPhaseForm({ ...phaseForm, color: e.target.value })}
-                    className="w-full px-5 py-3 bg-[#0f0f0f] border-2 border-[#2a2a2a] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all text-base cursor-pointer"
+                    className="w-full px-5 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-[var(--color-brand-blue)] transition-all text-base cursor-pointer"
                   >
                     <option value="blue">🔵 Blue</option>
                     <option value="green">🟢 Green</option>
@@ -785,14 +785,14 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setShowPhaseModal(false)}
-                className="flex-1 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 font-medium"
+                className="flex-1 px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all hover:opacity-90 font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={savePhase}
                 disabled={!phaseForm.name || loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-blue-600/30"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-[var(--color-brand-blue)] to-[var(--color-brand-mid-pink)] hover:opacity-90 text-white rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg"
               >
                 <Save className="w-4 h-4" />
                 {loading ? "Saving..." : "Save Phase"}
@@ -810,10 +810,10 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: "spring", duration: 0.5 }}
-            className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#2a2a2a] rounded-2xl p-8 max-w-md w-full shadow-2xl"
+            className="bg-card border-2 border-border rounded-2xl p-8 max-w-md w-full shadow-2xl"
           >
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+              <h3 className="text-2xl font-bold text-foreground flex items-center gap-3">
                 <div className="p-2 bg-green-600/20 rounded-xl">
                   <CheckCheck className="w-6 h-6 text-green-400" />
                 </div>
@@ -821,15 +821,15 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
               </h3>
               <button
                 onClick={() => setShowItemModal(false)}
-                className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
+                className="p-2.5 hover:bg-muted rounded-xl transition-all hover:scale-110"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3">
+                <label className="block text-sm font-semibold text-foreground mb-3">
                   Task Description *
                 </label>
                 <textarea
@@ -837,7 +837,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                   onChange={(e) => setItemForm({ ...itemForm, text: e.target.value })}
                   rows={4}
                   placeholder="What needs to be done?"
-                  className="w-full px-5 py-3 bg-[#0f0f0f] border-2 border-[#2a2a2a] rounded-xl text-white focus:outline-none focus:border-green-500 resize-none transition-all text-base"
+                  className="w-full px-5 py-3 bg-background border-2 border-border rounded-xl text-foreground focus:outline-none focus:border-green-500 resize-none transition-all text-base"
                 />
               </div>
             </div>
@@ -845,14 +845,14 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setShowItemModal(false)}
-                className="flex-1 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 font-medium"
+                className="flex-1 px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all hover:opacity-90 font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={saveItem}
                 disabled={!itemForm.text || loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-green-600/30"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:opacity-90 text-white rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg"
               >
                 <Save className="w-4 h-4" />
                 {loading ? "Saving..." : "Save Task"}

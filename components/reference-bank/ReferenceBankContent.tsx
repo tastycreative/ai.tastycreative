@@ -79,6 +79,7 @@ export function ReferenceBankContent() {
     setPreviewItem,
     addToUploadQueue,
     removeFromUploadQueue,
+    processUploadQueue,
     retryUpload,
     updateItem,
     deleteItem,
@@ -462,45 +463,45 @@ export function ReferenceBankContent() {
   if (isLoading && (items || []).length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-brand-mid-pink animate-spin" />
       </div>
     );
   }
 
   return (
     <div
-      className="flex h-full bg-gray-900"
+      className="flex h-full bg-white dark:bg-[#1a1625]"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Mobile menu button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-[#EC67A1]/10"
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       >
         {isMobileMenuOpen ? (
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 text-sidebar-foreground" />
         ) : (
-          <FolderPlus className="w-5 h-5" />
+          <FolderPlus className="w-5 h-5 text-sidebar-foreground" />
         )}
       </button>
 
       {/* Sidebar */}
       <div
-        className={`fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-gray-900 border-r border-gray-800 transform transition-transform duration-300 ${
+        className={`fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-[#F8F8F8] dark:bg-[#1a1625] border-r border-[#EC67A1]/10 dark:border-[#EC67A1]/20 transform transition-transform duration-300 ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full p-4">
           {/* Logo/Title */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-violet-500/20 rounded-xl">
-              <ImageIcon className="w-6 h-6 text-violet-400" />
+            <div className="p-2 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 rounded-xl">
+              <ImageIcon className="w-6 h-6 text-[#EC67A1]" />
             </div>
             <div>
-              <h2 className="font-semibold text-white">Reference Bank</h2>
-              <p className="text-xs text-gray-500">
+              <h2 className="font-semibold text-sidebar-foreground">Reference Bank</h2>
+              <p className="text-xs text-header-muted">
                 {stats?.total || 0} items
               </p>
             </div>
@@ -512,13 +513,13 @@ export function ReferenceBankContent() {
               onClick={() => setSelectedFolderId(null)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 !showFavoritesOnly && !showRecentlyUsed && !selectedFolderId
-                  ? "bg-violet-500/20 text-violet-300"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  ? "bg-[#EC67A1]/20 text-[#EC67A1] border border-[#EC67A1]/30"
+                  : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground border border-transparent"
               }`}
             >
               <ImageIcon className="w-5 h-5" />
               <span>All References</span>
-              <span className="ml-auto text-xs text-gray-500">
+              <span className="ml-auto text-xs text-header-muted">
                 {stats?.total || 0}
               </span>
             </button>
@@ -527,13 +528,13 @@ export function ReferenceBankContent() {
               onClick={() => setShowFavoritesOnly(true)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 showFavoritesOnly
-                  ? "bg-pink-500/20 text-pink-300"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  ? "bg-[#EC67A1]/20 text-[#EC67A1] border border-[#EC67A1]/30"
+                  : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground border border-transparent"
               }`}
             >
               <Heart className="w-5 h-5" />
               <span>Favorites</span>
-              <span className="ml-auto text-xs text-gray-500">
+              <span className="ml-auto text-xs text-header-muted">
                 {stats?.favorites || 0}
               </span>
             </button>
@@ -542,8 +543,8 @@ export function ReferenceBankContent() {
               onClick={() => setShowRecentlyUsed(true)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 showRecentlyUsed
-                  ? "bg-blue-500/20 text-blue-300"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  ? "bg-[#5DC3F8]/20 text-[#5DC3F8] border border-[#5DC3F8]/30"
+                  : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground border border-transparent"
               }`}
             >
               <Clock className="w-5 h-5" />
@@ -554,14 +555,14 @@ export function ReferenceBankContent() {
           {/* Folders */}
           <div className="flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <span className="text-xs font-medium text-header-muted uppercase tracking-wider">
                 Folders
               </span>
               <button
                 onClick={handleCreateFolder}
-                className="p-1 hover:bg-gray-800 rounded transition-colors"
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
               >
-                <Plus className="w-4 h-4 text-gray-400" />
+                <Plus className="w-4 h-4 text-header-muted hover:text-sidebar-foreground" />
               </button>
             </div>
 
@@ -569,12 +570,12 @@ export function ReferenceBankContent() {
               {(folders || []).map((folder) => (
                 <div
                   key={folder.id}
-                  className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                  className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer border ${
                     selectedFolderId === folder.id
-                      ? "bg-gray-800 text-white"
+                      ? "bg-zinc-100 dark:bg-zinc-800 text-sidebar-foreground border-[#EC67A1]/20"
                       : dropTargetFolderId === folder.id
-                      ? "bg-violet-500/20 text-violet-300"
-                      : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                      ? "bg-[#EC67A1]/20 text-[#EC67A1] border-[#EC67A1]/30"
+                      : "text-header-muted hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-sidebar-foreground border-transparent"
                   }`}
                   onClick={() => setSelectedFolderId(folder.id)}
                   onDragOver={(e) => {
@@ -596,10 +597,10 @@ export function ReferenceBankContent() {
                 >
                   <Folder
                     className="w-5 h-5 shrink-0"
-                    style={{ color: folder.color || "#8B5CF6" }}
+                    style={{ color: folder.color || "#EC67A1" }}
                   />
                   <span className="truncate flex-1">{folder.name}</span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-header-muted">
                     {(items || []).filter((i) => i.folderId === folder.id).length}
                   </span>
                   <div className="hidden group-hover:flex items-center gap-1">
@@ -608,7 +609,7 @@ export function ReferenceBankContent() {
                         e.stopPropagation();
                         handleEditFolder(folder);
                       }}
-                      className="p-1 hover:bg-gray-700 rounded"
+                      className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-sidebar-foreground"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
@@ -617,7 +618,7 @@ export function ReferenceBankContent() {
                         e.stopPropagation();
                         handleDeleteFolder(folder);
                       }}
-                      className="p-1 hover:bg-red-500/20 rounded text-red-400"
+                      className="p-1 hover:bg-red-500/20 rounded text-red-500"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -641,22 +642,22 @@ export function ReferenceBankContent() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="shrink-0 p-4 border-b border-gray-800">
+        <div className="shrink-0 p-4 border-b border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Breadcrumb / Title */}
             <div className="flex items-center gap-2 min-w-0">
               {selectedFolderId && (
                 <button
                   onClick={() => setSelectedFolderId(null)}
-                  className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  <ArrowLeft className="w-4 h-4 text-gray-400" />
+                  <ArrowLeft className="w-4 h-4 text-header-muted hover:text-sidebar-foreground" />
                 </button>
               )}
-              <h1 className="text-lg font-semibold text-white truncate">
+              <h1 className="text-lg font-semibold text-sidebar-foreground truncate">
                 {getCurrentFilterLabel()}
               </h1>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-header-muted">
                 ({filteredItems.length} items)
               </span>
             </div>
@@ -665,14 +666,14 @@ export function ReferenceBankContent() {
             <div className="flex items-center gap-2 ml-auto">
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white font-medium rounded-lg transition-all shadow-lg shadow-[#EC67A1]/30"
               >
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Upload</span>
               </button>
               <button
                 onClick={handleCreateFolder}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors border border-gray-700"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground rounded-lg transition-colors border border-[#EC67A1]/10"
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">New Folder</span>
@@ -684,32 +685,32 @@ export function ReferenceBankContent() {
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-header-muted" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search references..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 bg-[#F8F8F8] dark:bg-[#1a1625]/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground placeholder-header-muted focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2"
                 >
-                  <X className="w-4 h-4 text-gray-500 hover:text-white" />
+                  <X className="w-4 h-4 text-header-muted hover:text-sidebar-foreground" />
                 </button>
               )}
             </div>
 
             {/* Type filter */}
-            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-[#EC67A1]/10">
               <button
                 onClick={() => setFilterType("all")}
                 className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
                   filterType === "all"
-                    ? "bg-violet-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-[#EC67A1] text-white shadow-sm"
+                    : "text-header-muted hover:text-sidebar-foreground"
                 }`}
               >
                 All
@@ -718,8 +719,8 @@ export function ReferenceBankContent() {
                 onClick={() => setFilterType("image")}
                 className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
                   filterType === "image"
-                    ? "bg-blue-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-[#5DC3F8] text-white shadow-sm"
+                    : "text-header-muted hover:text-sidebar-foreground"
                 }`}
               >
                 <ImageIcon className="w-4 h-4" />
@@ -728,8 +729,8 @@ export function ReferenceBankContent() {
                 onClick={() => setFilterType("video")}
                 className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
                   filterType === "video"
-                    ? "bg-purple-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-[#F774B9] text-white shadow-sm"
+                    : "text-header-muted hover:text-sidebar-foreground"
                 }`}
               >
                 <VideoIcon className="w-4 h-4" />
@@ -742,7 +743,7 @@ export function ReferenceBankContent() {
               onChange={(e) =>
                 setSortBy(e.target.value as "recent" | "name" | "usage")
               }
-              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-2 bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/20 focus:border-[#EC67A1]"
             >
               <option value="recent">Most Recent</option>
               <option value="name">Name</option>
@@ -750,13 +751,13 @@ export function ReferenceBankContent() {
             </select>
 
             {/* View mode */}
-            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-[#EC67A1]/10">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 rounded-md transition-colors ${
                   viewMode === "grid"
-                    ? "bg-violet-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-[#EC67A1] text-white shadow-sm"
+                    : "text-header-muted hover:text-sidebar-foreground"
                 }`}
               >
                 <Grid3X3 className="w-4 h-4" />
@@ -765,8 +766,8 @@ export function ReferenceBankContent() {
                 onClick={() => setViewMode("list")}
                 className={`p-2 rounded-md transition-colors ${
                   viewMode === "list"
-                    ? "bg-violet-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-[#EC67A1] text-white shadow-sm"
+                    : "text-header-muted hover:text-sidebar-foreground"
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -777,12 +778,12 @@ export function ReferenceBankContent() {
 
         {/* Bulk actions bar */}
         {selectedIds.length > 0 && (
-          <div className="shrink-0 px-4 py-3 bg-gray-800/50 border-b border-gray-700 flex flex-wrap items-center gap-3">
+          <div className="shrink-0 px-4 py-3 bg-[#EC67A1]/5 dark:bg-[#EC67A1]/10 border-b border-[#EC67A1]/20 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-violet-500 rounded flex items-center justify-center">
+              <div className="w-6 h-6 bg-[#EC67A1] rounded flex items-center justify-center">
                 <Check className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm font-medium text-white">
+              <span className="text-sm font-medium text-sidebar-foreground">
                 {selectedIds.length} selected
               </span>
               <button
@@ -791,7 +792,7 @@ export function ReferenceBankContent() {
                     ? clearSelection
                     : selectAll
                 }
-                className="text-sm text-violet-400 hover:text-violet-300"
+                className="text-sm text-[#EC67A1] hover:text-[#E1518E]"
               >
                 {selectedIds.length === filteredItems.length
                   ? "Deselect all"
@@ -804,14 +805,14 @@ export function ReferenceBankContent() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleBulkFavorite}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-sidebar-foreground text-sm rounded-lg transition-colors border border-[#EC67A1]/10"
               >
                 <Heart className="w-4 h-4" />
                 Favorite
               </button>
               <button
                 onClick={handleBulkMove}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-sidebar-foreground text-sm rounded-lg transition-colors border border-[#EC67A1]/10"
               >
                 <Move className="w-4 h-4" />
                 Move
@@ -819,7 +820,7 @@ export function ReferenceBankContent() {
               <button
                 onClick={handleBulkDownload}
                 disabled={isDownloading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-sidebar-foreground text-sm rounded-lg transition-colors disabled:opacity-50 border border-[#EC67A1]/10"
               >
                 {isDownloading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -830,16 +831,16 @@ export function ReferenceBankContent() {
               </button>
               <button
                 onClick={handleBulkDelete}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-500 text-sm rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
               <button
                 onClick={clearSelection}
-                className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
               >
-                <X className="w-4 h-4 text-gray-400" />
+                <X className="w-4 h-4 text-header-muted" />
               </button>
             </div>
           </div>
@@ -848,27 +849,27 @@ export function ReferenceBankContent() {
         {/* Content area */}
         <div className="flex-1 overflow-auto p-4 relative">
           {isLoading && (
-            <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="absolute inset-0 bg-white/50 dark:bg-[#1a1625]/50 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-                <p className="text-sm text-gray-400">Loading...</p>
+                <Loader2 className="w-8 h-8 text-brand-mid-pink animate-spin" />
+                <p className="text-sm text-header-muted">Loading...</p>
               </div>
             </div>
           )}
           
           {error ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
-              <h2 className="text-xl font-semibold text-white mb-2">
+              <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+              <h2 className="text-xl font-semibold text-sidebar-foreground mb-2">
                 Error Loading References
               </h2>
-              <p className="text-gray-400 mb-4">{error}</p>
+              <p className="text-header-muted mb-4">{error}</p>
               <button
                 onClick={() => {
                   setError(null);
                   fetchData();
                 }}
-                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg transition-colors shadow-lg shadow-[#EC67A1]/30"
               >
                 Try Again
               </button>
@@ -877,36 +878,36 @@ export function ReferenceBankContent() {
             <div className="flex flex-col items-center justify-center h-full text-center">
               {searchQuery ? (
                 <>
-                  <Search className="w-12 h-12 text-gray-600 mb-4" />
-                  <h2 className="text-xl font-semibold text-white mb-2">
+                  <Search className="w-12 h-12 text-header-muted mb-4" />
+                  <h2 className="text-xl font-semibold text-sidebar-foreground mb-2">
                     No matches found
                   </h2>
-                  <p className="text-gray-400">
+                  <p className="text-header-muted">
                     No references match &quot;{searchQuery}&quot;
                   </p>
                 </>
               ) : showFavoritesOnly ? (
                 <>
-                  <Heart className="w-12 h-12 text-gray-600 mb-4" />
-                  <h2 className="text-xl font-semibold text-white mb-2">
+                  <Heart className="w-12 h-12 text-header-muted mb-4" />
+                  <h2 className="text-xl font-semibold text-sidebar-foreground mb-2">
                     No favorites yet
                   </h2>
-                  <p className="text-gray-400">
+                  <p className="text-header-muted">
                     Mark items as favorites to see them here
                   </p>
                 </>
               ) : (
                 <>
-                  <Upload className="w-12 h-12 text-gray-600 mb-4" />
-                  <h2 className="text-xl font-semibold text-white mb-2">
+                  <Upload className="w-12 h-12 text-header-muted mb-4" />
+                  <h2 className="text-xl font-semibold text-sidebar-foreground mb-2">
                     No references yet
                   </h2>
-                  <p className="text-gray-400 mb-4">
+                  <p className="text-header-muted mb-4">
                     Upload images and videos to build your reference library
                   </p>
                   <button
                     onClick={() => setShowUploadModal(true)}
-                    className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                    className="px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg transition-colors shadow-lg shadow-[#EC67A1]/30"
                   >
                     Upload Files
                   </button>
@@ -953,10 +954,13 @@ export function ReferenceBankContent() {
 
       {/* Preview Modal */}
       {previewItem && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+          onClick={() => setPreviewItem(null)}
+        >
           <button
             onClick={() => setPreviewItem(null)}
-            className="absolute top-4 right-4 p-2 bg-gray-800/80 hover:bg-gray-700 rounded-lg transition-colors"
+            className="absolute top-4 right-4 p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-lg transition-colors z-10"
           >
             <X className="w-6 h-6 text-white" />
           </button>
@@ -966,13 +970,13 @@ export function ReferenceBankContent() {
             <>
               <button
                 onClick={() => navigatePreview("prev")}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-gray-800/80 hover:bg-gray-700 rounded-full transition-colors"
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-zinc-800/80 hover:bg-zinc-700 rounded-full transition-colors z-10"
               >
                 <ArrowLeft className="w-6 h-6 text-white" />
               </button>
               <button
                 onClick={() => navigatePreview("next")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-gray-800/80 hover:bg-gray-700 rounded-full transition-colors rotate-180"
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-zinc-800/80 hover:bg-zinc-700 rounded-full transition-colors rotate-180 z-10"
               >
                 <ArrowLeft className="w-6 h-6 text-white" />
               </button>
@@ -980,7 +984,10 @@ export function ReferenceBankContent() {
           )}
 
           {/* Content */}
-          <div className="max-w-5xl max-h-[80vh] overflow-hidden">
+          <div 
+            className="max-w-5xl max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             {previewItem.fileType.startsWith("video/") ? (
               <video
                 src={previewItem.awsS3Url}
@@ -998,14 +1005,17 @@ export function ReferenceBankContent() {
           </div>
 
           {/* Info panel */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-gray-800/90 rounded-xl">
+          <div 
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-zinc-800/90 rounded-xl z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <span className="text-white font-medium">{previewItem.name}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleToggleFavorite(previewItem)}
                 className={`p-2 rounded-lg transition-colors ${
                   previewItem.isFavorite
-                    ? "text-pink-500"
+                    ? "text-[#EC67A1]"
                     : "text-gray-400 hover:text-white"
                 }`}
               >
@@ -1042,12 +1052,12 @@ export function ReferenceBankContent() {
                   setPreviewItem(null);
                   handleDeleteItem(previewItem);
                 }}
-                className="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               {previewIndex + 1} / {filteredItems.length}
             </span>
           </div>
@@ -1058,21 +1068,21 @@ export function ReferenceBankContent() {
       {/* Upload Queue */}
       {(uploadQueue || []).length > 0 && createPortal(
         <div className="fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)]">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+          <div className="bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl shadow-2xl overflow-hidden">
             <div
-              className="flex items-center justify-between px-4 py-3 bg-gray-800/50 cursor-pointer"
+              className="flex items-center justify-between px-4 py-3 bg-[#F8F8F8] dark:bg-[#1a1625]/50 cursor-pointer border-b border-[#EC67A1]/10"
               onClick={() => setIsUploadQueueExpanded(!isUploadQueueExpanded)}
             >
               <div className="flex items-center gap-3">
-                <Upload className="w-5 h-5 text-violet-400" />
-                <span className="text-sm font-medium text-white">
+                <Upload className="w-5 h-5 text-[#EC67A1]" />
+                <span className="text-sm font-medium text-sidebar-foreground">
                   Uploading {uploadQueue.filter((i) => i.status === "uploading").length} files
                 </span>
               </div>
               {isUploadQueueExpanded ? (
-                <X className="w-4 h-4 text-gray-400" />
+                <X className="w-4 h-4 text-header-muted" />
               ) : (
-                <SlidersHorizontal className="w-4 h-4 text-gray-400" />
+                <SlidersHorizontal className="w-4 h-4 text-header-muted" />
               )}
             </div>
             {isUploadQueueExpanded && (
@@ -1080,43 +1090,43 @@ export function ReferenceBankContent() {
                 {uploadQueue.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg"
+                    className="flex items-center gap-3 p-2 bg-[#F8F8F8] dark:bg-zinc-800 rounded-lg"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{item.name}</p>
+                      <p className="text-sm text-sidebar-foreground truncate">{item.name}</p>
                       {item.status === "uploading" && (
-                        <div className="h-1 bg-gray-700 rounded-full mt-1 overflow-hidden">
+                        <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full mt-1 overflow-hidden">
                           <div
-                            className="h-full bg-violet-500 transition-all"
+                            className="h-full bg-[#EC67A1] transition-all"
                             style={{ width: `${item.progress || 0}%` }}
                           />
                         </div>
                       )}
                       {item.status === "error" && (
-                        <p className="text-xs text-red-400 truncate">
+                        <p className="text-xs text-red-500 truncate">
                           {item.error}
                         </p>
                       )}
                     </div>
                     {item.status === "uploading" && (
-                      <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[#EC67A1] animate-spin" />
                     )}
                     {item.status === "success" && (
-                      <Check className="w-4 h-4 text-green-400" />
+                      <Check className="w-4 h-4 text-emerald-500" />
                     )}
                     {item.status === "error" && (
                       <button
                         onClick={() => retryUpload(item.id)}
-                        className="p-1 hover:bg-gray-700 rounded"
+                        className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
                       >
-                        <AlertCircle className="w-4 h-4 text-red-400" />
+                        <AlertCircle className="w-4 h-4 text-red-500" />
                       </button>
                     )}
                     <button
                       onClick={() => removeFromUploadQueue(item.id)}
-                      className="p-1 hover:bg-gray-700 rounded"
+                      className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
                     >
-                      <X className="w-4 h-4 text-gray-500" />
+                      <X className="w-4 h-4 text-header-muted" />
                     </button>
                   </div>
                 ))}
@@ -1129,13 +1139,13 @@ export function ReferenceBankContent() {
 
       {/* Drag overlay */}
       {isDraggingFile && createPortal(
-        <div className="fixed inset-0 bg-violet-900/20 border-4 border-dashed border-violet-500 z-50 pointer-events-none flex items-center justify-center">
-          <div className="bg-gray-800 rounded-xl p-8 text-center shadow-2xl">
-            <Upload className="w-12 h-12 text-violet-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white">
+        <div className="fixed inset-0 bg-[#EC67A1]/20 border-4 border-dashed border-[#EC67A1] z-50 pointer-events-none flex items-center justify-center">
+          <div className="bg-white dark:bg-[#1a1625] rounded-xl p-8 text-center shadow-2xl border border-[#EC67A1]/20">
+            <Upload className="w-12 h-12 text-[#EC67A1] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-sidebar-foreground">
               Drop files to upload
             </h3>
-            <p className="text-gray-400 mt-2">Images and videos supported</p>
+            <p className="text-header-muted mt-2">Images and videos supported</p>
           </div>
         </div>,
         document.body
@@ -1157,6 +1167,8 @@ export function ReferenceBankContent() {
               });
             }
             setShowUploadModal(false);
+            // Process the upload queue
+            await processUploadQueue();
           }}
           currentFolderId={selectedFolderId}
         />,
@@ -1242,12 +1254,12 @@ function GridItemCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group relative bg-gray-800 rounded-xl overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
-        isSelected ? "ring-2 ring-violet-500 shadow-lg shadow-violet-500/20" : ""
+      className={`group relative bg-white dark:bg-[#1a1625] rounded-xl overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl border ${
+        isSelected ? "ring-2 ring-[#EC67A1] shadow-lg shadow-[#EC67A1]/20 border-[#EC67A1]/30" : "border-[#EC67A1]/10 dark:border-[#EC67A1]/20"
       }`}
     >
       <div
-        className="aspect-square bg-gray-900 relative overflow-hidden"
+        className="aspect-square bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden"
         onClick={onPreview}
       >
         {isVideo ? (
@@ -1270,7 +1282,7 @@ function GridItemCard({
           />
         )}
 
-        <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
@@ -1280,8 +1292,8 @@ function GridItemCard({
             }}
             className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
               item.isFavorite
-                ? "bg-pink-500/90 text-white"
-                : "bg-black/50 text-white hover:bg-pink-500/90"
+                ? "bg-[#EC67A1]/90 text-white"
+                : "bg-black/50 text-white hover:bg-[#EC67A1]/90"
             }`}
           >
             <Heart
@@ -1298,7 +1310,7 @@ function GridItemCard({
             }}
             className={`w-5 h-5 rounded border-2 transition-all ${
               isSelected
-                ? "bg-violet-500 border-violet-500"
+                ? "bg-[#EC67A1] border-[#EC67A1]"
                 : "bg-black/30 border-white/50 hover:border-white"
             } backdrop-blur-sm flex items-center justify-center`}
           >
@@ -1308,12 +1320,12 @@ function GridItemCard({
 
         <div className="absolute bottom-2 left-2">
           {isVideo ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/90 backdrop-blur-sm text-white text-xs rounded-md">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F774B9]/90 backdrop-blur-sm text-white text-xs rounded-md">
               <VideoIcon className="w-3 h-3" />
               Video
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/90 backdrop-blur-sm text-white text-xs rounded-md">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#5DC3F8]/90 backdrop-blur-sm text-white text-xs rounded-md">
               <ImageIcon className="w-3 h-3" />
               Image
             </span>
@@ -1322,10 +1334,10 @@ function GridItemCard({
       </div>
 
       <div className="p-3">
-        <h3 className="text-sm font-medium text-white truncate mb-1">
+        <h3 className="text-sm font-medium text-sidebar-foreground truncate mb-1">
           {item.name}
         </h3>
-        <div className="flex items-center justify-between text-xs text-gray-400">
+        <div className="flex items-center justify-between text-xs text-header-muted">
           <span>
             {item.width && item.height
               ? `${item.width}×${item.height}`
@@ -1346,13 +1358,13 @@ function GridItemCard({
             {item.tags.slice(0, 2).map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 bg-violet-500/20 text-violet-300 text-xs rounded"
+                className="px-1.5 py-0.5 bg-[#EC67A1]/20 text-[#EC67A1] text-xs rounded"
               >
                 {tag}
               </span>
             ))}
             {item.tags.length > 2 && (
-              <span className="px-1.5 py-0.5 bg-gray-700 text-gray-400 text-xs rounded">
+              <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-header-muted text-xs rounded">
                 +{item.tags.length - 2}
               </span>
             )}
@@ -1365,7 +1377,7 @@ function GridItemCard({
               e.stopPropagation();
               onEdit();
             }}
-            className="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded transition-colors"
+            className="flex-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-sidebar-foreground text-xs rounded transition-colors"
           >
             <Edit2 className="w-3 h-3 mx-auto" />
           </button>
@@ -1374,7 +1386,7 @@ function GridItemCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="flex-1 px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded transition-colors"
+            className="flex-1 px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 text-xs rounded transition-colors"
           >
             <Trash2 className="w-3 h-3 mx-auto" />
           </button>
@@ -1413,8 +1425,8 @@ function ListItemRow({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group flex items-center gap-4 p-3 bg-gray-800 rounded-lg cursor-pointer transition-all hover:bg-gray-750 ${
-        isSelected ? "ring-2 ring-violet-500" : ""
+      className={`group flex items-center gap-4 p-3 bg-white dark:bg-[#1a1625] rounded-lg cursor-pointer transition-all hover:bg-[#F8F8F8] dark:hover:bg-zinc-800/50 border ${
+        isSelected ? "ring-2 ring-[#EC67A1] border-[#EC67A1]/30" : "border-[#EC67A1]/10 dark:border-[#EC67A1]/20"
       }`}
       onClick={onPreview}
     >
@@ -1425,14 +1437,14 @@ function ListItemRow({
         }}
         className={`w-5 h-5 rounded border-2 transition-all shrink-0 ${
           isSelected
-            ? "bg-violet-500 border-violet-500"
-            : "bg-gray-700 border-gray-600 hover:border-gray-500"
+            ? "bg-[#EC67A1] border-[#EC67A1]"
+            : "bg-zinc-100 dark:bg-zinc-700 border-[#EC67A1]/30 hover:border-[#EC67A1]"
         } flex items-center justify-center`}
       >
         {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
       </button>
 
-      <div className="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden shrink-0 relative">
+      <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-lg overflow-hidden shrink-0 relative">
         {isVideo ? (
           <>
             <video
@@ -1456,14 +1468,14 @@ function ListItemRow({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-sm font-medium text-white truncate">
+          <h3 className="text-sm font-medium text-sidebar-foreground truncate">
             {item.name}
           </h3>
           {item.isFavorite && (
-            <Heart className="w-4 h-4 text-pink-500 fill-current shrink-0" />
+            <Heart className="w-4 h-4 text-[#EC67A1] fill-current shrink-0" />
           )}
         </div>
-        <div className="flex items-center gap-3 text-xs text-gray-400">
+        <div className="flex items-center gap-3 text-xs text-header-muted">
           <span className="flex items-center gap-1">
             {isVideo ? (
               <VideoIcon className="w-3 h-3" />
@@ -1492,7 +1504,7 @@ function ListItemRow({
             {item.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 bg-violet-500/20 text-violet-300 text-xs rounded"
+                className="px-1.5 py-0.5 bg-[#EC67A1]/20 text-[#EC67A1] text-xs rounded"
               >
                 {tag}
               </span>
@@ -1509,8 +1521,8 @@ function ListItemRow({
           }}
           className={`p-2 rounded-lg transition-colors ${
             item.isFavorite
-              ? "text-pink-500 hover:bg-pink-500/20"
-              : "text-gray-400 hover:bg-gray-700 hover:text-white"
+              ? "text-[#EC67A1] hover:bg-[#EC67A1]/20"
+              : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-sidebar-foreground"
           }`}
         >
           <Heart className={`w-4 h-4 ${item.isFavorite ? "fill-current" : ""}`} />
@@ -1520,7 +1532,7 @@ function ListItemRow({
             e.stopPropagation();
             onEdit();
           }}
-          className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors"
+          className="p-2 text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-sidebar-foreground rounded-lg transition-colors"
         >
           <Edit2 className="w-4 h-4" />
         </button>
@@ -1529,7 +1541,7 @@ function ListItemRow({
             e.stopPropagation();
             onDelete();
           }}
-          className="p-2 text-gray-400 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors"
+          className="p-2 text-header-muted hover:bg-red-500/20 hover:text-red-500 rounded-lg transition-colors"
         >
           <Trash2 className="w-4 h-4" />
         </button>

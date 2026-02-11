@@ -729,7 +729,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ImageIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             Feed Post Planner
             {isAllProfiles && (
@@ -739,7 +739,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
               </span>
             )}
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Plan and schedule your Instagram feed posts
           </p>
         </div>
@@ -762,7 +762,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
             <Users className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
             <div>
               <h3 className="text-sm font-semibold text-blue-300">Viewing All Profiles</h3>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Showing feed posts from all your profiles. When creating a new post, you&apos;ll need to select which profile to assign it to.
               </p>
             </div>
@@ -771,13 +771,13 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
       )}
 
       {/* Date Navigator */}
-      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
+      <div className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <button
             onClick={handlePrevDay}
-            className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-400" />
+            <ChevronLeft className="w-5 h-5 text-muted-foreground" />
           </button>
 
           <div className="flex items-center gap-4">
@@ -786,7 +786,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
               <h3 className="text-lg font-bold text-white">
                 {format(selectedDate, "EEEE, MMMM d, yyyy")}
               </h3>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {feedPostSlots.length} {feedPostSlots.length === 1 ? "post" : "posts"} planned
               </p>
             </div>
@@ -800,9 +800,9 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
           <button
             onClick={handleNextDay}
-            className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
       </div>
@@ -811,17 +811,17 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
       {loading ? (
         <div className="text-center py-16">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading feed posts...</p>
+          <p className="mt-4 text-muted-foreground">Loading feed posts...</p>
         </div>
       ) : sortedFeedPostSlots.length === 0 ? (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
             <ImageIcon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             No feed posts planned for this day
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             Start planning your feed posts by clicking the button above
           </p>
         </div>
@@ -833,7 +833,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               whileHover={{ y: -4 }}
-              className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-5 hover:border-blue-500/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-blue-600/10"
+              className="bg-card border-2 border-border rounded-2xl p-5 hover:border-[var(--color-brand-blue)]/30 transition-all shadow-xl hover:shadow-2xl"
             >
               {/* Profile Badge for All Profiles mode */}
               {isAllProfiles && slot.profileName && (
@@ -846,7 +846,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
               )}
 
               {/* Time Header */}
-              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#2a2a2a]">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-border">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-blue-600/20">
                     <CalendarIcon className="w-5 h-5 text-blue-400" />
@@ -876,43 +876,43 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                   {slot.isPosted ? (
                     <CheckCircle className="w-5 h-5 text-green-400" />
                   ) : (
-                    <Circle className="w-5 h-5 text-gray-400" />
+                    <Circle className="w-5 h-5 text-muted-foreground" />
                   )}
                 </motion.button>
               </div>
 
               {/* Slot Content */}
               <div className="space-y-4">
-                <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                <div className="bg-muted rounded-xl p-3 border border-blue-500/10">
                   <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Post Type</div>
-                  <div className="text-white font-semibold text-base">
+                  <div className="text-foreground font-semibold text-base">
                     {getPostTypeLabel(slot.postType)}
                   </div>
                 </div>
 
                 {slot.caption && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-cyan-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-cyan-500/10">
                     <div className="text-xs font-bold text-cyan-400 mb-1.5 uppercase tracking-wide">Caption</div>
-                    <div className="text-white font-medium text-sm line-clamp-3">
+                    <div className="text-foreground font-medium text-sm line-clamp-3">
                       {slot.caption}
                     </div>
                   </div>
                 )}
 
                 {slot.location && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-green-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-green-500/10">
                     <div className="text-xs font-bold text-green-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
                       Location
                     </div>
-                    <div className="text-white font-medium text-sm">
+                    <div className="text-foreground font-medium text-sm">
                       {slot.location}
                     </div>
                   </div>
                 )}
 
                 {slot.hashtags && slot.hashtags.length > 0 && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-purple-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-purple-500/10">
                     <div className="text-xs font-bold text-purple-400 mb-1.5 uppercase tracking-wide">Hashtags</div>
                     <div className="flex flex-wrap gap-1">
                       {slot.hashtags.slice(0, 3).map((tag, index) => (
@@ -924,14 +924,14 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                         </span>
                       ))}
                       {slot.hashtags.length > 3 && (
-                        <span className="text-xs px-2 py-1 text-gray-400">+{slot.hashtags.length - 3} more</span>
+                        <span className="text-xs px-2 py-1 text-muted-foreground">+{slot.hashtags.length - 3} more</span>
                       )}
                     </div>
                   </div>
                 )}
 
                 {slot.collaborators && slot.collaborators.length > 0 && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-pink-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-pink-500/10">
                     <div className="text-xs font-bold text-pink-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                       <Users className="w-3 h-3" />
                       Collaborators
@@ -950,7 +950,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                 )}
 
                 {slot.files && slot.files.length > 0 && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-blue-500/10">
                     <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                       <Images className="w-3 h-3" />
                       Media ({slot.files.length})
@@ -965,15 +965,15 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       ))}
                     </div>
                     {slot.files.length > 4 && (
-                      <p className="text-xs text-gray-400 mt-2">+{slot.files.length - 4} more files</p>
+                      <p className="text-xs text-muted-foreground mt-2">+{slot.files.length - 4} more files</p>
                     )}
                   </div>
                 )}
 
                 {slot.notes && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-gray-500/10">
-                    <div className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Notes</div>
-                    <div className="text-white font-medium text-sm line-clamp-2">
+                  <div className="bg-muted rounded-xl p-3 border border-gray-500/10">
+                    <div className="text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">Notes</div>
+                    <div className="text-foreground font-medium text-sm line-clamp-2">
                       {slot.notes}
                     </div>
                   </div>
@@ -984,7 +984,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openEditModal(slot)}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#2a2a2a] to-[#252525] hover:from-blue-600/20 hover:to-cyan-600/20 text-white rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-transparent hover:border-blue-500/30"
+                    className="flex-1 px-4 py-2.5 bg-muted hover:from-blue-600/20 hover:to-cyan-600/20 text-foreground rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-border hover:border-blue-500/30"
                   >
                     <Edit className="w-4 h-4" />
                     Edit
@@ -1010,11 +1010,11 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
         createPortal(
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
             <div
-              className="relative bg-gradient-to-br from-[#1a1a1a] to-[#252525] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-[#2a2a2a]"
+              className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-border"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="relative bg-gradient-to-r from-blue-600 to-cyan-600 p-5 text-white">
+              <div className="relative bg-gradient-to-r from-[var(--color-brand-blue)] to-cyan-600 p-5 text-white">
                 <button
                   onClick={() => {
                     setShowModal(false);
@@ -1040,8 +1040,8 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                 {/* Profile Selector for All Profiles Mode */}
                 {isAllProfiles && (
                   <div>
-                    <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-blue-500" />
+                    <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[var(--color-brand-blue)]" />
                       Select Profile <span className="text-red-400">*</span>
                     </label>
                     <select
@@ -1055,7 +1055,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                           fetchCaptionsBank(e.target.value);
                         }
                       }}
-                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-blue)]"
                     >
                       <option value="">-- Select a Profile --</option>
                       {Array.isArray(profiles) && profiles.map((profile) => (
@@ -1074,15 +1074,15 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Time Picker */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <CalendarIcon className="w-4 h-4 text-blue-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-[var(--color-brand-blue)]" />
                     Posting Time
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       value={timeInput.hour}
                       onChange={(e) => setTimeInput({ ...timeInput, hour: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-blue)]"
                     >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
                         <option key={hour} value={hour}>{hour}</option>
@@ -1091,7 +1091,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                     <select
                       value={timeInput.minute}
                       onChange={(e) => setTimeInput({ ...timeInput, minute: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-blue)]"
                     >
                       {["00", "15", "30", "45"].map((min) => (
                         <option key={min} value={min}>{min}</option>
@@ -1100,7 +1100,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                     <select
                       value={timeInput.period}
                       onChange={(e) => setTimeInput({ ...timeInput, period: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-blue)]"
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -1110,11 +1110,11 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Post Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Post Type</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Post Type</label>
                   <select
                     value={formData.postType}
                     onChange={(e) => setFormData({ ...formData, postType: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-blue)]"
                   >
                     {POST_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -1126,8 +1126,8 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* File Upload */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-blue-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-[var(--color-brand-blue)]" />
                     Content Source
                   </label>
                   
@@ -1138,8 +1138,8 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       onClick={() => setUploadMode("upload")}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         uploadMode === "upload"
-                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a]"
+                          ? "bg-gradient-to-r from-[var(--color-brand-blue)] to-cyan-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       📤 Upload New
@@ -1161,8 +1161,8 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       disabled={!profileId || (isAllProfiles && !selectedProfileId)}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         uploadMode === "vault"
-                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                          ? "bg-gradient-to-r from-[var(--color-brand-blue)] to-cyan-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
                       }`}
                     >
                       🗄️ From Vault
@@ -1179,9 +1179,9 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                             {selectedVaultItems.map((item) => (
                               <div key={item.id} className="relative group">
                                 {item.fileType.startsWith("video/") ? (
-                                  <video src={item.awsS3Url} className="w-full h-32 object-contain bg-[#0a0a0a] rounded-lg" />
+                                  <video src={item.awsS3Url} className="w-full h-32 object-contain bg-background rounded-lg" />
                                 ) : (
-                                  <img src={item.awsS3Url} alt={item.fileName} className="w-full h-32 object-contain bg-[#0a0a0a] rounded-lg" />
+                                  <img src={item.awsS3Url} alt={item.fileName} className="w-full h-32 object-contain bg-background rounded-lg" />
                                 )}
                                 <button
                                   type="button"
@@ -1199,9 +1199,9 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                               return (
                                 <div key={`upload-${index}`} className="relative group">
                                   {isVideo ? (
-                                    <video src={url} className="w-full h-32 object-contain bg-[#0a0a0a] rounded-lg" />
+                                    <video src={url} className="w-full h-32 object-contain bg-background rounded-lg" />
                                   ) : (
-                                    <img src={url} alt={`Preview ${index + 1}`} className="w-full h-32 object-contain bg-[#0a0a0a] rounded-lg" />
+                                    <img src={url} alt={`Preview ${index + 1}`} className="w-full h-32 object-contain bg-background rounded-lg" />
                                   )}
                                   <button
                                     type="button"
@@ -1214,9 +1214,9 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                               );
                             })}
                           </div>
-                          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-[#2a2a2a] rounded-lg cursor-pointer hover:border-blue-500/50 transition-colors bg-[#0a0a0a]">
-                            <Plus className="w-6 h-6 text-gray-500 mb-1" />
-                            <span className="text-xs text-gray-400">Add more files</span>
+                          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-[var(--color-brand-blue)]/50 transition-colors bg-muted">
+                            <Plus className="w-6 h-6 text-muted-foreground mb-1" />
+                            <span className="text-xs text-muted-foreground">Add more files</span>
                             <input
                               type="file"
                               className="hidden"
@@ -1227,10 +1227,10 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                           </label>
                         </div>
                       ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#2a2a2a] rounded-lg cursor-pointer hover:border-blue-500/50 transition-colors bg-[#0a0a0a]">
-                          <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                          <span className="text-sm text-gray-400">Click to upload images or videos</span>
-                          <span className="text-xs text-gray-500 mt-1">Max 50MB each • Multiple files supported</span>
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-[var(--color-brand-blue)]/50 transition-colors bg-muted">
+                          <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Click to upload images or videos</span>
+                          <span className="text-xs text-muted-foreground mt-1">Max 50MB each • Multiple files supported</span>
                           <input
                             type="file"
                             className="hidden"
@@ -1246,8 +1246,8 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       {/* Vault mode */}
                       {/* Folder Selection Dropdown */}
                       <div className="mb-4">
-                        <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                          <FolderOpen className="w-4 h-4 text-blue-500" />
+                        <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                          <FolderOpen className="w-4 h-4 text-[var(--color-brand-blue)]" />
                           Select Folder
                         </label>
                         <select
@@ -1257,7 +1257,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                             setSelectedVaultItems([]);
                             fetchVaultItems(e.target.value || undefined);
                           }}
-                          className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           disabled={loadingFolders}
                         >
                           <option value="">All Media</option>
@@ -1270,13 +1270,13 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                             ))}
                         </select>
                       </div>
-                      <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#2a2a2a] p-4 max-h-[400px] overflow-y-auto">
+                      <div className="bg-muted rounded-xl border-2 border-border p-4 max-h-[400px] overflow-y-auto">
                         {loadingVault ? (
                           <div className="flex items-center justify-center py-12">
                             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                           </div>
                         ) : vaultItems.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500">
+                          <div className="text-center py-12 text-muted-foreground">
                             <p>No vault items found for this profile</p>
                             <p className="text-sm mt-2">Upload media to your vault first</p>
                           </div>
@@ -1352,7 +1352,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Caption */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Caption</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Caption</label>
                   
                   {/* Caption Mode Toggle */}
                   <div className="flex gap-2 mb-3">
@@ -1362,7 +1362,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         captionMode === "custom"
                           ? "bg-blue-600 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       ✍️ Write Your Own
@@ -1373,7 +1373,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         captionMode === "bank"
                           ? "bg-cyan-600 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       🏦 Select from Bank
@@ -1386,25 +1386,25 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
                       placeholder="Write your caption..."
                       rows={3}
-                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 resize-none"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     />
                   ) : (
                     <div className="space-y-3">
                       {/* Search and Filters */}
-                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] p-4 space-y-3">
+                      <div className="bg-muted rounded-xl border-2 border-border p-4 space-y-3">
                         <input
                           type="text"
                           placeholder="🔍 Search captions..."
                           value={captionSearchQuery}
                           onChange={(e) => setCaptionSearchQuery(e.target.value)}
-                          className="w-full px-4 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                          className="w-full px-4 py-2 bg-background border-2 border-border rounded-lg text-foreground focus:outline-none focus:border-cyan-500"
                         />
                         
                         <div className="grid grid-cols-3 gap-2">
                           <select
                             value={captionCategoryFilter}
                             onChange={(e) => setCaptionCategoryFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-cyan-500"
                           >
                             <option value="All">All Categories</option>
                             <option value="Dick rating">Dick rating</option>
@@ -1430,7 +1430,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                           <select
                             value={captionTypeFilter}
                             onChange={(e) => setCaptionTypeFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-cyan-500"
                           >
                             <option value="All">All Types</option>
                             <option value="Bundle Unlocks">Bundle Unlocks</option>
@@ -1477,7 +1477,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                           <select
                             value={captionBankFilter}
                             onChange={(e) => setCaptionBankFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-cyan-500"
                           >
                             <option value="All">All Banks</option>
                             <option value="Main Porn Caption Bank">Main Porn Caption Bank</option>
@@ -1492,7 +1492,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       </div>
 
                       {/* Captions List */}
-                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] max-h-[300px] overflow-y-auto">
+                      <div className="bg-muted rounded-xl border-2 border-border max-h-[300px] overflow-y-auto">
                         {loadingCaptions ? (
                           <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 animate-spin text-cyan-500" />
@@ -1507,12 +1507,12 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                           });
 
                           return filteredCaptions.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8 text-muted-foreground">
                               <p>No captions found</p>
                               <p className="text-sm mt-1">Try adjusting your filters</p>
                             </div>
                           ) : (
-                            <div className="divide-y divide-[#3a3a3a]">
+                            <div className="divide-y divide-border">
                               {filteredCaptions.map((caption: any) => (
                                 <button
                                   key={caption.id}
@@ -1521,7 +1521,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                                     setFormData({ ...formData, caption: caption.caption });
                                     setCaptionMode("custom");
                                   }}
-                                  className="w-full text-left px-4 py-3 hover:bg-[#333] transition-colors"
+                                  className="w-full text-left px-4 py-3 hover:bg-muted/80 transition-colors"
                                 >
                                   {isAllProfiles && caption.profileName && (
                                     <div className="flex items-center gap-1 mb-1">
@@ -1529,7 +1529,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                                       <span className="text-xs text-pink-400 font-medium">{caption.profileName}</span>
                                     </div>
                                   )}
-                                  <div className="text-white text-sm line-clamp-2 mb-2">
+                                  <div className="text-foreground text-sm line-clamp-2 mb-2">
                                     {caption.caption}
                                   </div>
                                   <div className="flex flex-wrap gap-2">
@@ -1555,7 +1555,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Hashtags */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <Hash className="w-4 h-4 text-purple-500" />
                     Hashtags
                   </label>
@@ -1571,7 +1571,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                         }
                       }}
                       placeholder="Add hashtag..."
-                      className="flex-1 px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={addHashtag}
@@ -1597,7 +1597,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Location */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-green-500" />
                     Location
                   </label>
@@ -1606,13 +1606,13 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     placeholder="Add location..."
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 {/* Collaborators */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <Users className="w-4 h-4 text-pink-500" />
                     Collaborators
                   </label>
@@ -1628,7 +1628,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                         }
                       }}
                       placeholder="Add collaborator (@username)..."
-                      className="flex-1 px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={addCollaborator}
@@ -1654,7 +1654,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
                 {/* Notes */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <Lightbulb className="w-4 h-4 text-yellow-500" />
                     Notes & Ideas
                   </label>
@@ -1663,13 +1663,13 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Additional notes, reminders, or ideas..."
                     rows={2}
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 resize-none"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-[#2a2a2a] flex items-center justify-between">
+              <div className="p-4 border-t border-border flex items-center justify-between">
                 {editingSlot && (
                   <button
                     onClick={() => handleDelete(editingSlot.id)}
@@ -1685,7 +1685,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       setShowModal(false);
                       clearAllFiles();
                     }}
-                    className="px-5 py-2.5 bg-[#252525] hover:bg-[#2a2a2a] border border-[#2a2a2a] text-gray-300 rounded-xl transition-all text-sm"
+                    className="px-5 py-2.5 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl transition-all text-sm"
                   >
                     Cancel
                   </button>

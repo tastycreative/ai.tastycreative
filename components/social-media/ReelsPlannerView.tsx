@@ -672,17 +672,17 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Video className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Video className="w-6 h-6 text-[var(--color-brand-mid-pink)]" />
             Reels Planner
             {isAllProfiles && (
-              <span className="ml-2 px-3 py-1 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-400 rounded-full text-sm font-medium border border-purple-500/30 flex items-center gap-1.5">
+              <span className="ml-2 px-3 py-1 bg-gradient-to-r from-[var(--color-brand-mid-pink)]/20 to-[var(--color-brand-light-pink)]/20 text-[var(--color-brand-mid-pink)] rounded-full text-sm font-medium border border-[var(--color-brand-mid-pink)]/30 flex items-center gap-1.5">
                 <Users className="w-4 h-4" />
                 All Profiles
               </span>
             )}
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Plan and schedule your Instagram Reels
           </p>
         </div>
@@ -691,7 +691,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={openCreateModal}
-          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl transition-all shadow-lg shadow-purple-600/30 font-semibold flex items-center gap-2"
+          className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-light-pink)] hover:from-[var(--color-brand-mid-pink)]/90 hover:to-[var(--color-brand-light-pink)]/90 text-white rounded-xl transition-all shadow-lg shadow-[var(--color-brand-mid-pink)]/30 font-semibold flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
           Add Reel
@@ -705,7 +705,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
             <Users className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" />
             <div>
               <h3 className="text-sm font-semibold text-purple-300">Viewing All Profiles</h3>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Showing reels from all your profiles. When creating a new reel, you&apos;ll need to select which profile to assign it to.
               </p>
             </div>
@@ -714,28 +714,28 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
       )}
 
       {/* Date Navigator */}
-      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
+      <div className="bg-card border-2 border-border rounded-2xl p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <button
             onClick={handlePrevDay}
-            className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-400" />
+            <ChevronLeft className="w-5 h-5 text-muted-foreground" />
           </button>
 
           <div className="flex items-center gap-4">
-            <CalendarIcon className="w-5 h-5 text-purple-500" />
+            <CalendarIcon className="w-5 h-5 text-[var(--color-brand-mid-pink)]" />
             <div className="text-center">
-              <h3 className="text-lg font-bold text-white">
+              <h3 className="text-lg font-bold text-foreground">
                 {format(selectedDate, "EEEE, MMMM d, yyyy")}
               </h3>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {reelSlots.length} {reelSlots.length === 1 ? "reel" : "reels"} planned
               </p>
             </div>
             <button
               onClick={handleToday}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition-colors"
+              className="px-3 py-1.5 bg-[var(--color-brand-mid-pink)] hover:bg-[var(--color-brand-mid-pink)]/90 text-white text-sm rounded-lg transition-colors"
             >
               Today
             </button>
@@ -743,9 +743,9 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
           <button
             onClick={handleNextDay}
-            className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
           >
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
       </div>
@@ -753,18 +753,18 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
       {/* Reels Grid */}
       {loading ? (
         <div className="text-center py-16">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading reels...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-brand-mid-pink)]"></div>
+          <p className="mt-4 text-muted-foreground">Loading reels...</p>
         </div>
       ) : sortedReelSlots.length === 0 ? (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 mb-4">
             <Video className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             No reels planned for this day
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             Start planning your reels by clicking the button above
           </p>
         </div>
@@ -776,7 +776,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               whileHover={{ y: -4 }}
-              className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-5 hover:border-purple-500/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-purple-600/10"
+              className="bg-card border-2 border-border rounded-2xl p-5 hover:border-[var(--color-brand-mid-pink)]/30 transition-all shadow-xl hover:shadow-2xl"
             >
               {/* Profile Badge for All Profiles mode */}
               {isAllProfiles && slot.profileName && (
@@ -789,7 +789,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
               )}
 
               {/* Time Header */}
-              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#2a2a2a]">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-border">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-purple-600/20">
                     <Clock className="w-5 h-5 text-purple-400" />
@@ -819,55 +819,55 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                   {slot.isPosted ? (
                     <CheckCircle className="w-5 h-5 text-green-400" />
                   ) : (
-                    <Circle className="w-5 h-5 text-gray-400" />
+                    <Circle className="w-5 h-5 text-muted-foreground" />
                   )}
                 </motion.button>
               </div>
 
               {/* Slot Content */}
               <div className="space-y-4">
-                <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-purple-500/10">
+                <div className="bg-muted rounded-xl p-3 border border-purple-500/10">
                   <div className="text-xs font-bold text-purple-400 mb-1.5 uppercase tracking-wide">Reel Type</div>
-                  <div className="text-white font-semibold text-base">
+                  <div className="text-foreground font-semibold text-base">
                     {getReelTypeLabel(slot.reelType)}
                   </div>
                 </div>
 
                 {slot.hookIdea && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-pink-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-pink-500/10">
                     <div className="text-xs font-bold text-pink-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                       <TrendingUp className="w-3 h-3" />
                       Hook Idea
                     </div>
-                    <div className="text-white font-medium text-sm">
+                    <div className="text-foreground font-medium text-sm">
                       {slot.hookIdea}
                     </div>
                   </div>
                 )}
 
                 {slot.trendingAudio && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-pink-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-pink-500/10">
                     <div className="text-xs font-bold text-pink-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                       <Music className="w-3 h-3" />
                       Trending Audio
                     </div>
-                    <div className="text-white font-medium text-sm truncate">
+                    <div className="text-foreground font-medium text-sm truncate">
                       {slot.trendingAudio}
                     </div>
                   </div>
                 )}
 
                 {slot.caption && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-blue-500/10">
                     <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Caption</div>
-                    <div className="text-white font-medium text-sm line-clamp-3">
+                    <div className="text-foreground font-medium text-sm line-clamp-3">
                       {slot.caption}
                     </div>
                   </div>
                 )}
 
                 {slot.hashtags && slot.hashtags.length > 0 && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-blue-500/10">
                     <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Hashtags</div>
                     <div className="flex flex-wrap gap-1">
                       {slot.hashtags.map((tag, i) => (
@@ -883,7 +883,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                 )}
 
                 {slot.awsS3Url && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-purple-500/10">
+                  <div className="bg-muted rounded-xl p-3 border border-purple-500/10">
                     <div className="text-xs font-bold text-purple-400 mb-1.5 uppercase tracking-wide">Video Preview</div>
                     <div className="relative aspect-[9/16] max-h-64 bg-black rounded-lg overflow-hidden">
                       <video
@@ -896,9 +896,9 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                 )}
 
                 {slot.notes && (
-                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-gray-500/10">
-                    <div className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Notes</div>
-                    <div className="text-gray-300 text-sm line-clamp-2">
+                  <div className="bg-muted rounded-xl p-3 border border-gray-500/10">
+                    <div className="text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">Notes</div>
+                    <div className="text-foreground text-sm line-clamp-2">
                       {slot.notes}
                     </div>
                   </div>
@@ -909,7 +909,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openEditModal(slot)}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#2a2a2a] to-[#252525] hover:from-purple-600/20 hover:to-pink-600/20 text-white rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-transparent hover:border-purple-500/30"
+                    className="flex-1 px-4 py-2.5 bg-muted hover:from-purple-600/20 hover:to-pink-600/20 text-foreground rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-border hover:border-purple-500/30"
                   >
                     <Edit className="w-4 h-4" />
                     Edit
@@ -935,11 +935,11 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
         createPortal(
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
             <div
-              className="relative bg-gradient-to-br from-[#1a1a1a] to-[#252525] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-[#2a2a2a]"
+              className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-border"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 p-5 text-white">
+              <div className="relative bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-purple-600 p-5 text-white">
                 <button
                   onClick={() => {
                     setShowModal(false);
@@ -969,8 +969,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                 {/* Profile Selector for All Profiles Mode */}
                 {isAllProfiles && (
                   <div>
-                    <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-purple-500" />
+                    <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                       Select Profile <span className="text-red-400">*</span>
                     </label>
                     <select
@@ -984,7 +984,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                           fetchCaptionsBank(e.target.value);
                         }
                       }}
-                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                     >
                       <option value="">-- Select a Profile --</option>
                       {Array.isArray(profiles) && profiles.map((profile) => (
@@ -1003,15 +1003,15 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Time Picker */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-purple-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                     Posting Time
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       value={timeInput.hour}
                       onChange={(e) => setTimeInput({ ...timeInput, hour: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                     >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                         <option key={h} value={h}>
@@ -1022,7 +1022,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     <select
                       value={timeInput.minute}
                       onChange={(e) => setTimeInput({ ...timeInput, minute: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                     >
                       {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
                         <option key={m} value={m}>
@@ -1033,7 +1033,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     <select
                       value={timeInput.period}
                       onChange={(e) => setTimeInput({ ...timeInput, period: e.target.value })}
-                      className="px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                     >
                       <option value="AM">AM</option>
                       <option value="PM">PM</option>
@@ -1043,11 +1043,11 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Reel Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Reel Type</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Reel Type</label>
                   <select
                     value={formData.reelType}
                     onChange={(e) => setFormData({ ...formData, reelType: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                   >
                     {REEL_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -1059,8 +1059,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* File Upload */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-purple-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                     Content Source
                   </label>
                   
@@ -1071,8 +1071,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       onClick={() => setUploadMode("upload")}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         uploadMode === "upload"
-                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a]"
+                          ? "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-purple-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       📤 Upload New
@@ -1094,8 +1094,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       disabled={!profileId || (isAllProfiles && !selectedProfileId)}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         uploadMode === "vault"
-                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                          ? "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-purple-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
                       }`}
                     >
                       🗄️ From Vault
@@ -1123,7 +1123,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                           </button>
                         </div>
                       ) : (
-                        <label className="block w-full p-8 border-2 border-dashed border-[#2a2a2a] rounded-lg hover:border-purple-500 transition-colors cursor-pointer">
+                        <label className="block w-full p-8 border-2 border-dashed border-border rounded-lg hover:border-[var(--color-brand-mid-pink)] transition-colors cursor-pointer">
                           <input
                             type="file"
                             accept="video/*"
@@ -1131,9 +1131,9 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                             className="hidden"
                           />
                           <div className="text-center">
-                            <Upload className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-                            <p className="text-sm text-gray-400">Click to upload video</p>
-                            <p className="text-xs text-gray-500 mt-1">MP4, MOV, WebM (max 50MB)</p>
+                            <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm text-muted-foreground">Click to upload video</p>
+                            <p className="text-xs text-muted-foreground mt-1">MP4, MOV, WebM (max 50MB)</p>
                           </div>
                         </label>
                       )}
@@ -1144,8 +1144,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       {/* Folder Selector */}
                       <div className="mb-3">
                         <div className="flex items-center gap-2 mb-2">
-                          <FolderOpen className="w-4 h-4 text-purple-400" />
-                          <span className="text-sm font-medium text-gray-300">Select Folder</span>
+                          <FolderOpen className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
+                          <span className="text-sm font-medium text-foreground">Select Folder</span>
                         </div>
                         <select
                           value={selectedVaultFolder}
@@ -1156,7 +1156,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                             fetchVaultItems(e.target.value);
                           }}
                           disabled={loadingFolders}
-                          className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)]"
                         >
                           <option value="all">📁 All Media</option>
                           {vaultFolders
@@ -1170,13 +1170,13 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       </div>
 
                       {/* Vault Items Grid */}
-                      <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#2a2a2a] p-4 max-h-[400px] overflow-y-auto">
+                      <div className="bg-muted rounded-xl border-2 border-border p-4 max-h-[400px] overflow-y-auto">
                         {loadingVault || loadingFolders ? (
                           <div className="flex items-center justify-center py-12">
-                            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                            <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-mid-pink)]" />
                           </div>
                         ) : vaultItems.filter(item => item.fileType.startsWith('video/')).length === 0 ? (
-                          <div className="text-center py-12 text-gray-500">
+                          <div className="text-center py-12 text-muted-foreground">
                             <p>No video items found for this profile</p>
                             <p className="text-sm mt-2">Upload videos to your vault first</p>
                           </div>
@@ -1206,7 +1206,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                                 key={item.id}
                                 type="button"
                                 onClick={() => handleSelectVaultItem(item)}
-                                className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all group"
+                                className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-[var(--color-brand-mid-pink)] transition-all group"
                               >
                                 <video
                                   src={item.awsS3Url}
@@ -1240,8 +1240,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Hook Idea */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-pink-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                     Hook Idea
                   </label>
                   <input
@@ -1249,14 +1249,14 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     value={formData.hookIdea}
                     onChange={(e) => setFormData({ ...formData, hookIdea: e.target.value })}
                     placeholder="E.g., 'Watch this before...' or 'You won't believe...'"
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500"
+                    className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] placeholder:text-muted-foreground"
                   />
                 </div>
 
                 {/* Trending Audio */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <Music className="w-4 h-4 text-pink-500" />
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Music className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                     Trending Audio
                   </label>
                   <input
@@ -1264,13 +1264,13 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     value={formData.trendingAudio}
                     onChange={(e) => setFormData({ ...formData, trendingAudio: e.target.value })}
                     placeholder="Name of trending audio/song"
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500"
+                    className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] placeholder:text-muted-foreground"
                   />
                 </div>
 
                 {/* Caption */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Caption</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Caption</label>
                   
                   {/* Caption Mode Toggle */}
                   <div className="flex gap-2 mb-3">
@@ -1279,8 +1279,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       onClick={() => setCaptionMode("custom")}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         captionMode === "custom"
-                          ? "bg-blue-600 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                          ? "bg-[var(--color-brand-blue)] text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       ✍️ Write Your Own
@@ -1290,8 +1290,8 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       onClick={() => setCaptionMode("bank")}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         captionMode === "bank"
-                          ? "bg-purple-600 text-white"
-                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                          ? "bg-[var(--color-brand-mid-pink)] text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       🏦 Select from Bank
@@ -1304,25 +1304,25 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
                       placeholder="Write your caption..."
                       rows={3}
-                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500 resize-none"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                     />
                   ) : (
                     <div className="space-y-3">
                       {/* Search and Filters */}
-                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] p-4 space-y-3">
+                      <div className="bg-muted rounded-xl border-2 border-border p-4 space-y-3">
                         <input
                           type="text"
                           placeholder="🔍 Search captions..."
                           value={captionSearchQuery}
                           onChange={(e) => setCaptionSearchQuery(e.target.value)}
-                          className="w-full px-4 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white focus:outline-none focus:border-purple-500"
+                          className="w-full px-4 py-2 bg-background border-2 border-border rounded-lg text-foreground focus:outline-none focus:border-purple-500"
                         />
                         
                         <div className="grid grid-cols-3 gap-2">
                           <select
                             value={captionCategoryFilter}
                             onChange={(e) => setCaptionCategoryFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                           >
                             <option value="All">All Categories</option>
                             <option value="Dick rating">Dick rating</option>
@@ -1348,7 +1348,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                           <select
                             value={captionTypeFilter}
                             onChange={(e) => setCaptionTypeFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                           >
                             <option value="All">All Types</option>
                             <option value="Bundle Unlocks">Bundle Unlocks</option>
@@ -1395,7 +1395,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                           <select
                             value={captionBankFilter}
                             onChange={(e) => setCaptionBankFilter(e.target.value)}
-                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                            className="px-3 py-2 bg-background border-2 border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-purple-500"
                           >
                             <option value="All">All Banks</option>
                             <option value="Main Porn Caption Bank">Main Porn Caption Bank</option>
@@ -1410,7 +1410,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       </div>
 
                       {/* Captions List */}
-                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] max-h-[300px] overflow-y-auto">
+                      <div className="bg-muted rounded-xl border-2 border-border max-h-[300px] overflow-y-auto">
                         {loadingCaptions ? (
                           <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
@@ -1425,12 +1425,12 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                           });
 
                           return filteredCaptions.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8 text-muted-foreground">
                               <p>No captions found</p>
                               <p className="text-sm mt-1">Try adjusting your filters</p>
                             </div>
                           ) : (
-                            <div className="divide-y divide-[#3a3a3a]">
+                            <div className="divide-y divide-border">
                               {filteredCaptions.map((caption: any) => (
                                 <button
                                   key={caption.id}
@@ -1439,7 +1439,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                                     setFormData({ ...formData, caption: caption.caption });
                                     setCaptionMode("custom");
                                   }}
-                                  className="w-full text-left px-4 py-3 hover:bg-[#333] transition-colors"
+                                  className="w-full text-left px-4 py-3 hover:bg-muted/80 transition-colors"
                                 >
                                   {/* Profile indicator for All Profiles mode */}
                                   {isAllProfiles && caption.profileName && (
@@ -1450,7 +1450,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                                       </span>
                                     </div>
                                   )}
-                                  <div className="text-white text-sm line-clamp-2 mb-2">
+                                  <div className="text-foreground text-sm line-clamp-2 mb-2">
                                     {caption.caption}
                                   </div>
                                   <div className="flex flex-wrap gap-2">
@@ -1476,7 +1476,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Hashtags */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <Hash className="w-4 h-4 text-blue-500" />
                     Hashtags
                   </label>
@@ -1492,7 +1492,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                         }
                       }}
                       placeholder="Add hashtag..."
-                      className="flex-1 px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500"
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <button
                       onClick={addHashtag}
@@ -1521,7 +1521,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Notes */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                     <Lightbulb className="w-4 h-4 text-yellow-500" />
                     Notes & Ideas
                   </label>
@@ -1530,13 +1530,13 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Additional notes, reminders, or ideas..."
                     rows={2}
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500 resize-none"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                   />
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-[#2a2a2a] flex items-center justify-between">
+              <div className="p-4 border-t border-border flex items-center justify-between">
                 {editingSlot && (
                   <button
                     onClick={() => handleDelete(editingSlot.id)}
@@ -1552,7 +1552,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                       setShowModal(false);
                       handleRemoveFile();
                     }}
-                    className="px-5 py-2.5 bg-[#252525] hover:bg-[#2a2a2a] border border-[#2a2a2a] text-gray-300 rounded-xl transition-all text-sm"
+                    className="px-5 py-2.5 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl transition-all text-sm"
                   >
                     Cancel
                   </button>

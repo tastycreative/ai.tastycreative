@@ -222,20 +222,20 @@ export function ReferenceSelector({
   };
 
   const renderModal = () => (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-2xl shadow-[#EC67A1]/10">
         {/* Header */}
-        <div className="p-4 border-b border-gray-700">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl">
+              <div className="p-2 bg-gradient-to-br from-[#F774B9] via-[#EC67A1] to-[#E1518E] rounded-xl">
                 <Library className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-sidebar-foreground">
                   Reference Bank
                 </h3>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-header-muted">
                   {multiSelect 
                     ? `Select reference ${filterType !== "all" ? filterType : "file"}s (${localSelectedIds.size}${maxSelect > 0 ? `/${maxSelect}` : ""} selected)`
                     : `Select a reference ${filterType !== "all" ? filterType : "file"}`
@@ -245,28 +245,28 @@ export function ReferenceSelector({
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-gray-400" />
+              <X className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
             </button>
           </div>
 
           {/* Search and Sort */}
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-zinc-500" />
               <input
                 type="text"
                 placeholder="Search references..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent"
               />
             </div>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent"
             >
               <option value="recent">Recently Used</option>
               <option value="usage">Most Used</option>
@@ -278,33 +278,33 @@ export function ReferenceSelector({
         {/* Content with Sidebar */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar */}
-          <div className="w-48 border-r border-gray-700 p-3 overflow-y-auto flex-shrink-0">
+          <div className="w-48 border-r border-zinc-200 dark:border-zinc-700 p-3 overflow-y-auto flex-shrink-0">
             <div className="space-y-1">
               <button
                 onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(false); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                   !selectedFolderId && !showFavoritesOnly 
-                    ? "bg-violet-600/20 text-violet-300" 
-                    : "text-gray-400 hover:bg-gray-800"
+                    ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
+                    : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 <Library className="w-4 h-4" />
                 All Files
-                <span className="ml-auto text-xs bg-gray-700 px-1.5 py-0.5 rounded">{stats.total}</span>
+                <span className="ml-auto text-xs bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded">{stats.total}</span>
               </button>
               
               <button
                 onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(true); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                   showFavoritesOnly 
-                    ? "bg-pink-600/20 text-pink-300" 
-                    : "text-gray-400 hover:bg-gray-800"
+                    ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
+                    : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 <Heart className="w-4 h-4" />
                 Favorites
                 {stats.favorites > 0 && (
-                  <span className="ml-auto text-xs bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded">
+                  <span className="ml-auto text-xs bg-[#EC67A1]/20 text-[#EC67A1] px-1.5 py-0.5 rounded">
                     {stats.favorites}
                   </span>
                 )}
@@ -314,14 +314,14 @@ export function ReferenceSelector({
                 onClick={() => { setSelectedFolderId("root"); setShowFavoritesOnly(false); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                   selectedFolderId === "root" 
-                    ? "bg-violet-600/20 text-violet-300" 
-                    : "text-gray-400 hover:bg-gray-800"
+                    ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
+                    : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 <FolderOpen className="w-4 h-4" />
                 Unfiled
                 {stats.unfiled > 0 && (
-                  <span className="ml-auto text-xs bg-gray-700 px-1.5 py-0.5 rounded">
+                  <span className="ml-auto text-xs bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                     {stats.unfiled}
                   </span>
                 )}
@@ -331,7 +331,7 @@ export function ReferenceSelector({
             {/* Folders */}
             {folders.length > 0 && (
               <div className="mt-4">
-                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 px-2">
+                <h4 className="text-xs font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2 px-2">
                   Folders
                 </h4>
                 <div className="space-y-1">
@@ -341,14 +341,14 @@ export function ReferenceSelector({
                       onClick={() => { setSelectedFolderId(folder.id); setShowFavoritesOnly(false); }}
                       className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                         selectedFolderId === folder.id 
-                          ? "bg-violet-600/20 text-violet-300" 
-                          : "text-gray-400 hover:bg-gray-800"
+                          ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
+                          : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       }`}
                     >
                       <Folder className="w-4 h-4" style={{ color: folder.color }} />
                       <span className="truncate flex-1">{folder.name}</span>
                       {folder._count && folder._count.items > 0 && (
-                        <span className="text-xs bg-gray-700 px-1.5 py-0.5 rounded">
+                        <span className="text-xs bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                           {folder._count.items}
                         </span>
                       )}
@@ -363,27 +363,27 @@ export function ReferenceSelector({
           <div className="flex-1 overflow-y-auto p-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-40">
-                <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-[#EC67A1]" />
               </div>
             ) : sortedItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center">
                 {searchQuery ? (
                   <>
-                    <Search className="w-12 h-12 text-gray-600 mb-3" />
-                    <p className="text-gray-400">No matches found</p>
-                    <p className="text-sm text-gray-500">Try a different search term</p>
+                    <Search className="w-12 h-12 text-zinc-400 dark:text-zinc-500 mb-3" />
+                    <p className="text-header-muted">No matches found</p>
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500">Try a different search term</p>
                   </>
                 ) : showFavoritesOnly ? (
                   <>
-                    <Heart className="w-12 h-12 text-gray-600 mb-3" />
-                    <p className="text-gray-400">No favorites yet</p>
-                    <p className="text-sm text-gray-500">Mark items as favorites to see them here</p>
+                    <Heart className="w-12 h-12 text-zinc-400 dark:text-zinc-500 mb-3" />
+                    <p className="text-header-muted">No favorites yet</p>
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500">Mark items as favorites to see them here</p>
                   </>
                 ) : (
                   <>
-                    <Library className="w-12 h-12 text-gray-600 mb-3" />
-                    <p className="text-gray-400">No references found</p>
-                    <p className="text-sm text-gray-500">
+                    <Library className="w-12 h-12 text-zinc-400 dark:text-zinc-500 mb-3" />
+                    <p className="text-header-muted">No references found</p>
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500">
                       {selectedFolderId ? "This folder is empty" : "Upload images to the Reference Bank"}
                     </p>
                   </>
@@ -396,22 +396,22 @@ export function ReferenceSelector({
                     key={item.id}
                     onClick={() => handleSelect(item)}
                     disabled={multiSelect && maxSelect > 0 && localSelectedIds.size >= maxSelect && !localSelectedIds.has(item.id)}
-                    className={`group relative bg-gray-800 rounded-xl border ${
+                    className={`group relative bg-zinc-50 dark:bg-zinc-800 rounded-xl border ${
                       isItemSelected(item.id)
-                        ? "border-violet-500 ring-2 ring-violet-500/30"
-                        : "border-gray-700 hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        ? "border-[#EC67A1] ring-2 ring-[#EC67A1]/30"
+                        : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     } overflow-hidden transition-all text-left`}
                   >
                     {/* Selection indicator */}
                     {isItemSelected(item.id) && (
-                      <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                      <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-[#EC67A1] rounded-full flex items-center justify-center">
                         <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
 
                     {/* Multi-select checkbox (always visible in multi-select mode) */}
                     {multiSelect && !isItemSelected(item.id) && (
-                      <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-gray-900/80 border border-gray-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-zinc-900/80 dark:bg-zinc-800/80 border border-zinc-500 dark:border-zinc-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
                     )}
 
                     {/* Favorite indicator */}
@@ -439,7 +439,7 @@ export function ReferenceSelector({
                     </div>
 
                     {/* Preview */}
-                    <div className="aspect-square relative bg-gray-900">
+                    <div className="aspect-square relative bg-zinc-200 dark:bg-zinc-900">
                       {item.fileType === "video" ? (
                         <div className="relative w-full h-full">
                           <video
@@ -472,10 +472,10 @@ export function ReferenceSelector({
                           </span>
                         </div>
                       )}
-                      <h4 className="text-xs font-medium text-white truncate">
+                      <h4 className="text-xs font-medium text-sidebar-foreground truncate">
                         {item.name}
                       </h4>
-                      <div className="flex items-center justify-between mt-1 text-[10px] text-gray-500">
+                      <div className="flex items-center justify-between mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
                         <span>{formatFileSize(item.fileSize)}</span>
                         <span className="flex items-center gap-0.5">
                           <BarChart3 className="w-2.5 h-2.5" />
@@ -491,8 +491,8 @@ export function ReferenceSelector({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-700 flex items-center justify-between">
-          <div className="text-sm text-gray-400">
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+          <div className="text-sm text-header-muted">
             {multiSelect && localSelectedIds.size > 0 && (
               <span>{localSelectedIds.size} item{localSelectedIds.size > 1 ? 's' : ''} selected</span>
             )}
@@ -500,7 +500,7 @@ export function ReferenceSelector({
           <div className="flex gap-3">
             <button
               onClick={() => setIsOpen(false)}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+              className="px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-sidebar-foreground font-medium rounded-lg transition-colors"
             >
               Cancel
             </button>
@@ -508,7 +508,7 @@ export function ReferenceSelector({
               <button
                 onClick={handleConfirmSelection}
                 disabled={localSelectedIds.size === 0}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
               >
                 Add Selected ({localSelectedIds.size})
               </button>
@@ -530,13 +530,13 @@ export function ReferenceSelector({
       <button
         onClick={() => !disabled && setIsOpen(true)}
         disabled={disabled}
-        className={`flex items-center gap-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm transition-colors hover:bg-gray-700 hover:border-violet-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName} ${className}`}
+        className={`flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:border-[#EC67A1]/50 disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName} ${className}`}
       >
-        <Library className="w-4 h-4 text-violet-400" />
-        <span className="text-gray-300 truncate flex-1 text-left">
+        <Library className="w-4 h-4 text-[#EC67A1]" />
+        <span className="text-sidebar-foreground truncate flex-1 text-left">
           {placeholder}
         </span>
-        <ChevronDown className="w-4 h-4 text-gray-500" />
+        <ChevronDown className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
       </button>
 
       {mounted && isOpen && createPortal(renderModal(), document.body)}

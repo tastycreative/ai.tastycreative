@@ -270,15 +270,15 @@ export default function ShareLoRAModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-modal-overlay-bg backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700"
+        className="bg-modal-bg rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+        <div className="bg-gradient-to-r from-[#9333ea] to-[#EC67A1] p-6 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
@@ -347,15 +347,15 @@ export default function ShareLoRAModal({
           {/* Share form */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-3">
-              <UserPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <h3 className="font-semibold text-gray-900 dark:text-white">
+              <UserPlus className="w-4 h-4 text-[#EC67A1]" />
+              <h3 className="font-semibold text-modal-foreground">
                 Share with Friends
               </h3>
             </div>
 
             {/* User search */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-header-muted">
                 Select Friend <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -371,7 +371,7 @@ export default function ShareLoRAModal({
                   }}
                   onFocus={() => setShowUserDropdown(true)}
                   placeholder="Search your friends by name or email..."
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                  className="w-full px-4 py-3 border border-modal-input-border rounded-lg focus:ring-2 focus:ring-[#EC67A1]/30 focus:border-[#EC67A1] bg-modal-input-bg text-modal-foreground placeholder-header-muted"
                 />
                 {isLoadingUsers && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -381,7 +381,7 @@ export default function ShareLoRAModal({
 
                 {/* User dropdown */}
                 {showUserDropdown && !selectedUser && userSearchQuery && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-dropdown-bg border border-dropdown-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {filteredUsers.length > 0 ? (
                       filteredUsers.map((u) => (
                         <button
@@ -392,20 +392,20 @@ export default function ShareLoRAModal({
                             setUserSearchQuery("");
                             setShowUserDropdown(false);
                           }}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          className="w-full px-4 py-3 text-left hover:bg-dropdown-hover-bg hover:border-l-2 hover:border-l-dropdown-selected-text border-b border-dropdown-separator last:border-b-0"
                         >
                           <div className="flex items-start gap-3">
-                            <Mail className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                            <Mail className="w-4 h-4 text-header-muted mt-0.5 shrink-0" />
                             <div className="flex-1 min-w-0 space-y-1">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">
+                              <p className="font-medium text-dropdown-foreground truncate">
                                 {u.displayName}
                               </p>
                               {u.email && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                <p className="text-xs text-header-muted truncate">
                                   {u.email}
                                 </p>
                               )}
-                              <p className="text-xs font-mono text-purple-600 dark:text-purple-400 truncate">
+                              <p className="text-xs font-mono text-dropdown-selected-text truncate">
                                 ID: {u.clerkId}
                               </p>
                             </div>
@@ -413,7 +413,7 @@ export default function ShareLoRAModal({
                         </button>
                       ))
                     ) : (
-                      <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <div className="px-4 py-8 text-center text-header-muted">
                         <p className="mb-1">No friends found</p>
                         <p className="text-xs">
                           Add friends to share LoRAs with them
@@ -427,7 +427,7 @@ export default function ShareLoRAModal({
 
             {/* Optional note */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-header-muted">
                 Note (Optional)
               </label>
               <textarea
@@ -435,7 +435,7 @@ export default function ShareLoRAModal({
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Add a message for the recipient..."
                 rows={2}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                className="w-full px-4 py-2 border border-modal-input-border rounded-lg focus:ring-2 focus:ring-[#EC67A1]/30 focus:border-[#EC67A1] resize-none bg-modal-input-bg text-modal-foreground placeholder-header-muted"
               />
             </div>
 
@@ -443,7 +443,7 @@ export default function ShareLoRAModal({
             <button
               onClick={handleShare}
               disabled={isLoading || !selectedUser}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-[#9333ea] to-[#EC67A1] hover:from-[#7e22ce] hover:to-[#E1518E] disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -463,11 +463,11 @@ export default function ShareLoRAModal({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <h4 className="font-medium text-gray-900 dark:text-white">
+                <Users className="w-4 h-4 text-header-muted" />
+                <h4 className="font-medium text-modal-foreground">
                   Shared With
                 </h4>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                <span className="px-2 py-0.5 text-xs font-medium bg-sidebar-accent text-sidebar-accent-foreground rounded-full">
                   {currentShares.length}
                 </span>
               </div>
@@ -477,12 +477,12 @@ export default function ShareLoRAModal({
             </div>
 
             {currentShares.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/30">
-                <Users className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div className="text-center py-12 border-2 border-dashed border-modal-border rounded-xl bg-modal-section-bg">
+                <Users className="w-12 h-12 text-header-muted mx-auto mb-3" />
+                <p className="text-sm font-medium text-header-muted">
                   Not shared with anyone yet
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                <p className="text-xs text-header-muted mt-1">
                   Share this LoRA to collaborate with others
                 </p>
               </div>
@@ -491,7 +491,7 @@ export default function ShareLoRAModal({
                 {currentShares.map((share) => (
                   <div
                     key={share.id}
-                    className="group relative flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900/50 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md transition-all duration-200"
+                    className="group relative flex items-start gap-3 p-4 border border-modal-border rounded-xl bg-modal-section-bg hover:border-[#EC67A1]/50 hover:shadow-md transition-all duration-200"
                   >
                     {/* User Avatar or Icon */}
                     <div className="shrink-0">
@@ -499,10 +499,10 @@ export default function ShareLoRAModal({
                         <img
                           src={share.sharedWithUser.imageUrl}
                           alt={share.sharedWithUser.displayName}
-                          className="w-10 h-10 rounded-full border-2 border-gray-200 dark:border-gray-700"
+                          className="w-10 h-10 rounded-full border-2 border-modal-border"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-sm">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#9333ea] to-[#EC67A1] flex items-center justify-center text-white font-bold text-sm border-2 border-modal-border">
                           {share.sharedWithUser?.displayName
                             .charAt(0)
                             .toUpperCase() || "?"}
@@ -512,25 +512,25 @@ export default function ShareLoRAModal({
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-white truncate">
+                      <p className="font-semibold text-modal-foreground truncate">
                         {share.sharedWithUser?.displayName || "Unknown User"}
                       </p>
                       {share.sharedWithUser?.email && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        <p className="text-xs text-header-muted truncate">
                           {share.sharedWithUser.email}
                         </p>
                       )}
 
                       {/* Shared date */}
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                        <span className="text-xs text-header-muted flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(share.createdAt).toLocaleDateString()}
                         </span>
                       </div>
 
                       {share.note && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 italic">
+                        <p className="text-xs text-header-muted mt-2 italic">
                           "{share.note}"
                         </p>
                       )}

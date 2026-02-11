@@ -101,13 +101,13 @@ export function GenerationStats({ stats, loading }: GenerationStatsProps) {
         {[...Array(7)].map((_, i) => (
           <div
             key={i}
-            className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 animate-pulse"
+            className="bg-muted border border-border rounded-xl p-4 animate-pulse"
           >
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-slate-700/50 rounded-lg" />
+              <div className="w-10 h-10 bg-muted rounded-lg" />
               <div className="flex-1">
-                <div className="h-3 w-16 bg-slate-700/50 rounded mb-2" />
-                <div className="h-6 w-12 bg-slate-700/50 rounded" />
+                <div className="h-3 w-16 bg-muted rounded mb-2" />
+                <div className="h-6 w-12 bg-muted rounded" />
               </div>
             </div>
           </div>
@@ -121,7 +121,7 @@ export function GenerationStats({ stats, loading }: GenerationStatsProps) {
       {statCards.map((stat) => (
         <div
           key={stat.name}
-          className={`relative overflow-hidden bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-all duration-300 group`}
+          className={`relative overflow-hidden bg-card border border-border rounded-xl p-4 hover:border-brand-mid-pink/50 transition-all group`}
         >
           {/* Background glow effect */}
           <div
@@ -136,13 +136,13 @@ export function GenerationStats({ stats, loading }: GenerationStatsProps) {
                 <stat.icon className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400 truncate">{stat.name}</p>
-                <p className="text-xl font-bold text-white">
+                <p className="text-xs text-muted-foreground truncate">{stat.name}</p>
+                <p className="text-xl font-bold text-foreground">
                   {formatNumber(stat.value)}
                 </p>
               </div>
             </div>
-            <p className="mt-2 text-xs text-gray-500">{stat.description}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{stat.description}</p>
           </div>
         </div>
       ))}

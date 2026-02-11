@@ -58,20 +58,20 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800">
+      <div className="relative bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl max-w-md w-full border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex items-center justify-between p-4 border-b border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
             {isEditing ? "Edit Folder" : "Create Folder"}
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
           </button>
         </div>
 
@@ -89,7 +89,7 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
 
           {/* Name field */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
               Folder Name
             </label>
             <input
@@ -97,7 +97,7 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-900 dark:text-white placeholder-zinc-500 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/30 focus:border-[#EC67A1]"
               placeholder="Enter folder name..."
               autoFocus
             />
@@ -105,7 +105,7 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
 
           {/* Color picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2">
               Color
             </label>
             <div className="grid grid-cols-9 gap-2">
@@ -115,7 +115,7 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
                   onClick={() => setColor(c.value)}
                   className={`w-7 h-7 rounded-lg transition-all ${
                     color === c.value
-                      ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110"
+                      ? "ring-2 ring-[#EC67A1] ring-offset-2 ring-offset-white dark:ring-offset-[#1a1625] scale-110"
                       : "hover:scale-110"
                   }`}
                   style={{ backgroundColor: c.value }}
@@ -127,17 +127,17 @@ export function FolderModal({ folder, onClose, onSave }: FolderModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-800">
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+            className="px-4 py-2 text-zinc-900 dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white font-medium rounded-lg transition-all shadow-lg shadow-[#EC67A1]/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
             {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Folder"}

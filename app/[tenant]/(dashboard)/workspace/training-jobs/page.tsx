@@ -237,7 +237,7 @@ export default function TrainingJobsPage() {
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-8 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] rounded-3xl shadow-2xl border-2 border-[#5DC3F8]/30 p-8 text-white">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
@@ -258,10 +258,10 @@ export default function TrainingJobsPage() {
                 <span>Training Jobs</span>
                 <span className="text-2xl">🚀</span>
               </h1>
-              <p className="text-blue-100 text-lg font-medium opacity-90 mb-2">
+              <p className="text-white text-lg font-medium opacity-90 mb-2">
                 Monitor and manage your AI model training jobs
               </p>
-              <div className="flex items-center space-x-4 text-sm text-blue-100">
+              <div className="flex items-center space-x-4 text-sm text-white">
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span>Real-time Status</span>
@@ -281,7 +281,7 @@ export default function TrainingJobsPage() {
           <div className="flex items-center space-x-4">
             <Link
               href={`/${tenant}/workspace/train-lora`}
-              className="group flex items-center space-x-3 px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-2xl hover:bg-white/20 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl border border-white/20"
+              className="group flex items-center space-x-3 px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-2xl hover:bg-white/30 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl border border-white/20"
             >
               <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <span>New Training Job</span>
@@ -293,80 +293,80 @@ export default function TrainingJobsPage() {
       {/* Stats */}
       {trainingStats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 cursor-pointer">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-[#5DC3F8]/30 hover:shadow-xl hover:border-[#5DC3F8] transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div className="p-2 bg-[#5DC3F8]/20 rounded-lg group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-6 h-6 text-[#5DC3F8]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-black dark:text-white">
                   {trainingStats.totalJobs}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-black dark:text-white">
                   Total Jobs
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-yellow-300 dark:hover:border-yellow-600 transition-all duration-200 cursor-pointer">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-[#EC67A1]/30 hover:shadow-xl hover:border-[#EC67A1] transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg group-hover:scale-110 transition-transform">
-                <Cpu className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              <div className="p-2 bg-[#EC67A1]/20 rounded-lg group-hover:scale-110 transition-transform">
+                <Cpu className="w-6 h-6 text-[#EC67A1]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-black dark:text-white">
                   {trainingStats.activeJobs}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-black dark:text-white">
                   Active
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-green-300 dark:hover:border-green-600 transition-all duration-200 cursor-pointer">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-[#5DC3F8]/30 hover:shadow-xl hover:border-[#5DC3F8] transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg group-hover:scale-110 transition-transform">
-                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div className="p-2 bg-[#5DC3F8]/20 rounded-lg group-hover:scale-110 transition-transform">
+                <CheckCircle className="w-6 h-6 text-[#5DC3F8]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-black dark:text-white">
                   {trainingStats.completedJobs}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-black dark:text-white">
                   Completed
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-red-300 dark:hover:border-red-600 transition-all duration-200 cursor-pointer">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-red-500/30 hover:shadow-xl hover:border-red-500 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg group-hover:scale-110 transition-transform">
                 <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-black dark:text-white">
                   {trainingStats.failedJobs}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-black dark:text-white">
                   Failed
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-200 cursor-pointer">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 border-[#F774B9]/30 hover:shadow-xl hover:border-[#F774B9] transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg group-hover:scale-110 transition-transform">
-                <Download className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <div className="p-2 bg-[#F774B9]/20 rounded-lg group-hover:scale-110 transition-transform">
+                <Download className="w-6 h-6 text-[#F774B9]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-black dark:text-white">
                   {trainingStats.totalLoRAs}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-black dark:text-white">
                   LoRAs
                 </p>
               </div>
@@ -376,17 +376,17 @@ export default function TrainingJobsPage() {
       )}
 
       {/* Search, Filter & Sort Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-[#5DC3F8]/30 p-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#5DC3F8]" />
             <input
               type="text"
               placeholder="Search jobs by name, description, or status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="w-full pl-10 pr-4 py-2 border-2 border-[#5DC3F8]/30 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] dark:bg-gray-700 dark:text-white text-black"
             />
           </div>
 
@@ -397,7 +397,7 @@ export default function TrainingJobsPage() {
               onChange={(e) =>
                 setSortBy(e.target.value as "date" | "progress" | "name")
               }
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="px-4 py-2 border-2 border-[#5DC3F8]/30 rounded-lg focus:ring-2 focus:ring-[#5DC3F8] focus:border-[#5DC3F8] dark:bg-gray-700 dark:text-white text-black"
             >
               <option value="date">Sort by Date</option>
               <option value="progress">Sort by Progress</option>
@@ -406,10 +406,10 @@ export default function TrainingJobsPage() {
 
             <button
               onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="px-3 py-2 border-2 border-[#5DC3F8]/30 rounded-lg hover:bg-[#5DC3F8]/10 hover:border-[#5DC3F8] transition-colors"
               title={sortOrder === "asc" ? "Ascending" : "Descending"}
             >
-              <ArrowUpDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ArrowUpDown className="w-5 h-5 text-[#5DC3F8]" />
             </button>
           </div>
         </div>
@@ -417,14 +417,14 @@ export default function TrainingJobsPage() {
         {/* Active Filters */}
         {searchQuery && (
           <div className="mt-3 flex items-center gap-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-black dark:text-white">
               Searching:
             </span>
-            <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#5DC3F8]/20 text-[#5DC3F8] rounded-full text-sm border border-[#5DC3F8]/30">
               {searchQuery}
               <button
                 onClick={() => setSearchQuery("")}
-                className="hover:text-blue-900 dark:hover:text-blue-100"
+                className="hover:text-[#EC67A1]"
               >
                 ×
               </button>
@@ -434,7 +434,7 @@ export default function TrainingJobsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b-2 border-[#5DC3F8]/20">
         <nav className="-mb-px flex space-x-8">
           {(["all", "active", "completed"] as const).map((tab) => (
             <button
@@ -442,12 +442,12 @@ export default function TrainingJobsPage() {
               onClick={() => setSelectedTab(tab)}
               className={`py-2 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${
                 selectedTab === tab
-                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  ? "border-[#5DC3F8] text-[#5DC3F8]"
+                  : "border-transparent text-black dark:text-white hover:text-[#5DC3F8]"
               }`}
             >
               {tab} Jobs
-              <span className="ml-2 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full text-xs">
+              <span className="ml-2 bg-[#5DC3F8]/20 px-2 py-0.5 rounded-full text-xs text-[#5DC3F8] border border-[#5DC3F8]/30">
                 {tab === "all"
                   ? trainingJobs.length
                   : tab === "active"
@@ -462,22 +462,22 @@ export default function TrainingJobsPage() {
 
       {/* Training Jobs List */}
       {filteredJobs.length === 0 ? (
-        <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600">
+        <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-[#5DC3F8]/30">
           <div className="max-w-md mx-auto px-6">
             <div className="relative inline-block mb-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-[#5DC3F8] to-[#EC67A1] rounded-full blur-2xl opacity-20 animate-pulse"></div>
               <div className="relative bg-white dark:bg-gray-800 p-6 rounded-full shadow-lg">
-                <Cpu className="w-16 h-16 text-gray-400 dark:text-gray-500" />
+                <Cpu className="w-16 h-16 text-[#5DC3F8]" />
               </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+            <h3 className="text-2xl font-bold text-black dark:text-white mb-3">
               {searchQuery
                 ? "No matching jobs found"
                 : selectedTab === "all"
                 ? "No training jobs yet"
                 : `No ${selectedTab} jobs`}
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+            <p className="text-black dark:text-white mb-8 text-lg">
               {searchQuery
                 ? `Try adjusting your search terms or filters`
                 : selectedTab === "all"
@@ -488,14 +488,14 @@ export default function TrainingJobsPage() {
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
                   href={`/${tenant}/workspace/train-lora`}
-                  className="group inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                  className="group inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-xl hover:shadow-xl hover:shadow-[#5DC3F8]/40 transition-all duration-200 font-semibold"
                 >
                   <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />
                   Start Training
                 </Link>
                 <Link
                   href="/docs/training"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 font-semibold border-2 border-gray-300 dark:border-gray-600"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-black dark:text-white rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 font-semibold border-2 border-[#5DC3F8]/30 hover:border-[#5DC3F8]"
                 >
                   <Package className="w-5 h-5" />
                   Learn More
@@ -505,7 +505,7 @@ export default function TrainingJobsPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#5DC3F8] to-[#EC67A1] text-white rounded-xl hover:shadow-xl hover:shadow-[#5DC3F8]/40 transition-colors font-semibold"
               >
                 Clear Search
               </button>
@@ -522,18 +522,22 @@ export default function TrainingJobsPage() {
             return (
               <div
                 key={job.id}
-                className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 hover:-translate-y-1 transition-all duration-200"
+                className="group bg-white dark:bg-gray-800 border-2 border-[#5DC3F8]/30 rounded-xl p-6 hover:shadow-xl hover:shadow-[#5DC3F8]/20 hover:border-[#5DC3F8] hover:-translate-y-1 transition-all duration-200"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-start gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          <h3 className="text-lg font-semibold text-black dark:text-white">
                             {job.name}
                           </h3>
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.bgColor} ${config.color} border-2 ${
+                              job.status === 'PROCESSING' ? 'border-[#EC67A1]/30' : 
+                              job.status === 'COMPLETED' ? 'border-[#5DC3F8]/30' :
+                              'border-transparent'
+                            }`}
                           >
                             <StatusIcon className="w-3 h-3" />
                             {config.label}

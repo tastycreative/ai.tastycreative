@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useCredits } from '@/lib/hooks/useCredits.query';
+import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
   ImageIcon,
   Wand2,
@@ -169,7 +171,8 @@ export default function FaceSwappingPage() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
-  
+  const { refreshCredits } = useCredits();
+
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, profiles, isAllProfiles } = useInstagramProfile();
 
@@ -582,6 +585,9 @@ export default function FaceSwappingPage() {
           await Notification.requestPermission();
         }
       } else if (!isGenerating && currentJob && currentJob.status === 'completed' && !isJobCancelled(currentJob)) {
+        // Refresh credits after successful completion
+        refreshCredits();
+
         // Show completion notification ONLY for successfully completed jobs (not cancelled)
         if ('Notification' in window && Notification.permission === 'granted') {
           // Close any existing notification
@@ -3314,6 +3320,19 @@ export default function FaceSwappingPage() {
         </div>
       </div>
     </div>
+
+    {/* Credit Calculator */}
+    <CreditCalculator
+      path="face-swap-serverless"
+      modifiers={[
+        ...(params.batchSize > 1 ? [{
+          label: `Batch Size (${params.batchSize})`,
+          multiplier: params.batchSize,
+          description: 'Credits scale with batch size'
+        }] : []),
+      ]}
+      position="bottom-right"
+    />
   </div>
   );
 }

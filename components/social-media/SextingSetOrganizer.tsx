@@ -1445,24 +1445,24 @@ export default function SextingSetOrganizer({
         {/* Header Skeleton */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gray-700 rounded-xl animate-pulse" />
+            <div className="w-11 h-11 bg-muted rounded-xl animate-pulse" />
             <div className="space-y-2">
-              <div className="h-6 w-48 bg-gray-700 rounded animate-pulse" />
-              <div className="h-4 w-32 bg-gray-700 rounded animate-pulse" />
+              <div className="h-6 w-48 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
             </div>
           </div>
-          <div className="h-10 w-32 bg-gray-700 rounded-xl animate-pulse" />
+          <div className="h-10 w-32 bg-muted rounded-xl animate-pulse" />
         </div>
 
         {/* Content Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Sidebar Skeleton */}
           <div className="lg:col-span-1">
-            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4">
-              <div className="h-5 w-24 bg-gray-700 rounded animate-pulse mb-3" />
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+              <div className="h-5 w-24 bg-muted rounded animate-pulse mb-3" />
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-12 bg-gray-700 rounded-xl animate-pulse" />
+                  <div key={i} className="h-12 bg-muted rounded-xl animate-pulse" />
                 ))}
               </div>
             </div>
@@ -1470,11 +1470,11 @@ export default function SextingSetOrganizer({
 
           {/* Main Content Skeleton */}
           <div className="lg:col-span-2">
-            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4">
-              <div className="h-12 bg-gray-700 rounded-xl animate-pulse mb-4" />
+            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+              <div className="h-12 bg-muted rounded-xl animate-pulse mb-4" />
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className="aspect-square bg-gray-700 rounded-xl animate-pulse" />
+                  <div key={i} className="aspect-square bg-muted rounded-xl animate-pulse" />
                 ))}
               </div>
             </div>
@@ -1489,23 +1489,23 @@ export default function SextingSetOrganizer({
       {/* Header with gradient and tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/25">
+          <div className="p-2.5 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-xl shadow-lg">
             <Flame className="w-6 h-6 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
+              <h2 className="text-xl font-bold text-foreground">
                 Sexting Set Organizer
               </h2>
               {isSharedProfile && !isAllProfiles && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full border border-blue-500/30">
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-[var(--color-brand-blue)]/10 text-[var(--color-brand-blue)] text-xs font-medium rounded-full border border-[var(--color-brand-blue)]/30">
                   <Share2 className="w-3 h-3" />
                   Shared
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-400">
-              {isAllProfiles && <span className="text-pink-400">All Profiles • </span>}
+            <p className="text-sm text-muted-foreground">
+              {isAllProfiles && <span>All Profiles • </span>}
               {isSharedProfile 
                 ? `Viewing ${getSharedProfileOwnerName ? `${getSharedProfileOwnerName}'s` : "shared"} sets`
                 : `${sets.length} set${sets.length !== 1 ? "s" : ""} • Drag to reorder`}
@@ -1518,8 +1518,8 @@ export default function SextingSetOrganizer({
           disabled={isAllProfiles}
           className={`flex items-center gap-2 px-4 py-2.5 sm:px-4 sm:py-2.5 min-h-[44px] rounded-xl font-medium shadow-lg transition-all duration-200 ${
             isAllProfiles
-              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-pink-500/25 hover:scale-105 active:scale-95"
+              ? "bg-muted text-muted-foreground cursor-not-allowed"
+              : "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white hover:scale-105 active:scale-95"
           }`}
           title={isAllProfiles ? "Select a specific profile to create a new set" : "Create a new set"}
         >
@@ -1530,9 +1530,9 @@ export default function SextingSetOrganizer({
 
       {/* Shared Profile Notice */}
       {isSharedProfile && !isAllProfiles && (
-        <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-          <Info className="w-5 h-5 text-blue-400 shrink-0" />
-          <p className="text-sm text-blue-300">
+        <div className="flex items-center gap-3 p-3 bg-[var(--color-brand-blue)]/10 border border-[var(--color-brand-blue)]/30 rounded-xl">
+          <Info className="w-5 h-5 text-[var(--color-brand-blue)] shrink-0" />
+          <p className="text-sm text-foreground">
             You are viewing a shared profile{getSharedProfileOwnerName ? ` from ${getSharedProfileOwnerName}` : ""}. 
             You can view, organize, and add content to these sets.
           </p>
@@ -1541,9 +1541,9 @@ export default function SextingSetOrganizer({
 
       {/* All Profiles Notice */}
       {isAllProfiles && (
-        <div className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/30 rounded-xl">
-          <Users className="w-5 h-5 text-pink-400 shrink-0" />
-          <p className="text-sm text-pink-300">
+        <div className="flex items-center gap-3 p-3 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-xl">
+          <Users className="w-5 h-5 text-[var(--color-brand-mid-pink)] shrink-0" />
+          <p className="text-sm text-foreground">
             Viewing sets from all profiles. Select a specific profile to create new sets or perform certain actions.
           </p>
         </div>
@@ -1553,16 +1553,16 @@ export default function SextingSetOrganizer({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sets sidebar */}
         <div className="lg:col-span-1 space-y-3">
-          <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
               {isAllProfiles ? (
                 <>
-                  <Users className="w-4 h-4 text-pink-500" />
+                  <Users className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                   All Profiles&apos; Sets
                 </>
               ) : (
                 <>
-                  <Heart className="w-4 h-4 text-pink-500" />
+                  <Heart className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                   Your Sets
                 </>
               )}
@@ -1570,12 +1570,12 @@ export default function SextingSetOrganizer({
 
             {sets.length === 0 ? (
               <div className="text-center py-8">
-                <Sparkles className="w-10 h-10 text-pink-500/50 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">No sets yet</p>
+                <Sparkles className="w-10 h-10 text-[var(--color-brand-mid-pink)] mx-auto mb-3" />
+                <p className="text-foreground text-sm font-medium">No sets yet</p>
                 {!isAllProfiles && (
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="mt-3 text-pink-400 hover:text-pink-300 text-sm font-medium"
+                    className="mt-3 text-[var(--color-brand-mid-pink)] hover:text-[var(--color-brand-dark-pink)] text-sm font-medium transition-colors"
                   >
                     Create your first set
                   </button>
@@ -1599,19 +1599,19 @@ export default function SextingSetOrganizer({
                     <div key={profileName} className="mb-4">
                       {/* Profile Header */}
                       <div className="flex items-center gap-2 mb-2 px-1">
-                        <User className="w-3.5 h-3.5 text-pink-400" />
-                        <span className="text-xs font-medium text-pink-400">{profileName}</span>
-                        <span className="text-xs text-gray-500">({profileSets.length})</span>
+                        <User className="w-3.5 h-3.5 text-[var(--color-brand-mid-pink)]" />
+                        <span className="text-xs font-medium text-[var(--color-brand-mid-pink)]">{profileName}</span>
+                        <span className="text-xs text-muted-foreground">({profileSets.length})</span>
                       </div>
                       {/* Profile's Sets */}
-                      <div className="space-y-2 pl-2 border-l-2 border-pink-500/20">
+                      <div className="space-y-2 pl-2 border-l-2 border-[var(--color-brand-mid-pink)]/20">
                         {profileSets.map((set) => (
                           <div
                             key={set.id}
                             className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
                               selectedSet?.id === set.id
-                                ? "bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-500/40"
-                                : "bg-gray-800/50 hover:bg-gray-800/80 border border-transparent hover:border-gray-700/50"
+                                ? "bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/40"
+                                : "bg-muted/50 hover:bg-muted border border-transparent hover:border-border"
                             }`}
                             onClick={() => {
                               setSelectedSet(set);
@@ -1626,7 +1626,7 @@ export default function SextingSetOrganizer({
                                       type="text"
                                       value={tempName}
                                       onChange={(e) => setTempName(e.target.value)}
-                                      className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                      className="flex-1 px-2 py-1 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
                                       autoFocus
                                       onClick={(e) => e.stopPropagation()}
                                       onKeyDown={(e) => {
@@ -1642,7 +1642,7 @@ export default function SextingSetOrganizer({
                                         e.stopPropagation();
                                         updateSetName(set.id, tempName);
                                       }}
-                                      className="p-1 text-green-400 hover:text-green-300"
+                                      className="p-1 text-green-500 hover:text-green-600 transition-colors"
                                     >
                                       <Check className="w-4 h-4" />
                                     </button>
@@ -1651,17 +1651,17 @@ export default function SextingSetOrganizer({
                                         e.stopPropagation();
                                         setEditingName(null);
                                       }}
-                                      className="p-1 text-gray-400 hover:text-gray-300"
+                                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                       <X className="w-4 h-4" />
                                     </button>
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-2">
-                                    <span className="font-medium text-white truncate">
+                                    <span className="font-medium text-foreground truncate">
                                       {set.name}
                                     </span>
-                                    <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">
+                                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                                       {set.images.length}
                                     </span>
                                   </div>
@@ -1670,10 +1670,10 @@ export default function SextingSetOrganizer({
                                   <span
                                     className={`text-xs px-2 py-0.5 rounded-full ${
                                       set.status === "published"
-                                        ? "bg-green-500/20 text-green-400"
+                                        ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
                                         : set.status === "scheduled"
-                                          ? "bg-blue-500/20 text-blue-400"
-                                          : "bg-gray-600/50 text-gray-400"
+                                          ? "bg-[var(--color-brand-blue)]/20 text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)]/30"
+                                          : "bg-muted text-muted-foreground border border-border"
                                     }`}
                                   >
                                     {set.status}
@@ -1688,7 +1688,7 @@ export default function SextingSetOrganizer({
                                     setEditingName(set.id);
                                     setTempName(set.name);
                                   }}
-                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+                                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                                 >
                                   <Edit3 className="w-4 h-4" />
                                 </button>
@@ -1697,7 +1697,7 @@ export default function SextingSetOrganizer({
                                     e.stopPropagation();
                                     deleteSet(set.id);
                                   }}
-                                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg"
+                                  className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1715,8 +1715,8 @@ export default function SextingSetOrganizer({
                     key={set.id}
                     className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
                       selectedSet?.id === set.id
-                        ? "bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-500/40"
-                        : "bg-gray-800/50 hover:bg-gray-800/80 border border-transparent hover:border-gray-700/50"
+                        ? "bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/40"
+                        : "bg-muted/50 hover:bg-muted border border-transparent hover:border-border"
                     }`}
                     onClick={() => {
                       setSelectedSet(set);
@@ -1731,7 +1731,7 @@ export default function SextingSetOrganizer({
                               type="text"
                               value={tempName}
                               onChange={(e) => setTempName(e.target.value)}
-                              className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                              className="flex-1 px-2 py-1 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
                               autoFocus
                               onClick={(e) => e.stopPropagation()}
                               onKeyDown={(e) => {
@@ -1747,7 +1747,7 @@ export default function SextingSetOrganizer({
                                 e.stopPropagation();
                                 updateSetName(set.id, tempName);
                               }}
-                              className="p-1 text-green-400 hover:text-green-300"
+                              className="p-1 text-green-500 hover:text-green-600 transition-colors"
                             >
                               <Check className="w-4 h-4" />
                             </button>
@@ -1756,17 +1756,17 @@ export default function SextingSetOrganizer({
                                 e.stopPropagation();
                                 setEditingName(null);
                               }}
-                              className="p-1 text-gray-400 hover:text-gray-300"
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                             >
                               <X className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-white truncate">
+                            <span className="font-semibold text-foreground truncate">
                               {set.name}
                             </span>
-                            <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">
+                            <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                               {set.images.length}
                             </span>
                           </div>
@@ -1775,10 +1775,10 @@ export default function SextingSetOrganizer({
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full ${
                               set.status === "published"
-                                ? "bg-green-500/20 text-green-400"
+                                ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
                                 : set.status === "scheduled"
-                                  ? "bg-blue-500/20 text-blue-400"
-                                  : "bg-gray-600/50 text-gray-400"
+                                  ? "bg-[var(--color-brand-blue)]/20 text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)]/30"
+                                  : "bg-muted text-muted-foreground border border-border"
                             }`}
                           >
                             {set.status}
@@ -1793,7 +1793,7 @@ export default function SextingSetOrganizer({
                             setEditingName(set.id);
                             setTempName(set.name);
                           }}
-                          className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+                          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
@@ -1802,7 +1802,7 @@ export default function SextingSetOrganizer({
                             e.stopPropagation();
                             deleteSet(set.id);
                           }}
-                          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg"
+                          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1820,33 +1820,33 @@ export default function SextingSetOrganizer({
         <div className="lg:col-span-2">
           {selectedSet ? (
             <div
-              className={`bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl overflow-hidden backdrop-blur-sm transition-all duration-200 ${
-                isDraggingFile ? "border-pink-500 ring-2 ring-pink-500/50" : ""
+              className={`bg-card border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+                isDraggingFile ? "border-[var(--color-brand-mid-pink)] ring-2 ring-[var(--color-brand-mid-pink)]/30" : "border-border"
               }`}
               onDragOver={handleFileDragOver}
               onDragLeave={handleFileDragLeave}
               onDrop={handleFileDrop}
             >
               {/* Header */}
-              <div className="p-4 border-b border-gray-700/50">
+              <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-white text-lg">
+                      <h3 className="font-semibold text-foreground text-lg">
                         {selectedSet.name}
                       </h3>
                       {/* Profile badge when viewing All Profiles */}
                       {isAllProfiles && selectedSet.profileName && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-brand-mid-pink)]/10 text-[var(--color-brand-mid-pink)] border border-[var(--color-brand-mid-pink)]/30">
                           {selectedSet.profileName}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       {selectedSet.images.length} item
                       {selectedSet.images.length !== 1 ? "s" : ""}
                       {savingOrder && (
-                        <span className="ml-2 text-pink-400">• Saving...</span>
+                        <span className="ml-2 text-[var(--color-brand-mid-pink)]">• Saving...</span>
                       )}
                     </p>
                   </div>
@@ -1862,9 +1862,9 @@ export default function SextingSetOrganizer({
                     
                     {/* Upload Progress - shown outside dropdown */}
                     {uploading && uploadProgress && (
-                      <div className="flex items-center gap-2 px-4 py-2 bg-pink-500/20 border border-pink-500/30 rounded-xl">
-                        <Loader2 className="w-4 h-4 text-pink-400 animate-spin" />
-                        <span className="text-sm text-pink-300">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-xl">
+                        <Loader2 className="w-4 h-4 text-[var(--color-brand-mid-pink)] animate-spin" />
+                        <span className="text-sm text-foreground">
                           Uploading {uploadProgress.current}/{uploadProgress.total}
                         </span>
                       </div>
@@ -1874,7 +1874,7 @@ export default function SextingSetOrganizer({
                     {selectedSet.images.length > 0 && (
                       <button
                         onClick={openExportModal}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 active:scale-95 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-purple-500/25"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 active:scale-95 text-white rounded-xl font-medium transition-all duration-200 shadow-lg"
                       >
                         <FolderOutput className="w-4 h-4" />
                         <span className="hidden sm:inline">Save to Vault</span>
@@ -1887,7 +1887,7 @@ export default function SextingSetOrganizer({
                       <button
                         ref={actionsButtonRef}
                         onClick={() => setShowActionsMenu(!showActionsMenu)}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-gray-700/50 hover:bg-gray-600/50 active:scale-95 border border-gray-600 text-gray-300 rounded-xl font-medium transition-all duration-200"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-muted hover:bg-muted/80 active:scale-95 border border-border text-foreground rounded-xl font-medium transition-all duration-200"
                       >
                         <PlusCircle className="w-4 h-4" />
                         <span className="hidden sm:inline">Actions</span>
@@ -1898,7 +1898,7 @@ export default function SextingSetOrganizer({
                       {showActionsMenu && mounted && actionsMenuPosition && createPortal(
                         <div 
                           ref={actionsMenuRef}
-                          className="fixed w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-[9999] py-2 overflow-hidden"
+                          className="fixed w-56 bg-card border border-border rounded-xl shadow-xl z-[9999] py-2 overflow-hidden"
                           style={{
                             top: actionsMenuPosition.top,
                             left: actionsMenuPosition.left,
@@ -1907,39 +1907,39 @@ export default function SextingSetOrganizer({
                           <button
                             onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
                             disabled={uploading}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-300 hover:bg-gray-700/50 hover:text-pink-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <Upload className="w-4 h-4 text-pink-400" />
+                            <Upload className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                             <span>Upload Files</span>
                           </button>
-                          <div className="border-t border-gray-700 my-2" />
+                          <div className="border-t border-border my-2" />
                           <button
                             onClick={() => { openImportModal(); setShowActionsMenu(false); }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-300 hover:bg-gray-700/50 hover:text-emerald-400 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
                           >
-                            <FolderInput className="w-4 h-4 text-emerald-400" />
+                            <FolderInput className="w-4 h-4 text-emerald-500" />
                             <span>Import from Vault</span>
                           </button>
                           <button
                             onClick={() => { openGoogleDriveModal(); setShowActionsMenu(false); }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-300 hover:bg-gray-700/50 hover:text-blue-400 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
                           >
-                            <HardDrive className="w-4 h-4 text-blue-400" />
+                            <HardDrive className="w-4 h-4 text-[var(--color-brand-blue)]" />
                             <span>Import from Google Drive</span>
                           </button>
-                          <div className="border-t border-gray-700 my-2" />
+                          <div className="border-t border-border my-2" />
                           <button
                             onClick={() => { setShowKeycardModal(true); setShowActionsMenu(false); }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-300 hover:bg-gray-700/50 hover:text-indigo-400 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
                           >
-                            <FileText className="w-4 h-4 text-indigo-400" />
+                            <FileText className="w-4 h-4 text-indigo-500" />
                             <span>Generate Keycard</span>
                           </button>
                           <button
                             onClick={() => { setShowVoiceModal(true); setShowActionsMenu(false); }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-300 hover:bg-gray-700/50 hover:text-violet-400 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
                           >
-                            <Mic className="w-4 h-4 text-violet-400" />
+                            <Mic className="w-4 h-4 text-violet-500" />
                             <span>Generate Voice</span>
                           </button>
                         </div>,
@@ -1956,25 +1956,25 @@ export default function SextingSetOrganizer({
                   <div
                     className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${
                       isDraggingFile
-                        ? "border-pink-500 bg-pink-500/10"
-                        : "border-gray-700 hover:border-gray-600"
+                        ? "border-[var(--color-brand-mid-pink)] bg-[var(--color-brand-mid-pink)]/10"
+                        : "border-border hover:border-[var(--color-brand-mid-pink)]/50"
                     }`}
                   >
                     <Upload
                       className={`w-12 h-12 mx-auto mb-4 ${
-                        isDraggingFile ? "text-pink-400" : "text-gray-500"
+                        isDraggingFile ? "text-[var(--color-brand-mid-pink)]" : "text-muted-foreground"
                       }`}
                     />
                     <p
                       className={`font-medium ${
-                        isDraggingFile ? "text-pink-400" : "text-gray-400"
+                        isDraggingFile ? "text-[var(--color-brand-mid-pink)]" : "text-muted-foreground"
                       }`}
                     >
                       {isDraggingFile
                         ? "Drop your files here!"
                         : "Drop images or videos here"}
                     </p>
-                    <p className="text-gray-500 text-sm mt-2">
+                    <p className="text-muted-foreground text-sm mt-2">
                       or click upload to browse
                     </p>
                   </div>
@@ -2003,12 +2003,12 @@ export default function SextingSetOrganizer({
                             isMobile ? 'active:scale-95' : 'cursor-grab active:cursor-grabbing'
                           } ${
                             isDragging
-                              ? "opacity-30 scale-95 border-pink-500 shadow-xl shadow-pink-500/50"
+                              ? "opacity-30 scale-95 border-[var(--color-brand-mid-pink)] shadow-xl"
                               : isDropTarget
-                                ? "border-pink-500 ring-4 ring-pink-500/30 scale-105 shadow-xl shadow-pink-500/50"
+                                ? "border-[var(--color-brand-mid-pink)] ring-4 ring-[var(--color-brand-mid-pink)]/30 scale-105 shadow-xl"
                                 : isHovered
-                                  ? "border-pink-500/50 scale-[1.02]"
-                                  : "border-transparent hover:border-pink-500/30"
+                                  ? "border-[var(--color-brand-mid-pink)]/50 scale-[1.02]"
+                                  : "border-transparent hover:border-[var(--color-brand-mid-pink)]/30"
                           }`}
                           style={{
                             transform: isMobile ? `translateX(${touchOffsetValue}px)` : undefined,
@@ -2017,8 +2017,8 @@ export default function SextingSetOrganizer({
                         >
                           {/* Visual drag preview indicator */}
                           {isDragging && (
-                            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-rose-500/20 backdrop-blur-sm flex items-center justify-center z-20">
-                              <div className="bg-pink-500 rounded-full p-3 shadow-xl">
+                            <div className="absolute inset-0 bg-[var(--color-brand-mid-pink)]/10 backdrop-blur-sm flex items-center justify-center z-20">
+                              <div className="bg-[var(--color-brand-mid-pink)] rounded-full p-3 shadow-xl">
                                 <Move className="w-6 h-6 text-white" />
                               </div>
                             </div>
@@ -2026,7 +2026,7 @@ export default function SextingSetOrganizer({
 
                           {/* Drop target indicator */}
                           {isDropTarget && !isDragging && (
-                            <div className="absolute inset-0 border-4 border-dashed border-pink-500 rounded-xl pointer-events-none z-10 animate-pulse" />
+                            <div className="absolute inset-0 border-4 border-dashed border-[var(--color-brand-mid-pink)] rounded-xl pointer-events-none z-10 animate-pulse" />
                           )}
 
                           {/* Swipe delete indicator (mobile) */}
@@ -2037,7 +2037,7 @@ export default function SextingSetOrganizer({
                           )}
 
                           {/* Sequence badge */}
-                          <div className={`absolute top-2 left-2 z-10 w-7 h-7 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center shadow-lg transition-transform ${
+                          <div className={`absolute top-2 left-2 z-10 w-7 h-7 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg flex items-center justify-center shadow-lg transition-transform ${
                             isHovered ? 'scale-110' : ''
                           }`}>
                             <span className="text-white text-xs font-bold">
@@ -2053,15 +2053,15 @@ export default function SextingSetOrganizer({
                               muted
                             />
                           ) : isAudio(image.type) ? (
-                            <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
-                              <Music className="w-10 h-10 text-violet-400 mb-2" />
+                            <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 dark:from-violet-900/50 dark:to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
+                              <Music className="w-10 h-10 text-violet-500 mb-2" />
                               <audio
                                 src={image.url}
                                 controls
                                 className="w-full h-8"
                                 onClick={(e) => e.stopPropagation()}
                               />
-                              <span className="text-xs text-gray-400 mt-2 truncate max-w-full">
+                              <span className="text-xs text-muted-foreground mt-2 truncate max-w-full">
                                 {image.name}
                               </span>
                             </div>
@@ -2081,7 +2081,7 @@ export default function SextingSetOrganizer({
                             <div className="absolute top-2 right-2 flex gap-1">
                               {/* Drag handle - desktop only */}
                               {!isMobile && (
-                                <div className={`p-2 bg-black/70 hover:bg-pink-500/80 rounded-lg backdrop-blur-sm transition-all cursor-grab active:cursor-grabbing ${
+                                <div className={`p-2 bg-black/70 hover:bg-[var(--color-brand-mid-pink)]/80 rounded-lg backdrop-blur-sm transition-all cursor-grab active:cursor-grabbing ${
                                   isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
                                 }`}
                                   title="Drag to reorder"
@@ -2111,11 +2111,11 @@ export default function SextingSetOrganizer({
                             <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 {isVideo(image.type) ? (
-                                  <Video className="w-4 h-4 text-pink-400" />
+                                  <Video className="w-4 h-4 text-[var(--color-brand-blue)]" />
                                 ) : isAudio(image.type) ? (
-                                  <Volume2 className="w-4 h-4 text-violet-400" />
+                                  <Volume2 className="w-4 h-4 text-violet-500" />
                                 ) : (
-                                  <ImageIcon className="w-4 h-4 text-pink-400" />
+                                  <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                                 )}
                                 <span className="text-xs text-white/90 font-medium">
                                   {formatFileSize(image.size)}
@@ -2143,17 +2143,17 @@ export default function SextingSetOrganizer({
               </div>
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-12 text-center backdrop-blur-sm">
-              <Sparkles className="w-16 h-16 text-pink-500/30 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">
+            <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-sm">
+              <Sparkles className="w-16 h-16 text-[var(--color-brand-mid-pink)]/30 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">
                 Select a Set
               </h3>
-              <p className="text-gray-400 mb-6">
+              <p className="text-muted-foreground mb-6">
                 Choose a set from the sidebar to organize your content
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium shadow-lg transition-all duration-200"
               >
                 <FolderPlus className="w-5 h-5" />
                 Create New Set
@@ -2175,15 +2175,15 @@ export default function SextingSetOrganizer({
             }}
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
+              className="bg-card border-t sm:border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-gray-700">
+              <div className="p-6 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl">
+                  <div className="p-2 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-xl">
                     <FolderPlus className="w-5 h-5 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-lg font-semibold text-foreground">
                     Create New Set
                   </h3>
                 </div>
@@ -2191,7 +2191,7 @@ export default function SextingSetOrganizer({
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Set Name
                   </label>
                   <input
@@ -2199,7 +2199,7 @@ export default function SextingSetOrganizer({
                     value={newSetName}
                     onChange={(e) => setNewSetName(e.target.value)}
                     placeholder="e.g., Valentine's Day Set"
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") createSet();
@@ -2208,20 +2208,20 @@ export default function SextingSetOrganizer({
                 </div>
               </div>
 
-              <div className="p-6 border-t border-gray-700 flex gap-3">
+              <div className="p-6 border-t border-border flex gap-3">
                 <button
                   onClick={() => {
                     setShowCreateModal(false);
                     setNewSetName("");
                   }}
-                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={createSet}
                   disabled={!newSetName.trim() || creating}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {creating ? (
                     <>
@@ -2257,19 +2257,19 @@ export default function SextingSetOrganizer({
             }}
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
+              className="bg-card border-t sm:border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-gray-700">
+              <div className="p-6 border-b border-border">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
                     <FolderOutput className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">
+                    <h3 className="text-lg font-semibold text-foreground">
                       Save to Vault
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       {selectedSet.images.length} item
                       {selectedSet.images.length !== 1 ? "s" : ""} from "
                       {selectedSet.name}"
@@ -2282,15 +2282,15 @@ export default function SextingSetOrganizer({
                 {exportSuccess ? (
                   <div className="text-center py-6">
                     <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle2 className="w-8 h-8 text-green-400" />
+                      <CheckCircle2 className="w-8 h-8 text-green-500" />
                     </div>
-                    <h4 className="text-lg font-semibold text-white mb-2">
+                    <h4 className="text-lg font-semibold text-foreground mb-2">
                       Export Complete!
                     </h4>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                       {exportSuccess.itemCount} item
                       {exportSuccess.itemCount !== 1 ? "s" : ""} exported to{" "}
-                      <span className="text-purple-400">
+                      <span className="text-purple-500">
                         {exportSuccess.folderName}
                       </span>
                     </p>
@@ -2300,19 +2300,19 @@ export default function SextingSetOrganizer({
                     {/* Profile Selector - shown when viewing All Profiles */}
                     {isAllProfiles && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                           Save to Profile
                         </label>
                         {loadingProfiles ? (
-                          <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl">
-                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                            <span className="text-gray-400">Loading profiles...</span>
+                          <div className="flex items-center gap-2 px-4 py-3 bg-muted border border-border rounded-xl">
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            <span className="text-muted-foreground">Loading profiles...</span>
                           </div>
                         ) : (
                           <select
                             value={selectedExportProfileId || ""}
                             onChange={(e) => setSelectedExportProfileId(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           >
                             <option value="" disabled>Select a profile</option>
                             {profiles.map((profile) => (
@@ -2322,7 +2322,7 @@ export default function SextingSetOrganizer({
                             ))}
                           </select>
                         )}
-                        <p className="text-xs text-gray-500 mt-2">
+                        <p className="text-xs text-muted-foreground mt-2">
                           Choose which profile&apos;s vault to save to
                         </p>
                       </div>
@@ -2330,7 +2330,7 @@ export default function SextingSetOrganizer({
                     
                     {/* Folder Name */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Folder Name
                       </label>
                       <input
@@ -2338,9 +2338,9 @@ export default function SextingSetOrganizer({
                         value={exportFolderName}
                         onChange={(e) => setExportFolderName(e.target.value)}
                         placeholder="e.g., Valentine's Day Collection"
-                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         A new folder will be created in your Vault with this
                         name
                       </p>
@@ -2350,13 +2350,13 @@ export default function SextingSetOrganizer({
               </div>
 
               {!exportSuccess && (
-                <div className="p-6 border-t border-gray-700 flex gap-3">
+                <div className="p-6 border-t border-border flex gap-3">
                   <button
                     onClick={() => {
                       setShowExportModal(false);
                       setExportFolderName("");
                     }}
-                    className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                    className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
                   >
                     Cancel
                   </button>
@@ -2367,7 +2367,7 @@ export default function SextingSetOrganizer({
                       (isAllProfiles ? !selectedExportProfileId : !profileId) ||
                       !exportFolderName.trim()
                     }
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-medium shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {exporting ? (
                       <>
@@ -2406,20 +2406,20 @@ export default function SextingSetOrganizer({
             }}
           >
             <div
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[85vh] shadow-2xl flex flex-col"
+              className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[85vh] shadow-2xl flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="p-6 border-b border-gray-700 shrink-0">
+              <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl">
                     <FolderInput className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">
+                    <h3 className="text-lg font-semibold text-foreground">
                       Import from Vault
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       Add images to "{selectedSet.name}"
                     </p>
                   </div>
@@ -2430,12 +2430,12 @@ export default function SextingSetOrganizer({
                 {importSuccess ? (
                   <div className="text-center py-6">
                     <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle2 className="w-8 h-8 text-green-400" />
+                      <CheckCircle2 className="w-8 h-8 text-green-500" />
                     </div>
-                    <h4 className="text-xl font-semibold text-white mb-2">
+                    <h4 className="text-xl font-semibold text-foreground mb-2">
                       Import Successful!
                     </h4>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                       {importSuccess.itemCount} item
                       {importSuccess.itemCount !== 1 ? "s" : ""} imported to{" "}
                       "{selectedSet.name}"
@@ -2445,15 +2445,15 @@ export default function SextingSetOrganizer({
                   <div className="flex gap-6">
                     {/* Folder Selection */}
                     <div className="w-64 shrink-0">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Select Folder
                       </label>
                       {loadingVaultFolders ? (
                         <div className="flex items-center justify-center py-8">
-                          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
                       ) : vaultFolders.filter(f => f.name !== 'All Media').length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
+                        <div className="text-center py-8 text-muted-foreground">
                           <Folder className="w-8 h-8 mx-auto mb-2 opacity-50" />
                           <p className="text-sm">No folders found</p>
                         </div>
@@ -2465,14 +2465,14 @@ export default function SextingSetOrganizer({
                               onClick={() => handleVaultFolderSelect(folder.id)}
                               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all ${
                                 selectedVaultFolderId === folder.id
-                                  ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
-                                  : "bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 border border-transparent"
+                                  ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-500"
+                                  : "bg-muted/50 hover:bg-muted text-foreground border border-transparent"
                               }`}
                             >
                               <Folder className="w-4 h-4 shrink-0" />
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm">{folder.name}</p>
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-muted-foreground">
                                   {folder._count?.items || 0} items
                                 </p>
                               </div>
@@ -2485,15 +2485,14 @@ export default function SextingSetOrganizer({
                     {/* Items Grid */}
                     <div className="flex-1 min-w-0">
                       {selectedVaultFolderId ? (
-                        <>
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm font-medium text-gray-300">
+                        <>  <div className="flex items-center justify-between mb-3">
+                            <label className="text-sm font-medium text-foreground">
                               Select Items ({selectedVaultItems.size} selected)
                             </label>
                             {vaultItems.length > 0 && (
                               <button
                                 onClick={selectAllVaultItems}
-                                className="text-sm text-emerald-400 hover:text-emerald-300"
+                                className="text-sm text-emerald-500 hover:text-emerald-600 transition-colors"
                               >
                                 {selectedVaultItems.size === vaultItems.length
                                   ? "Deselect All"
@@ -2503,10 +2502,10 @@ export default function SextingSetOrganizer({
                           </div>
                           {loadingVaultItems ? (
                             <div className="flex items-center justify-center py-12">
-                              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                             </div>
                           ) : vaultItems.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12 text-muted-foreground">
                               <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                               <p className="text-sm">No media files in this folder</p>
                             </div>
@@ -2519,7 +2518,7 @@ export default function SextingSetOrganizer({
                                   className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
                                     selectedVaultItems.has(item.id)
                                       ? "border-emerald-500 ring-2 ring-emerald-500/30"
-                                      : "border-transparent hover:border-gray-600"
+                                      : "border-transparent hover:border-border"
                                   }`}
                                 >
                                   {item.fileType.startsWith("video/") ? (
@@ -2529,8 +2528,8 @@ export default function SextingSetOrganizer({
                                     />
                                   ) : item.fileType.startsWith("audio/") ? (
                                     <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-2">
-                                      <Music className="w-8 h-8 text-violet-400 mb-1" />
-                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                      <Music className="w-8 h-8 text-violet-500 mb-1" />
+                                      <p className="text-xs text-muted-foreground text-center truncate w-full px-1">
                                         {item.fileName}
                                       </p>
                                     </div>
@@ -2543,7 +2542,7 @@ export default function SextingSetOrganizer({
                                   )}
                                   {selectedVaultItems.has(item.id) && (
                                     <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
-                                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                                     </div>
                                   )}
                                   {item.fileType.startsWith("video/") && (
@@ -2562,7 +2561,7 @@ export default function SextingSetOrganizer({
                           )}
                         </>
                       ) : (
-                        <div className="flex items-center justify-center h-full text-gray-500">
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
                           <div className="text-center">
                             <Folder className="w-12 h-12 mx-auto mb-2 opacity-50" />
                             <p>Select a folder to view items</p>
@@ -2575,7 +2574,7 @@ export default function SextingSetOrganizer({
               </div>
 
               {!importSuccess && (
-                <div className="p-6 border-t border-gray-700 flex gap-3 shrink-0">
+                <div className="p-6 border-t border-border flex gap-3 shrink-0">
                   <button
                     onClick={() => {
                       setShowImportModal(false);
@@ -2584,14 +2583,14 @@ export default function SextingSetOrganizer({
                       setVaultItems([]);
                     }}
                     disabled={importing}
-                    className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                    className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={importFromVault}
                     disabled={importing || selectedVaultItems.size === 0}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium shadow-lg shadow-emerald-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-medium shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {importing ? (
                       <>
@@ -2630,20 +2629,20 @@ export default function SextingSetOrganizer({
             }}
           >
             <div
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
+              className="bg-card border border-border rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="p-6 border-b border-gray-700 shrink-0">
+              <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
+                  <div className="p-3 bg-gradient-to-br from-[var(--color-brand-blue)] to-cyan-600 rounded-xl">
                     <HardDrive className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">
+                    <h3 className="text-xl font-semibold text-foreground">
                       Import from Google Drive
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       Add files to "{selectedSet.name}"
                     </p>
                   </div>
@@ -2654,12 +2653,12 @@ export default function SextingSetOrganizer({
                 {googleDriveImportSuccess ? (
                   <div className="text-center py-6">
                     <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle2 className="w-8 h-8 text-green-400" />
+                      <CheckCircle2 className="w-8 h-8 text-green-500" />
                     </div>
-                    <h4 className="text-xl font-semibold text-white mb-2">
+                    <h4 className="text-xl font-semibold text-foreground mb-2">
                       Import Successful!
                     </h4>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                       {googleDriveImportSuccess.itemCount} file
                       {googleDriveImportSuccess.itemCount !== 1 ? "s" : ""} imported to{" "}
                       "{selectedSet.name}"
@@ -2667,18 +2666,18 @@ export default function SextingSetOrganizer({
                   </div>
                 ) : !googleDriveAccessToken ? (
                   <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <HardDrive className="w-10 h-10 text-blue-400" />
+                    <div className="w-20 h-20 bg-[var(--color-brand-blue)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <HardDrive className="w-10 h-10 text-[var(--color-brand-blue)]" />
                     </div>
-                    <h4 className="text-xl font-semibold text-white mb-2">
+                    <h4 className="text-xl font-semibold text-foreground mb-2">
                       Connect to Google Drive
                     </h4>
-                    <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                       To import files from Google Drive, you need to connect your account first.
                     </p>
                     <button
                       onClick={connectToGoogleDrive}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
+                      className="px-6 py-3 bg-gradient-to-r from-[var(--color-brand-blue)] to-cyan-500 hover:from-[var(--color-brand-blue)] hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center gap-2 mx-auto"
                     >
                       <HardDrive className="w-5 h-5" />
                       Connect Google Drive
@@ -2688,13 +2687,13 @@ export default function SextingSetOrganizer({
                   <div className="flex flex-col gap-5">
                     {/* Link Input Section */}
                     <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2 text-gray-300">
-                        <Link className="w-5 h-5 text-blue-400" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Link className="w-5 h-5 text-[var(--color-brand-blue)]" />
                         <span className="font-medium">Paste a Google Drive folder link to browse</span>
                       </div>
-                      <div className="flex gap-2 p-4 bg-gray-800/30 rounded-xl border border-gray-700/50">
+                      <div className="flex gap-2 p-4 bg-muted/30 rounded-xl border border-border">
                         <div className="flex-1 relative">
-                          <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                          <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <input
                             type="text"
                             placeholder="Paste Google Drive folder link here..."
@@ -2705,13 +2704,13 @@ export default function SextingSetOrganizer({
                                 browseGoogleDriveLink();
                               }
                             }}
-                            className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm"
+                            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-[var(--color-brand-blue)]/50 focus:ring-1 focus:ring-[var(--color-brand-blue)]/30 transition-all text-sm"
                           />
                         </div>
                         <button
                           onClick={browseGoogleDriveLink}
                           disabled={loadingGoogleDriveFiles || !googleDriveLinkInput.trim()}
-                          className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-5 py-2.5 bg-[var(--color-brand-blue)] hover:bg-[var(--color-brand-blue)]/90 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Browse
                         </button>
@@ -2719,16 +2718,16 @@ export default function SextingSetOrganizer({
                     </div>
 
                     {/* Breadcrumb Navigation */}
-                    <div className="flex items-center gap-1 text-sm bg-gray-800/30 rounded-xl px-4 py-2.5 overflow-x-auto">
+                    <div className="flex items-center gap-1 text-sm bg-muted/30 rounded-xl px-4 py-2.5 overflow-x-auto">
                       {googleDriveBreadcrumbs.map((crumb, index) => (
                         <div key={index} className="flex items-center">
-                          {index > 0 && <ChevronRight className="w-4 h-4 text-gray-500 mx-1" />}
+                          {index > 0 && <ChevronRight className="w-4 h-4 text-muted-foreground mx-1" />}
                           <button
                             onClick={() => navigateToBreadcrumb(index)}
-                            className={`px-2 py-1 rounded-lg hover:bg-gray-700/50 transition-colors truncate max-w-[180px] ${
+                            className={`px-2 py-1 rounded-lg hover:bg-muted transition-colors truncate max-w-[180px] ${
                               index === googleDriveBreadcrumbs.length - 1
-                                ? "text-blue-400 font-medium bg-blue-500/10"
-                                : "text-gray-400 hover:text-gray-300"
+                                ? "text-[var(--color-brand-blue)] font-medium bg-[var(--color-brand-blue)]/10"
+                                : "text-muted-foreground hover:text-foreground"
                             }`}
                           >
                             {crumb.name}
@@ -2739,7 +2738,7 @@ export default function SextingSetOrganizer({
                         <button
                           onClick={() => fetchGoogleDriveContents(currentGoogleDriveFolderId)}
                           disabled={loadingGoogleDriveFiles}
-                          className="p-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 hover:text-gray-300 rounded-lg transition-all"
+                          className="p-2 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground rounded-lg transition-all"
                           title="Refresh"
                         >
                           <RefreshCw className={`w-4 h-4 ${loadingGoogleDriveFiles ? 'animate-spin' : ''}`} />
@@ -2754,7 +2753,7 @@ export default function SextingSetOrganizer({
                             setGoogleDriveLinkInput('');
                             setGoogleDriveError(null);
                           }}
-                          className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all"
+                          className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all"
                           title="Sign out of Google Drive"
                         >
                           <LogOut className="w-4 h-4" />
@@ -2763,11 +2762,11 @@ export default function SextingSetOrganizer({
                     </div>
 
                     {googleDriveError && (
-                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-start gap-3">
+                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                         <div>
                           <p className="font-medium">{googleDriveError.includes("permission") || googleDriveError.includes("access") ? "Access Denied" : "Error"}</p>
-                          <p className="text-red-400/80 mt-1">{googleDriveError}</p>
+                          <p className="text-red-500/80 mt-1">{googleDriveError}</p>
                         </div>
                       </div>
                     )}
@@ -2775,13 +2774,13 @@ export default function SextingSetOrganizer({
                     {/* Content Area */}
                     {loadingGoogleDriveFiles ? (
                       <div className="flex items-center justify-center py-12">
-                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                       </div>
                     ) : googleDriveFolders.length === 0 && googleDriveFiles.length === 0 && !googleDriveError ? (
-                      <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-700/30">
+                      <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-xl border border-border">
                         <Folder className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p className="text-base font-medium">This folder is empty</p>
-                        <p className="text-sm mt-1 text-gray-600">
+                        <p className="text-sm mt-1">
                           {googleDriveBreadcrumbs.length > 1 
                             ? "Go back or paste a different folder link"
                             : "Paste a folder link above to browse its contents"}
@@ -2792,7 +2791,7 @@ export default function SextingSetOrganizer({
                         {/* Folders */}
                         {googleDriveFolders.length > 0 && (
                           <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-3">
+                            <label className="block text-sm font-medium text-foreground mb-3">
                               📁 Folders ({googleDriveFolders.length})
                             </label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto pr-2">
@@ -2803,14 +2802,14 @@ export default function SextingSetOrganizer({
                                     setIsGoogleDriveSearchMode(false);
                                     navigateToGoogleDriveFolder(folder);
                                   }}
-                                  className="flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl text-left transition-all border border-gray-700/50 hover:border-blue-500/30 group"
+                                  className="flex items-center gap-3 px-4 py-3 bg-muted/50 hover:bg-muted rounded-xl text-left transition-all border border-border hover:border-[var(--color-brand-blue)]/30 group"
                                 >
                                   <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
-                                    <Folder className="w-5 h-5 text-yellow-400" />
+                                    <Folder className="w-5 h-5 text-yellow-500" />
                                   </div>
-                                  <span className="text-sm text-gray-300 truncate flex-1">{folder.name}</span>
+                                  <span className="text-sm text-foreground truncate flex-1">{folder.name}</span>
                                   {folder.shared && (
-                                    <Users className="w-4 h-4 text-gray-500 shrink-0" />
+                                    <Users className="w-4 h-4 text-muted-foreground shrink-0" />
                                   )}
                                 </button>
                               ))}
@@ -2821,10 +2820,10 @@ export default function SextingSetOrganizer({
                         {/* Files */}
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm font-medium text-gray-300">
+                            <label className="text-sm font-medium text-foreground">
                               🖼️ Media Files ({googleDriveFiles.length})
                               {selectedGoogleDriveFiles.size > 0 && (
-                                <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                                <span className="ml-2 px-2 py-0.5 bg-[var(--color-brand-blue)]/10 text-[var(--color-brand-blue)] rounded-full text-xs border border-[var(--color-brand-blue)]/30">
                                   {selectedGoogleDriveFiles.size} selected
                                 </span>
                               )}
@@ -2832,7 +2831,7 @@ export default function SextingSetOrganizer({
                             {googleDriveFiles.length > 0 && (
                               <button
                                 onClick={selectAllGoogleDriveFiles}
-                                className="text-sm text-blue-400 hover:text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                                className="text-sm text-[var(--color-brand-blue)] hover:text-[var(--color-brand-blue)]/80 px-3 py-1 rounded-lg hover:bg-[var(--color-brand-blue)]/10 transition-colors"
                               >
                                 {selectedGoogleDriveFiles.size === googleDriveFiles.length
                                   ? "Deselect All"
@@ -2842,10 +2841,10 @@ export default function SextingSetOrganizer({
                           </div>
 
                           {googleDriveFiles.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl">
+                            <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-xl">
                               <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
                               <p className="text-base">No media files found</p>
-                              <p className="text-sm mt-1 text-gray-600">
+                              <p className="text-sm mt-1">
                                 {isGoogleDriveSearchMode 
                                   ? "Try a different search term" 
                                   : "Browse into folders or search to find images, videos, and audio files"}
@@ -2859,8 +2858,8 @@ export default function SextingSetOrganizer({
                                   onClick={() => toggleGoogleDriveFileSelection(file.id)}
                                   className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
                                     selectedGoogleDriveFiles.has(file.id)
-                                      ? "border-blue-500 ring-2 ring-blue-500/30"
-                                      : "border-transparent hover:border-gray-600"
+                                      ? "border-[var(--color-brand-blue)] ring-2 ring-[var(--color-brand-blue)]/30"
+                                      : "border-transparent hover:border-border"
                                   }`}
                                 >
                                   {file.mimeType?.startsWith("video/") ? (
@@ -2871,17 +2870,17 @@ export default function SextingSetOrganizer({
                                         className="w-full h-full object-cover"
                                       />
                                     ) : (
-                                      <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                        <Video className="w-8 h-8 text-gray-400 mb-1" />
-                                        <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                      <div className="w-full h-full bg-gradient-to-br from-muted to-muted/80 flex flex-col items-center justify-center p-2">
+                                        <Video className="w-8 h-8 text-muted-foreground mb-1" />
+                                        <p className="text-xs text-muted-foreground text-center truncate w-full px-1">
                                           {file.name}
                                         </p>
                                       </div>
                                     )
                                   ) : file.mimeType?.startsWith("audio/") ? (
                                     <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-2">
-                                      <Music className="w-8 h-8 text-violet-400 mb-1" />
-                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                      <Music className="w-8 h-8 text-violet-500 mb-1" />
+                                      <p className="text-xs text-muted-foreground text-center truncate w-full px-1">
                                         {file.name}
                                       </p>
                                     </div>
@@ -2892,16 +2891,16 @@ export default function SextingSetOrganizer({
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                      <ImageIcon className="w-8 h-8 text-gray-400 mb-1" />
-                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                    <div className="w-full h-full bg-gradient-to-br from-muted to-muted/80 flex flex-col items-center justify-center p-2">
+                                      <ImageIcon className="w-8 h-8 text-muted-foreground mb-1" />
+                                      <p className="text-xs text-muted-foreground text-center truncate w-full px-1">
                                         {file.name}
                                       </p>
                                     </div>
                                   )}
                                   {selectedGoogleDriveFiles.has(file.id) && (
-                                    <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                                      <CheckCircle2 className="w-6 h-6 text-blue-400" />
+                                    <div className="absolute inset-0 bg-[var(--color-brand-blue)]/20 flex items-center justify-center">
+                                      <CheckCircle2 className="w-6 h-6 text-[var(--color-brand-blue)]" />
                                     </div>
                                   )}
                                   {file.mimeType?.startsWith("video/") && (
@@ -2990,20 +2989,20 @@ export default function SextingSetOrganizer({
             }}
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl"
+              className="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm font-bold">
                       {selectedImageForDetail.sequence}
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Image Details</h3>
-                    <p className="text-xs text-gray-400">Click on filename to edit</p>
+                    <h3 className="text-lg font-semibold text-foreground">Image Details</h3>
+                    <p className="text-xs text-muted-foreground">Click on filename to edit</p>
                   </div>
                 </div>
                 <button
@@ -3013,9 +3012,9 @@ export default function SextingSetOrganizer({
                     setEditingImageId(null);
                     setEditingImageName("");
                   }}
-                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
@@ -3030,14 +3029,14 @@ export default function SextingSetOrganizer({
                       controls
                     />
                   ) : isAudio(selectedImageForDetail.type) ? (
-                    <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-6">
-                      <Music className="w-20 h-20 text-violet-400 mb-4" />
+                    <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 dark:from-violet-900/50 dark:to-fuchsia-900/50 flex flex-col items-center justify-center p-6">
+                      <Music className="w-20 h-20 text-violet-500 mb-4" />
                       <audio
                         src={selectedImageForDetail.url}
                         controls
                         className="w-full max-w-md"
                       />
-                      <span className="text-sm text-gray-300 mt-4">{selectedImageForDetail.name}</span>
+                      <span className="text-sm text-foreground mt-4">{selectedImageForDetail.name}</span>
                     </div>
                   ) : (
                     <img
@@ -3052,7 +3051,7 @@ export default function SextingSetOrganizer({
                 <div className="grid grid-cols-2 gap-4">
                   {/* Filename - Editable */}
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Filename
                     </label>
                     {editingImageId === selectedImageForDetail.id ? (
@@ -3061,7 +3060,7 @@ export default function SextingSetOrganizer({
                           type="text"
                           value={editingImageName}
                           onChange={(e) => setEditingImageName(e.target.value)}
-                          className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -3075,7 +3074,7 @@ export default function SextingSetOrganizer({
                         <button
                           onClick={() => renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName)}
                           disabled={savingImageName || !editingImageName.trim()}
-                          className="px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          className="px-4 py-2.5 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                           {savingImageName ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -3088,7 +3087,7 @@ export default function SextingSetOrganizer({
                             setEditingImageId(null);
                             setEditingImageName("");
                           }}
-                          className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                          className="px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -3099,53 +3098,53 @@ export default function SextingSetOrganizer({
                           setEditingImageId(selectedImageForDetail.id);
                           setEditingImageName(selectedImageForDetail.name.replace(/\.[^/.]+$/, ''));
                         }}
-                        className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white cursor-pointer hover:border-pink-500/50 transition-colors flex items-center justify-between group"
+                        className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground cursor-pointer hover:border-[var(--color-brand-mid-pink)]/50 transition-colors flex items-center justify-between group"
                       >
                         <span className="truncate">{selectedImageForDetail.name}</span>
-                        <Edit3 className="w-4 h-4 text-gray-500 group-hover:text-pink-400 transition-colors" />
+                        <Edit3 className="w-4 h-4 text-muted-foreground group-hover:text-[var(--color-brand-mid-pink)] transition-colors" />
                       </div>
                     )}
                   </div>
 
                   {/* Sequence */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Sequence
                     </label>
-                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
                       #{selectedImageForDetail.sequence}
                     </div>
                   </div>
 
                   {/* Size */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       File Size
                     </label>
-                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
                       {formatFileSize(selectedImageForDetail.size)}
                     </div>
                   </div>
 
                   {/* Type */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Type
                     </label>
-                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white flex items-center gap-2">
+                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground flex items-center gap-2">
                       {isVideo(selectedImageForDetail.type) ? (
                         <>
-                          <Video className="w-4 h-4 text-pink-400" />
+                          <Video className="w-4 h-4 text-[var(--color-brand-blue)]" />
                           Video
                         </>
                       ) : isAudio(selectedImageForDetail.type) ? (
                         <>
-                          <Volume2 className="w-4 h-4 text-violet-400" />
+                          <Volume2 className="w-4 h-4 text-violet-500" />
                           Audio
                         </>
                       ) : (
                         <>
-                          <ImageIcon className="w-4 h-4 text-pink-400" />
+                          <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
                           Image
                         </>
                       )}
@@ -3154,10 +3153,10 @@ export default function SextingSetOrganizer({
 
                   {/* Uploaded Date */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Uploaded
                     </label>
-                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
                       {new Date(selectedImageForDetail.uploadedAt).toLocaleDateString()}
                     </div>
                   </div>
@@ -3165,7 +3164,7 @@ export default function SextingSetOrganizer({
               </div>
 
               {/* Actions */}
-              <div className="p-4 border-t border-gray-700 flex justify-between">
+              <div className="p-4 border-t border-border flex justify-between">
                 <button
                   onClick={() => {
                     if (confirm("Are you sure you want to delete this image?")) {
@@ -3174,7 +3173,7 @@ export default function SextingSetOrganizer({
                       setSelectedImageForDetail(null);
                     }
                   }}
-                  className="px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
@@ -3183,7 +3182,7 @@ export default function SextingSetOrganizer({
                   href={selectedImageForDetail.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Open Original
@@ -3203,25 +3202,25 @@ export default function SextingSetOrganizer({
             onClick={() => setShowKeycardModal(false)}
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
+              className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="sticky top-0 z-10 p-4 border-b border-gray-700 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-between">
+              <div className="sticky top-0 z-10 p-4 border-b border-border bg-card flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
                     <FileText className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Keycard Generator</h3>
-                    <p className="text-xs text-gray-400">Create custom keycards for your set</p>
+                    <h3 className="text-lg font-semibold text-foreground">Keycard Generator</h3>
+                    <p className="text-xs text-muted-foreground">Create custom keycards for your set</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowKeycardModal(false)}
-                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
@@ -3258,25 +3257,25 @@ export default function SextingSetOrganizer({
             onClick={() => setShowVoiceModal(false)}
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
+              className="bg-card border border-border rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="sticky top-0 z-10 p-4 border-b border-gray-700 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-between">
+              <div className="sticky top-0 z-10 p-4 border-b border-border bg-card flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl">
                     <Mic className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Voice Generator</h3>
-                    <p className="text-xs text-gray-400">Generate AI voice notes for your set</p>
+                    <h3 className="text-lg font-semibold text-foreground">Voice Generator</h3>
+                    <p className="text-xs text-muted-foreground">Generate AI voice notes for your set</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowVoiceModal(false)}
-                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
@@ -3344,20 +3343,20 @@ export default function SextingSetOrganizer({
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
           >
             <div 
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-200"
+              className="bg-card border-t sm:border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-200"
             >
-              <div className="p-6 border-b border-gray-700">
-                <h3 className="text-xl font-bold text-white">{confirmModal.title}</h3>
+              <div className="p-6 border-b border-border">
+                <h3 className="text-xl font-bold text-foreground">{confirmModal.title}</h3>
               </div>
 
               <div className="p-6">
-                <p className="text-gray-300">{confirmModal.message}</p>
+                <p className="text-foreground">{confirmModal.message}</p>
               </div>
 
-              <div className="p-6 border-t border-gray-700 flex gap-3">
+              <div className="p-6 border-t border-border flex gap-3">
                 <button
                   onClick={() => setConfirmModal(null)}
-                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -3368,8 +3367,8 @@ export default function SextingSetOrganizer({
                   }}
                   className={`flex-1 px-4 py-2.5 text-white rounded-xl font-medium transition-all duration-200 shadow-lg ${
                     confirmModal.isDangerous
-                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-red-500/25'
-                      : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 shadow-pink-500/25'
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+                      : 'bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)]'
                   }`}
                 >
                   {confirmModal.confirmText}
@@ -3383,7 +3382,7 @@ export default function SextingSetOrganizer({
       {/* Prominent Saving Order Indicator */}
       {savingOrder && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full shadow-2xl shadow-pink-500/50">
+          <div className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] text-white rounded-full shadow-2xl">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="font-medium">Saving order...</span>
           </div>
@@ -3395,7 +3394,7 @@ export default function SextingSetOrganizer({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full shadow-2xl shadow-pink-500/50 flex items-center justify-center transition-all duration-200"
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-200"
         >
           {uploading ? (
             <Loader2 className="w-6 h-6 animate-spin" />

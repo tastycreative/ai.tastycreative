@@ -989,64 +989,64 @@ export default function SeeDreamImageToVideo() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+    <div className="relative min-h-screen bg-white dark:bg-[#1a1625] text-sidebar-foreground">
       {/* Decorative background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
-        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[#EC67A1]/20 dark:bg-[#EC67A1]/10 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-[#5DC3F8]/10 dark:bg-[#5DC3F8]/5 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-[#EC67A1]/20 to-transparent" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header Section */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-start">
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+          <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
             <div className="flex items-center gap-3 mb-4">
-              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F774B9] via-[#EC67A1] to-[#E1518E] shadow-lg shadow-[#EC67A1]/30">
                 <ImageIcon className="w-6 h-6 text-white" />
                 <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">
                   Motion Studio
                 </p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">
+                <h1 className="text-3xl sm:text-4xl font-black text-sidebar-foreground">
                   SeeDream 4.5 — Image to Video
                 </h1>
               </div>
             </div>
-            <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
+            <p className="text-sm sm:text-base text-header-muted leading-relaxed">
               Transform your images into stunning AI-powered videos. Upload an
               image, describe the motion, and watch it come to life with
               cinematic quality.
             </p>
 
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EC67A1]/20 text-[#EC67A1]">
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Quality</p>
-                  <p className="font-semibold text-white">Up to 1080p</p>
+                  <p className="text-xs text-header-muted">Quality</p>
+                  <p className="font-semibold text-sidebar-foreground">Up to 1080p</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5DC3F8]/20 text-[#5DC3F8]">
                   <Settings className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Duration</p>
-                  <p className="font-semibold text-white">4-12 seconds</p>
+                  <p className="text-xs text-header-muted">Duration</p>
+                  <p className="font-semibold text-sidebar-foreground">4-12 seconds</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200">
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-500">
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Output</p>
-                  <p className="font-semibold text-white">MP4 · 24fps</p>
+                  <p className="text-xs text-header-muted">Output</p>
+                  <p className="font-semibold text-sidebar-foreground">MP4 · 24fps</p>
                 </div>
               </div>
             </div>
@@ -1057,7 +1057,7 @@ export default function SeeDreamImageToVideo() {
               <button
                 type="button"
                 onClick={() => setShowHelpModal(true)}
-                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-cyan-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white px-4 py-2 text-sm font-semibold shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl"
                 title="View Help & Tips"
               >
                 <Info className="w-4 h-4" />
@@ -1065,11 +1065,11 @@ export default function SeeDreamImageToVideo() {
               </button>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-4 shadow-2xl shadow-cyan-900/20 backdrop-blur">
+            <div className="rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-gradient-to-br from-[#EC67A1]/10 via-[#F774B9]/10 to-[#5DC3F8]/10 p-4 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-300">Status</p>
-                  <p className="font-semibold text-white">
+                  <p className="text-xs text-header-muted">Status</p>
+                  <p className="font-semibold text-sidebar-foreground">
                     {isGenerating
                       ? "Generating..."
                       : generatedVideos.length > 0
@@ -1077,7 +1077,7 @@ export default function SeeDreamImageToVideo() {
                         : "Awaiting input"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-200/80">
+                <div className="flex items-center gap-2 text-xs text-header-muted">
                   <span
                     className={`h-2 w-2 rounded-full ${isGenerating ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`}
                   />
@@ -1092,7 +1092,7 @@ export default function SeeDreamImageToVideo() {
                 </div>
               </div>
               {pollingStatus && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-cyan-100">
+                <div className="mt-3 flex items-center gap-2 text-sm text-[#EC67A1]">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   {pollingStatus}
                 </div>
@@ -1105,11 +1105,11 @@ export default function SeeDreamImageToVideo() {
         <div className="grid gap-6 lg:grid-cols-[420px_1fr] items-start">
           {/* Input Panel */}
           <div className="space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-cyan-900/40 backdrop-blur space-y-6">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur space-y-6">
               {/* Image Upload */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">
+                  <label className="text-sm font-semibold text-sidebar-foreground">
                     Starting Image *
                   </label>
                   {/* Reference Bank Button */}
@@ -1117,7 +1117,7 @@ export default function SeeDreamImageToVideo() {
                     <button
                       type="button"
                       onClick={() => setShowReferenceBankSelector(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
                       disabled={isGenerating}
                     >
                       <Library className="w-3.5 h-3.5" />
@@ -1137,13 +1137,13 @@ export default function SeeDreamImageToVideo() {
                     />
                     <label
                       htmlFor="image-upload"
-                      className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/20 rounded-2xl cursor-pointer hover:border-cyan-400/50 transition-all duration-300 bg-white/5 hover:bg-white/10"
+                      className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-2xl cursor-pointer hover:border-[#EC67A1]/50 transition-all duration-300 bg-white dark:bg-zinc-800/50 hover:bg-[#EC67A1]/5"
                     >
-                      <Upload className="w-12 h-12 text-cyan-400 mb-3" />
-                      <span className="text-sm font-medium text-slate-100">
+                      <Upload className="w-12 h-12 text-[#EC67A1] mb-3" />
+                      <span className="text-sm font-medium text-sidebar-foreground">
                         Click to upload image
                       </span>
-                      <span className="text-xs text-slate-400 mt-1">
+                      <span className="text-xs text-header-muted mt-1">
                         PNG, JPG, WEBP up to 30MB
                       </span>
                     </label>
@@ -1153,12 +1153,12 @@ export default function SeeDreamImageToVideo() {
                     <img
                       src={uploadedImage}
                       alt="Uploaded"
-                      className={`w-full h-48 object-contain rounded-2xl border-2 bg-black/30 ${
-                        fromReferenceBank ? 'border-cyan-400/50' : 'border-white/10'
+                      className={`w-full h-48 object-contain rounded-2xl border-2 bg-zinc-100 dark:bg-black/30 ${
+                        fromReferenceBank ? 'border-[#EC67A1]/50' : 'border-[#EC67A1]/20 dark:border-[#EC67A1]/30'
                       }`}
                     />
                     {fromReferenceBank && (
-                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-cyan-500/80 text-xs text-white flex items-center gap-1">
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-[#EC67A1] text-xs text-white flex items-center gap-1">
                         <Library className="w-3 h-3" />
                         From Reference Bank
                       </div>
@@ -1177,26 +1177,26 @@ export default function SeeDreamImageToVideo() {
               {/* Prompt */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between w-full group">
-                  <label className="text-sm font-semibold text-slate-100">
+                  <label className="text-sm font-semibold text-sidebar-foreground">
                     Motion Description *
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setShowTemplates(!showTemplates)}
-                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      className="rounded-full bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 px-3 py-1 text-[11px] font-semibold text-[#EC67A1] transition-colors flex items-center gap-1"
                       disabled={isGenerating}
                     >
                       <Sparkles className="w-3 h-3" />
                       Templates
                     </button>
-                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                    <span className="rounded-full bg-[#EC67A1]/20 px-3 py-1 text-[11px] font-semibold text-[#EC67A1]">Required</span>
                     <button
                       type="button"
                       onClick={() => setSectionsCollapsed(prev => ({ ...prev, prompt: !prev.prompt }))}
-                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                      className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                     >
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
+                      <ChevronDown className={`w-4 h-4 text-header-muted transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
                     </button>
                   </div>
                 </div>
@@ -1204,27 +1204,27 @@ export default function SeeDreamImageToVideo() {
                 <div className={`space-y-2 ${sectionsCollapsed.prompt ? 'hidden lg:block' : ''}`}>
                 {/* Prompt Templates Dropdown */}
                 {showTemplates && (
-                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <p className="text-xs font-semibold text-indigo-200 mb-2">Motion Templates:</p>
+                  <div className="rounded-2xl border border-[#EC67A1]/30 dark:border-[#EC67A1]/40 bg-white dark:bg-zinc-800/80 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs font-semibold text-[#EC67A1] mb-2">Motion Templates:</p>
                     <div className="grid gap-2">
                       {promptTemplates.map((template, idx) => (
                         <button
                           key={idx}
                           onClick={() => applyTemplate(template)}
                           disabled={isGenerating}
-                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all disabled:opacity-50"
+                          className="w-full text-left p-3 rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-gradient-to-br from-[#EC67A1]/5 to-transparent hover:from-[#EC67A1]/10 hover:border-[#EC67A1]/40 transition-all disabled:opacity-50"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-white mb-0.5">{template.name}</p>
-                              <p className="text-xs text-slate-400">{template.description}</p>
+                              <p className="text-sm font-semibold text-sidebar-foreground mb-0.5">{template.name}</p>
+                              <p className="text-xs text-header-muted">{template.description}</p>
                             </div>
-                            <Sparkles className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                            <Sparkles className="w-4 h-4 text-[#EC67A1] opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
                           </div>
                         </button>
                       ))}
                     </div>
-                    <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl border border-[#EC67A1]/10 bg-gradient-to-b from-[#EC67A1]/5 to-transparent" />
                   </div>
                 )}
 
@@ -1234,17 +1234,17 @@ export default function SeeDreamImageToVideo() {
                   placeholder={
                     "Describe the motion you want...\n\nExample: Camera slowly zooms in, character opens eyes and smiles gently. Soft wind blows through hair."
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent disabled:opacity-50"
+                  className="w-full rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-header-muted transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50"
                   rows={5}
                   disabled={isGenerating}
                 />
                 
                 <div className="flex items-center justify-between text-xs">
-                  <p className="text-slate-300">
+                  <p className="text-header-muted">
                     Describe camera movement, subject actions, and style cues.
                   </p>
                   <span className={`font-semibold ${
-                    prompt.length > 500 ? 'text-red-400' : prompt.length > 300 ? 'text-amber-400' : 'text-emerald-400'
+                    prompt.length > 500 ? 'text-red-500 dark:text-red-400' : prompt.length > 300 ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'
                   }`}>
                     {prompt.length > 500 && '⚠️ '}{prompt.length} chars
                   </span>
@@ -1252,15 +1252,15 @@ export default function SeeDreamImageToVideo() {
 
                 {/* User Presets Display */}
                 {userPresets.length > 0 && (
-                  <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                    <p className="text-xs font-semibold text-slate-300 mb-2">Your Presets:</p>
+                  <div className="mt-3 p-3 rounded-xl bg-white dark:bg-zinc-800/30 border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+                    <p className="text-xs font-semibold text-header-muted mb-2">Your Presets:</p>
                     <div className="flex flex-wrap gap-2">
                       {userPresets.map((preset) => (
                         <div key={preset.id} className="group relative">
                           <button
                             onClick={() => loadPreset(preset)}
                             disabled={isGenerating}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-xs font-medium text-indigo-100 border border-indigo-500/30 transition-all disabled:opacity-50"
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-xs font-medium text-[#EC67A1] border border-[#EC67A1]/30 transition-all disabled:opacity-50"
                           >
                             {preset.name}
                           </button>
@@ -1282,10 +1282,10 @@ export default function SeeDreamImageToVideo() {
               {/* Resolution & Aspect Ratio */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">
+                  <label className="text-sm font-semibold text-sidebar-foreground">
                     Resolution
                   </label>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-header-muted">
                     {currentDimensions}
                   </span>
                 </div>
@@ -1297,13 +1297,13 @@ export default function SeeDreamImageToVideo() {
                       onClick={() => setResolution(res)}
                       className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                         resolution === res
-                          ? "border-cyan-400/70 bg-cyan-500/10 text-white shadow-cyan-900/30"
-                          : "border-white/10 bg-white/5 text-slate-200"
+                          ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/20"
+                          : "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 text-sidebar-foreground"
                       } disabled:opacity-50`}
                       disabled={isGenerating}
                     >
                       <p className="font-semibold">{res}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-header-muted">
                         {res === "720p" ? "HD Quality" : "Full HD"}
                       </p>
                     </button>
@@ -1311,7 +1311,7 @@ export default function SeeDreamImageToVideo() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-100">
+                  <label className="text-sm font-semibold text-sidebar-foreground">
                     Aspect Ratio
                   </label>
                   <div className="grid grid-cols-4 gap-2">
@@ -1322,8 +1322,8 @@ export default function SeeDreamImageToVideo() {
                         onClick={() => setAspectRatio(ratio)}
                         className={`rounded-xl border px-2 py-2 text-xs font-semibold transition hover:-translate-y-0.5 ${
                           aspectRatio === ratio
-                            ? "border-cyan-400/70 bg-cyan-500/10 text-white"
-                            : "border-white/10 bg-white/5 text-slate-300"
+                            ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-[#EC67A1]"
+                            : "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 text-sidebar-foreground"
                         } disabled:opacity-50`}
                         disabled={isGenerating}
                       >
@@ -1333,9 +1333,9 @@ export default function SeeDreamImageToVideo() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 flex items-center justify-between">
-                  <span className="text-slate-400">Output Dimensions</span>
-                  <span className="font-semibold text-cyan-200">
+                <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground flex items-center justify-between">
+                  <span className="text-header-muted">Output Dimensions</span>
+                  <span className="font-semibold text-[#EC67A1]">
                     {currentDimensions}
                   </span>
                 </div>
@@ -1344,15 +1344,15 @@ export default function SeeDreamImageToVideo() {
               {/* Duration Slider */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">
+                  <label className="text-sm font-semibold text-sidebar-foreground">
                     Duration
                   </label>
-                  <span className="text-xs text-cyan-200 font-semibold">
+                  <span className="text-xs text-[#EC67A1] font-semibold">
                     {duration === -1 ? "Auto" : `${duration}s`}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 w-8">Auto</span>
+                  <span className="text-xs text-header-muted w-8">Auto</span>
                   <input
                     type="range"
                     min={0}
@@ -1362,12 +1362,12 @@ export default function SeeDreamImageToVideo() {
                     onChange={(e) =>
                       setDurationSliderValue(Number(e.target.value))
                     }
-                    className="flex-1 accent-cyan-400"
+                    className="flex-1 accent-[#EC67A1]"
                     disabled={isGenerating}
                   />
-                  <span className="text-xs text-slate-400 w-8">12s</span>
+                  <span className="text-xs text-header-muted w-8">12s</span>
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center justify-between text-xs text-header-muted">
                   <span>Model chooses optimal length</span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
@@ -1383,8 +1383,8 @@ export default function SeeDreamImageToVideo() {
                   onClick={() => setCameraFixed((prev) => !prev)}
                   className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                     cameraFixed
-                      ? "border-cyan-400/70 bg-cyan-500/10 text-white shadow-cyan-900/30"
-                      : "border-white/10 bg-white/5 text-slate-200"
+                      ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/20"
+                      : "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 text-sidebar-foreground"
                   } disabled:opacity-50`}
                   disabled={isGenerating}
                 >
@@ -1392,7 +1392,7 @@ export default function SeeDreamImageToVideo() {
                     <Video className="w-4 h-4" />
                     Fixed Camera
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-header-muted">
                     {cameraFixed ? "Static view" : "Dynamic movement"}
                   </p>
                 </button>
@@ -1402,15 +1402,15 @@ export default function SeeDreamImageToVideo() {
                   onClick={() => setGenerateAudio((prev) => !prev)}
                   className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                     generateAudio
-                      ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
-                      : "border-white/10 bg-white/5 text-slate-200"
+                      ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/20"
+                      : "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 text-sidebar-foreground"
                   } disabled:opacity-50`}
                   disabled={isGenerating}
                 >
                   <p className="font-semibold flex items-center gap-2">
                     🎵 Generate Audio
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-header-muted">
                     {generateAudio ? "With sound" : "Silent video"}
                   </p>
                 </button>
@@ -1419,10 +1419,10 @@ export default function SeeDreamImageToVideo() {
               {/* Folder Selection */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-purple-300" />
-                  <p className="text-sm font-semibold text-white">Save to Vault</p>
+                  <Archive className="w-4 h-4 text-[#EC67A1]" />
+                  <p className="text-sm font-semibold text-sidebar-foreground">Save to Vault</p>
                   {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
+                    <Loader2 className="w-3 h-3 animate-spin text-[#EC67A1]" />
                   )}
                 </div>
                 
@@ -1435,14 +1435,14 @@ export default function SeeDreamImageToVideo() {
                   isAllProfiles={isAllProfiles}
                   selectedProfile={selectedProfile}
                   mounted={mounted}
-                  accentColor="emerald"
+                  accentColor="pink"
                   label="Save to Folder"
                 />
               </div>
 
               {/* Error Display */}
               {error && (
-                <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 dark:border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300">
                   <AlertCircle className="w-4 h-4" />
                   {error}
                 </div>
@@ -1453,7 +1453,7 @@ export default function SeeDreamImageToVideo() {
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim() || !uploadedImage}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
                 >
                   {isGenerating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -1466,7 +1466,7 @@ export default function SeeDreamImageToVideo() {
                   onClick={handleReset}
                   type="button"
                   disabled={isGenerating}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-5 py-3 text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" /> Reset
                 </button>
@@ -1477,21 +1477,21 @@ export default function SeeDreamImageToVideo() {
           {/* Output Panel */}
           <div className="space-y-6">
             {/* Generated Videos */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Generated Videos</h2>
-                  <p className="text-xs text-slate-400">Latest output</p>
+                  <h2 className="text-lg font-bold text-sidebar-foreground">Generated Videos</h2>
+                  <p className="text-xs text-header-muted">Latest output</p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-300">
+                <div className="flex items-center gap-2 text-xs text-header-muted">
                   <Play className="w-4 h-4" />
                   {generatedVideos.length} clip{generatedVideos.length !== 1 && "s"}
                 </div>
               </div>
 
               {generatedVideos.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-300">
-                  <Video className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                <div className="rounded-2xl border border-dashed border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 p-6 text-center text-header-muted">
+                  <Video className="w-6 h-6 mx-auto mb-2 text-[#EC67A1]" />
                   <p className="text-sm">Your generated video will appear here</p>
                 </div>
               ) : (
@@ -1499,7 +1499,7 @@ export default function SeeDreamImageToVideo() {
                   {generatedVideos.map((video) => (
                     <div
                       key={video.id}
-                      className="group relative rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer"
+                      className="group relative rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 overflow-hidden hover:border-[#EC67A1]/60 transition-all cursor-pointer"
                       onClick={() => openVideoModal(video)}
                     >
                       <div className="aspect-video relative bg-black">
@@ -1515,10 +1515,10 @@ export default function SeeDreamImageToVideo() {
                         </div>
                       </div>
                       <div className="p-3 space-y-2">
-                        <p className="text-xs text-slate-200 line-clamp-2">
+                        <p className="text-xs text-sidebar-foreground line-clamp-2">
                           {video.prompt}
                         </p>
-                        <div className="flex items-center justify-between text-xs text-slate-400">
+                        <div className="flex items-center justify-between text-xs text-header-muted">
                           <span>
                             {video.duration === -1
                               ? "Auto"
@@ -1532,7 +1532,7 @@ export default function SeeDreamImageToVideo() {
                                 `seedream-i2v-${video.id}.mp4`
                               );
                             }}
-                            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white hover:bg-cyan-500/20 hover:border-cyan-400/50 transition"
+                            className="inline-flex items-center gap-1 rounded-full border border-[#EC67A1]/20 bg-[#EC67A1]/10 px-2 py-1 text-sidebar-foreground hover:bg-[#EC67A1]/20 hover:border-[#EC67A1]/40 transition"
                           >
                             <Download className="w-3 h-3" />
                             Save
@@ -1546,31 +1546,31 @@ export default function SeeDreamImageToVideo() {
             </div>
 
             {/* Recent Generations */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-white">Recent Generations</h2>
+                    <h2 className="text-lg font-bold text-sidebar-foreground">Recent Generations</h2>
                     {generationHistory.length > 0 && (
-                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                      <span className="text-xs text-header-muted">({generationHistory.length})</span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">History</p>
+                  <p className="text-xs text-header-muted">History</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {generationHistory.length > 4 && (
                     <button
                       onClick={() => setShowHistoryModal(true)}
-                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                      className="text-xs text-[#EC67A1] hover:text-[#E1518E] transition flex items-center gap-1"
                     >
                       View All
-                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                      <span className="bg-[#EC67A1]/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={loadGenerationHistory}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    className="inline-flex items-center gap-1 rounded-full border border-[#EC67A1]/20 bg-[#EC67A1]/10 px-3 py-1 text-xs text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow"
                     disabled={isLoadingHistory}
                   >
                     <RefreshCw
@@ -1582,8 +1582,8 @@ export default function SeeDreamImageToVideo() {
               </div>
 
               {generationHistory.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-300">
-                  <Clock className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                <div className="rounded-2xl border border-dashed border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 p-6 text-center text-header-muted">
+                  <Clock className="w-6 h-6 mx-auto mb-2 text-[#EC67A1]" />
                   <p className="text-sm">Recent generations will appear here</p>
                 </div>
               ) : (
@@ -1591,7 +1591,7 @@ export default function SeeDreamImageToVideo() {
                   {generationHistory.slice(0, 4).map((video) => (
                     <div
                       key={video.id}
-                      className="group relative rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer"
+                      className="group relative rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 overflow-hidden hover:border-[#EC67A1]/60 transition-all cursor-pointer"
                       onClick={() => openVideoModal(video)}
                     >
                       <div className="aspect-video relative bg-black">
@@ -1607,10 +1607,10 @@ export default function SeeDreamImageToVideo() {
                         </div>
                       </div>
                       <div className="p-3 space-y-2">
-                        <p className="text-xs text-slate-200 line-clamp-2">
+                        <p className="text-xs text-sidebar-foreground line-clamp-2">
                           {video.prompt}
                         </p>
-                        <div className="flex items-center justify-between text-xs text-slate-400">
+                        <div className="flex items-center justify-between text-xs text-header-muted">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {video.duration === -1
@@ -1625,7 +1625,7 @@ export default function SeeDreamImageToVideo() {
                                 `seedream-i2v-${video.id}.mp4`
                               );
                             }}
-                            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white hover:bg-cyan-500/20 hover:border-cyan-400/50 transition"
+                            className="inline-flex items-center gap-1 rounded-full border border-[#EC67A1]/20 bg-[#EC67A1]/10 px-2 py-1 text-sidebar-foreground hover:bg-[#EC67A1]/20 hover:border-[#EC67A1]/40 transition"
                           >
                             <Download className="w-3 h-3" />
                             Save
@@ -1646,18 +1646,18 @@ export default function SeeDreamImageToVideo() {
         selectedVideo &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur"
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowVideoModal(false);
             }}
           >
             <div
-              className="relative w-full max-w-6xl max-h-[85vh] rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              className="relative w-full max-w-6xl max-h-[85vh] rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-[#1a1625] shadow-2xl shadow-[#EC67A1]/10"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 z-10"
+                className="absolute right-4 top-4 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700 z-10"
                 onClick={() => setShowVideoModal(false)}
               >
                 <span className="sr-only">Close</span>
@@ -1670,11 +1670,11 @@ export default function SeeDreamImageToVideo() {
                 src={selectedVideo.videoUrl}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
-              <div className="p-4 text-sm text-slate-200">
-                <p className="font-semibold text-white mb-1">
+              <div className="p-4 text-sm text-sidebar-foreground">
+                <p className="font-semibold text-sidebar-foreground mb-1">
                   {selectedVideo.prompt}
                 </p>
-                <p className="text-slate-400 mb-3">
+                <p className="text-header-muted mb-3">
                   {selectedVideo.duration === -1
                     ? "Auto"
                     : `${selectedVideo.duration}s`}{" "}
@@ -1683,7 +1683,7 @@ export default function SeeDreamImageToVideo() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleReuseSettings(selectedVideo)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 px-4 py-2 text-sm font-medium text-cyan-300 transition"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 border border-[#EC67A1]/30 px-4 py-2 text-sm font-medium text-[#EC67A1] transition"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Reuse Settings
@@ -1695,7 +1695,7 @@ export default function SeeDreamImageToVideo() {
                         `seedream-i2v-${selectedVideo.id}.mp4`
                       )
                     }
-                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 text-sm font-medium text-white transition"
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-sidebar-foreground transition"
                   >
                     <Download className="w-4 h-4" />
                     Download
@@ -1711,34 +1711,34 @@ export default function SeeDreamImageToVideo() {
       {showHelpModal &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur"
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowHelpModal(false);
             }}
           >
-            <div className="relative max-w-3xl w-full max-h-[85vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <div className="relative max-w-3xl w-full max-h-[85vh] overflow-auto rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-[#1a1625] p-6 shadow-2xl shadow-[#EC67A1]/10">
               <button
                 type="button"
-                className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20"
+                className="absolute right-4 top-4 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 onClick={() => setShowHelpModal(false)}
               >
                 <span className="sr-only">Close</span>
                 <X className="w-4 h-4" />
               </button>
 
-              <div className="space-y-6 text-slate-100">
+              <div className="space-y-6 text-sidebar-foreground">
                 <div className="flex items-center gap-2">
-                  <Info className="w-5 h-5 text-cyan-400" />
+                  <Info className="w-5 h-5 text-[#EC67A1]" />
                   <h3 className="text-xl font-semibold">Image-to-Video Guide</h3>
                 </div>
 
                 {/* Image Tips */}
-                <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
+                <div className="border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-4 bg-[#F8F8F8] dark:bg-zinc-800/50">
                   <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-cyan-400" />
+                    <ImageIcon className="w-4 h-4 text-[#EC67A1]" />
                     Image Requirements
                   </h4>
-                  <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
+                  <ul className="text-sm space-y-1 text-header-muted list-disc list-inside">
                     <li>Formats: JPEG, PNG, WebP, BMP, TIFF, GIF, HEIC</li>
                     <li>Size: Up to 30MB</li>
                     <li>Dimensions: 300px-6000px, aspect ratio 0.4-2.5</li>
@@ -1748,8 +1748,8 @@ export default function SeeDreamImageToVideo() {
 
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-2xl p-4">
-                    <p className="font-semibold text-emerald-100 mb-2">✓ Do</p>
-                    <ul className="text-sm space-y-1 text-emerald-50 list-disc list-inside">
+                    <p className="font-semibold text-emerald-600 dark:text-emerald-300 mb-2">✓ Do</p>
+                    <ul className="text-sm space-y-1 text-emerald-700 dark:text-emerald-200 list-disc list-inside">
                       <li>Upload high-resolution images</li>
                       <li>Describe motion clearly</li>
                       <li>Match aspect ratio to your image</li>
@@ -1757,8 +1757,8 @@ export default function SeeDreamImageToVideo() {
                     </ul>
                   </div>
                   <div className="bg-red-500/10 border border-red-400/30 rounded-2xl p-4">
-                    <p className="font-semibold text-red-100 mb-2">✗ Avoid</p>
-                    <ul className="text-sm space-y-1 text-red-50 list-disc list-inside">
+                    <p className="font-semibold text-red-600 dark:text-red-300 mb-2">✗ Avoid</p>
+                    <ul className="text-sm space-y-1 text-red-700 dark:text-red-200 list-disc list-inside">
                       <li>Low-quality or blurry images</li>
                       <li>Extreme aspect ratio mismatches</li>
                       <li>Overly complex multi-scene actions</li>
@@ -1768,12 +1768,12 @@ export default function SeeDreamImageToVideo() {
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
+                  <div className="border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-4 bg-[#F8F8F8] dark:bg-zinc-800/50">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Settings className="w-4 h-4 text-cyan-400" />
+                      <Settings className="w-4 h-4 text-[#EC67A1]" />
                       Parameters
                     </h4>
-                    <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
+                    <ul className="text-sm space-y-1 text-header-muted list-disc list-inside">
                       <li>720p: Faster processing</li>
                       <li>1080p: Higher quality output</li>
                       <li>Adaptive: Auto-fits to your image</li>
@@ -1781,17 +1781,17 @@ export default function SeeDreamImageToVideo() {
                       <li>Audio: Synced sound generation</li>
                     </ul>
                   </div>
-                  <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
+                  <div className="border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl p-4 bg-[#F8F8F8] dark:bg-zinc-800/50">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-cyan-400" />
+                      <Zap className="w-4 h-4 text-[#EC67A1]" />
                       Example Prompts
                     </h4>
-                    <ul className="text-sm space-y-2 text-slate-200">
-                      <li className="p-2 bg-slate-800/50 rounded-lg">
+                    <ul className="text-sm space-y-2 text-header-muted">
+                      <li className="p-2 bg-white dark:bg-zinc-800/80 rounded-lg">
                         &quot;Character opens eyes, smiles gently, hair blowing in
                         wind&quot;
                       </li>
-                      <li className="p-2 bg-slate-800/50 rounded-lg">
+                      <li className="p-2 bg-white dark:bg-zinc-800/80 rounded-lg">
                         &quot;Camera slowly zooms in, dramatic lighting change&quot;
                       </li>
                     </ul>
@@ -1799,11 +1799,11 @@ export default function SeeDreamImageToVideo() {
                 </div>
 
                 <div className="border border-amber-400/30 bg-amber-500/10 rounded-2xl p-4">
-                  <h4 className="font-semibold flex items-center gap-2 text-amber-100">
+                  <h4 className="font-semibold flex items-center gap-2 text-amber-600 dark:text-amber-300">
                     <AlertCircle className="w-4 h-4" />
                     Notes
                   </h4>
-                  <ul className="text-sm space-y-1 text-amber-50 list-disc list-inside">
+                  <ul className="text-sm space-y-1 text-amber-700 dark:text-amber-200 list-disc list-inside">
                     <li>Processing time: 30s - 2min depending on duration</li>
                     <li>Non-matching aspect ratios apply center-based cropping</li>
                     <li>Videos auto-save to your S3 storage</li>
@@ -1818,27 +1818,27 @@ export default function SeeDreamImageToVideo() {
       {/* View All History Modal */}
       {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/90 backdrop-blur-sm p-4"
           onClick={() => setShowHistoryModal(false)}
         >
           <div 
-            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-[#1a1625] shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-[#1a1625] backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
-                  <Film className="w-5 h-5 text-cyan-400" />
+                <div className="p-2 rounded-xl bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20">
+                  <Film className="w-5 h-5 text-[#EC67A1]" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
-                  <p className="text-xs text-slate-400">{generationHistory.length} videos generated</p>
+                  <h2 className="text-lg font-semibold text-sidebar-foreground">Generation History</h2>
+                  <p className="text-xs text-header-muted">{generationHistory.length} videos generated</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+                className="rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1858,7 +1858,7 @@ export default function SeeDreamImageToVideo() {
                         setShowHistoryModal(false);
                         openVideoModal(video);
                       }}
-                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:-translate-y-1 hover:border-cyan-200/40"
+                      className="group overflow-hidden rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-zinc-800/30 cursor-pointer transition hover:-translate-y-1 hover:border-[#EC67A1]/50"
                     >
                       <div className="relative">
                         <video
@@ -1883,17 +1883,17 @@ export default function SeeDreamImageToVideo() {
                         </div>
                       </div>
                       <div className="px-4 py-3">
-                        <p className="text-sm font-medium text-white line-clamp-2 mb-1">{video.prompt}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
+                        <p className="text-sm font-medium text-sidebar-foreground line-clamp-2 mb-1">{video.prompt}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-header-muted flex-wrap">
                           {isAllProfiles && video.profileName && (
-                            <span className="bg-violet-500/20 rounded px-1.5 py-0.5 text-violet-300">
+                            <span className="bg-violet-500/20 rounded px-1.5 py-0.5 text-violet-600 dark:text-violet-300">
                               {video.profileName}
                             </span>
                           )}
-                          <span className="bg-white/10 rounded px-1.5 py-0.5">
+                          <span className="bg-zinc-200 dark:bg-zinc-700/50 rounded px-1.5 py-0.5">
                             {video.duration === -1 ? "Auto" : `${video.duration}s`}
                           </span>
-                          <span className="bg-cyan-500/20 rounded px-1.5 py-0.5 text-cyan-300">
+                          <span className="bg-[#EC67A1]/20 rounded px-1.5 py-0.5 text-[#EC67A1]">
                             {video.modelVersion}
                           </span>
                         </div>
@@ -1902,7 +1902,7 @@ export default function SeeDreamImageToVideo() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <div className="flex flex-col items-center justify-center py-16 text-header-muted">
                   <Film className="w-12 h-12 mb-3 opacity-50" />
                   <p>No generation history yet</p>
                 </div>
@@ -1925,14 +1925,14 @@ export default function SeeDreamImageToVideo() {
 
       {/* Save Preset Modal */}
       {showPresetModal && typeof window !== 'undefined' && document?.body && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4 text-white">Save Image-to-Video Preset</h3>
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-white dark:bg-[#1a1625] rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-[#EC67A1]/10 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+            <h3 className="text-xl font-semibold mb-4 text-sidebar-foreground">Save Image-to-Video Preset</h3>
             
             <div className="space-y-4">
               {/* Preset Name Input */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-header-muted mb-2">
                   Preset Name
                 </label>
                 <input
@@ -1940,35 +1940,35 @@ export default function SeeDreamImageToVideo() {
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   placeholder="e.g., My Motion Settings"
-                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-lg text-sidebar-foreground placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50"
                   autoFocus
                 />
               </div>
 
               {/* Current Settings Preview */}
-              <div className="bg-slate-900 rounded-lg p-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 rounded-lg p-4 space-y-2">
+                <p className="text-xs font-semibold text-header-muted uppercase tracking-wide mb-2">
                   Settings to Save:
                 </p>
-                <div className="space-y-1.5 text-sm text-slate-300">
+                <div className="space-y-1.5 text-sm text-sidebar-foreground">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Resolution:</span>
+                    <span className="text-header-muted">Resolution:</span>
                     <span className="font-medium">{resolution}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Aspect Ratio:</span>
+                    <span className="text-header-muted">Aspect Ratio:</span>
                     <span className="font-medium">{aspectRatio}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Duration:</span>
+                    <span className="text-header-muted">Duration:</span>
                     <span className="font-medium">{duration === -1 ? 'Auto' : `${duration}s`}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Camera:</span>
+                    <span className="text-header-muted">Camera:</span>
                     <span className="font-medium">{cameraFixed ? 'Fixed' : 'Dynamic'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Audio:</span>
+                    <span className="text-header-muted">Audio:</span>
                     <span className="font-medium">{generateAudio ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
@@ -1981,14 +1981,14 @@ export default function SeeDreamImageToVideo() {
                     setShowPresetModal(false);
                     setPresetName('');
                   }}
-                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition"
+                  className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground rounded-lg font-medium transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveAsPreset}
                   disabled={!presetName.trim()}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EC67A1]/30"
                 >
                   Save Preset
                 </button>

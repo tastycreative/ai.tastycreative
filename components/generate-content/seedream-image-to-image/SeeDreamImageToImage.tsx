@@ -1396,11 +1396,11 @@ export default function SeeDreamImageToImage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+    <div className="relative min-h-screen bg-white dark:bg-[#1a1625] text-sidebar-foreground">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
-        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-[#EC67A1]/20 dark:bg-[#EC67A1]/10 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-[#5DC3F8]/10 dark:bg-[#5DC3F8]/5 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-[#EC67A1]/20 to-transparent" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -1426,44 +1426,44 @@ export default function SeeDreamImageToImage() {
         
         {/* Header */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+          <div className="bg-[#F8F8F8] dark:bg-zinc-800/50 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
-                <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
+                <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F774B9] via-[#EC67A1] to-[#E1518E] shadow-lg shadow-[#EC67A1]/30">
                   <Sparkles className="w-6 h-6 text-white" />
                   <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
-                  <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Image to Image</h1>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Live Studio</p>
+                  <h1 className="text-3xl sm:text-4xl font-black text-sidebar-foreground">SeeDream 4.5 — Image to Image</h1>
                 </div>
               </div>
               <CreditCostBadge variant="compact" />
             </div>
-            <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
+            <p className="text-sm sm:text-base text-header-muted leading-relaxed">
               Transform references into finished visuals. Upload a primary image, add optional style refs, and steer with a concise prompt.
             </p>
 
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200"><Upload className="w-5 h-5" /></div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EC67A1]/20 text-[#EC67A1]"><Upload className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-xs text-slate-300">Inputs</p>
-                  <p className="text-sm font-semibold text-white">1-14 refs</p>
+                  <p className="text-xs text-header-muted">Inputs</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">1-14 refs</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200"><Settings className="w-5 h-5" /></div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5DC3F8]/20 text-[#5DC3F8]"><Settings className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-xs text-slate-300">Framing</p>
-                  <p className="text-sm font-semibold text-white">Smart ratios</p>
+                  <p className="text-xs text-header-muted">Framing</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">Smart ratios</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200"><Download className="w-5 h-5" /></div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-white dark:bg-zinc-800/30 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-500"><Download className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-xs text-slate-300">Output</p>
-                  <p className="text-sm font-semibold text-white">2K/4K ready</p>
+                  <p className="text-xs text-header-muted">Output</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">2K/4K ready</p>
                 </div>
               </div>
             </div>
@@ -1474,7 +1474,7 @@ export default function SeeDreamImageToImage() {
               <button
                 type="button"
                 onClick={() => setShowHelpModal(true)}
-                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-cyan-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white px-4 py-2 text-sm font-semibold shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl"
                 title="View Help & Tips"
               >
                 <Info className="w-4 h-4" />
@@ -1482,17 +1482,17 @@ export default function SeeDreamImageToImage() {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <p className="text-xs text-slate-300">Current size</p>
-                <p className="text-lg font-semibold text-white">{currentSize}</p>
+              <div className="rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-[#F8F8F8] dark:bg-zinc-800/50 px-4 py-3">
+                <p className="text-xs text-header-muted">Current size</p>
+                <p className="text-lg font-semibold text-sidebar-foreground">{currentSize}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <p className="text-xs text-slate-300">Aspect</p>
-                <p className="text-lg font-semibold text-white">{selectedRatio}</p>
+              <div className="rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-[#F8F8F8] dark:bg-zinc-800/50 px-4 py-3">
+                <p className="text-xs text-header-muted">Aspect</p>
+                <p className="text-lg font-semibold text-sidebar-foreground">{selectedRatio}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <p className="text-xs text-slate-300">Resolution</p>
-                <p className="text-lg font-semibold text-white">{selectedResolution}</p>
+              <div className="rounded-2xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-[#F8F8F8] dark:bg-zinc-800/50 px-4 py-3">
+                <p className="text-xs text-header-muted">Resolution</p>
+                <p className="text-lg font-semibold text-sidebar-foreground">{selectedResolution}</p>
               </div>
             </div>
           </div>
@@ -1501,31 +1501,31 @@ export default function SeeDreamImageToImage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel - Generation Controls */}
           <div className="lg:col-span-1">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur space-y-6">
+            <div className="rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-zinc-800/50 p-6 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur space-y-6">
               {/* Image Upload */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between w-full group">
-                  <label className="text-sm font-semibold text-white">Reference Images</label>
+                  <label className="text-sm font-semibold text-sidebar-foreground">Reference Images</label>
                   <div className="flex items-center gap-2">
                     {/* Reference Bank Button */}
                     {mounted && (
                       <button
                         type="button"
                         onClick={() => setShowReferenceBankSelector(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
                         disabled={isGenerating}
                       >
                         <Library className="w-3.5 h-3.5" />
                         Reference Bank
                       </button>
                     )}
-                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">{uploadedImages.length || 0} added</span>
+                    <span className="rounded-full bg-[#EC67A1]/20 px-3 py-1 text-[11px] font-semibold text-[#EC67A1]">{uploadedImages.length || 0} added</span>
                     <button
                       type="button"
                       onClick={() => setSectionsCollapsed(prev => ({ ...prev, upload: !prev.upload }))}
-                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                      className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                     >
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.upload ? '' : 'rotate-180'}`} />
+                      <ChevronDown className={`w-4 h-4 text-header-muted transition-transform ${sectionsCollapsed.upload ? '' : 'rotate-180'}`} />
                     </button>
                   </div>
                 </div>
@@ -1548,11 +1548,11 @@ export default function SeeDreamImageToImage() {
                         >
                           <div className={`relative overflow-hidden rounded-xl border ${
                             draggedIndex === index 
-                              ? 'border-cyan-400 shadow-lg shadow-cyan-400/50 opacity-50 scale-95' 
+                              ? 'border-[#EC67A1] shadow-lg shadow-[#EC67A1]/50 opacity-50 scale-95' 
                               : img.fromReferenceBank 
                                 ? 'border-violet-500/30' 
-                                : 'border-white/10'
-                          } bg-white/5 shadow-lg shadow-cyan-900/30 transition-all hover:-translate-y-1 hover:shadow-2xl ${draggedIndex !== null ? 'cursor-move' : ''}`}>
+                                : 'border-[#EC67A1]/20 dark:border-[#EC67A1]/30'
+                          } bg-white dark:bg-zinc-800/50 shadow-lg shadow-[#EC67A1]/10 transition-all hover:-translate-y-1 hover:shadow-2xl ${draggedIndex !== null ? 'cursor-move' : ''}`}>
                             <img
                               src={img.base64}
                               alt={`Reference ${index + 1}`}
@@ -1570,7 +1570,7 @@ export default function SeeDreamImageToImage() {
                                     handleMoveImageUp(index);
                                   }}
                                   disabled={isGenerating}
-                                  className="rounded-md bg-slate-900/90 p-1 text-cyan-300 border border-white/20 hover:bg-cyan-500/20 hover:border-cyan-400 transition"
+                                  className="rounded-md bg-white dark:bg-zinc-800 p-1 text-[#EC67A1] border border-[#EC67A1]/30 hover:bg-[#EC67A1]/20 hover:border-[#EC67A1] transition"
                                   title="Move up"
                                 >
                                   <ChevronUp className="w-3.5 h-3.5" />
@@ -1585,7 +1585,7 @@ export default function SeeDreamImageToImage() {
                                     handleMoveImageDown(index);
                                   }}
                                   disabled={isGenerating}
-                                  className="rounded-md bg-slate-900/90 p-1 text-cyan-300 border border-white/20 hover:bg-cyan-500/20 hover:border-cyan-400 transition"
+                                  className="rounded-md bg-white dark:bg-zinc-800 p-1 text-[#EC67A1] border border-[#EC67A1]/30 hover:bg-[#EC67A1]/20 hover:border-[#EC67A1] transition"
                                   title="Move down"
                                 >
                                   <ChevronDown className="w-3.5 h-3.5" />
@@ -1596,7 +1596,7 @@ export default function SeeDreamImageToImage() {
                               <button
                                 onClick={() => handleRemoveImage(img.id)}
                                 disabled={isGenerating}
-                                className="rounded-md bg-red-500/20 p-1 text-red-300 border border-red-500/40 hover:bg-red-500/30 hover:border-red-400 transition"
+                                className="rounded-md bg-red-500/20 p-1 text-red-500 dark:text-red-400 border border-red-500/40 hover:bg-red-500/30 hover:border-red-400 transition"
                                 title="Remove image"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -1615,7 +1615,7 @@ export default function SeeDreamImageToImage() {
                             {/* Position and Status Badges */}
                             <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-1.5">
                               <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow ${
-                                index === 0 ? 'bg-cyan-500/90 text-white' : 'bg-white/90 text-slate-900'
+                                index === 0 ? 'bg-[#EC67A1] text-white' : 'bg-white dark:bg-zinc-700 text-sidebar-foreground'
                               }`}>
                                 {index === 0 ? '⭐ Primary' : `Ref ${index + 1}`}
                               </span>
@@ -1629,7 +1629,7 @@ export default function SeeDreamImageToImage() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-400 text-center flex items-center justify-center gap-1">
+                    <p className="text-xs text-header-muted text-center flex items-center justify-center gap-1">
                       <Sparkles className="w-3 h-3" />
                       Drag images to reorder or use arrow buttons • First image is primary reference
                     </p>
@@ -1638,25 +1638,25 @@ export default function SeeDreamImageToImage() {
 
                 {/* Compression Progress Indicator */}
                 {compressionProgress.length > 0 && (
-                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-blue-200 flex items-center gap-2">
+                  <div className="rounded-xl border border-[#5DC3F8]/30 bg-[#5DC3F8]/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-[#5DC3F8] flex items-center gap-2">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Optimizing images...
                     </p>
                     {compressionProgress.map((item) => (
                       <div key={item.imageId} className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px] text-blue-100">
+                        <div className="flex items-center justify-between text-[10px] text-sidebar-foreground">
                           <span className="truncate max-w-[150px]">{item.fileName}</span>
                           <span>{item.progress}%</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-blue-900/40 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
                           <div 
-                            className="h-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-300"
+                            className="h-full bg-gradient-to-r from-[#EC67A1] to-[#5DC3F8] transition-all duration-300"
                             style={{ width: `${item.progress}%` }}
                           />
                         </div>
                         {item.currentSize && (
-                          <p className="text-[10px] text-blue-200/70">
+                          <p className="text-[10px] text-header-muted">
                             {(item.originalSize / 1024 / 1024).toFixed(1)}MB → {(item.currentSize / 1024 / 1024).toFixed(1)}MB
                           </p>
                         )}
@@ -1669,8 +1669,8 @@ export default function SeeDreamImageToImage() {
                 <label 
                   className={`group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed transition-all ${
                     isDraggingOver
-                      ? 'border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-400/30 scale-[1.02]'
-                      : 'border-white/20 bg-slate-950/60 hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30'
+                      ? 'border-[#EC67A1] bg-[#EC67A1]/20 shadow-lg shadow-[#EC67A1]/30 scale-[1.02]'
+                      : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800/60 hover:border-[#EC67A1]/60 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#EC67A1]/10'
                   } ${isCompressing || isGenerating ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
@@ -1680,18 +1680,18 @@ export default function SeeDreamImageToImage() {
                   <div className="flex flex-col items-center justify-center py-4 pointer-events-none">
                     <div className="relative mb-2">
                       <div className={`absolute inset-0 blur-xl opacity-20 transition-opacity ${
-                        isDraggingOver ? 'bg-cyan-400 opacity-60' : 'bg-cyan-500 group-hover:opacity-40'
+                        isDraggingOver ? 'bg-[#EC67A1] opacity-60' : 'bg-[#EC67A1] group-hover:opacity-40'
                       }`} />
                       {isCompressing ? (
-                        <Loader2 className="relative w-8 h-8 text-cyan-200 animate-spin" />
+                        <Loader2 className="relative w-8 h-8 text-[#EC67A1] animate-spin" />
                       ) : isDraggingOver ? (
-                        <Download className="relative w-8 h-8 text-cyan-300 animate-bounce" />
+                        <Download className="relative w-8 h-8 text-[#EC67A1] animate-bounce" />
                       ) : (
-                        <Upload className="relative w-8 h-8 text-cyan-200 group-hover:scale-110 transition-transform" />
+                        <Upload className="relative w-8 h-8 text-[#EC67A1] group-hover:scale-110 transition-transform" />
                       )}
                     </div>
-                    <p className="text-sm text-white">
-                      <span className="font-semibold text-cyan-100">
+                    <p className="text-sm text-sidebar-foreground">
+                      <span className="font-semibold text-[#EC67A1]">
                         {isCompressing 
                           ? 'Optimizing images...' 
                           : isDraggingOver
@@ -1701,7 +1701,7 @@ export default function SeeDreamImageToImage() {
                               : 'Add more references'}
                       </span>
                     </p>
-                    <p className="text-[11px] text-slate-300 mt-1">
+                    <p className="text-[11px] text-header-muted mt-1">
                       {isCompressing 
                         ? 'Large images are automatically compressed' 
                         : isDraggingOver
@@ -1720,14 +1720,14 @@ export default function SeeDreamImageToImage() {
                 </label>
 
                 {uploadedImages.length > 0 && (
-                  <p className="text-xs text-slate-300 flex items-center gap-1">
+                  <p className="text-xs text-header-muted flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
                     First image (⭐ Primary) is main reference; others provide style/composition cues.
                   </p>
                 )}
 
                 {isSavingToReferenceBank && (
-                  <p className="text-xs text-cyan-400 flex items-center gap-1.5">
+                  <p className="text-xs text-[#EC67A1] flex items-center gap-1.5">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Saving to Reference Bank...
                   </p>
@@ -1738,24 +1738,24 @@ export default function SeeDreamImageToImage() {
               {/* Prompt Input */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between w-full group">
-                  <label className="text-sm font-semibold text-white">Prompt</label>
+                  <label className="text-sm font-semibold text-sidebar-foreground">Prompt</label>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setShowTemplates(!showTemplates)}
-                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      className="rounded-full bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 px-3 py-1 text-[11px] font-semibold text-[#EC67A1] transition-colors flex items-center gap-1"
                       disabled={isGenerating}
                     >
                       <Sparkles className="w-3 h-3" />
                       Templates
                     </button>
-                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                    <span className="rounded-full bg-[#EC67A1]/20 px-3 py-1 text-[11px] font-semibold text-[#EC67A1]">Required</span>
                     <button
                       type="button"
                       onClick={() => setSectionsCollapsed(prev => ({ ...prev, prompt: !prev.prompt }))}
-                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                      className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                     >
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
+                      <ChevronDown className={`w-4 h-4 text-header-muted transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
                     </button>
                   </div>
                 </div>
@@ -1763,12 +1763,12 @@ export default function SeeDreamImageToImage() {
                 <div className={`space-y-2 ${sectionsCollapsed.prompt ? 'hidden lg:block' : ''}`}>
                 {/* Prompt Templates Dropdown */}
                 {showTemplates && (
-                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="rounded-2xl border border-[#EC67A1]/30 dark:border-[#EC67A1]/40 bg-white dark:bg-zinc-800/80 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-indigo-200">I2I Templates</p>
+                      <p className="text-xs font-semibold text-[#EC67A1]">I2I Templates</p>
                       <button
                         onClick={() => setShowTemplates(false)}
-                        className="text-indigo-300 hover:text-indigo-100 transition"
+                        className="text-header-muted hover:text-sidebar-foreground transition"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1778,18 +1778,18 @@ export default function SeeDreamImageToImage() {
                         <button
                           key={template.id}
                           onClick={() => applyTemplate(template)}
-                          className="text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-300/40 transition-all group"
+                          className="text-left p-3 rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 bg-[#F8F8F8] dark:bg-zinc-800/50 hover:bg-[#EC67A1]/10 hover:border-[#EC67A1]/40 transition-all group"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <p className="text-sm font-semibold text-white">{template.name}</p>
-                                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded">{template.category}</span>
+                                <p className="text-sm font-semibold text-sidebar-foreground">{template.name}</p>
+                                <span className="text-[10px] bg-[#EC67A1]/30 text-[#EC67A1] px-2 py-0.5 rounded">{template.category}</span>
                               </div>
-                              <p className="text-xs text-slate-400 mb-2">{template.description}</p>
-                              <p className="text-xs text-slate-300 line-clamp-2">{template.prompt}</p>
+                              <p className="text-xs text-header-muted mb-2">{template.description}</p>
+                              <p className="text-xs text-sidebar-foreground line-clamp-2">{template.prompt}</p>
                             </div>
-                            <Check className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                            <Check className="w-4 h-4 text-[#EC67A1] opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
                           </div>
                         </button>
                       ))}
@@ -1798,12 +1798,12 @@ export default function SeeDreamImageToImage() {
                 )}
 
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-[#EC67A1]/10 bg-gradient-to-b from-[#EC67A1]/5 to-transparent" />
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the changes: keep pose, swap outfit to ..."
-                    className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-sm text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                    className="relative w-full rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/50 px-4 py-4 text-sm text-sidebar-foreground placeholder-header-muted focus:border-[#EC67A1] focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/40"
                     rows={4}
                     disabled={isGenerating}
                   />
@@ -1829,18 +1829,18 @@ export default function SeeDreamImageToImage() {
               {/* User Presets */}
               {userPresets.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Your Presets</p>
+                  <p className="text-xs font-semibold text-header-muted uppercase tracking-wider">Your Presets</p>
                   <div className="grid grid-cols-2 gap-2">
                     {userPresets.map((preset) => (
                       <div key={preset.id} className="group relative">
                         <button
                           onClick={() => loadPreset(preset)}
-                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all"
+                          className="w-full text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:border-[#EC67A1]/40 transition-all"
                         >
-                          <p className="text-sm font-semibold text-white mb-1">{preset.name}</p>
+                          <p className="text-sm font-semibold text-sidebar-foreground mb-1">{preset.name}</p>
                           <div className="flex flex-wrap gap-1 text-[10px]">
-                            <span className="bg-cyan-500/20 text-cyan-200 rounded px-1.5 py-0.5">{preset.resolution}</span>
-                            <span className="bg-amber-500/20 text-amber-200 rounded px-1.5 py-0.5">{preset.aspectRatio}</span>
+                            <span className="bg-[#EC67A1]/20 text-[#EC67A1] dark:text-[#F774B9] rounded px-1.5 py-0.5">{preset.resolution}</span>
+                            <span className="bg-[#5DC3F8]/20 text-[#5DC3F8] rounded px-1.5 py-0.5">{preset.aspectRatio}</span>
                           </div>
                         </button>
                         <button
@@ -1863,13 +1863,13 @@ export default function SeeDreamImageToImage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between w-full group">
                   <div className="flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-cyan-300" />
-                    <p className="text-sm font-semibold text-white">Framing</p>
+                    <Settings className="w-4 h-4 text-[#EC67A1]" />
+                    <p className="text-sm font-semibold text-sidebar-foreground">Framing</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSectionsCollapsed(prev => ({ ...prev, framing: !prev.framing }))}
-                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                   >
                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.framing ? '' : 'rotate-180'}`} />
                   </button>
@@ -1884,23 +1884,23 @@ export default function SeeDreamImageToImage() {
                       onClick={() => setSelectedResolution(res as "2K" | "4K")}
                       className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
                         selectedResolution === res
-                          ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-900/40"
-                          : "border-white/10 bg-white/5 hover:border-cyan-200/40"
+                          ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 shadow-lg shadow-[#EC67A1]/20"
+                          : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 hover:border-[#EC67A1]/40"
                       }`}
                       disabled={isGenerating}
                     >
                       <div>
-                        <p className="text-xs text-slate-300">Resolution</p>
-                        <p className="text-lg font-semibold text-white">{res}</p>
+                        <p className="text-xs text-header-muted">Resolution</p>
+                        <p className="text-lg font-semibold text-sidebar-foreground">{res}</p>
                       </div>
-                      <div className="rounded-xl bg-white/5 px-3 py-1 text-[11px] text-slate-200">
+                      <div className="rounded-xl bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-[11px] text-header-muted">
                         {res === "2K" ? "Faster" : "Detail"}
                       </div>
                     </button>
                   ))}
                 </div>
 
-                <p className="text-xs text-slate-300">Aspect Ratio</p>
+                <p className="text-xs text-header-muted">Aspect Ratio</p>
                 <div className="grid grid-cols-4 gap-2">
                   {aspectRatios.map((ratio) => (
                     <button
@@ -1908,8 +1908,8 @@ export default function SeeDreamImageToImage() {
                       onClick={() => setSelectedRatio(ratio)}
                       className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${
                         selectedRatio === ratio
-                          ? "border-amber-300/70 bg-amber-400/10 text-amber-100 shadow-sm shadow-amber-900/40"
-                          : "border-white/10 bg-white/5 text-white hover:border-amber-200/40"
+                          ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-[#EC67A1] dark:text-[#F774B9] shadow-sm shadow-[#EC67A1]/20"
+                          : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground hover:border-[#EC67A1]/40"
                       }`}
                       disabled={isGenerating}
                     >
@@ -1919,13 +1919,13 @@ export default function SeeDreamImageToImage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <p className="text-[11px] text-slate-300">Width</p>
-                    <p className="text-lg font-semibold text-white">{currentSize.split('x')[0]}</p>
+                  <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 px-3 py-2">
+                    <p className="text-[11px] text-header-muted">Width</p>
+                    <p className="text-lg font-semibold text-sidebar-foreground">{currentSize.split('x')[0]}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <p className="text-[11px] text-slate-300">Height</p>
-                    <p className="text-lg font-semibold text-white">{currentSize.split('x')[1]}</p>
+                  <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 px-3 py-2">
+                    <p className="text-[11px] text-header-muted">Height</p>
+                    <p className="text-lg font-semibold text-sidebar-foreground">{currentSize.split('x')[1]}</p>
                   </div>
                 </div>
 
@@ -1933,7 +1933,7 @@ export default function SeeDreamImageToImage() {
                 <button
                   type="button"
                   onClick={() => setShowPresetModal(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-400/40 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-200 text-sm font-medium transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-[#EC67A1]/40 bg-[#EC67A1]/5 hover:bg-[#EC67A1]/10 text-[#EC67A1] dark:text-[#F774B9] text-sm font-medium transition-colors"
                   disabled={isGenerating}
                 >
                   <Sparkles className="w-4 h-4" />
@@ -1946,21 +1946,21 @@ export default function SeeDreamImageToImage() {
               <div className="space-y-3" id="folder-section">
                 <div className="flex items-center justify-between w-full group">
                   <div className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4 text-cyan-300" />
-                    <p className="text-sm font-semibold text-white">Save to Vault</p>
+                    <FolderOpen className="w-4 h-4 text-[#EC67A1]" />
+                    <p className="text-sm font-semibold text-sidebar-foreground">Save to Vault</p>
                     {!targetFolder && showFolderValidation && (
-                      <span className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded-full animate-pulse">⚠️ Required</span>
+                      <span className="text-xs bg-red-500/20 text-red-600 dark:text-red-300 px-2 py-1 rounded-full animate-pulse">⚠️ Required</span>
                     )}
                     {isLoadingVaultData && (
-                      <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                      <Loader2 className="w-3 h-3 animate-spin text-[#EC67A1]" />
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setSectionsCollapsed(prev => ({ ...prev, vault: !prev.vault }))}
-                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                   >
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.vault ? '' : 'rotate-180'}`} />
+                    <ChevronDown className={`w-4 h-4 text-header-muted transition-transform ${sectionsCollapsed.vault ? '' : 'rotate-180'}`} />
                   </button>
                 </div>
                 
@@ -1974,7 +1974,7 @@ export default function SeeDreamImageToImage() {
                   isAllProfiles={isAllProfiles}
                   selectedProfile={selectedProfile}
                   mounted={mounted}
-                  accentColor="cyan"
+                  accentColor="pink"
                   label="Save to Folder"
                 />
               </div>
@@ -1983,15 +1983,15 @@ export default function SeeDreamImageToImage() {
               {/* Batch Size */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between w-full group">
-                  <p className="text-sm font-semibold text-white">Batch Size</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">Batch Size</p>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
+                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-[11px] text-sidebar-foreground">{maxImages} total</span>
                     <button
                       type="button"
                       onClick={() => setSectionsCollapsed(prev => ({ ...prev, batch: !prev.batch }))}
-                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                      className="lg:hidden p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
                     >
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.batch ? '' : 'rotate-180'}`} />
+                      <ChevronDown className={`w-4 h-4 text-header-muted transition-transform ${sectionsCollapsed.batch ? '' : 'rotate-180'}`} />
                     </button>
                   </div>
                 </div>
@@ -2003,20 +2003,20 @@ export default function SeeDreamImageToImage() {
                   max="5"
                   value={maxImages}
                   onChange={(e) => setMaxImages(Number(e.target.value))}
-                  className="w-full accent-cyan-400"
+                  className="w-full accent-[#EC67A1]"
                   disabled={isGenerating}
                 />
-                <div className="flex items-center justify-between text-[11px] text-slate-300">
+                <div className="flex items-center justify-between text-[11px] text-header-muted">
                   <span>1</span>
                   <span>2</span>
                   <span>3</span>
                   <span>4</span>
                   <span>5</span>
                 </div>
-                <p className="text-xs text-slate-300 text-center">
+                <p className="text-xs text-header-muted text-center">
                   Match batch size to how many outputs you request in the prompt.
                 </p>
-                <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-50">
+                <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-700 dark:text-amber-200">
                   💡 Max 5 images per batch. For more, run multiple batches.
                 </div>
               </div>
@@ -2025,8 +2025,8 @@ export default function SeeDreamImageToImage() {
               {/* Error Display */}
               {error && (
                 <div className="flex items-start gap-3 rounded-2xl border border-red-500/40 bg-red-500/10 p-4">
-                  <AlertCircle className="h-5 w-5 text-red-200" />
-                  <p className="text-sm text-red-50">{error}</p>
+                  <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-300" />
+                  <p className="text-sm text-red-600 dark:text-red-200">{error}</p>
                 </div>
               )}
 
@@ -2035,7 +2035,7 @@ export default function SeeDreamImageToImage() {
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim() || uploadedImages.length === 0}
-                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-6 py-3 font-semibold text-white shadow-xl shadow-cyan-900/40 transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none"
+                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-6 py-3 font-semibold text-white shadow-xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 disabled:from-zinc-400 disabled:to-zinc-400 disabled:shadow-none"
                 >
                   <div className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-10" />
                   <div className="relative flex items-center justify-center gap-2">
@@ -2055,7 +2055,7 @@ export default function SeeDreamImageToImage() {
                 <button
                   onClick={handleReset}
                   disabled={isGenerating}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-200/40 disabled:opacity-60"
+                  className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-4 py-3 text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 disabled:opacity-60"
                   title="Reset form"
                 >
                   <RotateCcw className="w-4 h-4 inline mr-2" />
@@ -2067,14 +2067,14 @@ export default function SeeDreamImageToImage() {
 
           {/* Right Panel - Results */}
           <div className="lg:col-span-2">
-            <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            <div className="rounded-3xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-[#F8F8F8] dark:bg-zinc-800/50 p-6 shadow-2xl shadow-[#EC67A1]/10 dark:shadow-[#EC67A1]/20 backdrop-blur">
               <div className="flex flex-wrap items-center gap-3 mb-6">
-                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
+                <div className="flex items-center gap-2 rounded-full border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 px-3 py-1 text-sm font-semibold text-sidebar-foreground">
                   <ImageIcon className="w-4 h-4" />
                   Generated Images
                 </div>
                 {generatedImages.length > 0 && (
-                  <div className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+                  <div className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-xs text-sidebar-foreground">
                     {generatedImages.length} {generatedImages.length === 1 ? 'image' : 'images'} ready
                   </div>
                 )}
@@ -2086,7 +2086,7 @@ export default function SeeDreamImageToImage() {
                   {generatedImages.map((image) => (
                     <div
                       key={image.id}
-                      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl"
+                      className="group relative overflow-hidden rounded-2xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 shadow-lg shadow-[#EC67A1]/10 transition hover:-translate-y-1 hover:shadow-2xl"
                     >
                       <div className="relative">
                         <img
@@ -2096,14 +2096,14 @@ export default function SeeDreamImageToImage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
                         <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 transition duration-300 group-hover:opacity-100">
-                          <div className="mb-3 text-xs text-slate-200 line-clamp-2">{image.prompt}</div>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-200/80">
-                            <span className="rounded-full bg-white/10 px-3 py-1">{image.size}</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">{image.modelVersion}</span>
+                          <div className="mb-3 text-xs text-white line-clamp-2">{image.prompt}</div>
+                          <div className="flex items-center gap-2 text-[11px] text-white/80">
+                            <span className="rounded-full bg-black/30 px-3 py-1">{image.size}</span>
+                            <span className="rounded-full bg-black/30 px-3 py-1">{image.modelVersion}</span>
                           </div>
                           <button
                             onClick={() => handleDownload(image.imageUrl, `seedream-i2i-${image.id}.jpg`)}
-                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-md transition hover:bg-white"
+                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-4 py-2 text-sm font-semibold text-white shadow-md transition"
                           >
                             <Download className="w-4 h-4" />
                             Download
@@ -2119,11 +2119,11 @@ export default function SeeDreamImageToImage() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 py-16">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                    <ImageIcon className="w-7 h-7 text-cyan-200" />
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/30 py-16">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
+                    <ImageIcon className="w-7 h-7 text-[#EC67A1]" />
                   </div>
-                  <p className="text-sm text-slate-200/80">
+                  <p className="text-sm text-header-muted">
                     {isGenerating ? 'Generating your images...' : 'Your outputs will land here.'}
                   </p>
                 </div>
@@ -2132,20 +2132,20 @@ export default function SeeDreamImageToImage() {
               {/* Generation History */}
               <div className="mt-8 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-white">
+                  <div className="flex items-center gap-2 text-sidebar-foreground">
                     <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
                     <h3 className="text-sm font-semibold">Recent Generations</h3>
                     {generationHistory.length > 0 && (
-                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                      <span className="text-xs text-header-muted">({generationHistory.length})</span>
                     )}
                   </div>
                   {generationHistory.length > 8 && (
                     <button
                       onClick={() => setShowHistoryModal(true)}
-                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                      className="text-xs text-[#EC67A1] hover:text-[#E1518E] transition flex items-center gap-1"
                     >
                       View All
-                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                      <span className="bg-[#EC67A1]/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
                     </button>
                   )}
                 </div>
@@ -2154,7 +2154,7 @@ export default function SeeDreamImageToImage() {
                     {generationHistory.slice(0, 8).map((image) => (
                       <button
                         key={image.id}
-                        className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 shadow-md shadow-[#EC67A1]/10 transition hover:-translate-y-1 hover:border-[#EC67A1]/50"
                         onClick={() => {
                           setSelectedImage(image);
                           setShowImageModal(true);
@@ -2188,9 +2188,9 @@ export default function SeeDreamImageToImage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                  <div className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 px-4 py-3 text-sm text-header-muted">
                     <span>{isLoadingHistory ? 'Loading history...' : 'No previous generations yet'}</span>
-                    {isLoadingHistory && <RefreshCw className="w-4 h-4 animate-spin text-cyan-200" />}
+                    {isLoadingHistory && <RefreshCw className="w-4 h-4 animate-spin text-[#EC67A1]" />}
                   </div>
                 )}
               </div>
@@ -2202,48 +2202,48 @@ export default function SeeDreamImageToImage() {
       {/* Help Modal */}
       {showHelpModal && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setShowHelpModal(false)}
         >
           <div 
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto my-8 rounded-3xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto my-8 rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowHelpModal(false)}
-              className="sticky top-4 float-right mr-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              className="sticky top-4 float-right mr-4 z-10 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="p-8 text-slate-100">
+            <div className="p-8 text-sidebar-foreground">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9]">
                   <Info className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-3xl font-bold text-white">SeeDream 4.5 — Image-to-Image Guide</h2>
+                <h2 className="text-3xl font-bold text-sidebar-foreground">SeeDream 4.5 — Image-to-Image Guide</h2>
               </div>
 
               <div className="space-y-8">
                 {/* Prompting Tips */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 text-cyan-200">
+                  <div className="flex items-center gap-2 text-[#EC67A1]">
                     <Sparkles className="w-5 h-5" />
                     <h3 className="text-lg font-semibold">Effective transformation prompts</h3>
                   </div>
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4">
                       <p className="text-sm font-semibold">✨ Structure</p>
-                      <p className="text-sm text-slate-200/80">What to keep + What to change + Desired outcome.</p>
-                      <p className="mt-2 text-sm text-slate-300">
+                      <p className="text-sm text-header-muted">What to keep + What to change + Desired outcome.</p>
+                      <p className="mt-2 text-sm text-header-muted">
                         Example: "Keep the pose and liquid silhouette. Swap material to clear water so skin shows through; shift lighting from reflection to refraction."
                       </p>
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4">
-                        <p className="text-sm font-semibold text-emerald-50">✓ Good practices</p>
-                        <ul className="mt-2 space-y-1 text-sm text-emerald-50/90 list-disc list-inside">
+                        <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">✓ Good practices</p>
+                        <ul className="mt-2 space-y-1 text-sm text-emerald-700 dark:text-emerald-200 list-disc list-inside">
                           <li>State what stays fixed</li>
                           <li>Describe the change clearly</li>
                           <li>Mention style/texture and lighting</li>
@@ -2251,8 +2251,8 @@ export default function SeeDreamImageToImage() {
                         </ul>
                       </div>
                       <div className="rounded-2xl border border-red-300/40 bg-red-400/10 p-4">
-                        <p className="text-sm font-semibold text-red-50">✗ Avoid</p>
-                        <ul className="mt-2 space-y-1 text-sm text-red-50/90 list-disc list-inside">
+                        <p className="text-sm font-semibold text-red-600 dark:text-red-300">✗ Avoid</p>
+                        <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-200 list-disc list-inside">
                           <li>Vague requests like "make it better"</li>
                           <li>Contradictory directions</li>
                           <li>Full redesign asks</li>
@@ -2262,8 +2262,8 @@ export default function SeeDreamImageToImage() {
                     </div>
 
                     <div className="rounded-2xl border border-amber-300/40 bg-amber-400/10 p-4">
-                      <p className="text-sm font-semibold text-amber-50">💡 Multi-image blending</p>
-                      <p className="text-sm text-amber-50/90">
+                      <p className="text-sm font-semibold text-amber-600 dark:text-amber-300">💡 Multi-image blending</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-200">
                         First upload is primary; others guide style/composition. Example: "Apply the jacket style from image 2 onto the person in image 1."
                       </p>
                     </div>
@@ -2272,51 +2272,51 @@ export default function SeeDreamImageToImage() {
 
                 {/* Parameters Explanation */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 text-cyan-200">
+                  <div className="flex items-center gap-2 text-[#EC67A1]">
                     <Settings className="w-5 h-5" />
                     <h3 className="text-lg font-semibold">Parameter guide</h3>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <h4 className="text-sm font-semibold text-white mb-1">🖼️ Reference images</h4>
-                      <p className="text-sm text-slate-200/80">Upload 1-14. First is primary; others are style/pose refs. JPEG/PNG/WEBP, up to 10MB each.</p>
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4">
+                      <h4 className="text-sm font-semibold text-sidebar-foreground mb-1">🖼️ Reference images</h4>
+                      <p className="text-sm text-header-muted">Upload 1-14. First is primary; others are style/pose refs. JPEG/PNG/WEBP, up to 10MB each.</p>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <h4 className="text-sm font-semibold text-white mb-1">📐 Resolution & ratio</h4>
-                      <p className="text-sm text-slate-200/80">2K for speed, 4K for detail. Ratios: 1:1, 16:9, 9:16, 21:9, more.</p>
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4">
+                      <h4 className="text-sm font-semibold text-sidebar-foreground mb-1">📐 Resolution & ratio</h4>
+                      <p className="text-sm text-header-muted">2K for speed, 4K for detail. Ratios: 1:1, 16:9, 9:16, 21:9, more.</p>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <h4 className="text-sm font-semibold text-white mb-1">🎨 Batch size</h4>
-                      <p className="text-sm text-slate-200/80">1 for single output; 2-5 for variations. For more, run multiple batches.</p>
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4">
+                      <h4 className="text-sm font-semibold text-sidebar-foreground mb-1">🎨 Batch size</h4>
+                      <p className="text-sm text-header-muted">1 for single output; 2-5 for variations. For more, run multiple batches.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* Example Use Cases */}
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 text-cyan-200">
+                  <div className="flex items-center gap-2 text-[#EC67A1]">
                     <Zap className="w-5 h-5" />
                     <h3 className="text-lg font-semibold">Example use cases</h3>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="rounded-2xl border border-purple-300/40 bg-purple-500/10 p-4">
-                      <p className="text-sm font-semibold text-purple-50">👔 Fashion/Product</p>
-                      <p className="text-sm text-purple-50/80">Batch 3-5 colorways; keep fit and pose.</p>
+                      <p className="text-sm font-semibold text-purple-600 dark:text-purple-300">👔 Fashion/Product</p>
+                      <p className="text-sm text-purple-700 dark:text-purple-200">Batch 3-5 colorways; keep fit and pose.</p>
                     </div>
                     <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4">
-                      <p className="text-sm font-semibold text-amber-50">🎨 Style transfer</p>
-                      <p className="text-sm text-amber-50/80">Use image 2 style on image 1 subject.</p>
+                      <p className="text-sm font-semibold text-amber-600 dark:text-amber-300">🎨 Style transfer</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-200">Use image 2 style on image 1 subject.</p>
                     </div>
                     <div className="rounded-2xl border border-teal-300/40 bg-teal-500/10 p-4">
-                      <p className="text-sm font-semibold text-teal-50">🏠 Scene edit</p>
-                      <p className="text-sm text-teal-50/80">Swap backgrounds while keeping lighting coherent.</p>
+                      <p className="text-sm font-semibold text-teal-600 dark:text-teal-300">🏠 Scene edit</p>
+                      <p className="text-sm text-teal-700 dark:text-teal-200">Swap backgrounds while keeping lighting coherent.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* Important Notes */}
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
-                  <div className="flex items-center gap-2 text-amber-200 mb-2">
+                <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4 text-sm text-header-muted">
+                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-300 mb-2">
                     <AlertCircle className="w-4 h-4" />
                     <p className="font-semibold">Notes</p>
                   </div>
@@ -2337,14 +2337,14 @@ export default function SeeDreamImageToImage() {
       {/* Image Modal */}
       {showImageModal && selectedImage && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4"
           onClick={() => {
             setShowImageModal(false);
             setSelectedImage(null);
           }}
         >
           <div 
-            className="relative w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            className="relative w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
@@ -2353,14 +2353,14 @@ export default function SeeDreamImageToImage() {
                 setShowImageModal(false);
                 setSelectedImage(null);
               }}
-              className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              className="absolute top-4 right-4 z-10 rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
             >
               <X className="w-5 h-5" />
             </button>
 
             {/* Image container */}
-            <div className="p-6 space-y-4 text-slate-100">
-              <div className="rounded-2xl border border-white/10 bg-slate-900 overflow-hidden max-h-[50vh] flex items-center justify-center">
+            <div className="p-6 space-y-4 text-sidebar-foreground">
+              <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden max-h-[50vh] flex items-center justify-center">
                 <img
                   src={selectedImage.imageUrl}
                   alt={selectedImage.prompt}
@@ -2370,32 +2370,32 @@ export default function SeeDreamImageToImage() {
 
               {/* Image details */}
               <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-2 text-cyan-200">
+                <div className="flex items-center gap-2 text-[#EC67A1]">
                   <Info className="w-4 h-4" />
                   <h3 className="text-base font-semibold">Image details</h3>
                 </div>
-                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="space-y-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 p-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-300 mb-1">Prompt</p>
-                    <p className="text-sm text-slate-100 leading-relaxed">{selectedImage.prompt}</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-header-muted mb-1">Prompt</p>
+                    <p className="text-sm text-sidebar-foreground leading-relaxed">{selectedImage.prompt}</p>
                   </div>
                   
                   {/* Generation Parameters */}
-                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-200/80">
-                    <span className="rounded-full bg-white/10 px-3 py-1">Size: {selectedImage.size}</span>
-                    <span className="rounded-full bg-white/10 px-3 py-1">Model: {selectedImage.modelVersion}</span>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-header-muted">
+                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1">Size: {selectedImage.size}</span>
+                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1">Model: {selectedImage.modelVersion}</span>
                     {selectedImage.metadata?.resolution && (
-                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">
+                      <span className="rounded-full bg-[#EC67A1]/20 px-3 py-1 text-[#EC67A1] dark:text-[#F774B9]">
                         Resolution: {selectedImage.metadata.resolution}
                       </span>
                     )}
                     {selectedImage.metadata?.aspectRatio && (
-                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">
+                      <span className="rounded-full bg-[#EC67A1]/20 px-3 py-1 text-[#EC67A1] dark:text-[#F774B9]">
                         Aspect: {selectedImage.metadata.aspectRatio}
                       </span>
                     )}
                     {selectedImage.metadata?.numReferenceImages && (
-                      <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-indigo-200">
+                      <span className="rounded-full bg-[#5DC3F8]/20 px-3 py-1 text-[#5DC3F8]">
                         {selectedImage.metadata.numReferenceImages} Reference{selectedImage.metadata.numReferenceImages > 1 ? 's' : ''}
                       </span>
                     )}
@@ -2404,12 +2404,12 @@ export default function SeeDreamImageToImage() {
                   {/* Reference Image Thumbnails */}
                   {selectedImage.metadata?.referenceImageUrls && selectedImage.metadata.referenceImageUrls.length > 0 && (
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-300 mb-2">Reference Images</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-header-muted mb-2">Reference Images</p>
                       <div className="flex flex-wrap gap-2">
                         {selectedImage.metadata.referenceImageUrls.map((url, idx) => (
                           <div 
                             key={idx} 
-                            className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-slate-800"
+                            className="w-16 h-16 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800"
                           >
                             <img 
                               src={url} 
@@ -2437,7 +2437,7 @@ export default function SeeDreamImageToImage() {
                   <button
                     type="button"
                     onClick={() => handleReuseGeneration(selectedImage)}
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 hover:-translate-y-0.5"
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-[#EC67A1]/30 bg-[#EC67A1]/10 px-4 py-3 text-sm font-semibold text-[#EC67A1] dark:text-[#F774B9] transition hover:bg-[#EC67A1]/20 hover:-translate-y-0.5"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Reuse Settings
@@ -2487,7 +2487,7 @@ export default function SeeDreamImageToImage() {
                         alert('Download failed. Please try again or contact support if the issue persists.');
                       }
                     }}
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5"
                   >
                     <Download className="w-4 h-4" />
                     Download
@@ -2503,27 +2503,27 @@ export default function SeeDreamImageToImage() {
       {/* View All History Modal */}
       {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4"
           onClick={() => setShowHistoryModal(false)}
         >
           <div 
-            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl shadow-[#EC67A1]/10 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
-                  <RefreshCw className="w-5 h-5 text-cyan-400" />
+                <div className="p-2 rounded-xl bg-[#EC67A1]/20">
+                  <RefreshCw className="w-5 h-5 text-[#EC67A1]" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
-                  <p className="text-xs text-slate-400">{generationHistory.length} images generated</p>
+                  <h2 className="text-lg font-semibold text-sidebar-foreground">Generation History</h2>
+                  <p className="text-xs text-header-muted">{generationHistory.length} images generated</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+                className="rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2536,7 +2536,7 @@ export default function SeeDreamImageToImage() {
                   {generationHistory.map((image) => (
                     <button
                       key={image.id}
-                      className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 bg-white dark:bg-zinc-800/30 shadow-md shadow-[#EC67A1]/10 transition hover:-translate-y-1 hover:border-[#EC67A1]/50"
                       onClick={() => {
                         setShowHistoryModal(false);
                         setSelectedImage(image);
@@ -2568,16 +2568,16 @@ export default function SeeDreamImageToImage() {
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
                           <span className="bg-white/20 rounded px-1.5 py-0.5">{image.size}</span>
                           {image.metadata?.resolution && (
-                            <span className="bg-cyan-500/30 rounded px-1.5 py-0.5">{image.metadata.resolution}</span>
+                            <span className="bg-[#EC67A1]/30 rounded px-1.5 py-0.5">{image.metadata.resolution}</span>
                           )}
                           {isAllProfiles && image.profileName && (
-                            <span className="bg-cyan-600/40 rounded px-1.5 py-0.5 text-cyan-200">{image.profileName}</span>
+                            <span className="bg-[#EC67A1]/40 rounded px-1.5 py-0.5 text-[#F774B9]">{image.profileName}</span>
                           )}
                         </div>
                       </div>
                       {/* Profile badge for all profiles view */}
                       {isAllProfiles && image.profileName && (
-                        <div className="absolute top-2 left-2 text-[9px] text-cyan-200 bg-cyan-600/60 rounded px-1.5 py-0.5">
+                        <div className="absolute top-2 left-2 text-[9px] text-[#F774B9] bg-[#EC67A1]/60 rounded px-1.5 py-0.5">
                           {image.profileName}
                         </div>
                       )}
@@ -2617,13 +2617,13 @@ export default function SeeDreamImageToImage() {
       {/* Save Preset Modal */}
       {showPresetModal && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4 text-white">Save Image-to-Image Preset</h3>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-zinc-200 dark:border-zinc-700">
+            <h3 className="text-xl font-semibold mb-4 text-sidebar-foreground">Save Image-to-Image Preset</h3>
             
             <div className="space-y-4">
               {/* Preset Name Input */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-header-muted mb-2">
                   Preset Name
                 </label>
                 <input
@@ -2631,28 +2631,28 @@ export default function SeeDreamImageToImage() {
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   placeholder="e.g., My Style Transfer Settings"
-                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
                   autoFocus
                 />
               </div>
 
               {/* Current Settings Preview */}
-              <div className="bg-slate-900 rounded-lg p-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 space-y-2">
+                <p className="text-xs font-semibold text-header-muted uppercase tracking-wide mb-2">
                   Settings to Save:
                 </p>
-                <div className="space-y-1.5 text-sm text-slate-300">
+                <div className="space-y-1.5 text-sm text-header-muted">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Resolution:</span>
+                    <span className="text-zinc-400 dark:text-zinc-500">Resolution:</span>
                     <span className="font-medium">{selectedResolution}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Aspect Ratio:</span>
+                    <span className="text-zinc-400 dark:text-zinc-500">Aspect Ratio:</span>
                     <span className="font-medium">{selectedRatio}</span>
                   </div>
                   {targetFolder && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Vault Folder:</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">Vault Folder:</span>
                       <span className="font-medium truncate max-w-[180px]">
                         {vaultFolders.find(f => f.id === targetFolder)?.name || 'Selected folder'}
                       </span>
@@ -2668,14 +2668,14 @@ export default function SeeDreamImageToImage() {
                     setShowPresetModal(false);
                     setPresetName('');
                   }}
-                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition"
+                  className="flex-1 px-4 py-2.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-sidebar-foreground rounded-lg font-medium transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveAsPreset}
                   disabled={!presetName.trim()}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 bg-[#EC67A1] hover:bg-[#E1518E] text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save Preset
                 </button>

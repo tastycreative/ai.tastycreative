@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { deductCredits } from '@/lib/credits';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const RUNPOD_FLUX_KONTEXT_ENDPOINT_ID = process.env.RUNPOD_FLUX_KONTEXT_ENDPOINT_ID;
@@ -28,6 +29,36 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get user's organization for credit deduction
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: 'User organization not found' },
+        { status: 400 }
+      );
+    }
+
+    // Deduct credits before creating the job
+    const featureKey = 'flux_kontext';
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        error: creditResult.error || 'Failed to deduct credits',
+        insufficientCredits: creditResult.error?.includes('Insufficient credits')
+      }, { status: 400 });
+    }
+
+    console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
     // Prepare job params - include vault info if saving to vault
     const jobParams: any = {

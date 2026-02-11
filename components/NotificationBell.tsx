@@ -96,17 +96,19 @@ export function NotificationBell() {
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-    fetchProductionTasks();
+  //TODO: ably realtime notification
+
+  // useEffect(() => {
+  //   fetchNotifications();
+  //   fetchProductionTasks();
     
-    // Poll for new notifications and tasks every 10 seconds
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchProductionTasks();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  //   // Poll for new notifications and tasks every 10 seconds
+  //   const interval = setInterval(() => {
+  //     fetchNotifications();
+  //     fetchProductionTasks();
+  //   }, 10000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   const markAsRead = async (notificationId: string) => {
     try {

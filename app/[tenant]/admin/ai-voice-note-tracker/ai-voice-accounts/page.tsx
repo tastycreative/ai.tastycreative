@@ -145,12 +145,12 @@ export default function AIVoiceAccountsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <div className="p-3 bg-gradient-to-br from-red-600 via-orange-600 to-yellow-600 rounded-xl shadow-lg">
+          <div className="p-3 bg-gradient-to-br from-brand-blue via-brand-mid-pink to-brand-light-pink rounded-xl shadow-lg">
             <Mic className="h-7 w-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">AI Voice Accounts</h1>
-            <p className="text-sm text-gray-400">
+            <h1 className="text-2xl font-bold text-foreground">AI Voice Accounts</h1>
+            <p className="text-sm text-muted-foreground">
               Manage your ElevenLabs AI voice accounts
             </p>
           </div>
@@ -158,7 +158,7 @@ export default function AIVoiceAccountsPage() {
 
         <button
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg transition-all duration-300 shadow-lg hover:shadow-red-500/25"
+          className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-brand-blue to-brand-mid-pink hover:from-brand-blue/90 hover:to-brand-mid-pink/90 text-white rounded-lg transition-all shadow-lg shadow-brand-blue/25 hover:scale-105 active:scale-95"
         >
           <Plus className="h-5 w-5" />
           <span>Add Voice</span>
@@ -167,56 +167,56 @@ export default function AIVoiceAccountsPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+        <div className="bg-muted border border-blue-500/30 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Total Voices</p>
-              <p className="text-2xl font-bold text-white">{voices.length}</p>
+              <p className="text-sm text-muted-foreground">Total Voices</p>
+              <p className="text-2xl font-bold text-foreground">{voices.length}</p>
             </div>
             <div className="p-3 bg-blue-500/20 rounded-lg">
-              <Volume2 className="h-6 w-6 text-blue-400" />
+              <Volume2 className="h-6 w-6 text-blue-500" />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+        <div className="bg-muted border border-green-500/30 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Active Voices</p>
-              <p className="text-2xl font-bold text-green-400">
+              <p className="text-sm text-muted-foreground">Active Voices</p>
+              <p className="text-2xl font-bold text-green-500">
                 {voices.filter((v) => v.isActive).length}
               </p>
             </div>
             <div className="p-3 bg-green-500/20 rounded-lg">
-              <Mic className="h-6 w-6 text-green-400" />
+              <Mic className="h-6 w-6 text-green-500" />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+        <div className="bg-muted border border-red-500/30 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Inactive Voices</p>
-              <p className="text-2xl font-bold text-red-400">
+              <p className="text-sm text-muted-foreground">Inactive Voices</p>
+              <p className="text-2xl font-bold text-red-500">
                 {voices.filter((v) => !v.isActive).length}
               </p>
             </div>
             <div className="p-3 bg-red-500/20 rounded-lg">
-              <Mic className="h-6 w-6 text-red-400" />
+              <Mic className="h-6 w-6 text-red-500" />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+        <div className="bg-muted border border-orange-500/30 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Total Usage</p>
-              <p className="text-2xl font-bold text-orange-400">
+              <p className="text-sm text-muted-foreground">Total Usage</p>
+              <p className="text-2xl font-bold text-orange-500">
                 {voices.reduce((acc, v) => acc + v.usageCount, 0)}
               </p>
             </div>
             <div className="p-3 bg-orange-500/20 rounded-lg">
-              <RefreshCw className="h-6 w-6 text-orange-400" />
+              <RefreshCw className="h-6 w-6 text-orange-500" />
             </div>
           </div>
         </div>
@@ -225,19 +225,19 @@ export default function AIVoiceAccountsPage() {
       {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search voices by name, ID, category, or gender..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50"
+            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-mid-pink focus:border-brand-mid-pink"
           />
         </div>
 
         <button
           onClick={fetchVoices}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800/50 border border-slate-700/50 hover:bg-slate-700/50 text-gray-300 rounded-lg transition-all duration-300"
+          className="flex items-center space-x-2 px-4 py-2.5 bg-card border border-border hover:bg-muted text-foreground rounded-lg transition-all"
         >
           <RefreshCw className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
           <span>Refresh</span>
