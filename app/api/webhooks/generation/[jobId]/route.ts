@@ -3,6 +3,7 @@ import { updateJob, getJob } from '@/lib/jobsStorage';
 import { saveImageToDatabase, buildComfyUIUrl } from '@/lib/imageStorage';
 import { saveVideoToDatabase, buildComfyUIVideoUrl } from '@/lib/videoStorage';
 import { trackStorageUpload } from '@/lib/storageEvents';
+import { prisma } from '@/lib/database';
 
 export async function POST(
   request: NextRequest,
@@ -1042,14 +1043,11 @@ export async function POST(
                   where: { clerkId: existingJob.clerkId },
                   select: {
                     currentOrganizationId: true,
-                    currentOrganization: {
-                      select: { slug: true }
-                    }
                   },
                 });
 
-                const s3Key = user?.currentOrganization?.slug
-                  ? `organizations/${user.currentOrganization.slug}/vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`
+                const s3Key = jobParams.organizationSlug
+                  ? `organizations/${jobParams.organizationSlug}/vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`
                   : `vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`;
 
                 // Upload to S3
@@ -1063,7 +1061,6 @@ export async function POST(
                 const publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
                 
                 // Save to vault database
-                const prisma = new PrismaClient();
                 const vaultItem = await prisma.vaultItem.create({
                   data: {
                     clerkId: targetClerkId,

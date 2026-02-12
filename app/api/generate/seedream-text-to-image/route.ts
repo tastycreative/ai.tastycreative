@@ -40,6 +40,7 @@ interface SeeDreamRequest {
   response_format?: 'url' | 'b64_json';
   stream?: boolean;
   targetFolder?: string;
+  organizationSlug?: string;
   // Profile association (always sent for history filtering)
   vaultProfileId?: string;
   // Vault folder support (only when saving directly to vault)
@@ -100,7 +101,8 @@ export async function POST(request: NextRequest) {
       sequential_image_generation = 'disabled',
       sequential_image_generation_options,
       response_format = 'url',
-      stream = false
+      stream = false,
+      organizationSlug,
     } = body;
 
     if (!prompt || !prompt.trim()) {
@@ -236,6 +238,7 @@ export async function POST(request: NextRequest) {
           watermark: body.watermark,
           negative_prompt: body.negative_prompt,
           targetFolder: body.targetFolder,
+          organizationSlug: organizationSlug || null,
           saveToVault: body.saveToVault,
           vaultProfileId: body.vaultProfileId,
           vaultFolderId: body.vaultFolderId,
@@ -265,9 +268,6 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             currentOrganizationId: true,
-            currentOrganization: {
-              select: { slug: true }
-            }
           },
         });
 
@@ -413,8 +413,8 @@ export async function POST(request: NextRequest) {
         if (body.saveToVault && body.vaultProfileId && body.vaultFolderId && vaultFolder) {
           // Save to vault storage with organization structure
           // Use the folder owner's clerkId (vaultFolder.clerkId), not current user's
-          s3Key = currentUser?.currentOrganization?.slug
-            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`
+          s3Key = organizationSlug
+            ? `organizations/${organizationSlug}/vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`
             : `vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`;
           console.log(`📤 Uploading to Vault S3: ${s3Key} (owner: ${vaultFolder.clerkId})`);
         } else if (body.targetFolder) {

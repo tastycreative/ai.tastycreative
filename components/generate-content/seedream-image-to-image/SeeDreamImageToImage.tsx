@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useParams } from "next/navigation";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useCredits } from "@/lib/hooks/useCredits.query";
@@ -204,6 +205,8 @@ const MAX_REFERENCE_IMAGES = 0;
 export default function SeeDreamImageToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { refreshCredits } = useCredits();
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
 
@@ -1251,6 +1254,7 @@ export default function SeeDreamImageToImage() {
         aspectRatio: selectedRatio,
         // Store reference image URLs for reuse functionality (using locally tracked URLs)
         referenceImageUrls: referenceImageUrls,
+        organizationSlug: tenant,
       };
 
       // Get profileId from the selected folder

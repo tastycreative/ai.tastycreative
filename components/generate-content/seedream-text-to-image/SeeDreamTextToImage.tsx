@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useParams } from "next/navigation";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -76,6 +77,8 @@ interface UserPreset {
 export default function SeeDreamTextToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
 
@@ -572,6 +575,7 @@ export default function SeeDreamTextToImage() {
         // Include resolution and aspect ratio for metadata
         resolution: selectedResolution,
         aspectRatio: selectedRatio,
+        organizationSlug: tenant,
       };
 
       // Handle vault folder selection - save directly to vault

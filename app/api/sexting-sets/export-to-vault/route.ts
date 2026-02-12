@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { setId, profileId, folderName } = body;
+    const { setId, profileId, folderName, organizationSlug } = body;
 
     if (!setId) {
       return NextResponse.json(
@@ -146,9 +146,6 @@ export async function POST(request: NextRequest) {
       where: { clerkId: userId },
       select: {
         currentOrganizationId: true,
-        currentOrganization: {
-          select: { slug: true }
-        }
       },
     });
 
@@ -167,8 +164,8 @@ export async function POST(request: NextRequest) {
       const orderedFileName = `${orderIndex.toString().padStart(3, '0')}_${sanitizedBaseName}.${fileExtension}`;
 
       // Generate NEW S3 key in vault folder structure with organization prefix
-      const newS3Key = user?.currentOrganization?.slug
-        ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`
+      const newS3Key = organizationSlug
+        ? `organizations/${organizationSlug}/vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`
         : `vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`;
       
       // Extract original S3 key from URL

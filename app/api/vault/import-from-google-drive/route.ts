@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { folderId, profileId, fileIds, accessToken } = body;
+    const { folderId, profileId, fileIds, accessToken, organizationSlug } = body;
 
     if (!folderId) {
       return NextResponse.json(
@@ -177,9 +177,6 @@ export async function POST(request: NextRequest) {
           where: { clerkId: profileOwnerClerkId },
           select: {
             currentOrganizationId: true,
-            currentOrganization: {
-              select: { slug: true }
-            }
           },
         });
 
@@ -188,8 +185,8 @@ export async function POST(request: NextRequest) {
         const baseName = fileName.replace(/\.[^/.]+$/, "");
         const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9.-]/g, "_");
         const newFileName = `${Date.now()}_${i}_${sanitizedBaseName}.${fileExtension}`;
-        const s3Key = user?.currentOrganization?.slug
-          ? `organizations/${user.currentOrganization.slug}/vault/${profileOwnerClerkId}/${profileId}/${folderId}/${newFileName}`
+        const s3Key = organizationSlug
+          ? `organizations/${organizationSlug}/vault/${profileOwnerClerkId}/${profileId}/${folderId}/${newFileName}`
           : `vault/${profileOwnerClerkId}/${profileId}/${folderId}/${newFileName}`;
 
         // Upload to S3

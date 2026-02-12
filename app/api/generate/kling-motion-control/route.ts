@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     const saveToVault = body.saveToVault === true || body.saveToVault === "true";
     const vaultProfileId = body.vaultProfileId as string | null;
     const vaultFolderId = body.vaultFolderId as string | null;
+    const organizationSlug = body.organizationSlug as string | null;
 
     // Validate required fields (now expecting S3 URLs)
     if (!imageUrl) {
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest) {
           saveToVault: saveToVault || false,
           vaultProfileId: vaultProfileId || null,
           vaultFolderId: vaultFolderId || null,
+          organizationSlug: organizationSlug || null,
         },
         user: {
           connect: {
@@ -604,6 +606,7 @@ export async function GET(request: NextRequest) {
         const saveToVault = params?.saveToVault;
         const vaultProfileId = params?.vaultProfileId;
         const vaultFolderId = params?.vaultFolderId;
+        const organizationSlug = params?.organizationSlug;
 
         // Verify vault folder if saving to vault
         let vaultFolder = null;
@@ -625,9 +628,6 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 currentOrganizationId: true,
-                currentOrganization: {
-                  select: { slug: true }
-                }
               },
             });
 
@@ -700,19 +700,9 @@ export async function GET(request: NextRequest) {
 
         if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           // Save to vault folder - use folder owner's clerkId for shared profiles
-          // Get current user to check organization
-          const currentUser = await prisma.user.findUnique({
-            where: { clerkId: userId },
-            select: {
-              currentOrganizationId: true,
-              currentOrganization: {
-                select: { slug: true }
-              }
-            },
-          });
-
-          s3Key = currentUser?.currentOrganization?.slug
-            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
+          // Use the organization slug passed from client
+          s3Key = organizationSlug
+            ? `organizations/${organizationSlug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
             : `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, "")}/${filename}`;

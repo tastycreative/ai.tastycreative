@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     const saveToVault = formData.get("saveToVault") === "true";
     const vaultProfileId = formData.get("vaultProfileId") as string | null;
     const vaultFolderId = formData.get("vaultFolderId") as string | null;
+    const organizationSlug = formData.get("organizationSlug") as string | null;
 
     // Validate required fields (at least 2 images required)
     if (images.length < 2) {
@@ -138,9 +139,6 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         currentOrganizationId: true,
-        currentOrganization: {
-          select: { slug: true }
-        }
       },
     });
 
@@ -282,6 +280,7 @@ export async function POST(request: NextRequest) {
           saveToVault,
           vaultProfileId,
           vaultFolderId,
+          organizationSlug,
           source: "kling-multi-i2v",
         },
         stage: "Initializing",
@@ -590,6 +589,7 @@ export async function GET(request: NextRequest) {
             saveToVault?: boolean;
             vaultProfileId?: string;
             vaultFolderId?: string;
+            organizationSlug?: string;
           };
 
           // Verify vault folder if saving to vault
@@ -671,8 +671,8 @@ export async function GET(request: NextRequest) {
           if (params.saveToVault && params.vaultProfileId && params.vaultFolderId && vaultFolder) {
             // Save to vault folder - use folder owner's clerkId for shared profiles
             // Use organization-based S3 structure
-            s3Key = currentUser?.currentOrganization?.slug
-              ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`
+            s3Key = params.organizationSlug
+              ? `organizations/${params.organizationSlug}/vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`
               : `vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`;
 
             // Upload to vault S3 path

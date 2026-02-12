@@ -10,6 +10,7 @@ import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { useParams } from "next/navigation";
 import {
   AlertCircle,
   Archive,
@@ -206,6 +207,8 @@ const ORIENTATION_OPTIONS = [
 export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
@@ -1291,6 +1294,11 @@ export default function KlingMotionControl() {
           payload.vaultProfileId = folderProfileId;
         }
         payload.vaultFolderId = targetFolder;
+      }
+
+      // Add organization slug from URL
+      if (tenant) {
+        payload.organizationSlug = tenant;
       }
 
       // Send JSON payload with S3 URLs (much smaller than files)

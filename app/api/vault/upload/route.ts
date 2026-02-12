@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
     const profileId = formData.get("profileId") as string;
     const folderId = formData.get("folderId") as string;
+    const organizationSlug = formData.get("organizationSlug") as string;
 
     if (!file || !profileId || !folderId) {
       return NextResponse.json(
@@ -63,17 +64,14 @@ export async function POST(request: NextRequest) {
       where: { clerkId: userId },
       select: {
         currentOrganizationId: true,
-        currentOrganization: {
-          select: { slug: true }
-        }
       },
     });
 
     // S3 key structure with organization prefix:
     // - With org: organizations/{organizationSlug}/vault/{clerkId}/{profileId}/{folderId}/{fileName}
     // - Without org (fallback): vault/{clerkId}/{profileId}/{folderId}/{fileName}
-    const s3Key = user?.currentOrganization?.slug
-      ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
+    const s3Key = organizationSlug
+      ? `organizations/${organizationSlug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
       : `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
 
     // Convert file to buffer

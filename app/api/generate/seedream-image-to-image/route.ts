@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       sequential_image_generation_options,
       size = "2048x2048",
       targetFolder,
+      organizationSlug,
       // Vault folder support
       saveToVault,
       vaultProfileId,
@@ -205,6 +206,7 @@ export async function POST(request: NextRequest) {
           size: body.size,
           watermark: body.watermark,
           targetFolder: body.targetFolder,
+          organizationSlug: organizationSlug || null,
           numReferenceImages: Array.isArray(image) ? image.length : 1,
           saveToVault: body.saveToVault,
           vaultProfileId: body.vaultProfileId,
@@ -235,9 +237,6 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             currentOrganizationId: true,
-            currentOrganization: {
-              select: { slug: true }
-            }
           },
         });
 
@@ -389,19 +388,8 @@ export async function POST(request: NextRequest) {
         if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           // Save to vault storage: vault/{ownerClerkId}/{profileId}/{folderId}/{fileName}
           // Use the folder owner's clerkId (vaultFolder.clerkId), not current user's
-          // Get current user to check organization
-          const currentUser = await prisma.user.findUnique({
-            where: { clerkId: userId },
-            select: {
-              currentOrganizationId: true,
-              currentOrganization: {
-                select: { slug: true }
-              }
-            },
-          });
-
-          s3Key = currentUser?.currentOrganization?.slug
-            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
+          s3Key = organizationSlug
+            ? `organizations/${organizationSlug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
             : `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
           console.log(`📤 Uploading to Vault S3: ${s3Key} (owner: ${vaultFolder.clerkId})`);
         } else if (body.targetFolder) {

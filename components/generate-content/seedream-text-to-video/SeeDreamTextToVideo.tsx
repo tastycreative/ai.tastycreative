@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useParams } from "next/navigation";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -102,6 +103,8 @@ const sliderToDuration = (value: number) => (value === 0 ? -1 : value + 3);
 export default function SeeDreamTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
 
@@ -678,6 +681,7 @@ export default function SeeDreamTextToVideo() {
         generateAudio,
         // Always include profile ID for history filtering
         vaultProfileId: folderProfileId || null,
+        organizationSlug: tenant,
       };
 
       // Add vault folder params if selected

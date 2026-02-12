@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { fileName, fileType, fileSize, profileId, folderId } = await request.json();
+    const { fileName, fileType, fileSize, profileId, folderId, organizationSlug } = await request.json();
 
     if (!fileName || !fileType || !profileId || !folderId) {
       return NextResponse.json(
@@ -104,17 +104,14 @@ export async function POST(request: NextRequest) {
       where: { clerkId: userId },
       select: {
         currentOrganizationId: true,
-        currentOrganization: {
-          select: { slug: true }
-        }
       },
     });
 
     // S3 key structure with organization prefix:
     // - With org: organizations/{organizationSlug}/vault/{clerkId}/{profileId}/{folderId}/{fileName}
     // - Without org (fallback): vault/{clerkId}/{profileId}/{folderId}/{fileName}
-    const s3Key = user?.currentOrganization?.slug
-      ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
+    const s3Key = organizationSlug
+      ? `organizations/${organizationSlug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
       : `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
 
     // Generate presigned URL for direct upload (valid for 10 minutes)

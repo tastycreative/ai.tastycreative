@@ -163,10 +163,12 @@ interface GoogleDriveBreadcrumb {
 
 interface SextingSetOrganizerProps {
   profileId: string | null;
+  tenant: string;
 }
 
 export default function SextingSetOrganizer({
   profileId,
+  tenant,
 }: SextingSetOrganizerProps) {
   const [sets, setSets] = useState<SextingSet[]>([]);
   const [selectedSet, setSelectedSet] = useState<SextingSet | null>(null);
@@ -792,6 +794,7 @@ export default function SextingSetOrganizer({
           setId: selectedSet.id,
           profileId: targetProfileId,
           folderName: exportFolderName.trim(),
+          organizationSlug: tenant,
         }),
       });
 

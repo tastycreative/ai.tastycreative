@@ -25,7 +25,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { folderId } = body;
+    const { folderId, organizationSlug } = body;
 
     if (!folderId) {
       return NextResponse.json({ error: "folderId is required" }, { status: 400 });
@@ -102,16 +102,13 @@ export async function POST(
       where: { clerkId: destinationFolder.clerkId },
       select: {
         currentOrganizationId: true,
-        currentOrganization: {
-          select: { slug: true }
-        }
       },
     });
 
     // Generate a new key for the copied file with organization prefix
     const timestamp = Date.now();
-    const newKey = user?.currentOrganization?.slug
-      ? `organizations/${user.currentOrganization.slug}/vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`
+    const newKey = organizationSlug
+      ? `organizations/${organizationSlug}/vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`
       : `vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`;
     
     // Copy the S3 object

@@ -10,6 +10,7 @@ import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { useParams } from "next/navigation";
 import {
   AlertCircle,
   Archive,
@@ -254,6 +255,8 @@ const Tooltip = ({ content, children }: { content: string; children: React.React
 export default function KlingImageToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1106,6 +1109,11 @@ export default function KlingImageToVideo() {
       if (targetFolder && globalProfileId) {
         formData.append("saveToVault", "true");
         formData.append("vaultFolderId", targetFolder);
+      }
+
+      // Add organization slug from URL
+      if (tenant) {
+        formData.append("organizationSlug", tenant);
       }
 
       const response = await apiClient.post(

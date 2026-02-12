@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       generateAudio,
       targetFolder,
       referenceImageUrl, // The actual reference image URL for history/reuse
+      organizationSlug,
       // Vault folder params
       saveToVault,
       vaultProfileId,
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
           source: "seedream-i2v",
           targetFolder: targetFolder || null,
           referenceImageUrl: referenceImageUrl || null, // Store reference image for history/reuse
+          organizationSlug: organizationSlug || null,
           // Vault params
           saveToVault: saveToVault || false,
           vaultProfileId: vaultProfileId || null,
@@ -397,6 +399,7 @@ export async function GET(request: NextRequest) {
         const saveToVault = params?.saveToVault;
         const vaultProfileId = params?.vaultProfileId;
         const vaultFolderId = params?.vaultFolderId;
+        const organizationSlug = params?.organizationSlug;
 
         // Verify vault folder if saving to vault
         let vaultFolder = null;
@@ -418,9 +421,6 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 currentOrganizationId: true,
-                currentOrganization: {
-                  select: { slug: true }
-                }
               },
             });
 
@@ -542,8 +542,8 @@ export async function GET(request: NextRequest) {
         
         if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           // Save to vault folder - use folder owner's clerkId with organization structure
-          s3Key = currentUser?.currentOrganization?.slug
-            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
+          s3Key = organizationSlug
+            ? `organizations/${organizationSlug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
             : `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, '')}/${filename}`;

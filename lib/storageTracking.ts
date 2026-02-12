@@ -3,7 +3,9 @@
  * Monitors and calculates storage usage across AWS S3, database, and other storage backends
  */
 
-import { prisma } from './database';
+import { prisma } from "./database";
+
+
 
 export interface StorageBreakdown {
   organizationId: string;
@@ -363,21 +365,26 @@ export async function getStorageBreakdownByOrganization(): Promise<
   const organizations = await prisma.organization.findMany({
     include: {
       subscriptionPlan: true,
-      teamMembers: {
-        select: { id: true },
-      },
     },
   });
 
-  return organizations.map((org) => {
-    const maxGB = org.customMaxStorageGB ?? org.subscriptionPlan?.maxStorageGB ?? 5;
-    return {
-      organizationId: org.id,
-      organizationName: org.name,
-      currentGB: org.currentStorageGB,
-      maxGB,
-      percentageUsed: (org.currentStorageGB / maxGB) * 100,
-      memberCount: org.teamMembers.length,
-    };
-  });
+  const results = await Promise.all(
+    organizations.map(async (org) => {
+      const memberCount = await prisma.teamMember.count({
+        where: { organizationId: org.id },
+      });
+
+      const maxGB = org.customMaxStorageGB ?? org.subscriptionPlan?.maxStorageGB ?? 5;
+      return {
+        organizationId: org.id,
+        organizationName: org.name,
+        currentGB: org.currentStorageGB,
+        maxGB,
+        percentageUsed: (org.currentStorageGB / maxGB) * 100,
+        memberCount,
+      };
+    })
+  );
+
+  return results;
 }

@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
     const saveToVault = formData.get("saveToVault") === "true";
     const vaultProfileId = formData.get("vaultProfileId") as string | null;
     const vaultFolderId = formData.get("vaultFolderId") as string | null;
+    const organizationSlug = formData.get("organizationSlug") as string | null;
 
     console.log("[Kling I2V] Request received with model:", selectedModel);
 
@@ -210,6 +211,7 @@ export async function POST(request: NextRequest) {
           saveToVault: saveToVault || false,
           vaultProfileId: vaultProfileId || null,
           vaultFolderId: vaultFolderId || null,
+          organizationSlug: organizationSlug || null,
         },
         user: {
           connect: {
@@ -531,6 +533,7 @@ export async function GET(request: NextRequest) {
         const saveToVault = params?.saveToVault;
         const vaultProfileId = params?.vaultProfileId;
         const vaultFolderId = params?.vaultFolderId;
+        const organizationSlug = params?.organizationSlug;
 
         // Verify vault folder if saving to vault
         let vaultFolder = null;
@@ -552,9 +555,6 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 currentOrganizationId: true,
-                currentOrganization: {
-                  select: { slug: true }
-                }
               },
             });
 
@@ -634,19 +634,9 @@ export async function GET(request: NextRequest) {
 
         if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           // Save to vault folder - use folder owner's clerkId for shared profiles
-          // Get current user to check organization
-          const currentUser = await prisma.user.findUnique({
-            where: { clerkId: userId },
-            select: {
-              currentOrganizationId: true,
-              currentOrganization: {
-                select: { slug: true }
-              }
-            },
-          });
-
-          s3Key = currentUser?.currentOrganization?.slug
-            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
+          // Use the organization slug passed from client
+          s3Key = organizationSlug
+            ? `organizations/${organizationSlug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
             : `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, "")}/${filename}`;
@@ -758,7 +748,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Track storage usage (non-blocking)
-        if (videoBuffer.length > 0) {
+        if (videoBuffer.length > 0 && saveToVault && vaultFolder) {
           trackStorageUpload(vaultFolder.clerkId, videoBuffer.length).catch((error) => {
             console.error('[Kling I2V] Failed to track storage upload:', error);
           });
