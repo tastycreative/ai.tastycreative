@@ -20,6 +20,8 @@ export interface GenerationJob {
     aspectRatio?: string;
     profileName?: string;
     numReferenceImages?: number;
+    model?: string;
+    mode?: string;
   };
   results?: any; // Store generated images/videos when job completes
 }
