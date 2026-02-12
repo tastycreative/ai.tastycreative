@@ -237,17 +237,79 @@ const Tooltip = ({ text }: { text: string }) => (
 export default function KlingMultiImageToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('kling-multi-image-to-video');
   
   // Check if "All Profiles" is selected
   const isAllProfiles = globalProfileId === "all";
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+  
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'kling-multi-image-to-video' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/kling-multi-image-to-video?history=true&profileId=${globalProfileId}`
+            : "/api/generate/kling-multi-image-to-video?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentVideos = data.videos || [];
+            
+            const jobTimeWindow = 60 * 1000;
+            const matchingVideos = recentVideos.filter((video: any) => {
+              const videoCreatedAt = new Date(video.createdAt).getTime();
+              return videoCreatedAt >= activeJob.startedAt && 
+                     videoCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingVideos.length > 0) {
+              console.log('✅ Found completed videos for stale Kling Multi I2V job');
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingVideos,
+                completedAt: Date.now(),
+              });
+              
+              setGeneratedVideos(matchingVideos);
+              setGenerationHistory((prev: any) => {
+                const allVideos = [...matchingVideos, ...prev];
+                const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+                  index === self.findIndex((v: any) => v.id === video.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed Kling Multi I2V generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+  
   useEffect(() => {
     setMounted(true);
     
@@ -321,6 +383,33 @@ export default function KlingMultiImageToVideo() {
       loadReuseData();
     }
   }, []);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return;
+    
+    const lastCompletedJob = getLastCompletedJobForType('kling-multi-image-to-video');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      setGeneratedVideos(prev => {
+        const existingIds = new Set(prev.map((video: any) => video.id));
+        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed Kling Multi I2V:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+      
+      setGenerationHistory((prev: any) => {
+        const allVideos = [...lastCompletedJob.results, ...prev];
+        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+          index === self.findIndex((v: any) => v.id === video.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType, activeJobs]);
 
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
@@ -918,6 +1007,9 @@ export default function KlingMultiImageToVideo() {
       return;
     }
 
+    // Clear previous completed jobs for this type
+    await clearCompletedJobsForType('kling-multi-image-to-video');
+    
     setIsGenerating(true);
     setGeneratedVideos([]);
     setPollingStatus("Uploading images...");
@@ -944,13 +1036,19 @@ export default function KlingMultiImageToVideo() {
         setIsSavingToReferenceBank(false);
       }
 
-      updateGlobalProgress({
-        isGenerating: true,
-        progress: 0,
-        stage: "starting",
-        message: "Starting Kling Multi-Image-to-Video generation...",
-        generationType: "image-to-video",
+      // Create job in global state
+      addJob({
         jobId: localTaskId,
+        generationType: 'kling-multi-image-to-video',
+        progress: 0,
+        stage: 'starting',
+        message: 'Starting Kling Multi-Image-to-Video generation...',
+        status: 'pending',
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim(),
+          model,
+        },
       });
 
       // Prepare form data
@@ -1000,13 +1098,13 @@ export default function KlingMultiImageToVideo() {
       refreshCredits();
 
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
-        updateGlobalProgress({
-          isGenerating: false,
+        updateJob(localTaskId, {
+          status: 'completed',
           progress: 100,
-          stage: "completed",
-          message: "Generation completed!",
-          generationType: "image-to-video",
-          jobId: localTaskId,
+          stage: 'completed',
+          message: 'Generation completed!',
+          results: data.videos,
+          completedAt: Date.now(),
         });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
@@ -1018,16 +1116,15 @@ export default function KlingMultiImageToVideo() {
     } catch (err: any) {
       console.error("Generation error:", err);
       showErrorToast(err.message || "Failed to generate video");
-      updateGlobalProgress({
-        isGenerating: false,
+      updateJob(localTaskId, {
+        status: 'failed',
         progress: 0,
-        stage: "failed",
-        message: err.message || "Generation failed",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        error: err.message,
+        completedAt: Date.now(),
       });
       setPollingStatus("");
-      setTimeout(() => clearGlobalProgress(), 3000);
       setIsGenerating(false);
     }
   };
@@ -1049,7 +1146,9 @@ export default function KlingMultiImageToVideo() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    await clearCompletedJobsForType('kling-multi-image-to-video');
+    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");
@@ -1288,7 +1387,7 @@ export default function KlingMultiImageToVideo() {
                         type="button"
                         onClick={() => setShowReferenceBankSelector(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
-                        disabled={isGenerating || uploadedImages.length >= MAX_IMAGES}
+                        disabled={hasActiveGeneration || uploadedImages.length >= MAX_IMAGES}
                       >
                         <Library className="w-3.5 h-3.5" />
                         Reference Bank
@@ -1301,7 +1400,7 @@ export default function KlingMultiImageToVideo() {
                 {uploadedImages.length < MAX_IMAGES && (
                   <button
                     onClick={() => !isCompressing && fileInputRef.current?.click()}
-                    disabled={isGenerating || isCompressing}
+                    disabled={hasActiveGeneration || isCompressing}
                     className="w-full py-6 border-2 border-dashed border-zinc-300 dark:border-zinc-600 hover:border-[#EC67A1]/50 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCompressing ? (
@@ -1404,7 +1503,7 @@ export default function KlingMultiImageToVideo() {
                   placeholder="Describe the transition or animation style..."
                   className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50"
                   rows={3}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                 />
 
                 {/* Quick Settings - Integrated in Prompt Section */}
@@ -1417,7 +1516,7 @@ export default function KlingMultiImageToVideo() {
                     <select
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-sidebar-foreground transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
                     >
                       {MODEL_OPTIONS.map((opt) => (
@@ -1436,7 +1535,7 @@ export default function KlingMultiImageToVideo() {
                     <select
                       value={mode}
                       onChange={(e) => setMode(e.target.value)}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-sidebar-foreground transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
                     >
                       {MODE_OPTIONS.map((opt) => (
@@ -1455,7 +1554,7 @@ export default function KlingMultiImageToVideo() {
                     <select
                       value={duration}
                       onChange={(e) => setDuration(e.target.value)}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-sidebar-foreground transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
                     >
                       {DURATION_OPTIONS.map((opt) => (
@@ -1474,7 +1573,7 @@ export default function KlingMultiImageToVideo() {
                     <select
                       value={aspectRatio}
                       onChange={(e) => setAspectRatio(e.target.value)}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-sidebar-foreground transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
                     >
                       {ASPECT_RATIO_OPTIONS.map((opt) => (
@@ -1499,7 +1598,7 @@ export default function KlingMultiImageToVideo() {
                   placeholder="What to avoid: blurry, distorted, low quality..."
                   className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50"
                   rows={2}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                 />
               </div>
 
@@ -1517,8 +1616,8 @@ export default function KlingMultiImageToVideo() {
                 <div ref={folderDropdownRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
-                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    onClick={() => !(!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId}
                     className={`
                       w-full flex items-center justify-between gap-3 px-4 py-3.5
                       rounded-2xl border transition-all duration-200
@@ -1721,7 +1820,7 @@ export default function KlingMultiImageToVideo() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || isCompressing || uploadedImages.length < 2}
+                  disabled={hasActiveGeneration || isCompressing || uploadedImages.length < 2}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : isCompressing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -1730,7 +1829,7 @@ export default function KlingMultiImageToVideo() {
                 <button
                   onClick={handleReset}
                   type="button"
-                  disabled={isGenerating || isCompressing}
+                  disabled={hasActiveGeneration || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-200 dark:bg-zinc-700 px-5 py-3 text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" /> Reset

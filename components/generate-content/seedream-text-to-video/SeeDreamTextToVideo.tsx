@@ -102,8 +102,11 @@ const sliderToDuration = (value: number) => (value === 0 ? -1 : value + 3);
 export default function SeeDreamTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('text-to-video');
 
   const [prompt, setPrompt] = useState("");
   const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
@@ -171,9 +174,95 @@ export default function SeeDreamTextToVideo() {
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+  
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      // Check if there's an active processing job for this type
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'text-to-video' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        // Check generation history to see if it completed while we were offline
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/seedream-text-to-video?history=true&profileId=${globalProfileId}`
+            : "/api/generate/seedream-text-to-video?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentVideos = data.videos || [];
+            
+            // Check if any videos were created around the time of the active job
+            const jobTimeWindow = 60 * 1000; // 1 minute window
+            const matchingVideos = recentVideos.filter((video: any) => {
+              const videoCreatedAt = new Date(video.createdAt).getTime();
+              return videoCreatedAt >= activeJob.startedAt && 
+                     videoCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingVideos.length > 0) {
+              console.log('✅ Found completed videos for stale T2V job, marking as complete');
+              // Update the job as completed with the results
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingVideos,
+                completedAt: Date.now(),
+              });
+              
+              // Display the results
+              setGeneratedVideos(matchingVideos);
+              setGenerationHistory((prev: any) => {
+                const allVideos = [...matchingVideos, ...prev];
+                const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+                  index === self.findIndex((v: any) => v.id === video.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed T2V generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // Only runs once on mount to check for previously incomplete jobs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+  
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return; // Don't sync while actively generating
+    
+    const lastCompletedJob = getLastCompletedJobForType('text-to-video');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      // Display the results if not already showing
+      setGeneratedVideos(prev => {
+        // Check if we already have these results
+        const existingIds = new Set(prev.map((video: any) => video.id));
+        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed T2V generation:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType]);
 
   // Check for reuse data from sessionStorage (from Vault)
   useEffect(() => {
@@ -412,12 +501,22 @@ export default function SeeDreamTextToVideo() {
           setPollingStatus(
             `Processing... (${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s)`
           );
+          
+          const currentProgress = Math.min(90, attempts * 2);
+          const message = `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
+          
+          updateJob(localTaskId, {
+            progress: currentProgress,
+            stage: "processing",
+            message,
+          });
+          
           updateGlobalProgress({
             isGenerating: true,
-            progress: Math.min(90, attempts * 2),
+            progress: currentProgress,
             stage: "processing",
-            message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
-            generationType: "image-to-video",
+            message,
+            generationType: "text-to-video",
             jobId: localTaskId,
           });
 
@@ -435,12 +534,22 @@ export default function SeeDreamTextToVideo() {
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
             // Refresh credit balance in the UI after successful generation
             refreshCredits();
+            
+            // Update job as completed
+            updateJob(localTaskId, {
+              progress: 100,
+              stage: "completed",
+              message: "Video generation completed!",
+              status: "completed",
+              results: data.videos,
+            });
+            
             updateGlobalProgress({
               isGenerating: false,
               progress: 100,
               stage: "completed",
               message: "Video generation completed!",
-              generationType: "image-to-video",
+              generationType: "text-to-video",
               jobId: localTaskId,
             });
             setGeneratedVideos(data.videos);
@@ -472,12 +581,22 @@ export default function SeeDreamTextToVideo() {
         } catch (err: any) {
           console.error("Polling error:", err);
           setError(err.message || "Failed to check generation status");
+          
+          // Update job as failed
+          updateJob(localTaskId, {
+            progress: 0,
+            stage: "failed",
+            message: err.message || "Generation failed",
+            status: "failed",
+            error: err.message,
+          });
+          
           updateGlobalProgress({
             isGenerating: false,
             progress: 0,
             stage: "failed",
             message: err.message || "Generation failed",
-            generationType: "image-to-video",
+            generationType: "text-to-video",
             jobId: localTaskId,
           });
           setPollingStatus("");
@@ -492,6 +611,9 @@ export default function SeeDreamTextToVideo() {
   };
 
   const handleGenerate = async () => {
+    // Clear any old completed jobs for this generation type
+    clearCompletedJobsForType('text-to-video');
+    
     if (!apiClient) {
       setError("API client not available");
       return;
@@ -516,12 +638,29 @@ export default function SeeDreamTextToVideo() {
     const localTaskId = `seedream-t2v-${Date.now()}`;
 
     try {
+      // Create a job in the global progress tracker
+      addJob({
+        jobId: localTaskId,
+        generationType: "text-to-video",
+        progress: 0,
+        stage: "starting",
+        message: "Starting SeeDream 4.5 Text-to-Video generation...",
+        status: "processing",
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim().slice(0, 100),
+          resolution,
+          aspectRatio,
+          profileName: selectedProfile?.name,
+        }
+      });
+
       updateGlobalProgress({
         isGenerating: true,
         progress: 0,
         stage: "starting",
         message: "Starting SeeDream 4.5 Text-to-Video generation...",
-        generationType: "image-to-video",
+        generationType: "text-to-video",
         jobId: localTaskId,
       });
 
@@ -563,12 +702,22 @@ export default function SeeDreamTextToVideo() {
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
         // Refresh credit balance in the UI after successful generation
         refreshCredits();
+        
+        // Update job as completed
+        updateJob(localTaskId, {
+          progress: 100,
+          stage: "completed",
+          message: "Generation completed!",
+          status: "completed",
+          results: data.videos,
+        });
+        
         updateGlobalProgress({
           isGenerating: false,
           progress: 100,
           stage: "completed",
           message: "Generation completed!",
-          generationType: "image-to-video",
+          generationType: "text-to-video",
           jobId: localTaskId,
         });
         setGeneratedVideos(data.videos);
@@ -581,16 +730,25 @@ export default function SeeDreamTextToVideo() {
     } catch (err: any) {
       console.error("Generation error:", err);
       setError(err.message || "Failed to generate video");
+      
+      // Update job as failed
+      updateJob(localTaskId, {
+        progress: 0,
+        stage: "failed",
+        message: err.message || "Generation failed",
+        status: "failed",
+        error: err.message,
+      });
+      
       updateGlobalProgress({
         isGenerating: false,
         progress: 0,
         stage: "failed",
         message: err.message || "Generation failed",
-        generationType: "image-to-video",
+        generationType: "text-to-video",
         jobId: localTaskId,
       });
       setPollingStatus("");
-      setTimeout(() => clearGlobalProgress(), 3000);
       setIsGenerating(false);
     }
   };
@@ -613,6 +771,9 @@ export default function SeeDreamTextToVideo() {
   };
 
   const handleReset = () => {
+    // Clear any completed jobs for this generation type
+    clearCompletedJobsForType('text-to-video');
+    
     setPrompt("");
     setDuration(4);
     setDurationSliderValue(1);
@@ -1111,14 +1272,24 @@ export default function SeeDreamTextToVideo() {
                 </div>
               )}
 
+              {/* Generation in Progress Message */}
+              {hasActiveGeneration && !isGenerating && (
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>A generation is already in progress for this tab. Please wait for it to complete.</span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
                 >
-                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {isGenerating ? "Generating..." : "Generate Video"}
+                  {hasActiveGeneration ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {hasActiveGeneration ? "Generating..." : "Generate Video"}
                 </button>
                 <button
                   onClick={handleReset}

@@ -254,18 +254,80 @@ const Tooltip = ({ content, children }: { content: string; children: React.React
 export default function KlingImageToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
   
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('kling-image-to-video');
+  
   // Check if "All Profiles" is selected
   const isAllProfiles = globalProfileId === "all";
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+  
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'kling-image-to-video' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/kling-image-to-video?history=true&profileId=${globalProfileId}`
+            : "/api/generate/kling-image-to-video?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentVideos = data.videos || [];
+            
+            const jobTimeWindow = 60 * 1000;
+            const matchingVideos = recentVideos.filter((video: any) => {
+              const videoCreatedAt = new Date(video.createdAt).getTime();
+              return videoCreatedAt >= activeJob.startedAt && 
+                     videoCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingVideos.length > 0) {
+              console.log('✅ Found completed videos for stale Kling I2V job');
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingVideos,
+                completedAt: Date.now(),
+              });
+              
+              setGeneratedVideos(matchingVideos);
+              setGenerationHistory((prev: any) => {
+                const allVideos = [...matchingVideos, ...prev];
+                const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+                  index === self.findIndex((v: any) => v.id === video.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed Kling I2V generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+  
   useEffect(() => {
     setMounted(true);
     
@@ -368,6 +430,33 @@ export default function KlingImageToVideo() {
       }
     }
   }, []);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return;
+    
+    const lastCompletedJob = getLastCompletedJobForType('kling-image-to-video');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      setGeneratedVideos(prev => {
+        const existingIds = new Set(prev.map((video: any) => video.id));
+        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed Kling I2V:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+      
+      setGenerationHistory((prev: any) => {
+        const allVideos = [...lastCompletedJob.results, ...prev];
+        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+          index === self.findIndex((v: any) => v.id === video.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType, activeJobs]);
 
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
@@ -915,6 +1004,9 @@ export default function KlingImageToVideo() {
       return;
     }
 
+    // Clear previous completed jobs for this type
+    await clearCompletedJobsForType('kling-image-to-video');
+    
     setIsGenerating(true);
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
@@ -939,13 +1031,19 @@ export default function KlingImageToVideo() {
     }
 
     try {
-      updateGlobalProgress({
-        isGenerating: true,
-        progress: 0,
-        stage: "starting",
-        message: "Starting Kling Image-to-Video generation...",
-        generationType: "image-to-video",
+      // Create job in global state
+      addJob({
         jobId: localTaskId,
+        generationType: 'kling-image-to-video',
+        progress: 0,
+        stage: 'starting',
+        message: 'Starting Kling Image-to-Video generation...',
+        status: 'pending',
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim(),
+          model,
+        },
       });
       
       // Create FormData for image upload
@@ -1028,13 +1126,13 @@ export default function KlingImageToVideo() {
       refreshCredits();
 
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
-        updateGlobalProgress({
-          isGenerating: false,
+        updateJob(localTaskId, {
+          status: 'completed',
           progress: 100,
-          stage: "completed",
-          message: "Generation completed!",
-          generationType: "image-to-video",
-          jobId: localTaskId,
+          stage: 'completed',
+          message: 'Generation completed!',
+          results: data.videos,
+          completedAt: Date.now(),
         });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
@@ -1046,16 +1144,15 @@ export default function KlingImageToVideo() {
     } catch (err: any) {
       console.error("Generation error:", err);
       showErrorToast(err.message || "Failed to generate video");
-      updateGlobalProgress({
-        isGenerating: false,
+      updateJob(localTaskId, {
+        status: 'failed',
         progress: 0,
-        stage: "failed",
-        message: err.message || "Generation failed",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        error: err.message,
+        completedAt: Date.now(),
       });
       setPollingStatus("");
-      setTimeout(() => clearGlobalProgress(), 3000);
       setIsGenerating(false);
     }
   };
@@ -1077,7 +1174,9 @@ export default function KlingImageToVideo() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    await clearCompletedJobsForType('kling-image-to-video');
+    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");
@@ -1300,7 +1399,7 @@ export default function KlingImageToVideo() {
                       type="button"
                       onClick={() => setShowReferenceBankSelector(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <Library className="w-3.5 h-3.5" />
                       Reference Bank
@@ -1387,7 +1486,7 @@ export default function KlingImageToVideo() {
                       <button
                         key={option.value}
                         onClick={() => setImageMode(option.value)}
-                        disabled={isGenerating}
+                        disabled={hasActiveGeneration}
                         className={`p-3 rounded-2xl border-2 transition-all ${
                           imageMode === option.value
                             ? "border-[#EC67A1]/60 bg-[#EC67A1]/10"
@@ -1460,7 +1559,7 @@ export default function KlingImageToVideo() {
                   placeholder="Describe the motion and scene you want to see in the video..."
                   className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-4 text-base text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 resize-none"
                   rows={4}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                 />
                 <div className="flex items-center justify-between text-xs text-zinc-400 dark:text-zinc-500">
                   <span>Add motion details for better results</span>
@@ -1494,7 +1593,7 @@ export default function KlingImageToVideo() {
                             setUseCameraControl(false);
                           }
                         }}
-                        disabled={isGenerating}
+                        disabled={hasActiveGeneration}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {MODEL_OPTIONS.map((option) => (
@@ -1521,7 +1620,7 @@ export default function KlingImageToVideo() {
                             setSound("off");
                           }
                         }}
-                        disabled={isGenerating || (sound === "on" && currentModelSupportsSound)}
+                        disabled={hasActiveGeneration || (sound === "on" && currentModelSupportsSound)}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {MODE_OPTIONS.map((option) => (
@@ -1543,7 +1642,7 @@ export default function KlingImageToVideo() {
                       <select
                         value={duration}
                         onChange={(e) => setDuration(e.target.value)}
-                        disabled={isGenerating}
+                        disabled={hasActiveGeneration}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {DURATION_OPTIONS.map((option) => (
@@ -1565,7 +1664,7 @@ export default function KlingImageToVideo() {
                       <select
                         value={imageMode}
                         onChange={(e) => setImageMode(e.target.value)}
-                        disabled={isGenerating}
+                        disabled={hasActiveGeneration}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
                       >
                         {IMAGE_MODE_OPTIONS.map((option) => (
@@ -1593,7 +1692,7 @@ export default function KlingImageToVideo() {
                   placeholder="What to avoid: blurry, distorted, low quality, watermark, text..."
                   className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50"
                   rows={2}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                 />
               </div>
 
@@ -1631,7 +1730,7 @@ export default function KlingImageToVideo() {
                           ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/10"
                           : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                       } disabled:opacity-50`}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <p className="text-sm font-semibold">🔇 No Audio</p>
                       <p className="text-xs text-header-muted">Video only</p>
@@ -1649,7 +1748,7 @@ export default function KlingImageToVideo() {
                           ? "border-[#5DC3F8]/60 bg-[#5DC3F8]/10 text-sidebar-foreground shadow-[#5DC3F8]/10"
                           : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                       } disabled:opacity-50`}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <p className="text-sm font-semibold">🔊 With Audio</p>
                       <p className="text-xs text-header-muted">Pro mode only</p>
@@ -1678,7 +1777,7 @@ export default function KlingImageToVideo() {
                     value={cfgScale}
                     onChange={(e) => setCfgScale(Number(e.target.value))}
                     className="w-full accent-[#EC67A1]"
-                    disabled={isGenerating}
+                    disabled={hasActiveGeneration}
                   />
                   <div className="flex justify-between text-xs text-zinc-400 dark:text-zinc-500">
                     <span>More Creative</span>
@@ -1698,7 +1797,7 @@ export default function KlingImageToVideo() {
                         ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground shadow-[#EC67A1]/10"
                         : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                     } disabled:opacity-50`}
-                    disabled={isGenerating}
+                    disabled={hasActiveGeneration}
                   >
                     <div className="flex items-center gap-3">
                       <Camera className="w-5 h-5" />
@@ -1731,7 +1830,7 @@ export default function KlingImageToVideo() {
                                 ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
                                 : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                             } disabled:opacity-50`}
-                            disabled={isGenerating}
+                            disabled={hasActiveGeneration}
                           >
                             <p className="text-xs font-semibold">{option.label}</p>
                             <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{option.description}</p>
@@ -1769,7 +1868,7 @@ export default function KlingImageToVideo() {
                                   ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
                                   : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-header-muted"
                               } disabled:opacity-50`}
-                              disabled={isGenerating}
+                              disabled={hasActiveGeneration}
                             >
                               <p className="text-[10px] font-semibold">{axis.label}</p>
                             </button>
@@ -1806,7 +1905,7 @@ export default function KlingImageToVideo() {
                                 });
                               }}
                               className="w-full accent-[#EC67A1]"
-                              disabled={isGenerating}
+                              disabled={hasActiveGeneration}
                             />
                             <div className="flex justify-between text-[10px] text-zinc-400 dark:text-zinc-500">
                               <span>-10</span>
@@ -1839,8 +1938,8 @@ export default function KlingImageToVideo() {
                 <div ref={folderDropdownRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
-                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    onClick={() => !(!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId}
                     className={`
                       w-full flex items-center justify-between gap-3 px-4 py-3.5
                       rounded-2xl border transition-all duration-200
@@ -2043,7 +2142,7 @@ export default function KlingImageToVideo() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || isCompressing || !uploadedImage}
+                  disabled={hasActiveGeneration || isCompressing || !uploadedImage}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isGenerating ? (
@@ -2065,7 +2164,7 @@ export default function KlingImageToVideo() {
                 </button>
                 <button
                   onClick={handleReset}
-                  disabled={isGenerating || isCompressing}
+                  disabled={hasActiveGeneration || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-zinc-200 dark:bg-zinc-700 px-6 py-3 text-sm font-semibold text-sidebar-foreground hover:bg-zinc-300 dark:hover:bg-zinc-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <RotateCcw className="h-5 w-5" />

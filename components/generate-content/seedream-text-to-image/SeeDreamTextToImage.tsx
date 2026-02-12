@@ -76,8 +76,11 @@ interface UserPreset {
 export default function SeeDreamTextToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('text-to-image');
 
   // Form State
   const [prompt, setPrompt] = useState("");
@@ -115,6 +118,100 @@ export default function SeeDreamTextToImage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      // Check if there's an active processing job for this type
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'text-to-image' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        // Check generation history to see if it completed while we were offline
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/seedream-text-to-image?history=true&profileId=${globalProfileId}`
+            : "/api/generate/seedream-text-to-image?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentImages = data.images || [];
+            
+            // Check if any images were created around the time of the active job
+            const jobTimeWindow = 60 * 1000; // 1 minute window
+            const matchingImages = recentImages.filter((img: any) => {
+              const imgCreatedAt = new Date(img.createdAt).getTime();
+              return imgCreatedAt >= activeJob.startedAt && 
+                     imgCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingImages.length > 0) {
+              console.log('✅ Found completed images for stale job, marking as complete');
+              // Update the job as completed with the results
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingImages,
+                completedAt: Date.now(),
+              });
+              
+              // Display the results
+              setGeneratedImages(matchingImages);
+              setGenerationHistory(prev => {
+                const allImages = [...matchingImages, ...prev];
+                const uniqueHistory = allImages.filter((img: any, index: number, self: any[]) =>
+                  index === self.findIndex((i: any) => i.id === img.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // Only runs once on mount to check for previously incomplete jobs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return; // Don't sync while actively generating
+    
+    const lastCompletedJob = getLastCompletedJobForType('text-to-image');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      // Display the results if not already showing
+      setGeneratedImages(prev => {
+        // Check if we already have these results
+        const existingIds = new Set(prev.map(img => img.id));
+        const newResults = lastCompletedJob.results.filter((img: any) => !existingIds.has(img.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed generation:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+      
+      // Also update history
+      setGenerationHistory(prev => {
+        const allImages = [...lastCompletedJob.results, ...prev];
+        const uniqueHistory = allImages.filter((img: any, index: number, self: any[]) =>
+          index === self.findIndex((i: any) => i.id === img.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType]);
 
   // Load smart defaults from localStorage per profile
   useEffect(() => {
@@ -408,6 +505,9 @@ export default function SeeDreamTextToImage() {
   };
 
   const handleGenerate = async () => {
+    // Clear any old completed jobs for this generation type
+    clearCompletedJobsForType('text-to-image');
+    
     if (!apiClient) {
       setError("API client not available");
       return;
@@ -430,9 +530,26 @@ export default function SeeDreamTextToImage() {
     setError(null);
     setGeneratedImages([]);
     
-    const taskId = `seedream-${Date.now()}`;
+    const taskId = `seedream-t2i-${Date.now()}`;
     
     try {
+      // Create a job in the global progress tracker
+      addJob({
+        jobId: taskId,
+        generationType: "text-to-image",
+        progress: 0,
+        stage: "starting",
+        message: "Starting SeeDream 4.5 generation...",
+        status: "processing",
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim().slice(0, 100),
+          resolution: selectedResolution,
+          aspectRatio: selectedRatio,
+          profileName: selectedProfile?.name,
+        }
+      });
+
       updateGlobalProgress({
         isGenerating: true,
         progress: 0,
@@ -475,7 +592,51 @@ export default function SeeDreamTextToImage() {
         };
       }
 
+      // Track current progress for simulation
+      let currentProgress = 0;
+      
+      // Simulate realistic progress updates while waiting for API
+      const progressInterval = setInterval(() => {
+        if (currentProgress < 90) {
+          const increment = Math.random() * 10 + 5; // Random increment between 5-15%
+          currentProgress = Math.min(currentProgress + increment, 90);
+          
+          // Update stage based on progress
+          let stage = "processing";
+          let message = "Generating image...";
+          if (currentProgress < 20) {
+            stage = "loading_models";
+            message = "Loading AI models...";
+          } else if (currentProgress < 40) {
+            stage = "processing_prompt";
+            message = "Processing your prompt...";
+          } else if (currentProgress < 70) {
+            stage = "generating";
+            message = "Creating your image...";
+          } else {
+            stage = "finalizing";
+            message = "Finalizing generation...";
+          }
+          
+          updateJob(taskId, {
+            progress: currentProgress,
+            stage,
+            message,
+          });
+          
+          updateGlobalProgress({
+            progress: currentProgress,
+            stage,
+            message,
+            jobId: taskId,
+          });
+        }
+      }, 2000); // Update every 2 seconds
+
       const response = await apiClient.post("/api/generate/seedream-text-to-image", payload);
+      
+      // Clear progress simulation
+      clearInterval(progressInterval);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -486,6 +647,14 @@ export default function SeeDreamTextToImage() {
 
       // Refresh credit balance in the UI after successful generation
       refreshCredits();
+
+      // Update job as completed
+      updateJob(taskId, {
+        progress: 100,
+        stage: "completed",
+        message: "Generation completed!",
+        status: "completed",
+      });
 
       updateGlobalProgress({
         isGenerating: false,
@@ -512,6 +681,11 @@ export default function SeeDreamTextToImage() {
 
       setGeneratedImages(images);
       
+      // Store results in the job so they persist across tab navigation
+      updateJob(taskId, {
+        results: images,
+      });
+      
       // Also add new images to history immediately for instant feedback
       setGenerationHistory(prev => {
         const newHistory = [...images, ...prev];
@@ -528,6 +702,16 @@ export default function SeeDreamTextToImage() {
     } catch (error: any) {
       console.error("Generation error:", error);
       setError(error.message || "Failed to generate images");
+      
+      // Update job as failed
+      updateJob(taskId, {
+        progress: 0,
+        stage: "failed",
+        message: error.message || "Generation failed",
+        status: "failed",
+        error: error.message,
+      });
+
       updateGlobalProgress({
         isGenerating: false,
         progress: 0,
@@ -536,7 +720,6 @@ export default function SeeDreamTextToImage() {
         generationType: "text-to-image",
         jobId: taskId,
       });
-      setTimeout(() => clearGlobalProgress(), 3000);
     } finally {
       setIsGenerating(false);
     }
@@ -584,6 +767,9 @@ export default function SeeDreamTextToImage() {
   };
 
   const handleReset = () => {
+    // Clear any completed jobs for this generation type
+    clearCompletedJobsForType('text-to-image');
+    
     setPrompt("");
     setNegativePrompt("");
     setSelectedResolution("2K");
@@ -1038,16 +1224,26 @@ export default function SeeDreamTextToImage() {
                 </div>
               )}
 
+              {/* Generation in Progress Message */}
+              {hasActiveGeneration && !isGenerating && (
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>A generation is already in progress for this tab. Please wait for it to complete.</span>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons - Sticky on Mobile */}
               <div className="sticky bottom-4 lg:static grid grid-cols-[1.6fr_0.4fr] gap-3 z-10">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim()}
+                  disabled={hasActiveGeneration || !prompt.trim()}
                   className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-3 font-semibold text-white shadow-xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:from-[#E1518E] hover:to-[#EC67A1] disabled:from-zinc-500 disabled:to-zinc-500 disabled:shadow-none"
                 >
                   <div className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-10" />
                   <div className="relative flex items-center justify-center gap-2">
-                    {isGenerating ? (
+                    {hasActiveGeneration ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
                         <span>Generating</span>

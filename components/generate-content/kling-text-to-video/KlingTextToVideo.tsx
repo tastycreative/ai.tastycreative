@@ -203,8 +203,11 @@ const TOOLTIPS = {
 export default function KlingTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('kling-text-to-video');
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
@@ -214,6 +217,65 @@ export default function KlingTextToVideo() {
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+  
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'kling-text-to-video' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/kling-text-to-video?history=true&profileId=${globalProfileId}`
+            : "/api/generate/kling-text-to-video?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentVideos = data.videos || [];
+            
+            const jobTimeWindow = 60 * 1000;
+            const matchingVideos = recentVideos.filter((video: any) => {
+              const videoCreatedAt = new Date(video.createdAt).getTime();
+              return videoCreatedAt >= activeJob.startedAt && 
+                     videoCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingVideos.length > 0) {
+              console.log('✅ Found completed videos for stale Kling T2V job');
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingVideos,
+                completedAt: Date.now(),
+              });
+              
+              setGeneratedVideos(matchingVideos);
+              setGenerationHistory((prev: any) => {
+                const allVideos = [...matchingVideos, ...prev];
+                const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+                  index === self.findIndex((v: any) => v.id === video.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed Kling T2V generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+  
   useEffect(() => {
     setMounted(true);
     
@@ -277,6 +339,33 @@ export default function KlingTextToVideo() {
       }
     }
   }, []);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return;
+    
+    const lastCompletedJob = getLastCompletedJobForType('kling-text-to-video');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      setGeneratedVideos(prev => {
+        const existingIds = new Set(prev.map((video: any) => video.id));
+        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed Kling T2V:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+      
+      setGenerationHistory((prev: any) => {
+        const allVideos = [...lastCompletedJob.results, ...prev];
+        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+          index === self.findIndex((v: any) => v.id === video.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType, activeJobs]);
 
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
@@ -540,13 +629,12 @@ export default function KlingTextToVideo() {
           setPollingStatus(
             `Processing... (${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s)`
           );
-          updateGlobalProgress({
-            isGenerating: true,
+          updateJob(localTaskId, {
             progress: Math.min(90, attempts * 2),
-            stage: "processing",
+            stage: 'processing',
             message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
-            generationType: "image-to-video",
-            jobId: localTaskId,
+            status: 'processing',
+            elapsedTime: elapsedSeconds * 1000,
           });
 
           const response = await apiClient?.get(
@@ -561,13 +649,13 @@ export default function KlingTextToVideo() {
           const data = await response.json();
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
-            updateGlobalProgress({
-              isGenerating: false,
+            updateJob(localTaskId, {
+              status: 'completed',
               progress: 100,
-              stage: "completed",
-              message: "Video generation completed!",
-              generationType: "image-to-video",
-              jobId: localTaskId,
+              stage: 'completed',
+              message: 'Video generation completed!',
+              results: data.videos,
+              completedAt: Date.now(),
             });
             setGeneratedVideos(data.videos);
             setPollingStatus("");
@@ -598,17 +686,16 @@ export default function KlingTextToVideo() {
         } catch (err: any) {
           console.error("Polling error:", err);
           setError(err.message || "Failed to check generation status");
-          updateGlobalProgress({
-            isGenerating: false,
+          updateJob(localTaskId, {
+            status: 'failed',
             progress: 0,
-            stage: "failed",
-            message: err.message || "Generation failed",
-            generationType: "image-to-video",
-            jobId: localTaskId,
+            stage: 'failed',
+            message: err.message || 'Generation failed',
+            error: err.message,
+            completedAt: Date.now(),
           });
           setPollingStatus("");
           setIsGenerating(false);
-          setTimeout(() => clearGlobalProgress(), 3000);
           reject(err);
         }
       };
@@ -686,6 +773,9 @@ export default function KlingTextToVideo() {
       return;
     }
 
+    // Clear previous completed jobs for this type
+    await clearCompletedJobsForType('kling-text-to-video');
+    
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -693,13 +783,19 @@ export default function KlingTextToVideo() {
     const localTaskId = `kling-t2v-${Date.now()}`;
 
     try {
-      updateGlobalProgress({
-        isGenerating: true,
-        progress: 0,
-        stage: "starting",
-        message: "Starting Kling Text-to-Video generation...",
-        generationType: "image-to-video",
+      // Create job in global state
+      addJob({
         jobId: localTaskId,
+        generationType: 'kling-text-to-video',
+        progress: 0,
+        stage: 'starting',
+        message: 'Starting Kling Text-to-Video generation...',
+        status: 'pending',
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim(),
+          aspectRatio,
+        },
       });
       
       const payload: any = {
@@ -768,13 +864,13 @@ export default function KlingTextToVideo() {
       refreshCredits();
 
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
-        updateGlobalProgress({
-          isGenerating: false,
+        updateJob(localTaskId, {
+          status: 'completed',
           progress: 100,
-          stage: "completed",
-          message: "Generation completed!",
-          generationType: "image-to-video",
-          jobId: localTaskId,
+          stage: 'completed',
+          message: 'Generation completed!',
+          results: data.videos,
+          completedAt: Date.now(),
         });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
@@ -786,16 +882,15 @@ export default function KlingTextToVideo() {
     } catch (err: any) {
       console.error("Generation error:", err);
       showErrorToast(err.message || "Failed to generate video");
-      updateGlobalProgress({
-        isGenerating: false,
+      updateJob(localTaskId, {
+        status: 'failed',
         progress: 0,
-        stage: "failed",
-        message: err.message || "Generation failed",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        error: err.message,
+        completedAt: Date.now(),
       });
       setPollingStatus("");
-      setTimeout(() => clearGlobalProgress(), 3000);
       setIsGenerating(false);
     }
   };
@@ -817,7 +912,10 @@ export default function KlingTextToVideo() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    // Clear completed jobs for this type
+    await clearCompletedJobsForType('kling-text-to-video');
+    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");
@@ -1744,7 +1842,7 @@ export default function KlingTextToVideo() {
               <div className="flex flex-col sm:flex-row gap-3 sticky bottom-4 sm:static z-10">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim() || !targetFolder}
+                  disabled={hasActiveGeneration || !prompt.trim() || !targetFolder}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-4 sm:py-3 text-base sm:text-sm font-bold sm:font-semibold text-white shadow-2xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:from-[#E1518E] hover:to-[#EC67A1] hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
@@ -1753,7 +1851,7 @@ export default function KlingTextToVideo() {
                 <button
                   onClick={handleReset}
                   type="button"
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-200 dark:bg-zinc-700 px-5 py-4 sm:py-3 text-base sm:text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 hover:bg-zinc-300 dark:hover:bg-zinc-600 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-5 h-5 sm:w-4 sm:h-4" /> Reset

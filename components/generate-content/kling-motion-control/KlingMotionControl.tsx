@@ -206,9 +206,12 @@ const ORIENTATION_OPTIONS = [
 export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  
+  // Check if this specific tab has an active generation
+  const hasActiveGeneration = hasActiveGenerationForType('kling-motion-control');
   
   // Check if "All Profiles" is selected
   const isAllProfiles = globalProfileId === "all";
@@ -420,6 +423,64 @@ export default function KlingMotionControl() {
   }, [apiClient, user, globalProfileId]);
 
   // Initial data load
+  // Check for stale active jobs and try to complete them from history
+  useEffect(() => {
+    if (!mounted || !apiClient) return;
+
+    const checkStaleJob = async () => {
+      const activeJob = activeJobs.find(
+        job => job.generationType === 'kling-motion-control' && 
+        (job.status === 'pending' || job.status === 'processing')
+      );
+
+      if (activeJob) {
+        try {
+          const url = globalProfileId 
+            ? `/api/generate/kling-motion-control?history=true&profileId=${globalProfileId}`
+            : "/api/generate/kling-motion-control?history=true";
+          const response = await apiClient.get(url);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const recentVideos = data.videos || [];
+            
+            const jobTimeWindow = 60 * 1000;
+            const matchingVideos = recentVideos.filter((video: any) => {
+              const videoCreatedAt = new Date(video.createdAt).getTime();
+              return videoCreatedAt >= activeJob.startedAt && 
+                     videoCreatedAt <= activeJob.startedAt + jobTimeWindow;
+            });
+
+            if (matchingVideos.length > 0) {
+              console.log('\u2705 Found completed videos for stale Kling Motion Control job');
+              updateJob(activeJob.jobId, {
+                status: 'completed',
+                progress: 100,
+                message: 'Generation completed',
+                results: matchingVideos,
+                completedAt: Date.now(),
+              });
+              
+              setGeneratedVideos(matchingVideos);
+              setGenerationHistory((prev: any) => {
+                const allVideos = [...matchingVideos, ...prev];
+                const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+                  index === self.findIndex((v: any) => v.id === video.id)
+                ).slice(0, 20);
+                return uniqueHistory;
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for completed Kling Motion Control generation:', error);
+        }
+      }
+    };
+
+    checkStaleJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, apiClient]);
+  
   useEffect(() => {
     setMounted(true);
     
@@ -520,6 +581,33 @@ export default function KlingMotionControl() {
       }
     }
   }, []);
+
+  // Check for completed generations when component mounts or jobs update
+  useEffect(() => {
+    if (!mounted || isGenerating) return;
+    
+    const lastCompletedJob = getLastCompletedJobForType('kling-motion-control');
+    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+      setGeneratedVideos(prev => {
+        const existingIds = new Set(prev.map((video: any) => video.id));
+        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        
+        if (newResults.length > 0) {
+          console.log('📋 Displaying results from completed Kling Motion Control:', newResults.length);
+          return [...newResults, ...prev];
+        }
+        return prev;
+      });
+      
+      setGenerationHistory((prev: any) => {
+        const allVideos = [...lastCompletedJob.results, ...prev];
+        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
+          index === self.findIndex((v: any) => v.id === video.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+    }
+  }, [mounted, getLastCompletedJobForType, activeJobs]);
 
   useEffect(() => {
     if (user && apiClient) {
@@ -1100,6 +1188,9 @@ export default function KlingMotionControl() {
       }
     }
 
+    // Clear previous completed jobs for this type
+    await clearCompletedJobsForType('kling-motion-control');
+    
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -1143,37 +1234,37 @@ export default function KlingMotionControl() {
     let videoS3Url: string | null = null;
 
     try {
-      updateGlobalProgress({
-        isGenerating: true,
-        progress: 5,
-        stage: "uploading",
-        message: "Uploading image to storage...",
-        generationType: "image-to-video",
+      // Create job in global state
+      addJob({
         jobId: localTaskId,
+        generationType: 'kling-motion-control',
+        progress: 5,
+        stage: 'uploading',
+        message: 'Uploading image to storage...',
+        status: 'pending',
+        startedAt: Date.now(),
+        metadata: {
+          prompt: prompt.trim(),
+          mode,
+        },
       });
 
       // Upload image to S3 first
       imageS3Url = await uploadFileToS3(imageFile, 'image');
       
-      updateGlobalProgress({
-        isGenerating: true,
+      updateJob(localTaskId, {
         progress: 15,
-        stage: "uploading",
-        message: "Uploading video to storage...",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'uploading',
+        message: 'Uploading video to storage...',
       });
 
       // Upload video to S3
       videoS3Url = await uploadFileToS3(videoFile, 'video');
 
-      updateGlobalProgress({
-        isGenerating: true,
+      updateJob(localTaskId, {
         progress: 25,
-        stage: "starting",
-        message: "Starting Kling Motion Control generation...",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'starting',
+        message: 'Starting Kling Motion Control generation...',
       });
 
       setPollingStatus("Submitting task...");
@@ -1235,13 +1326,13 @@ export default function KlingMotionControl() {
       refreshCredits();
 
       if (data.status === "completed" && data.videos && data.videos.length > 0) {
-        updateGlobalProgress({
-          isGenerating: false,
+        updateJob(localTaskId, {
+          status: 'completed',
           progress: 100,
-          stage: "completed",
-          message: "Generation completed!",
-          generationType: "image-to-video",
-          jobId: localTaskId,
+          stage: 'completed',
+          message: 'Generation completed!',
+          results: data.videos,
+          completedAt: Date.now(),
         });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
@@ -1253,16 +1344,15 @@ export default function KlingMotionControl() {
     } catch (err: any) {
       console.error("Generation error:", err);
       setError(err.message || "Failed to generate video");
-      updateGlobalProgress({
-        isGenerating: false,
+      updateJob(localTaskId, {
+        status: 'failed',
         progress: 0,
-        stage: "failed",
-        message: err.message || "Generation failed",
-        generationType: "image-to-video",
-        jobId: localTaskId,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        error: err.message,
+        completedAt: Date.now(),
       });
       setPollingStatus("");
-      setTimeout(() => clearGlobalProgress(), 3000);
       setIsGenerating(false);
     }
   };
@@ -1287,7 +1377,9 @@ export default function KlingMotionControl() {
   };
 
   // Reset form
-  const handleReset = () => {
+  const handleReset = async () => {
+    await clearCompletedJobsForType('kling-motion-control');
+    
     setPrompt("");
     setMode("std");
     setCharacterOrientation("image");
@@ -1524,7 +1616,7 @@ export default function KlingMotionControl() {
                       type="button"
                       onClick={() => setShowReferenceBankSelector(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <Library className="w-3.5 h-3.5" />
                       Reference Bank
@@ -1543,7 +1635,7 @@ export default function KlingMotionControl() {
                     />
                     <button
                       onClick={clearImage}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="absolute top-2 right-2 p-2 rounded-xl bg-red-500/80 hover:bg-red-500 text-white transition disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
@@ -1588,7 +1680,7 @@ export default function KlingMotionControl() {
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={handleImageSelect}
-                  disabled={isGenerating || isCompressing}
+                  disabled={hasActiveGeneration || isCompressing}
                 />
                 <p className="text-xs text-header-muted">Upload the character you want to animate. Large images are automatically compressed.</p>
               </div>
@@ -1606,7 +1698,7 @@ export default function KlingMotionControl() {
                       type="button"
                       onClick={() => setShowVideoReferenceBankSelector(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#EC67A1]/20 hover:bg-[#EC67A1]/30 text-[#EC67A1] border border-[#EC67A1]/30 transition-all"
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <Library className="w-3.5 h-3.5" />
                       Reference Bank
@@ -1623,7 +1715,7 @@ export default function KlingMotionControl() {
                     />
                     <button
                       onClick={clearVideo}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                       className="absolute top-2 right-2 p-2 rounded-xl bg-red-500/80 hover:bg-red-500 text-white transition disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
@@ -1672,7 +1764,7 @@ export default function KlingMotionControl() {
                   accept="video/mp4,video/quicktime,video/webm"
                   className="hidden"
                   onChange={handleVideoSelect}
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                 />
                 <p className="text-xs text-header-muted">Upload a video showing the motion to transfer. Keep videos under 50MB for best results.</p>
               </div>
@@ -1694,7 +1786,7 @@ export default function KlingMotionControl() {
                           ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
                           : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                       } disabled:opacity-50`}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <p className="text-xs font-semibold">{option.label}</p>
                       <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{option.description}</p>
@@ -1720,7 +1812,7 @@ export default function KlingMotionControl() {
                           ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
                           : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                       } disabled:opacity-50`}
-                      disabled={isGenerating}
+                      disabled={hasActiveGeneration}
                     >
                       <p className="text-xs font-semibold">{option.label}</p>
                       <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{option.description}</p>
@@ -1743,7 +1835,7 @@ export default function KlingMotionControl() {
                   <button
                     type="button"
                     onClick={() => setKeepOriginalSound(!keepOriginalSound)}
-                    disabled={isGenerating}
+                    disabled={hasActiveGeneration}
                     className={`relative h-6 w-11 rounded-full transition-colors ${
                       keepOriginalSound ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
                     } disabled:opacity-50`}
@@ -1769,7 +1861,7 @@ export default function KlingMotionControl() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the desired output or scene..."
-                  disabled={isGenerating}
+                  disabled={hasActiveGeneration}
                   maxLength={2500}
                   className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground placeholder-zinc-400 dark:placeholder-zinc-500 transition focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 focus:border-transparent disabled:opacity-50 min-h-[80px] resize-none"
                 />
@@ -1790,7 +1882,7 @@ export default function KlingMotionControl() {
                     <button
                       type="button"
                       onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
-                      disabled={isLoadingVaultData || isGenerating || !globalProfileId}
+                      disabled={isLoadingVaultData || hasActiveGeneration || !globalProfileId}
                       className="w-full flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground transition hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 disabled:opacity-50"
                     >
                       <span className="flex items-center gap-2">
@@ -1925,7 +2017,7 @@ export default function KlingMotionControl() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || isCompressing || !imageFile || !videoFile}
+                  disabled={hasActiveGeneration || isCompressing || !imageFile || !videoFile}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -1934,7 +2026,7 @@ export default function KlingMotionControl() {
                 <button
                   onClick={handleReset}
                   type="button"
-                  disabled={isGenerating || isCompressing}
+                  disabled={hasActiveGeneration || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-200 dark:bg-zinc-700 px-5 py-3 text-sm font-semibold text-sidebar-foreground transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" /> Reset

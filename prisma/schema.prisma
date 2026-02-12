@@ -121,6 +121,34 @@ model GenerationJob {
   @@map("generation_jobs")
 }
 
+model ActiveGeneration {
+  id                     String         @id @default(cuid())
+  clerkId                String
+  jobId                  String         @unique
+  generationType         GenerationType
+  progress               Int            @default(0)
+  stage                  String
+  message                String
+  status                 JobStatus      @default(PENDING)
+  startedAt              DateTime       @default(now())
+  completedAt            DateTime?
+  elapsedTime            Int?
+  estimatedTimeRemaining Int?
+  metadata               Json?
+  results                Json?
+  error                  String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@index([clerkId])
+  @@index([status])
+  @@index([generationType])
+  @@index([clerkId, status])
+  @@index([clerkId, generationType])
+  @@index([startedAt])
+  @@map("active_generations")
+}
+
 model GeneratedImage {
   id                    String                 @id @default(cuid())
   clerkId               String
@@ -1737,6 +1765,10 @@ enum GenerationType {
   FACE_SWAP
   VIDEO_FPS_BOOST
   FLUX_KONTEXT
+  KLING_TEXT_TO_VIDEO
+  KLING_IMAGE_TO_VIDEO
+  KLING_MULTI_IMAGE_TO_VIDEO
+  KLING_MOTION_CONTROL
 }
 
 enum UserRole {

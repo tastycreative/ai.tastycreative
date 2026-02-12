@@ -51,7 +51,7 @@ import {
   Building2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
+import { GlobalProgressDropdown } from "@/components/GlobalProgressDropdown";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
@@ -1438,7 +1438,7 @@ export default function DashboardLayout({
               <div className="flex items-center justify-between">
                 {/* Left Side - Progress & Breadcrumb Area */}
                 <div className="flex items-center gap-4">
-                  <GlobalProgressIndicator />
+                  <GlobalProgressDropdown />
                 </div>
 
                 {/* Right Side - Compact Controls */}

@@ -19,7 +19,7 @@ export async function deductCredits(
 }> {
   try {
     // Get the feature pricing
-    const featurePricing = await prisma.featureCreditPricing.findUnique({
+    const featurePricing = await prisma.featureCreditPricing.findFirst({
       where: {
         featureKey,
         isActive: true,
@@ -54,46 +54,77 @@ export async function deductCredits(
       };
     }
 
-    // Deduct credits and track usage
-    const updatedOrg = await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        availableCredits: {
-          decrement: featurePricing.credits,
+    // Deduct credits and track usage in a transaction to ensure consistency
+    const result = await prisma.$transaction(async (tx) => {
+      // Deduct credits from organization
+      const updatedOrg = await tx.organization.update({
+        where: { id: organizationId },
+        data: {
+          availableCredits: {
+            decrement: featurePricing.credits,
+          },
+          creditsUsedThisMonth: {
+            increment: featurePricing.credits,
+          },
         },
-        creditsUsedThisMonth: {
-          increment: featurePricing.credits,
-        },
-      },
-      select: { availableCredits: true },
-    });
+        select: { availableCredits: true },
+      });
 
-    // Log the usage
-    await prisma.creditUsageLog.create({
-      data: {
-        organizationId,
-        userId: userId || null,
-        action: 'FEATURE_USAGE',
-        resource: featureKey,
-        creditsUsed: featurePricing.credits,
-        metadata: {
-          featureKey,
-          featureName: featurePricing.featureName,
-          creditsDeducted: featurePricing.credits,
+      // Log the usage
+      await tx.creditUsageLog.create({
+        data: {
+          organizationId,
+          userId: userId || null,
+          action: 'FEATURE_USAGE',
+          resource: featureKey,
+          creditsUsed: featurePricing.credits,
+          metadata: {
+            featureKey,
+            featureName: featurePricing.featureName,
+            creditsDeducted: featurePricing.credits,
+          },
         },
-      },
+      });
+
+      return {
+        remainingCredits: updatedOrg.availableCredits,
+        creditsDeducted: featurePricing.credits,
+      };
     });
 
     return {
       success: true,
-      remainingCredits: updatedOrg.availableCredits,
-      creditsDeducted: featurePricing.credits,
+      remainingCredits: result.remainingCredits,
+      creditsDeducted: result.creditsDeducted,
     };
   } catch (error) {
-    console.error('Error deducting credits:', error);
+    console.error('❌ Error deducting credits:', error);
+    console.error('❌ Error details:', {
+      organizationId,
+      featureKey,
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    // Provide more specific error messages based on error type
+    let errorMessage = 'Failed to deduct credits';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Record to update not found')) {
+        errorMessage = 'Organization not found or inactive';
+      } else if (error.message.includes('Foreign key constraint')) {
+        errorMessage = 'Invalid organization or user reference';
+      } else if (error.message.includes('Unique constraint')) {
+        errorMessage = 'Duplicate credit log entry detected';
+      } else if (error.message.includes('prisma')) {
+        errorMessage = `Database error: ${error.message}`;
+      }
+    }
+    
     return {
       success: false,
-      error: 'Failed to deduct credits',
+      error: errorMessage,
     };
   }
 }
@@ -114,7 +145,7 @@ export async function checkCredits(
   error?: string;
 }> {
   try {
-    const featurePricing = await prisma.featureCreditPricing.findUnique({
+    const featurePricing = await prisma.featureCreditPricing.findFirst({
       where: {
         featureKey,
         isActive: true,
@@ -167,7 +198,7 @@ export async function checkCredits(
  */
 export async function getFeaturePricing(featureKey: string) {
   try {
-    return await prisma.featureCreditPricing.findUnique({
+    return await prisma.featureCreditPricing.findFirst({
       where: {
         featureKey,
         isActive: true,
