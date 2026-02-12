@@ -71,13 +71,6 @@ export async function POST(req: NextRequest) {
     // Get user's organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      include: {
-        teamMemberships: {
-          where: {
-            organizationId: user?.currentOrganizationId || undefined,
-          },
-        },
-      },
     });
 
     if (!user || !user.currentOrganizationId) {
@@ -85,11 +78,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user is admin or owner
-    const membership = user.teamMemberships.find(
-      (m) => m.organizationId === user.currentOrganizationId
-    );
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        userId: user.id,
+        organizationId: user.currentOrganizationId,
+        role: { in: ['ADMIN', 'OWNER'] },
+      },
+    });
 
-    if (!membership || (membership.role !== 'ADMIN' && membership.role !== 'OWNER')) {
+    if (!membership) {
       return NextResponse.json(
         { error: 'Only admins can recalculate storage' },
         { status: 403 }
