@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { trackStorageUpload } from "@/lib/storageEvents";
 
 // Helper function to check if user has access to a profile (own profile or shared via organization)
 async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
@@ -100,6 +101,13 @@ export async function POST(request: NextRequest) {
         awsS3Url,
       },
     });
+
+    // Track storage usage for the organization (non-blocking)
+    if (fileSize && fileSize > 0) {
+      trackStorageUpload(profileOwnerClerkId, fileSize).catch((error) => {
+        console.error('Failed to track storage upload:', error);
+      });
+    }
 
     return NextResponse.json(vaultItem);
   } catch (error) {

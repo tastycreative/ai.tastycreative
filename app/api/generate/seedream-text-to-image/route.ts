@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
 import { deductCredits } from '@/lib/credits';
+import { trackStorageUpload } from '@/lib/storageEvents';
 
 // Vercel function configuration - extend timeout for image generation
 export const runtime = 'nodejs';
@@ -261,7 +262,13 @@ export async function POST(request: NextRequest) {
         // Get the user's internal ID for organization membership checks
         const currentUser = await prisma.user.findUnique({
           where: { clerkId: userId },
-          select: { id: true, currentOrganizationId: true },
+          select: {
+            id: true,
+            currentOrganizationId: true,
+            currentOrganization: {
+              select: { slug: true }
+            }
+          },
         });
 
         // Get the profile to check organization membership
@@ -404,9 +411,11 @@ export async function POST(request: NextRequest) {
         let publicUrl: string;
         
         if (body.saveToVault && body.vaultProfileId && body.vaultFolderId && vaultFolder) {
-          // Save to vault storage: vault/{ownerClerkId}/{profileId}/{folderId}/{fileName}
+          // Save to vault storage with organization structure
           // Use the folder owner's clerkId (vaultFolder.clerkId), not current user's
-          s3Key = `vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`;
+          s3Key = currentUser?.currentOrganization?.slug
+            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`
+            : `vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`;
           console.log(`📤 Uploading to Vault S3: ${s3Key} (owner: ${vaultFolder.clerkId})`);
         } else if (body.targetFolder) {
           // Use selected folder (already includes outputs/{userId}/ prefix)
@@ -472,6 +481,13 @@ export async function POST(request: NextRequest) {
           });
 
           console.log(`✅ Saved to vault database: ${vaultItem.id}`);
+
+          // Track storage usage (non-blocking)
+          if (imageBuffer.length > 0) {
+            trackStorageUpload(vaultFolder.clerkId, imageBuffer.length).catch((error) => {
+              console.error('[SeeDream T2I] Failed to track storage upload:', error);
+            });
+          }
 
           savedImages.push({
             id: vaultItem.id,

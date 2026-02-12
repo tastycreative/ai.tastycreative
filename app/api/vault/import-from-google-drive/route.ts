@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { google } from "googleapis";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { trackStorageUpload } from "@/lib/storageEvents";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -171,12 +172,25 @@ export async function POST(request: NextRequest) {
 
         const fileBuffer = Buffer.from(fileContent.data as ArrayBuffer);
 
-        // Generate S3 key
+        // Get user's organization slug
+        const user = await prisma.user.findUnique({
+          where: { clerkId: profileOwnerClerkId },
+          select: {
+            currentOrganizationId: true,
+            currentOrganization: {
+              select: { slug: true }
+            }
+          },
+        });
+
+        // Generate S3 key with organization prefix
         const fileExtension = fileName.split(".").pop() || "";
         const baseName = fileName.replace(/\.[^/.]+$/, "");
         const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9.-]/g, "_");
         const newFileName = `${Date.now()}_${i}_${sanitizedBaseName}.${fileExtension}`;
-        const s3Key = `vault/${userId}/${profileId}/${folderId}/${newFileName}`;
+        const s3Key = user?.currentOrganization?.slug
+          ? `organizations/${user.currentOrganization.slug}/vault/${profileOwnerClerkId}/${profileId}/${folderId}/${newFileName}`
+          : `vault/${profileOwnerClerkId}/${profileId}/${folderId}/${newFileName}`;
 
         // Upload to S3
         await s3Client.send(
@@ -211,6 +225,14 @@ export async function POST(request: NextRequest) {
         });
 
         createdItems.push(vaultItem);
+
+        // Track storage usage (non-blocking)
+        const itemFileSize = fileSize || fileBuffer.length;
+        if (itemFileSize > 0) {
+          trackStorageUpload(profileOwnerClerkId, itemFileSize).catch((error) => {
+            console.error('Failed to track storage upload for imported file:', error);
+          });
+        }
       } catch (error: any) {
         console.error(`Error importing file ${fileId}:`, error);
         

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { S3Client, CopyObjectCommand } from "@aws-sdk/client-s3";
+import { trackStorageUpload } from "@/lib/storageEvents";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -136,24 +137,39 @@ export async function POST(request: NextRequest) {
 
     // Sort images by sequence to ensure correct order
     const sortedImages = [...sextingSet.images].sort((a, b) => a.sequence - b.sequence);
-    
+
     const bucket = process.env.AWS_S3_BUCKET!;
     const region = process.env.AWS_REGION!;
-    
+
+    // Get user's organization slug for vault structure
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        currentOrganizationId: true,
+        currentOrganization: {
+          select: { slug: true }
+        }
+      },
+    });
+
     // Create vault items for each image in the sexting set (in sequence order)
     const createdItems = [];
+    let totalBytesExported = 0;
+
     for (let i = 0; i < sortedImages.length; i++) {
       const image = sortedImages[i];
       const orderIndex = i + 1; // 1-based index based on sorted order
-      
+
       // Create filename with proper ordering prefix
       const fileExtension = image.name.split('.').pop() || '';
       const baseName = image.name.replace(/\.[^/.]+$/, '');
       const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9.-]/g, '_');
       const orderedFileName = `${orderIndex.toString().padStart(3, '0')}_${sanitizedBaseName}.${fileExtension}`;
-      
-      // Generate NEW S3 key in vault folder structure
-      const newS3Key = `vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`;
+
+      // Generate NEW S3 key in vault folder structure with organization prefix
+      const newS3Key = user?.currentOrganization?.slug
+        ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`
+        : `vault/${userId}/${profileId}/${vaultFolder.id}/${Date.now()}_${orderedFileName}`;
       
       // Extract original S3 key from URL
       const originalS3Key = image.url.includes('.amazonaws.com/') 
@@ -204,6 +220,16 @@ export async function POST(request: NextRequest) {
       });
 
       createdItems.push(vaultItem);
+
+      // Track storage for exported item
+      totalBytesExported += image.size || 0;
+    }
+
+    // Track total storage usage for all exported items (non-blocking)
+    if (totalBytesExported > 0) {
+      trackStorageUpload(userId, totalBytesExported).catch((error) => {
+        console.error('Failed to track storage upload for exported sexting set:', error);
+      });
     }
 
     return NextResponse.json({

@@ -22,22 +22,34 @@ function getAwsS3Client() {
 }
 
 /**
- * Upload image to AWS S3
+ * Upload image to AWS S3 with organization-based folder structure
  */
 export async function uploadToAwsS3(
-  imageData: Buffer | Uint8Array, 
-  userId: string, 
+  imageData: Buffer | Uint8Array,
+  userId: string,
   filename: string,
-  contentType: string = 'image/png'
+  contentType: string = 'image/png',
+  options?: {
+    organizationSlug?: string;
+    type?: 'images' | 'videos';
+  }
 ): Promise<{ success: boolean; s3Key?: string; publicUrl?: string; error?: string }> {
   try {
     const s3Client = getAwsS3Client();
-    
-    // Create S3 key: outputs/{userId}/{filename}
-    const s3Key = `outputs/${userId}/${filename}`;
-    
+
+    // Create organization-based S3 key structure:
+    // - With org: organizations/{organizationSlug}/user_{userId}/{type}/{filename}
+    // - Without org (fallback): outputs/{userId}/{filename}
+    let s3Key: string;
+    if (options?.organizationSlug) {
+      const typeFolder = options.type || 'images';
+      s3Key = `organizations/${options.organizationSlug}/user_${userId}/${typeFolder}/${filename}`;
+    } else {
+      s3Key = `outputs/${userId}/${filename}`;
+    }
+
     console.log(`📤 Uploading to AWS S3: ${s3Key}`);
-    
+
     const command = new PutObjectCommand({
       Bucket: AWS_S3_BUCKET,
       Key: s3Key,
@@ -46,20 +58,20 @@ export async function uploadToAwsS3(
       CacheControl: 'public, max-age=31536000', // 1 year cache
       // Note: ACL removed - bucket uses bucket policy for public access instead
     });
-    
+
     await s3Client.send(command);
-    
+
     // Generate public URL
     const publicUrl = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${s3Key}`;
-    
+
     console.log(`✅ Successfully uploaded to AWS S3: ${publicUrl}`);
-    
+
     return {
       success: true,
       s3Key,
       publicUrl
     };
-    
+
   } catch (error) {
     console.error(`❌ AWS S3 upload error for ${filename}:`, error);
     return {
@@ -211,13 +223,72 @@ export function validateAwsS3Config(): boolean {
     'AWS_S3_BUCKET',
     'AWS_REGION'
   ];
-  
+
   const missing = requiredEnvs.filter(env => !process.env[env]);
-  
+
   if (missing.length > 0) {
     console.error(`❌ Missing required AWS S3 environment variables: ${missing.join(', ')}`);
     return false;
   }
-  
+
   return true;
+}
+
+/**
+ * Extract organization slug from S3 key
+ * Supports both new (org-based) and legacy formats
+ */
+export function extractOrganizationSlugFromS3Key(s3Key: string): string | null {
+  // New format: organizations/{organizationSlug}/user_{userId}/{type}/{filename}
+  const orgMatch = s3Key.match(/^organizations\/([^/]+)\//);
+  if (orgMatch) {
+    return orgMatch[1];
+  }
+
+  // Legacy org_id format: org_{organizationId}/user_{userId}/{type}/{filename}
+  const legacyOrgMatch = s3Key.match(/^org_([^/]+)\//);
+  if (legacyOrgMatch) {
+    return legacyOrgMatch[1];
+  }
+
+  // Legacy format: outputs/{userId}/{filename} - no org slug
+  return null;
+}
+
+/**
+ * Extract user ID from S3 key
+ */
+export function extractUserIdFromS3Key(s3Key: string): string | null {
+  // New format: organizations/{organizationSlug}/user_{userId}/{type}/{filename}
+  // Or legacy: org_{organizationId}/user_{userId}/{type}/{filename}
+  const newMatch = s3Key.match(/\/user_([^/]+)\//);
+  if (newMatch) {
+    return newMatch[1];
+  }
+
+  // Legacy format: outputs/{userId}/{filename}
+  const legacyMatch = s3Key.match(/^outputs\/([^/]+)\//);
+  if (legacyMatch) {
+    return legacyMatch[1];
+  }
+
+  return null;
+}
+
+/**
+ * Build S3 key from components (helper for uploads)
+ */
+export function buildS3Key(
+  userId: string,
+  filename: string,
+  options?: {
+    organizationSlug?: string;
+    type?: 'images' | 'videos';
+  }
+): string {
+  if (options?.organizationSlug) {
+    const typeFolder = options.type || 'images';
+    return `organizations/${options.organizationSlug}/user_${userId}/${typeFolder}/${filename}`;
+  }
+  return `outputs/${userId}/${filename}`;
 }

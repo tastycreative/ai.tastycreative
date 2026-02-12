@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
 import * as jose from "jose";
 import { deductCredits } from '@/lib/credits';
+import { trackStorageUpload } from '@/lib/storageEvents';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = "nodejs";
@@ -134,7 +135,13 @@ export async function POST(request: NextRequest) {
     // Get user's organization for credit deduction
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true, currentOrganizationId: true },
+      select: {
+        id: true,
+        currentOrganizationId: true,
+        currentOrganization: {
+          select: { slug: true }
+        }
+      },
     });
 
     if (!user || !user.currentOrganizationId) {
@@ -660,11 +667,14 @@ export async function GET(request: NextRequest) {
           // Determine S3 path - use vault path for vault storage
           let s3VideoUrl: string;
           let s3Key: string;
-          
+
           if (params.saveToVault && params.vaultProfileId && params.vaultFolderId && vaultFolder) {
             // Save to vault folder - use folder owner's clerkId for shared profiles
-            s3Key = `vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`;
-            
+            // Use organization-based S3 structure
+            s3Key = currentUser?.currentOrganization?.slug
+              ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`
+              : `vault/${vaultFolder.clerkId}/${params.vaultProfileId}/${params.vaultFolderId}/${videoFilename}`;
+
             // Upload to vault S3 path
             const uploadCommand = new PutObjectCommand({
               Bucket: AWS_S3_BUCKET,
@@ -718,6 +728,13 @@ export async function GET(request: NextRequest) {
               },
             });
             console.log("[Kling Multi-I2V] Video saved to vault");
+
+            // Track storage usage (non-blocking)
+            if (videoBuffer.length > 0) {
+              trackStorageUpload(vaultFolder.clerkId, videoBuffer.length).catch((error) => {
+                console.error('[Kling Multi-I2V] Failed to track storage upload:', error);
+              });
+            }
           }
 
           // Create GeneratedVideo record

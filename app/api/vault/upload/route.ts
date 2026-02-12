@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
+import { trackStorageUpload } from "@/lib/storageEvents";
 
 // For Next.js App Router runtime configuration
 export const runtime = 'nodejs';
@@ -57,8 +58,23 @@ export async function POST(request: NextRequest) {
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
 
-    // S3 key structure: vault/{clerkId}/{profileId}/{folderId}/{fileName}
-    const s3Key = `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
+    // Get user's organization slug
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        currentOrganizationId: true,
+        currentOrganization: {
+          select: { slug: true }
+        }
+      },
+    });
+
+    // S3 key structure with organization prefix:
+    // - With org: organizations/{organizationSlug}/vault/{clerkId}/{profileId}/{folderId}/{fileName}
+    // - Without org (fallback): vault/{clerkId}/{profileId}/{folderId}/{fileName}
+    const s3Key = user?.currentOrganization?.slug
+      ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
+      : `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
 
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -89,6 +105,13 @@ export async function POST(request: NextRequest) {
         awsS3Url,
       },
     });
+
+    // Track storage usage for the organization (non-blocking)
+    if (file.size && file.size > 0) {
+      trackStorageUpload(userId, file.size).catch((error) => {
+        console.error('Failed to track storage upload:', error);
+      });
+    }
 
     return NextResponse.json(vaultItem);
   } catch (error) {

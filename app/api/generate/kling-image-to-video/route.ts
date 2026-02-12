@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
 import * as jose from "jose";
 import { deductCredits } from '@/lib/credits';
+import { trackStorageUpload } from '@/lib/storageEvents';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = "nodejs";
@@ -548,7 +549,13 @@ export async function GET(request: NextRequest) {
             // Get the user's internal ID for organization membership checks
             const currentUser = await prisma.user.findUnique({
               where: { clerkId: userId },
-              select: { id: true, currentOrganizationId: true },
+              select: {
+                id: true,
+                currentOrganizationId: true,
+                currentOrganization: {
+                  select: { slug: true }
+                }
+              },
             });
 
             // Get the profile to check organization membership
@@ -627,7 +634,20 @@ export async function GET(request: NextRequest) {
 
         if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           // Save to vault folder - use folder owner's clerkId for shared profiles
-          s3Key = `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
+          // Get current user to check organization
+          const currentUser = await prisma.user.findUnique({
+            where: { clerkId: userId },
+            select: {
+              currentOrganizationId: true,
+              currentOrganization: {
+                select: { slug: true }
+              }
+            },
+          });
+
+          s3Key = currentUser?.currentOrganization?.slug
+            ? `organizations/${currentUser.currentOrganization.slug}/vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`
+            : `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, "")}/${filename}`;
           const parts = targetFolder.split("/");
@@ -735,6 +755,13 @@ export async function GET(request: NextRequest) {
             },
           });
           savedVideo.savedToVault = true;
+        }
+
+        // Track storage usage (non-blocking)
+        if (videoBuffer.length > 0) {
+          trackStorageUpload(vaultFolder.clerkId, videoBuffer.length).catch((error) => {
+            console.error('[Kling I2V] Failed to track storage upload:', error);
+          });
         }
 
         // Update GenerationJob status

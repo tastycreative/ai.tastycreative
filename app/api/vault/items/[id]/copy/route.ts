@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { S3Client, CopyObjectCommand } from "@aws-sdk/client-s3";
+import { trackStorageUpload } from "@/lib/storageEvents";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -95,10 +96,23 @@ export async function POST(
 
     // Extract S3 key from the source item
     const sourceKey = sourceItem.awsS3Key;
-    
-    // Generate a new key for the copied file - use destination folder owner's clerkId
+
+    // Get user's organization slug for the destination
+    const user = await prisma.user.findUnique({
+      where: { clerkId: destinationFolder.clerkId },
+      select: {
+        currentOrganizationId: true,
+        currentOrganization: {
+          select: { slug: true }
+        }
+      },
+    });
+
+    // Generate a new key for the copied file with organization prefix
     const timestamp = Date.now();
-    const newKey = `vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`;
+    const newKey = user?.currentOrganization?.slug
+      ? `organizations/${user.currentOrganization.slug}/vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`
+      : `vault/${destinationFolder.clerkId}/${destinationFolder.profileId}/${folderId}/${timestamp}-${sourceItem.fileName}`;
     
     // Copy the S3 object
     const bucketName = process.env.AWS_S3_BUCKET!;
@@ -154,6 +168,13 @@ export async function POST(
         folderId: folderId,
       },
     });
+
+    // Track storage usage for the copied file (non-blocking)
+    if (sourceItem.fileSize && sourceItem.fileSize > 0) {
+      trackStorageUpload(destinationFolder.clerkId, sourceItem.fileSize).catch((error) => {
+        console.error('Failed to track storage upload for copied item:', error);
+      });
+    }
 
     return NextResponse.json(copiedItem);
   } catch (error) {

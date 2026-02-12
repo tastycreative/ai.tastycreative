@@ -99,8 +99,23 @@ export async function POST(request: NextRequest) {
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
     const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
 
-    // S3 key structure: vault/{clerkId}/{profileId}/{folderId}/{fileName}
-    const s3Key = `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
+    // Get user's organization slug
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        currentOrganizationId: true,
+        currentOrganization: {
+          select: { slug: true }
+        }
+      },
+    });
+
+    // S3 key structure with organization prefix:
+    // - With org: organizations/{organizationSlug}/vault/{clerkId}/{profileId}/{folderId}/{fileName}
+    // - Without org (fallback): vault/{clerkId}/{profileId}/{folderId}/{fileName}
+    const s3Key = user?.currentOrganization?.slug
+      ? `organizations/${user.currentOrganization.slug}/vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`
+      : `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
 
     // Generate presigned URL for direct upload (valid for 10 minutes)
     const command = new PutObjectCommand({

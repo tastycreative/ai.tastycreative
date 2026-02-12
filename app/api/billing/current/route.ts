@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
           contentProfileSlotPrice: currentOrg.contentProfileSlotPrice ?? 10.00,
         },
         storage: {
-          current: currentOrg.currentStorageGB,
+          current: currentOrg.currentStorageGB || 0,
           max: maxStorageGB,
-          percentage: (currentOrg.currentStorageGB / maxStorageGB) * 100,
+          percentage: ((currentOrg.currentStorageGB || 0) / maxStorageGB) * 100,
         },
         credits: {
           used: currentOrg.creditsUsedThisMonth,

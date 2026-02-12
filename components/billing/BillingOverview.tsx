@@ -6,10 +6,12 @@ import { toast } from 'sonner';
 import { PRICING_PLANS } from '@/lib/pricing-data';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
+import { useStorageData } from '@/lib/hooks/useStorage.query';
 import { PurchaseMemberSlotsModal } from './PurchaseMemberSlotsModal';
 import { ManageMemberSlotsModal } from './ManageMemberSlotsModal';
 import { PurchaseContentProfileSlotsModal } from './PurchaseContentProfileSlotsModal';
 import { ManageContentProfileSlotsModal } from './ManageContentProfileSlotsModal';
+import StorageBreakdown from './StorageBreakdown';
 
 import { CreditPackage } from '@/lib/credit-packages';
 import { PricingPlan } from '@/lib/pricing-data';
@@ -32,6 +34,7 @@ export default function BillingOverview({
   creditsRef,
 }: BillingOverviewProps) {
   const { data: billingInfo, isLoading: loading, refetch } = useBillingInfo();
+  const { data: storageData, isLoading: storageLoading } = useStorageData();
   const [purchasingSlots, setPurchasingSlots] = useState(false);
   const [showMemberSlotModal, setShowMemberSlotModal] = useState(false);
   const [showManageSlotModal, setShowManageSlotModal] = useState(false);
@@ -244,12 +247,43 @@ export default function BillingOverview({
 
   if (loading) {
     return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-mid-pink mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading billing information...</p>
+      <>
+        {/* Skeleton for Current Subscription */}
+        <div className="mb-12">
+          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-sm animate-pulse">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+              <div className="space-y-3">
+                <div className="h-8 w-32 bg-muted rounded"></div>
+                <div className="h-6 w-24 bg-muted rounded"></div>
+              </div>
+              <div className="mt-4 md:mt-0">
+                <div className="h-10 w-32 bg-muted rounded"></div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+
+        {/* Skeleton for Usage Statistics */}
+        <div className="mb-12">
+          <div className="h-8 w-48 bg-muted rounded mb-6 animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-card border border-border rounded-2xl p-6 shadow-sm animate-pulse">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 bg-muted rounded"></div>
+                      <div className="h-4 w-24 bg-muted rounded"></div>
+                    </div>
+                    <div className="h-4 w-16 bg-muted rounded"></div>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -346,7 +380,7 @@ export default function BillingOverview({
       {billingInfo && (
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-6 text-brand-mid-pink">Usage This Month</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
                 label="Team Members"
@@ -411,13 +445,35 @@ export default function BillingOverview({
                 )}
               </div>
             </div>
+            {/* Storage Card - loads separately for better performance */}
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
-              <UsageBar
-                label="Storage (GB)"
-                current={Math.round(billingInfo.usage.storage.current * 10) / 10}
-                max={billingInfo.usage.storage.max}
-                icon={HardDrive}
-              />
+              {storageLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <HardDrive className="w-4 h-4 text-muted-foreground opacity-50" />
+                      <div className="h-4 w-28 bg-muted rounded"></div>
+                    </div>
+                    <div className="h-4 w-20 bg-muted rounded"></div>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2"></div>
+                  <p className="text-xs text-muted-foreground animate-pulse">Calculating storage...</p>
+                </div>
+              ) : storageData?.breakdown ? (
+                <UsageBar
+                  label="Storage (GB)"
+                  current={Math.round(storageData.breakdown.totalGB * 10) / 10}
+                  max={billingInfo.usage.storage.max}
+                  icon={HardDrive}
+                />
+              ) : (
+                <UsageBar
+                  label="Storage (GB)"
+                  current={Math.round(billingInfo.usage.storage.current * 10) / 10}
+                  max={billingInfo.usage.storage.max}
+                  icon={HardDrive}
+                />
+              )}
             </div>
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
@@ -431,6 +487,9 @@ export default function BillingOverview({
               </p>
             </div>
           </div>
+
+          {/* Detailed Storage Breakdown */}
+          <StorageBreakdown />
         </div>
       )}
 

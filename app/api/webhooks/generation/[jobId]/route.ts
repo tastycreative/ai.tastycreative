@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { updateJob, getJob } from '@/lib/jobsStorage';
 import { saveImageToDatabase, buildComfyUIUrl } from '@/lib/imageStorage';
 import { saveVideoToDatabase, buildComfyUIVideoUrl } from '@/lib/videoStorage';
+import { trackStorageUpload } from '@/lib/storageEvents';
 
 export async function POST(
   request: NextRequest,
@@ -227,9 +228,16 @@ export async function POST(
                   },
                 },
               });
-              
+
               await prisma.$disconnect();
-              
+
+              // Track storage usage (non-blocking)
+              if (fileSize && fileSize > 0) {
+                trackStorageUpload(folderOwnerClerkId, fileSize).catch((error) => {
+                  console.error('[Webhook AWS S3] Failed to track storage upload:', error);
+                });
+              }
+
               savedItems.push({
                 id: vaultItem.id,
                 url: awsS3Url,
@@ -237,7 +245,7 @@ export async function POST(
                 s3Key: awsS3Key,
                 savedToVault: true,
               });
-              
+
               console.log(`✅ AWS S3 ${isVideo ? 'video' : 'image'} saved to vault: ${vaultItem.id} (owner: ${folderOwnerClerkId})`);
             } catch (vaultError) {
               console.error('❌ Error saving to vault:', vaultError);
@@ -438,9 +446,16 @@ export async function POST(
                     },
                   },
                 });
-                
+
                 await prisma.$disconnect();
-                
+
+                // Track storage usage (non-blocking)
+                if (file_size && file_size > 0) {
+                  trackStorageUpload(targetClerkId, file_size).catch((error) => {
+                    console.error('[Webhook Network Volume] Failed to track storage upload:', error);
+                  });
+                }
+
                 savedImages.push({
                   id: vaultItem.id,
                   url: publicUrl,
@@ -448,7 +463,7 @@ export async function POST(
                   s3Key: s3_key,
                   savedToVault: true,
                 });
-                
+
                 console.log(`✅ S3 network volume image saved to vault: ${vaultItem.id}`);
               } catch (vaultError) {
                 console.error('❌ Error saving to vault:', vaultError);
@@ -875,9 +890,16 @@ export async function POST(
                     },
                   },
                 });
-                
+
                 await prisma.$disconnect();
-                
+
+                // Track storage usage (non-blocking)
+                if (videoInfo.fileSize && videoInfo.fileSize > 0) {
+                  trackStorageUpload(targetClerkId, videoInfo.fileSize).catch((error) => {
+                    console.error('[Webhook S3 Video] Failed to track storage upload:', error);
+                  });
+                }
+
                 videoUrls.push(publicUrl);
                 console.log(`✅ S3 video saved to vault: ${vaultItem.id}`);
               } catch (vaultError) {
@@ -1015,8 +1037,21 @@ export async function POST(
                 });
                 
                 // Generate S3 key for vault video
-                const s3Key = `vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`;
-                
+                // Check if user has organization for org-based storage
+                const user = await prisma.user.findUnique({
+                  where: { clerkId: existingJob.clerkId },
+                  select: {
+                    currentOrganizationId: true,
+                    currentOrganization: {
+                      select: { slug: true }
+                    }
+                  },
+                });
+
+                const s3Key = user?.currentOrganization?.slug
+                  ? `organizations/${user.currentOrganization.slug}/vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`
+                  : `vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`;
+
                 // Upload to S3
                 await s3Client.send(new PutObjectCommand({
                   Bucket: AWS_S3_BUCKET,
@@ -1047,9 +1082,16 @@ export async function POST(
                     },
                   },
                 });
-                
+
                 await prisma.$disconnect();
-                
+
+                // Track storage usage (non-blocking)
+                if (videoBuffer.length > 0) {
+                  trackStorageUpload(targetClerkId, videoBuffer.length).catch((error) => {
+                    console.error('[Webhook Video Upload] Failed to track storage upload:', error);
+                  });
+                }
+
                 videoUrls.push(publicUrl);
                 console.log(`✅ Video uploaded to S3 and saved to vault: ${vaultItem.id}`);
               } catch (vaultError) {

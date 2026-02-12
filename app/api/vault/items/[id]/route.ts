@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { trackStorageDelete } from "@/lib/storageEvents";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -274,6 +275,13 @@ export async function DELETE(
       where: { id },
     });
     console.log("[DELETE Vault Item] Database delete successful:", deleteResult.id);
+
+    // Track storage deletion (non-blocking)
+    if (item.fileSize && item.fileSize > 0) {
+      trackStorageDelete(item.clerkId, item.fileSize).catch((error) => {
+        console.error('[DELETE Vault Item] Failed to track storage deletion:', error);
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
