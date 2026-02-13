@@ -11,6 +11,8 @@ import { PurchaseMemberSlotsModal } from './PurchaseMemberSlotsModal';
 import { ManageMemberSlotsModal } from './ManageMemberSlotsModal';
 import { PurchaseContentProfileSlotsModal } from './PurchaseContentProfileSlotsModal';
 import { ManageContentProfileSlotsModal } from './ManageContentProfileSlotsModal';
+import { PurchaseStorageSlotsModal } from './PurchaseStorageSlotsModal';
+import { ManageStorageSlotsModal } from './ManageStorageSlotsModal';
 import StorageBreakdown from './StorageBreakdown';
 
 import { CreditPackage } from '@/lib/credit-packages';
@@ -41,6 +43,9 @@ export default function BillingOverview({
   const [purchasingProfileSlots, setPurchasingProfileSlots] = useState(false);
   const [showProfileSlotModal, setShowProfileSlotModal] = useState(false);
   const [showManageProfileSlotModal, setShowManageProfileSlotModal] = useState(false);
+  const [purchasingStorageSlots, setPurchasingStorageSlots] = useState(false);
+  const [showStorageSlotModal, setShowStorageSlotModal] = useState(false);
+  const [showManageStorageSlotModal, setShowManageStorageSlotModal] = useState(false);
 
   const handlePurchaseMemberSlots = async (numberOfSlots: number) => {
     try {
@@ -177,6 +182,77 @@ export default function BillingOverview({
       };
     } catch (error) {
       console.error('Error removing content profile slots:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred',
+      };
+    }
+  };
+
+  const handlePurchaseStorageSlots = async (numberOfGB: number) => {
+    try {
+      setPurchasingStorageSlots(true);
+      const response = await fetch('/api/billing/purchase-storage-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfGB }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create purchase session');
+      }
+
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe Checkout (new subscription)
+        window.location.href = data.url;
+      } else {
+        // Updated existing subscription, no redirect needed
+        setShowStorageSlotModal(false);
+        setPurchasingStorageSlots(false);
+        toast.success(data.message || 'Storage added successfully!');
+        refetch(); // Refresh billing info
+      }
+    } catch (error) {
+      console.error('Error purchasing storage:', error);
+      toast.error('Failed to start purchase. Please try again.');
+      setPurchasingStorageSlots(false);
+    }
+  };
+
+  const handleRemoveStorageSlots = async (numberOfGB: number) => {
+    try {
+      const response = await fetch('/api/billing/cancel-storage-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfGB }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error,
+          message: data.message,
+          currentUsageGB: data.currentUsageGB,
+          newLimitGB: data.newLimitGB,
+          requiredToFree: data.requiredToFree,
+        };
+      }
+
+      // Success - refetch billing info to update UI
+      await refetch();
+      toast.success(data.message || 'Storage removed successfully!');
+
+      return {
+        success: true,
+        message: data.message,
+      };
+    } catch (error) {
+      console.error('Error removing storage:', error);
       return {
         success: false,
         error: 'An unexpected error occurred',
@@ -460,19 +536,69 @@ export default function BillingOverview({
                   <p className="text-xs text-muted-foreground animate-pulse">Calculating storage...</p>
                 </div>
               ) : storageData?.breakdown ? (
-                <UsageBar
-                  label="Storage (GB)"
-                  current={Math.round(storageData.breakdown.totalGB * 10) / 10}
-                  max={billingInfo.usage.storage.max}
-                  icon={HardDrive}
-                />
+                <>
+                  <UsageBar
+                    label="Storage (GB)"
+                    current={Math.round(storageData.breakdown.totalGB * 10) / 10}
+                    max={billingInfo.usage.storage.max}
+                    icon={HardDrive}
+                  />
+                  {billingInfo.usage.storage.additionalGB !== undefined && billingInfo.usage.storage.additionalGB > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {billingInfo.usage.storage.baseGB || 0} base + {billingInfo.usage.storage.additionalGB} additional GB
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => setShowStorageSlotModal(true)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 hover:bg-brand-mid-pink/20 dark:hover:bg-brand-mid-pink/30 text-brand-mid-pink dark:text-brand-light-pink rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Storage
+                    </button>
+                    {billingInfo.usage.storage.additionalGB !== undefined && billingInfo.usage.storage.additionalGB > 0 && (
+                      <button
+                        onClick={() => setShowManageStorageSlotModal(true)}
+                        className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                        title="Manage storage"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </>
               ) : (
-                <UsageBar
-                  label="Storage (GB)"
-                  current={Math.round(billingInfo.usage.storage.current * 10) / 10}
-                  max={billingInfo.usage.storage.max}
-                  icon={HardDrive}
-                />
+                <>
+                  <UsageBar
+                    label="Storage (GB)"
+                    current={Math.round(billingInfo.usage.storage.current * 10) / 10}
+                    max={billingInfo.usage.storage.max}
+                    icon={HardDrive}
+                  />
+                  {billingInfo.usage.storage.additionalGB !== undefined && billingInfo.usage.storage.additionalGB > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {billingInfo.usage.storage.baseGB || 0} base + {billingInfo.usage.storage.additionalGB} additional GB
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => setShowStorageSlotModal(true)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 hover:bg-brand-mid-pink/20 dark:hover:bg-brand-mid-pink/30 text-brand-mid-pink dark:text-brand-light-pink rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Storage
+                    </button>
+                    {billingInfo.usage.storage.additionalGB !== undefined && billingInfo.usage.storage.additionalGB > 0 && (
+                      <button
+                        onClick={() => setShowManageStorageSlotModal(true)}
+                        className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                        title="Manage storage"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
@@ -711,6 +837,26 @@ export default function BillingOverview({
             currentSlots={billingInfo.usage.profiles.additionalSlots}
             baseLimit={billingInfo.usage.profiles.baseLimit}
             currentProfiles={billingInfo.usage.profiles.current}
+          />
+
+          {/* Storage Slot Modals */}
+          <PurchaseStorageSlotsModal
+            isOpen={showStorageSlotModal}
+            onClose={() => setShowStorageSlotModal(false)}
+            onPurchase={handlePurchaseStorageSlots}
+            pricePerGB={billingInfo.usage.storage.storageSlotPrice || 0.50}
+            currentAdditionalGB={billingInfo.usage.storage.additionalGB || 0}
+            baseStorageGB={billingInfo.usage.storage.baseGB || billingInfo.usage.storage.max}
+            purchasing={purchasingStorageSlots}
+          />
+          <ManageStorageSlotsModal
+            isOpen={showManageStorageSlotModal}
+            onClose={() => setShowManageStorageSlotModal(false)}
+            onRemove={handleRemoveStorageSlots}
+            pricePerGB={billingInfo.usage.storage.storageSlotPrice || 0.50}
+            currentAdditionalGB={billingInfo.usage.storage.additionalGB || 0}
+            baseStorageGB={billingInfo.usage.storage.baseGB || billingInfo.usage.storage.max}
+            currentUsageGB={storageData?.breakdown?.totalGB || billingInfo.usage.storage.current}
           />
         </>
       )}

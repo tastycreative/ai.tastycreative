@@ -107,6 +107,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
+  // Handle storage add-on purchase
+  if (purchaseType === 'storage_addon') {
+    await handleStorageAddonPurchase(session);
+    return;
+  }
+
   if (!organizationId || !planId) {
     console.error('❌ Missing metadata in checkout session');
     return;
@@ -657,4 +663,76 @@ async function handleContentProfileSlotPurchase(session: Stripe.Checkout.Session
   console.log(`✅ Content profile slots added to organization ${organizationId}`);
   console.log(`   Organization name: ${updated.name}`);
   console.log(`   Total additional slots: ${updated.additionalContentProfileSlots}`);
+}
+
+async function handleStorageAddonPurchase(session: Stripe.Checkout.Session) {
+  console.log('💾 Processing storage add-on purchase');
+
+  const organizationId = session.metadata?.organizationId;
+  const numberOfGB = parseInt(session.metadata?.numberOfGB || '0');
+
+  console.log(`   Organization ID: ${organizationId}`);
+  console.log(`   Number of GB: ${numberOfGB}`);
+  console.log(`   Amount paid: ${session.amount_total ? session.amount_total / 100 : 0}`);
+
+  if (!organizationId || !numberOfGB) {
+    console.error('❌ Missing metadata in storage add-on purchase session');
+    return;
+  }
+
+  // Get current organization
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      additionalStorageGB: true,
+      name: true,
+    },
+  });
+
+  if (!organization) {
+    console.error('❌ Organization not found');
+    return;
+  }
+
+  // Add purchased storage to additional storage
+  const newTotalStorage = (organization.additionalStorageGB ?? 0) + numberOfGB;
+  const pricePerGB = session.amount_total ? (session.amount_total / 100) / numberOfGB : 0.50;
+
+  console.log(`   Current additional storage: ${organization.additionalStorageGB ?? 0} GB`);
+  console.log(`   New total storage: ${newTotalStorage} GB`);
+  console.log(`   Price per GB: $${pricePerGB.toFixed(2)}`);
+
+  const updated = await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      additionalStorageGB: newTotalStorage,
+      storageSlotPrice: pricePerGB,
+      stripeCustomerId: session.customer as string,
+    },
+  });
+
+  // Create transaction record
+  await prisma.billingTransaction.create({
+    data: {
+      organizationId,
+      userId: session.metadata?.userId || null,
+      type: 'SUBSCRIPTION_PAYMENT',
+      status: 'COMPLETED',
+      amount: (session.amount_total || 0) / 100,
+      currency: session.currency || 'usd',
+      description: `Purchase of ${numberOfGB} GB additional storage`,
+      planName: 'Storage Add-on',
+      stripeCheckoutSessionId: session.id,
+      metadata: {
+        sessionId: session.id,
+        numberOfGB: numberOfGB,
+        pricePerGB: pricePerGB,
+        type: 'storage_addon',
+      },
+    },
+  });
+
+  console.log(`✅ Storage added to organization ${organizationId}`);
+  console.log(`   Organization name: ${updated.name}`);
+  console.log(`   Total additional storage: ${updated.additionalStorageGB} GB`);
 }

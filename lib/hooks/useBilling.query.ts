@@ -24,7 +24,7 @@ export interface BillingInfo {
   usage: {
     members: { current: number; max: number; percentage: number; baseLimit: number; additionalSlots: number; memberSlotPrice: number };
     profiles: { current: number; max: number; percentage: number; baseLimit: number; additionalSlots: number; contentProfileSlotPrice: number };
-    storage: { current: number; max: number; percentage: number };
+    storage: { current: number; max: number; percentage: number; baseGB?: number; additionalGB?: number; storageSlotPrice?: number };
     credits: { used: number; max: number; remaining: number; available: number; percentage: number };
   };
 }

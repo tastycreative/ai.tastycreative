@@ -510,6 +510,10 @@ model InstagramProfile {
   modelBible             Json?
   isFavorite             Boolean               @default(false)
   tags                   String[]              @default([])
+  pageStrategy           String?
+  customStrategies       Json?
+  customContentTypes     String[]              @default([])
+  selectedContentTypes   String[]              @default([])
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -1064,50 +1068,52 @@ model SubscriptionPlan {
 }
 
 model Organization {
-  id                   String                        @id @default(cuid())
-  name                 String
-  slug                 String                        @unique
-  description          String?
-  logoUrl              String?
-  subscriptionPlanId   String?
-  subscriptionStatus   SubscriptionStatus            @default(TRIAL)
-  trialEndsAt          DateTime?
-  currentPeriodStart   DateTime?
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean                       @default(false)
-  stripeCustomerId     String?                       @unique
-  stripeSubscriptionId String?                       @unique
-  billingEmail         String?
-  billingName          String?
-  billingAddress       Json?
-  customMaxMembers     Int?
-  customMaxProfiles    Int?
-  customMaxWorkspaces  Int?
-  customMaxStorageGB   Int?
-  customMonthlyCredits Int?
-  currentStorageGB     Float                         @default(0)
-  creditsUsedThisMonth Int
-  lastCreditReset      DateTime?
-  isActive             Boolean                       @default(true)
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @default(now()) @updatedAt
-  additionalMemberSlots Int                          @default(0)
-  memberSlotPrice      Float?
-  additionalContentProfileSlots Int                 @default(0)
-  contentProfileSlotPrice Float?
-  availableCredits     Int                           @default(0)
-  transactions         BillingTransaction[]
-  content_submissions  content_submissions[]
-  creditUsageLogs      CreditUsageLog[]
-  customPermissions    CustomOrganizationPermission?
-  gallery_items        gallery_items[]
-  instagramProfiles    InstagramProfile[]
-  marketplaceModels    MarketplaceModel[]
-  invites              OrganizationInvite[]
-  subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
-  members              TeamMember[]
-  vaultFolders         VaultFolder[]
-  workspaces           Workspace[]
+  id                            String                        @id @default(cuid())
+  name                          String
+  slug                          String                        @unique
+  description                   String?
+  logoUrl                       String?
+  subscriptionPlanId            String?
+  subscriptionStatus            SubscriptionStatus            @default(TRIAL)
+  trialEndsAt                   DateTime?
+  currentPeriodStart            DateTime?
+  currentPeriodEnd              DateTime?
+  cancelAtPeriodEnd             Boolean                       @default(false)
+  stripeCustomerId              String?                       @unique
+  stripeSubscriptionId          String?                       @unique
+  billingEmail                  String?
+  billingName                   String?
+  billingAddress                Json?
+  customMaxMembers              Int?
+  customMaxProfiles             Int?
+  customMaxWorkspaces           Int?
+  customMaxStorageGB            Int?
+  customMonthlyCredits          Int?
+  currentStorageGB              Float                         @default(0)
+  creditsUsedThisMonth          Int
+  lastCreditReset               DateTime?
+  isActive                      Boolean                       @default(true)
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @default(now()) @updatedAt
+  availableCredits              Int                           @default(0)
+  additionalMemberSlots         Int                           @default(0)
+  memberSlotPrice               Float?
+  additionalContentProfileSlots Int                           @default(0)
+  contentProfileSlotPrice       Float?
+  additionalStorageGB  Int                           @default(0)
+  storageSlotPrice     Float?
+  transactions                  BillingTransaction[]
+  content_submissions           content_submissions[]
+  creditUsageLogs               CreditUsageLog[]
+  customPermissions             CustomOrganizationPermission?
+  gallery_items                 gallery_items[]
+  instagramProfiles             InstagramProfile[]
+  marketplaceModels             MarketplaceModel[]
+  invites                       OrganizationInvite[]
+  subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
+  members                       TeamMember[]
+  vaultFolders                  VaultFolder[]
+  workspaces                    Workspace[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -2020,7 +2026,6 @@ enum TransactionType {
   CREDIT_REFUND
   PLAN_CHANGE
 }
-
 
 enum SubmissionStatus {
   DRAFT

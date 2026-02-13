@@ -43,7 +43,9 @@ export async function GET(req: NextRequest) {
     const maxMembers = baseMemberLimit + (currentOrg.additionalMemberSlots ?? 0);
     const baseProfileLimit = currentOrg.customMaxProfiles ?? currentOrg.subscriptionPlan?.maxProfiles ?? 1;
     const maxProfiles = baseProfileLimit + (currentOrg.additionalContentProfileSlots ?? 0);
-    const maxStorageGB = currentOrg.customMaxStorageGB ?? currentOrg.subscriptionPlan?.maxStorageGB ?? 5;
+    const baseStorageGB = currentOrg.subscriptionPlan?.maxStorageGB ?? 5;
+    const additionalStorageGB = currentOrg.additionalStorageGB ?? currentOrg.customMaxStorageGB ?? 0;
+    const maxStorageGB = baseStorageGB + additionalStorageGB;
     const monthlyCredits = currentOrg.customMonthlyCredits ?? currentOrg.subscriptionPlan?.monthlyCredits ?? 100;
 
     // Get member count
@@ -88,6 +90,9 @@ export async function GET(req: NextRequest) {
           current: currentOrg.currentStorageGB || 0,
           max: maxStorageGB,
           percentage: ((currentOrg.currentStorageGB || 0) / maxStorageGB) * 100,
+          baseGB: baseStorageGB,
+          additionalGB: additionalStorageGB,
+          storageSlotPrice: currentOrg.storageSlotPrice ?? 0.50,
         },
         credits: {
           used: currentOrg.creditsUsedThisMonth,
