@@ -1,189 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
-import type { TextOverlay, TextAnimation } from "@/lib/gif-maker/types";
-
-const TEXT_ANIMATIONS: { value: TextAnimation; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "fade-in", label: "Fade In" },
-  { value: "slide-up", label: "Slide Up" },
-  { value: "slide-down", label: "Slide Down" },
-  { value: "slide-left", label: "Slide Left" },
-  { value: "slide-right", label: "Slide Right" },
-  { value: "typewriter", label: "Typewriter" },
-  { value: "scale-in", label: "Scale In" },
-  { value: "bounce", label: "Bounce" },
-  { value: "blur-in", label: "Blur In" },
-  { value: "glow", label: "Glow" },
-  { value: "pop", label: "Pop" },
-];
-
-const FONT_FAMILIES = [
-  { value: "system-ui", label: "System" },
-  { value: "Inter", label: "Inter" },
-  { value: "Arial", label: "Arial" },
-  { value: "Georgia", label: "Georgia" },
-  { value: "Times New Roman", label: "Times" },
-  { value: "Courier New", label: "Courier" },
-  { value: "Impact", label: "Impact" },
-  { value: "Comic Sans MS", label: "Comic Sans" },
-  { value: "Trebuchet MS", label: "Trebuchet" },
-  { value: "Verdana", label: "Verdana" },
-  { value: "Palatino", label: "Palatino" },
-  { value: "Futura", label: "Futura" },
-];
-
-interface TextStylePreset {
-  id: string;
-  label: string;
-  props: Partial<TextOverlay>;
-}
-
-const TEXT_STYLE_PRESETS: TextStylePreset[] = [
-  {
-    id: "classic",
-    label: "Classic",
-    props: {
-      fontFamily: "system-ui",
-      fontWeight: 700,
-      color: "#ffffff",
-      backgroundColor: "rgba(0,0,0,0.5)",
-      backgroundOpacity: 0.5,
-      strokeWidth: 0,
-      shadowBlur: 0,
-      shadowOffsetX: 0,
-      shadowOffsetY: 0,
-      borderRadius: 4,
-    },
-  },
-  {
-    id: "neon",
-    label: "Neon",
-    props: {
-      color: "#39FF14",
-      backgroundColor: "transparent",
-      backgroundOpacity: 0,
-      strokeWidth: 0,
-      shadowColor: "#39FF14",
-      shadowBlur: 20,
-      shadowOffsetX: 0,
-      shadowOffsetY: 0,
-    },
-  },
-  {
-    id: "bold",
-    label: "Bold",
-    props: {
-      fontWeight: 900,
-      fontSize: 64,
-      color: "#ffffff",
-      backgroundColor: "transparent",
-      backgroundOpacity: 0,
-      strokeWidth: 3,
-      strokeColor: "#000000",
-      shadowBlur: 0,
-    },
-  },
-  {
-    id: "outline",
-    label: "Outline",
-    props: {
-      color: "transparent",
-      strokeWidth: 3,
-      strokeColor: "#ffffff",
-      backgroundColor: "transparent",
-      backgroundOpacity: 0,
-      shadowBlur: 0,
-    },
-  },
-  {
-    id: "shadow",
-    label: "Shadow",
-    props: {
-      color: "#ffffff",
-      backgroundColor: "transparent",
-      backgroundOpacity: 0,
-      strokeWidth: 0,
-      shadowOffsetX: 3,
-      shadowOffsetY: 3,
-      shadowBlur: 0,
-      shadowColor: "#000000",
-    },
-  },
-  {
-    id: "retro",
-    label: "Retro",
-    props: {
-      fontFamily: "Georgia",
-      color: "#FFD700",
-      backgroundColor: "#8B0000",
-      backgroundOpacity: 1,
-      borderRadius: 0,
-      strokeWidth: 0,
-      shadowBlur: 0,
-    },
-  },
-  {
-    id: "minimal",
-    label: "Minimal",
-    props: {
-      fontWeight: 300,
-      fontSize: 36,
-      color: "#ffffff",
-      backgroundColor: "transparent",
-      backgroundOpacity: 0,
-      strokeWidth: 0,
-      shadowBlur: 0,
-    },
-  },
-  {
-    id: "tag",
-    label: "Tag",
-    props: {
-      fontSize: 24,
-      fontWeight: 600,
-      backgroundColor: "#3b82f6",
-      backgroundOpacity: 1,
-      color: "#ffffff",
-      borderRadius: 20,
-      strokeWidth: 0,
-      shadowBlur: 0,
-    },
-  },
-];
+import { useShallow } from "zustand/react/shallow";
+import type { TextOverlay } from "@/lib/gif-maker/types";
+import { Section } from "./text-overlay/Section";
+import { TextStylePresets } from "./text-overlay/TextStylePresets";
+import { TextFontControls } from "./text-overlay/TextFontControls";
+import { TextAnimationControls } from "./text-overlay/TextAnimationControls";
 
 const inputClass =
   "w-full h-7 px-2 bg-slate-900 border border-[#2d3142] rounded-md text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150";
-
-function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-t border-[#2d3142] pt-2.5">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-400 transition-colors"
-      >
-        {title}
-        <svg className={`w-3 h-3 transition-transform ${open ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && <div className="mt-2 space-y-2.5">{children}</div>}
-    </div>
-  );
-}
 
 interface TextOverlayPropertiesProps {
   overlay: TextOverlay;
 }
 
 export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
-  const updateOverlay = useVideoEditorStore((s) => s.updateOverlay);
+  // Optimize: Use shallow selector to only get the update function
+  const updateOverlay = useVideoEditorStore(
+    useShallow((s) => s.updateOverlay)
+  );
 
-  const update = (updates: Partial<TextOverlay>) => {
-    updateOverlay(overlay.id, updates);
-  };
+  const update = useCallback(
+    (updates: Partial<TextOverlay>) => {
+      updateOverlay(overlay.id, updates);
+    },
+    [updateOverlay, overlay.id]
+  );
 
   // Resolve optional fields with defaults
   const letterSpacing = overlay.letterSpacing ?? 0;
@@ -221,85 +65,20 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
         />
       </div>
 
-      {/* Style Presets */}
+      {/* Style Presets - Memoized */}
       <Section title="Style Presets" defaultOpen={true}>
-        <div className="flex flex-wrap gap-1">
-          {TEXT_STYLE_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              onClick={() => update(preset.props)}
-              className="px-2 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142] hover:border-slate-600 transition-all duration-150"
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
+        <TextStylePresets onApplyPreset={update} />
       </Section>
 
-      {/* Font */}
+      {/* Font Controls - Memoized */}
       <Section title="Font" defaultOpen={true}>
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-400">Family</label>
-          <select
-            value={overlay.fontFamily}
-            onChange={(e) => update({ fontFamily: e.target.value })}
-            className={inputClass}
-          >
-            {FONT_FAMILIES.map((f) => (
-              <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-400">Size: {overlay.fontSize}px</label>
-          <input
-            type="range"
-            min={12}
-            max={120}
-            value={overlay.fontSize}
-            onChange={(e) => update({ fontSize: Number(e.target.value) })}
-            className="w-full h-1.5 pro-slider"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-400">Weight: {overlay.fontWeight}</label>
-          <input
-            type="range"
-            min={100}
-            max={900}
-            step={100}
-            value={overlay.fontWeight}
-            onChange={(e) => update({ fontWeight: Number(e.target.value) })}
-            className="w-full h-1.5 pro-slider"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-400">Transform</label>
-          <div className="grid grid-cols-3 gap-1">
-            {([
-              { value: "none", label: "Aa" },
-              { value: "uppercase", label: "AA" },
-              { value: "lowercase", label: "aa" },
-            ] as const).map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => update({ textTransform: opt.value })}
-                className={`px-2 py-1.5 text-xs rounded transition-colors duration-150 ${
-                  textTransform === opt.value
-                    ? "bg-indigo-500 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142]"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <TextFontControls
+          fontFamily={overlay.fontFamily}
+          fontSize={overlay.fontSize}
+          fontWeight={overlay.fontWeight}
+          textTransform={textTransform}
+          onUpdate={update}
+        />
       </Section>
 
       {/* Spacing */}
@@ -497,38 +276,13 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
         </div>
       </Section>
 
-      {/* Animation */}
+      {/* Animation - Memoized */}
       <Section title="Animation" defaultOpen={true}>
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-400">Type</label>
-          <select
-            value={overlay.animation}
-            onChange={(e) => update({ animation: e.target.value as TextAnimation })}
-            className={inputClass}
-          >
-            {TEXT_ANIMATIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {overlay.animation !== "none" && (
-          <div className="space-y-1.5">
-            <label className="text-xs text-slate-400">
-              Duration: {overlay.animationDurationFrames}f
-            </label>
-            <input
-              type="range"
-              min={5}
-              max={60}
-              value={overlay.animationDurationFrames}
-              onChange={(e) => update({ animationDurationFrames: Number(e.target.value) })}
-              className="w-full h-1.5 pro-slider"
-            />
-          </div>
-        )}
+        <TextAnimationControls
+          animation={overlay.animation}
+          animationDurationFrames={overlay.animationDurationFrames}
+          onUpdate={update}
+        />
       </Section>
 
       {/* Timing */}

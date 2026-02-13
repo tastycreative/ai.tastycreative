@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import {
   Plus,
   Trash2,
@@ -47,14 +48,28 @@ interface VaultItem {
 type PanelView = "clips" | "vault-folders" | "vault-items";
 
 export function ClipPanel() {
-  const clips = useVideoEditorStore((s) => s.clips);
-  const selectedClipId = useVideoEditorStore((s) => s.selectedClipId);
-  const addClip = useVideoEditorStore((s) => s.addClip);
-  const removeClip = useVideoEditorStore((s) => s.removeClip);
-  const selectClip = useVideoEditorStore((s) => s.selectClip);
-  const reorderClips = useVideoEditorStore((s) => s.reorderClips);
-  const fps = useVideoEditorStore((s) => s.settings.fps);
-  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
+  // Optimize: Use single selector with useShallow to prevent re-renders on unrelated state changes
+  const {
+    clips,
+    selectedClipId,
+    addClip,
+    removeClip,
+    selectClip,
+    reorderClips,
+    fps,
+    activeCollageLayout,
+  } = useVideoEditorStore(
+    useShallow((s) => ({
+      clips: s.clips,
+      selectedClipId: s.selectedClipId,
+      addClip: s.addClip,
+      removeClip: s.removeClip,
+      selectClip: s.selectClip,
+      reorderClips: s.reorderClips,
+      fps: s.settings.fps,
+      activeCollageLayout: s.settings.activeCollageLayout,
+    }))
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const collagePreset = activeCollageLayout ? COLLAGE_PRESETS[activeCollageLayout] : null;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
@@ -25,7 +25,8 @@ interface ClassicSubmissionFormProps {
   onCancel?: () => void;
 }
 
-export function ClassicSubmissionForm({
+// Optimize: Wrap with React.memo to prevent unnecessary re-renders
+export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
   submissionId,
   initialData,
   onSuccess,
@@ -383,10 +384,10 @@ export function ClassicSubmissionForm({
       </div>
     </div>
   );
-}
+});
 
-// Section wrapper component
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// Section wrapper component - Memoized
+const Section = memo(function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 overflow-hidden">
       <CardHeader className="border-b border-zinc-800/50 pb-4">
@@ -397,4 +398,4 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <CardContent className="pt-6">{children}</CardContent>
     </Card>
   );
-}
+});
