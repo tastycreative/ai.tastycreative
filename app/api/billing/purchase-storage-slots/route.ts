@@ -163,6 +163,27 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        // Create transaction record for the storage add-on
+        const pricePerGB = currentOrg.storageSlotPrice || 0.50;
+        await prisma.billingTransaction.create({
+          data: {
+            organizationId: currentOrg.id,
+            userId: user.id,
+            type: 'SUBSCRIPTION_PAYMENT',
+            status: 'COMPLETED',
+            amount: numberOfGB * pricePerGB,
+            currency: 'usd',
+            description: `Added ${numberOfGB} GB additional storage`,
+            planName: 'Storage Add-on',
+            metadata: {
+              numberOfGB: numberOfGB,
+              pricePerGB: pricePerGB,
+              type: 'storage_addon',
+              subscriptionId: existingStorageSub.id,
+            },
+          },
+        });
+
         return NextResponse.json({
           success: true,
           message: `Successfully added ${numberOfGB} GB of storage`,

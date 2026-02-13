@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
         where.type = 'SUBSCRIPTION_PAYMENT';
       } else if (type === 'credits') {
         where.type = 'CREDIT_PURCHASE';
+      } else if (type === 'storage') {
+        where.planName = 'Storage Add-on';
+      } else if (type === 'refunds') {
+        where.type = { in: ['SUBSCRIPTION_REFUND', 'CREDIT_REFUND'] };
       }
     }
 
@@ -205,6 +209,14 @@ export async function GET(request: NextRequest) {
       background: #d1fae5;
       color: #065f46;
     }
+    .type-storage {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .type-refund {
+      background: #fee2e2;
+      color: #991b1b;
+    }
     .summary-box {
       background: #d1fae5;
       padding: 16px;
@@ -302,7 +314,29 @@ export async function GET(request: NextRequest) {
         </tr>
       </thead>
       <tbody>
-        ${transactions.map(t => `
+        ${transactions.map(t => {
+          // Determine transaction type display
+          let typeClass = 'subscription';
+          let typeLabel = 'Subscription';
+          
+          if (t.type === 'CREDIT_PURCHASE') {
+            typeClass = 'credits';
+            typeLabel = 'Credits';
+          } else if (t.type === 'SUBSCRIPTION_REFUND' || t.type === 'CREDIT_REFUND') {
+            typeClass = 'refund';
+            typeLabel = 'Refund';
+          } else if (t.planName === 'Storage Add-on') {
+            typeClass = 'storage';
+            typeLabel = 'Storage';
+          } else if (t.planName === 'Member Slot Add-on') {
+            typeClass = 'subscription';
+            typeLabel = 'Member Slots';
+          } else if (t.planName === 'Content Profile Slot Add-on') {
+            typeClass = 'subscription';
+            typeLabel = 'Profile Slots';
+          }
+          
+          return `
           <tr>
             <td>${new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
             <td>
@@ -310,14 +344,14 @@ export async function GET(request: NextRequest) {
               ${t.planName ? `<div style="font-size: 12px; color: #666;">${t.planName}</div>` : ''}
             </td>
             <td class="right">
-              <span class="type-badge type-${t.type === 'SUBSCRIPTION_PAYMENT' ? 'subscription' : 'credits'}">
-                ${t.type === 'SUBSCRIPTION_PAYMENT' ? 'Subscription' : 'Credits'}
+              <span class="type-badge type-${typeClass}">
+                ${typeLabel}
               </span>
             </td>
             <td class="right">${t.creditsAdded ? `+${t.creditsAdded.toLocaleString()}` : '-'}</td>
             <td class="right">$${t.amount.toFixed(2)}</td>
           </tr>
-        `).join('')}
+        `}).join('')}
       </tbody>
     </table>
   </div>

@@ -165,6 +165,27 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Create transaction record for the storage removal
+    const pricePerGB = currentOrg.storageSlotPrice || 0.50;
+    await prisma.billingTransaction.create({
+      data: {
+        organizationId: currentOrg.id,
+        userId: user.id,
+        type: 'SUBSCRIPTION_REFUND',
+        status: 'COMPLETED',
+        amount: numberOfGB * pricePerGB, // Prorated credit amount
+        currency: 'usd',
+        description: `Removed ${numberOfGB} GB additional storage (prorated credit)`,
+        planName: 'Storage Add-on',
+        metadata: {
+          numberOfGB: numberOfGB,
+          pricePerGB: pricePerGB,
+          type: 'storage_addon_removal',
+          subscriptionId: storageSubscription.id,
+        },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       message: `Successfully removed ${numberOfGB} GB of storage`,

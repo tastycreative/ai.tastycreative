@@ -27,6 +27,13 @@ export interface BillingInfo {
     storage: { current: number; max: number; percentage: number; baseGB?: number; additionalGB?: number; storageSlotPrice?: number };
     credits: { used: number; max: number; remaining: number; available: number; percentage: number };
   };
+  paymentMethod?: {
+    type: string;
+    brand: string;
+    last4: string;
+    expMonth: number;
+    expYear: number;
+  } | null;
 }
 
 export interface Transaction {

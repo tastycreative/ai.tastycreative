@@ -368,84 +368,214 @@ export default function BillingOverview({
       {/* Current Subscription Status */}
       {billingInfo && (
         <div className="mb-12">
-          <div className="bg-card border border-brand-mid-pink/20 rounded-2xl p-6 md:p-8 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink">Current Plan</h2>
-                <div className="flex items-center space-x-3">
-                  <span className="text-xl font-semibold text-brand-mid-pink">
-                    {billingInfo.plan?.displayName || 'No Plan'}
-                  </span>
-                  {getStatusBadge(billingInfo.organization.subscriptionStatus)}
+          <div className="bg-card border border-brand-mid-pink/20 rounded-2xl shadow-sm overflow-hidden">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-brand-mid-pink/10 to-brand-light-pink/10 dark:from-brand-mid-pink/5 dark:to-brand-light-pink/5 p-6 md:p-8 border-b border-border">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2 text-brand-mid-pink">Current Plan</h2>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xl font-semibold text-foreground">
+                      {billingInfo.plan?.displayName || 'No Plan'}
+                    </span>
+                    {getStatusBadge(billingInfo.organization.subscriptionStatus)}
+                  </div>
                 </div>
-              </div>
-              {billingInfo.plan && (
-                <div className="mt-4 md:mt-0 text-left md:text-right">
-                  <div className="text-3xl font-bold text-foreground">
-                    ${billingInfo.plan.price}
-                    {billingInfo.usage.members.additionalSlots > 0 && (
-                      <>
-                        <span className="text-xl text-brand-mid-pink dark:text-brand-light-pink font-semibold"> + ${(billingInfo.usage.members.memberSlotPrice * billingInfo.usage.members.additionalSlots).toFixed(2)}</span>
-                      </>
-                    )}
-                    {billingInfo.usage.profiles.additionalSlots > 0 && (
-                      <>
-                        <span className="text-xl text-brand-mid-pink dark:text-brand-light-pink font-semibold"> + ${(billingInfo.usage.profiles.contentProfileSlotPrice * billingInfo.usage.profiles.additionalSlots).toFixed(2)}</span>
-                      </>
-                    )}
-                    <span className="text-lg text-gray-600 dark:text-gray-400">/month</span>
-                  </div>
-                  <div className="space-y-1 mt-1">
-                    {billingInfo.usage.members.additionalSlots > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                        • {billingInfo.usage.members.additionalSlots} additional member slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.members.memberSlotPrice}/mo each)
-                      </p>
-                    )}
-                    {billingInfo.usage.profiles.additionalSlots > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                        • {billingInfo.usage.profiles.additionalSlots} additional content profile slot{billingInfo.usage.profiles.additionalSlots > 1 ? 's' : ''} (${billingInfo.usage.profiles.contentProfileSlotPrice}/mo each)
-                      </p>
-                    )}
-                  </div>
-                  {billingInfo.organization.currentPeriodEnd && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {billingInfo.organization.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on{' '}
-                      {new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
+                {billingInfo.organization.currentPeriodEnd && (
+                  <div className="text-left md:text-right">
+                    <p className="text-sm text-muted-foreground">
+                      {billingInfo.organization.cancelAtPeriodEnd ? 'Cancels' : 'Next billing date'}
                     </p>
-                  )}
-                </div>
-              )}
+                    <p className="text-lg font-semibold text-foreground">
+                      {new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Subscription Actions */}
-            {billingInfo.organization.subscriptionStatus === 'ACTIVE' && (
-              <div className="flex flex-wrap gap-3 pt-6 border-t border-border">
-                {!billingInfo.organization.cancelAtPeriodEnd ? (
-                  <button
-                    onClick={() => onManageSubscription('cancel')}
-                    className="px-4 py-2 bg-rose-500/20 text-rose-500 rounded-lg hover:bg-rose-500/30 transition-colors font-medium border border-rose-500/30"
-                  >
-                    Cancel Subscription
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => onManageSubscription('resume')}
-                    className="px-4 py-2 bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue dark:text-brand-blue rounded-lg hover:bg-brand-blue/20 dark:hover:bg-brand-blue/30 transition-colors font-medium"
-                  >
-                    Resume Subscription
-                  </button>
-                )}
+            {/* Billing Breakdown */}
+            {billingInfo.plan && (
+              <div className="p-6 md:p-8">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Monthly Breakdown</h3>
+                <div className="space-y-3">
+                  {/* Base Plan */}
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-brand-mid-pink/10 flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-brand-mid-pink" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{billingInfo.plan.displayName} Plan</p>
+                        <p className="text-xs text-muted-foreground">{billingInfo.plan.monthlyCredits?.toLocaleString() || 0} credits/month</p>
+                      </div>
+                    </div>
+                    <span className="font-semibold text-foreground">${billingInfo.plan.price.toFixed(2)}</span>
+                  </div>
+
+                  {/* Member Slots Add-on */}
+                  {billingInfo.usage.members.additionalSlots > 0 && (
+                    <div className="flex items-center justify-between py-2 border-t border-dashed border-border">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                          <Users className="w-4 h-4 text-blue-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">Additional Member Slots</p>
+                          <p className="text-xs text-muted-foreground">{billingInfo.usage.members.additionalSlots} slot{billingInfo.usage.members.additionalSlots > 1 ? 's' : ''} × ${billingInfo.usage.members.memberSlotPrice}/mo</p>
+                        </div>
+                      </div>
+                      <span className="font-semibold text-foreground">
+                        ${(billingInfo.usage.members.memberSlotPrice * billingInfo.usage.members.additionalSlots).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Content Profile Slots Add-on */}
+                  {billingInfo.usage.profiles.additionalSlots > 0 && (
+                    <div className="flex items-center justify-between py-2 border-t border-dashed border-border">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                          <CreditCard className="w-4 h-4 text-purple-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">Additional Content Profiles</p>
+                          <p className="text-xs text-muted-foreground">{billingInfo.usage.profiles.additionalSlots} slot{billingInfo.usage.profiles.additionalSlots > 1 ? 's' : ''} × ${billingInfo.usage.profiles.contentProfileSlotPrice}/mo</p>
+                        </div>
+                      </div>
+                      <span className="font-semibold text-foreground">
+                        ${(billingInfo.usage.profiles.contentProfileSlotPrice * billingInfo.usage.profiles.additionalSlots).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Storage Add-on */}
+                  {billingInfo.usage.storage.additionalGB !== undefined && billingInfo.usage.storage.additionalGB > 0 && (
+                    <div className="flex items-center justify-between py-2 border-t border-dashed border-border">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                          <HardDrive className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">Additional Storage</p>
+                          <p className="text-xs text-muted-foreground">{billingInfo.usage.storage.additionalGB} GB × ${billingInfo.usage.storage.storageSlotPrice || 0.50}/mo</p>
+                        </div>
+                      </div>
+                      <span className="font-semibold text-foreground">
+                        ${((billingInfo.usage.storage.storageSlotPrice || 0.50) * billingInfo.usage.storage.additionalGB).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  <div className="flex items-center justify-between py-4 mt-2 border-t-2 border-border">
+                    <span className="text-lg font-bold text-foreground">Total Monthly</span>
+                    <span className="text-2xl font-bold text-brand-mid-pink">
+                      ${(
+                        billingInfo.plan.price +
+                        (billingInfo.usage.members.memberSlotPrice * billingInfo.usage.members.additionalSlots) +
+                        (billingInfo.usage.profiles.contentProfileSlotPrice * billingInfo.usage.profiles.additionalSlots) +
+                        ((billingInfo.usage.storage.storageSlotPrice || 0.50) * (billingInfo.usage.storage.additionalGB || 0))
+                      ).toFixed(2)}
+                      <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
+            {/* Payment Method & Actions */}
+            <div className="bg-muted/30 p-6 md:p-8 border-t border-border">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                {/* Payment Method */}
+                {billingInfo.paymentMethod ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-background rounded-lg border border-border">
+                      {billingInfo.paymentMethod.brand === 'visa' && (
+                        <svg className="w-8 h-5" viewBox="0 0 24 16" fill="none">
+                          <rect width="24" height="16" rx="2" fill="#1A1F71"/>
+                          <path d="M9.5 10.5L10.5 5.5H12L11 10.5H9.5Z" fill="white"/>
+                          <path d="M15.5 5.5L14 8.5L13.8 7.5L13.2 5.9C13.2 5.9 13.1 5.5 12.5 5.5H10.2L10.1 5.7C10.1 5.7 11.2 5.9 12.2 6.6L13.8 10.5H15.3L17.2 5.5H15.5Z" fill="white"/>
+                          <path d="M7.7 5.5L6 10.5H4.5L5.6 6.4C5.6 6.1 5.4 5.8 5 5.7C4.6 5.6 4 5.5 4 5.5V5.3H6.3C6.7 5.3 7 5.6 7 5.9L7.5 8.5L9 5.5H7.7Z" fill="white"/>
+                          <path d="M18.5 10.5C18.5 10.5 18.3 10.3 18.1 10.3C17.7 10.3 17.5 10.5 17.5 10.5L16 5.5H17.5L18.3 8.5L18.5 7.5L19 5.5H20.5L18.5 10.5Z" fill="white"/>
+                        </svg>
+                      )}
+                      {billingInfo.paymentMethod.brand === 'mastercard' && (
+                        <svg className="w-8 h-5" viewBox="0 0 24 16" fill="none">
+                          <rect width="24" height="16" rx="2" fill="#F7F7F7"/>
+                          <circle cx="9" cy="8" r="5" fill="#EB001B"/>
+                          <circle cx="15" cy="8" r="5" fill="#F79E1B"/>
+                          <path d="M12 4.5C13.2 5.5 14 6.7 14 8C14 9.3 13.2 10.5 12 11.5C10.8 10.5 10 9.3 10 8C10 6.7 10.8 5.5 12 4.5Z" fill="#FF5F00"/>
+                        </svg>
+                      )}
+                      {billingInfo.paymentMethod.brand === 'amex' && (
+                        <svg className="w-8 h-5" viewBox="0 0 24 16" fill="none">
+                          <rect width="24" height="16" rx="2" fill="#006FCF"/>
+                          <path d="M4 8L6 5H8L10 8L8 11H6L4 8Z" fill="white"/>
+                          <path d="M10 5H14V6H11V7H14V8H11V9H14V11H10V5Z" fill="white"/>
+                          <path d="M15 5H17L18 7L19 5H21L18 11H16L15 5Z" fill="white"/>
+                        </svg>
+                      )}
+                      {!['visa', 'mastercard', 'amex'].includes(billingInfo.paymentMethod.brand) && (
+                        <CreditCard className="w-6 h-5 text-muted-foreground" />
+                      )}
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium capitalize">{billingInfo.paymentMethod.brand} •••• {billingInfo.paymentMethod.last4}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Expires {billingInfo.paymentMethod.expMonth.toString().padStart(2, '0')}/{billingInfo.paymentMethod.expYear}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No payment method on file</div>
+                )}
+
+                {/* Subscription Actions */}
+                {billingInfo.organization.subscriptionStatus === 'ACTIVE' && (
+                  <div className="flex flex-wrap gap-3">
+                    {!billingInfo.organization.cancelAtPeriodEnd ? (
+                      <button
+                        onClick={() => onManageSubscription('cancel')}
+                        className="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-lg hover:bg-rose-500/20 transition-colors font-medium text-sm"
+                      >
+                        Cancel Subscription
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onManageSubscription('resume')}
+                        className="px-4 py-2 bg-brand-blue/10 text-brand-blue rounded-lg hover:bg-brand-blue/20 transition-colors font-medium text-sm"
+                      >
+                        Resume Subscription
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Cancellation Warning */}
             {billingInfo.organization.cancelAtPeriodEnd && (
-              <div className="mt-4 p-4 bg-amber-500/20 border border-amber-500/30 rounded-lg">
-                <p className="text-sm text-amber-600 dark:text-amber-400">
-                  Your subscription will be canceled on{' '}
-                  {billingInfo.organization.currentPeriodEnd &&
-                    new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString()}
-                  . You'll continue to have access until then.
-                </p>
+              <div className="p-4 bg-amber-500/10 border-t border-amber-500/30">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    Your subscription will be canceled on{' '}
+                    <span className="font-semibold">
+                      {billingInfo.organization.currentPeriodEnd &&
+                        new Date(billingInfo.organization.currentPeriodEnd).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                    </span>
+                    . You'll continue to have access until then.
+                  </p>
+                </div>
               </div>
             )}
           </div>

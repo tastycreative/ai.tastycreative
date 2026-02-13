@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
         where.type = 'SUBSCRIPTION_PAYMENT';
       } else if (type === 'credits') {
         where.type = 'CREDIT_PURCHASE';
+      } else if (type === 'storage') {
+        where.planName = 'Storage Add-on';
+      } else if (type === 'refunds') {
+        where.type = { in: ['SUBSCRIPTION_REFUND', 'CREDIT_REFUND'] };
       }
     }
 
