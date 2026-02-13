@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorPreview } from "./EditorPreview";
 import { ClipPanel } from "./panels/ClipPanel";
@@ -12,13 +13,17 @@ import type { PreviewPlayerRef } from "./PreviewPlayer";
 
 export function VideoEditor() {
   const playerRef = useRef<PreviewPlayerRef>(null);
-  const settings = useVideoEditorStore((s) => s.settings);
-  const clips = useVideoEditorStore((s) => s.clips);
-  const overlays = useVideoEditorStore((s) => s.overlays);
-  const totalDurationInFrames = useVideoEditorStore(
-    (s) => s.totalDurationInFrames
+
+  // Optimize: Use single selector with useShallow to prevent re-renders on unrelated state changes
+  const { settings, clips, overlays, totalDurationInFrames, setCurrentFrame } = useVideoEditorStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      clips: s.clips,
+      overlays: s.overlays,
+      totalDurationInFrames: s.totalDurationInFrames,
+      setCurrentFrame: s.setCurrentFrame,
+    }))
   );
-  const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
 
   const handleFrameChange = useCallback(
     (frame: number) => {

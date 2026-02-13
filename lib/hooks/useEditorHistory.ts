@@ -119,18 +119,21 @@ export function useEditorHistory() {
     };
   }, [clips, overlays, transitions, settings]);
 
-  // Undo action
+  // Undo action - Optimized: Use structural sharing instead of splice
   const undo = useCallback(() => {
     if (!historyRef.current || !checkCanUndo(historyRef.current)) return;
 
     historyRef.current = undoHistory(historyRef.current);
     const state = historyRef.current.present;
 
-    // Apply state to store
+    // Apply state to store - Use assignment for better performance
     const store = useVideoEditorStore.getState();
-    store.clips.splice(0, store.clips.length, ...state.clips);
-    store.overlays.splice(0, store.overlays.length, ...state.overlays);
-    store.transitions.splice(0, store.transitions.length, ...state.transitions);
+    // Structural sharing: Replace entire arrays instead of mutating
+    Object.assign(store, {
+      clips: [...state.clips],
+      overlays: [...state.overlays],
+      transitions: [...state.transitions],
+    });
     store.updateSettings(state.settings);
     store.recalculateTimeline();
 
@@ -138,18 +141,21 @@ export function useEditorHistory() {
     setCanRedo(checkCanRedo(historyRef.current));
   }, []);
 
-  // Redo action
+  // Redo action - Optimized: Use structural sharing instead of splice
   const redo = useCallback(() => {
     if (!historyRef.current || !checkCanRedo(historyRef.current)) return;
 
     historyRef.current = redoHistory(historyRef.current);
     const state = historyRef.current.present;
 
-    // Apply state to store
+    // Apply state to store - Use assignment for better performance
     const store = useVideoEditorStore.getState();
-    store.clips.splice(0, store.clips.length, ...state.clips);
-    store.overlays.splice(0, store.overlays.length, ...state.overlays);
-    store.transitions.splice(0, store.transitions.length, ...state.transitions);
+    // Structural sharing: Replace entire arrays instead of mutating
+    Object.assign(store, {
+      clips: [...state.clips],
+      overlays: [...state.overlays],
+      transitions: [...state.transitions],
+    });
     store.updateSettings(state.settings);
     store.recalculateTimeline();
 
@@ -170,22 +176,27 @@ export function useEditorHistory() {
     setLastSaveTime(Date.now());
   }, [clips, overlays, transitions, settings]);
 
-  // Restore from autosave
+  // Restore from autosave - Optimized: Use structural sharing
   const restoreAutosave = useCallback(() => {
     const savedState = loadFromLocalStorage();
     if (!savedState) return false;
 
-    // Apply state to store
+    // Apply state to store - Use assignment for better performance
     const store = useVideoEditorStore.getState();
+    const updates: Partial<typeof store> = {};
+
     if (savedState.clips) {
-      store.clips.splice(0, store.clips.length, ...savedState.clips);
+      updates.clips = [...savedState.clips];
     }
     if (savedState.overlays) {
-      store.overlays.splice(0, store.overlays.length, ...savedState.overlays);
+      updates.overlays = [...savedState.overlays];
     }
     if (savedState.transitions) {
-      store.transitions.splice(0, store.transitions.length, ...savedState.transitions);
+      updates.transitions = [...savedState.transitions];
     }
+
+    Object.assign(store, updates);
+
     if (savedState.settings) {
       store.updateSettings(savedState.settings);
     }

@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import { TimelineHeader } from "./TimelineHeader";
 import { TimelineTrack } from "./TimelineTrack";
 import { TimelinePlayhead } from "./TimelinePlayhead";
@@ -19,17 +20,31 @@ interface TimelineProps {
 
 export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const getEffectiveTracks = useVideoEditorStore((s) => s.getEffectiveTracks);
-  const totalDurationInFrames = useVideoEditorStore(
-    (s) => s.totalDurationInFrames
+
+  // Optimize: Use single selector with useShallow to prevent re-renders on unrelated state changes
+  const {
+    getEffectiveTracks,
+    totalDurationInFrames,
+    currentFrame,
+    activeCollageLayout,
+    timelineZoom,
+    snapEnabled,
+    fps,
+    tracks,
+    setCurrentFrame,
+  } = useVideoEditorStore(
+    useShallow((s) => ({
+      getEffectiveTracks: s.getEffectiveTracks,
+      totalDurationInFrames: s.totalDurationInFrames,
+      currentFrame: s.currentFrame,
+      activeCollageLayout: s.settings.activeCollageLayout,
+      timelineZoom: s.settings.timelineZoom,
+      snapEnabled: s.settings.snapEnabled,
+      fps: s.settings.fps,
+      tracks: s.tracks,
+      setCurrentFrame: s.setCurrentFrame,
+    }))
   );
-  const currentFrame = useVideoEditorStore((s) => s.currentFrame);
-  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
-  const timelineZoom = useVideoEditorStore((s) => s.settings.timelineZoom);
-  const snapEnabled = useVideoEditorStore((s) => s.settings.snapEnabled);
-  const fps = useVideoEditorStore((s) => s.settings.fps);
-  const tracks = useVideoEditorStore((s) => s.tracks);
-  const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
 
   // Memoize effective tracks — only recompute when layout or tracks change
   const effectiveTracks = useMemo(
