@@ -40,6 +40,14 @@ export async function calculateOrganizationStorage(
 ): Promise<StorageBreakdown> {
   console.log(`📊 Calculating storage for organization: ${organizationId}`);
 
+  // Get the organization's slug for filtering vault items
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { slug: true },
+  });
+
+  const organizationSlug = organization?.slug;
+
   // Get all team members of the organization
   const teamMembers = await prisma.teamMember.findMany({
     where: { organizationId },
@@ -88,11 +96,21 @@ export async function calculateOrganizationStorage(
     },
   });
 
-  // Get all vault items for organization members
+  // Get all vault items for organization members, filtered by organization slug
+  // Vault items belong to folders, and folders have organizationSlug
+  const vaultItemsWhereClause: any = {
+    clerkId: { in: userIds },
+  };
+  
+  // If organization has a slug, filter vault items by their folder's organizationSlug
+  if (organizationSlug) {
+    vaultItemsWhereClause.folder = {
+      organizationSlug: organizationSlug,
+    };
+  }
+  
   const vaultItems = await prisma.vaultItem.findMany({
-    where: {
-      clerkId: { in: userIds },
-    },
+    where: vaultItemsWhereClause,
     select: {
       id: true,
       clerkId: true,

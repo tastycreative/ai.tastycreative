@@ -53,12 +53,36 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
+    const organizationSlug = searchParams.get("organizationSlug");
 
     // Get user's organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { currentOrganizationId: true },
     });
+
+    // If organizationSlug is provided, verify user has access to this organization
+    let validatedOrgSlug: string | null = null;
+    if (organizationSlug) {
+      const org = await prisma.organization.findUnique({
+        where: { slug: organizationSlug },
+        select: { id: true, slug: true },
+      });
+      
+      if (org) {
+        // Check if user is a member of this organization
+        const membership = await prisma.teamMember.findFirst({
+          where: {
+            organizationId: org.id,
+            user: { clerkId: userId },
+          },
+        });
+        
+        if (membership || user?.currentOrganizationId === org.id) {
+          validatedOrgSlug = org.slug;
+        }
+      }
+    }
 
     // Handle "all" profiles case - return folders from all profiles with profile names
     if (profileId === "all") {
@@ -135,11 +159,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json([]);
       }
 
+      // Build the where clause with optional organizationSlug filter
+      const folderWhereClause: any = {
+        OR: folderOrConditions,
+      };
+      
+      // If organizationSlug is provided, filter folders by organization
+      if (validatedOrgSlug) {
+        folderWhereClause.organizationSlug = validatedOrgSlug;
+      }
+
       // Get all folders for these profiles (only from profile owners)
       const folders = await prisma.vaultFolder.findMany({
-        where: {
-          OR: folderOrConditions,
-        },
+        where: folderWhereClause,
         include: {
           _count: {
             select: { items: true },
@@ -199,12 +231,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json([]);
       }
       
+      // Build where clause with optional organizationSlug filter
+      const specificProfileWhereClause: any = {
+        profileId: profileId,
+        // Only show folders created by the profile owner
+        clerkId: profileOwnerClerkId,
+      };
+      
+      if (validatedOrgSlug) {
+        specificProfileWhereClause.organizationSlug = validatedOrgSlug;
+      }
+      
       const folders = await prisma.vaultFolder.findMany({
-        where: {
-          profileId: profileId,
-          // Only show folders created by the profile owner
-          clerkId: profileOwnerClerkId,
-        },
+        where: specificProfileWhereClause,
         include: {
           _count: {
             select: { items: true },
@@ -224,8 +263,14 @@ export async function GET(request: NextRequest) {
     }
 
     // No profileId provided - get all folders for user's own profiles only
+    // Build where clause with optional organizationSlug filter
+    const noProfileWhereClause: any = { clerkId: userId };
+    if (validatedOrgSlug) {
+      noProfileWhereClause.organizationSlug = validatedOrgSlug;
+    }
+    
     const folders = await prisma.vaultFolder.findMany({
-      where: { clerkId: userId },
+      where: noProfileWhereClause,
       include: {
         _count: {
           select: { items: true },
@@ -260,7 +305,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { profileId, name, isDefault, parentId } = body;
+    const { profileId, name, isDefault, parentId, organizationSlug } = body;
 
     if (!profileId || !name) {
       return NextResponse.json(
@@ -323,6 +368,7 @@ export async function POST(request: NextRequest) {
         name,
         isDefault: isDefault || false,
         parentId: parentId || null,
+        organizationSlug: organizationSlug || null,
       },
     });
 

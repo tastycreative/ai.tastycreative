@@ -19,17 +19,47 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const organizationSlug = searchParams.get('organizationSlug');
+
     // Get user's organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { currentOrganizationId: true },
     });
 
-    if (!user || !user.currentOrganizationId) {
-      return NextResponse.json({ error: 'No organization found' }, { status: 400 });
+    let organizationId: string | null = null;
+
+    // If organizationSlug is provided, use it to find the organization
+    if (organizationSlug) {
+      const org = await prisma.organization.findUnique({
+        where: { slug: organizationSlug },
+        select: { id: true },
+      });
+      
+      if (org) {
+        // Verify user is a member of this organization
+        const membership = await prisma.teamMember.findFirst({
+          where: {
+            organizationId: org.id,
+            user: { clerkId: userId },
+          },
+        });
+        
+        if (membership || user?.currentOrganizationId === org.id) {
+          organizationId = org.id;
+        }
+      }
+    }
+    
+    // Fall back to user's current organization if no valid slug provided
+    if (!organizationId) {
+      organizationId = user?.currentOrganizationId || null;
     }
 
-    const organizationId = user.currentOrganizationId;
+    if (!organizationId) {
+      return NextResponse.json({ error: 'No organization found' }, { status: 400 });
+    }
 
     // Get storage breakdown
     const breakdown = await calculateOrganizationStorage(organizationId);
@@ -68,20 +98,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const organizationSlug = searchParams.get('organizationSlug');
+
     // Get user's organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
 
-    if (!user || !user.currentOrganizationId) {
+    let organizationId: string | null = null;
+
+    // If organizationSlug is provided, use it to find the organization
+    if (organizationSlug) {
+      const org = await prisma.organization.findUnique({
+        where: { slug: organizationSlug },
+        select: { id: true },
+      });
+      
+      if (org) {
+        // Verify user is a member of this organization
+        const membership = await prisma.teamMember.findFirst({
+          where: {
+            organizationId: org.id,
+            user: { clerkId: userId },
+          },
+        });
+        
+        if (membership || user?.currentOrganizationId === org.id) {
+          organizationId = org.id;
+        }
+      }
+    }
+    
+    // Fall back to user's current organization if no valid slug provided
+    if (!organizationId) {
+      organizationId = user?.currentOrganizationId || null;
+    }
+
+    if (!organizationId) {
       return NextResponse.json({ error: 'No organization found' }, { status: 400 });
     }
 
     // Check if user is admin or owner
     const membership = await prisma.teamMember.findFirst({
       where: {
-        userId: user.id,
-        organizationId: user.currentOrganizationId,
+        userId: user!.id,
+        organizationId: organizationId,
         role: { in: ['ADMIN', 'OWNER'] },
       },
     });
@@ -92,8 +154,6 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-
-    const organizationId = user.currentOrganizationId;
 
     // Recalculate storage
     const storageGB = await updateOrganizationStorageUsage(organizationId);

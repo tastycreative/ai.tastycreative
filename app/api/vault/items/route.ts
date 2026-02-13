@@ -117,6 +117,36 @@ export async function GET(request: NextRequest) {
     const folderId = searchParams.get("folderId");
     const profileId = searchParams.get("profileId");
     const sharedFolderId = searchParams.get("sharedFolderId"); // For accessing shared folders
+    const organizationSlug = searchParams.get("organizationSlug");
+
+    // Get user's organization for "all profiles" mode
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
+    // If organizationSlug is provided, verify user has access to this organization
+    let validatedOrgSlug: string | null = null;
+    if (organizationSlug) {
+      const org = await prisma.organization.findUnique({
+        where: { slug: organizationSlug },
+        select: { id: true, slug: true },
+      });
+      
+      if (org) {
+        // Check if user is a member of this organization
+        const membership = await prisma.teamMember.findFirst({
+          where: {
+            organizationId: org.id,
+            user: { clerkId: userId },
+          },
+        });
+        
+        if (membership || user?.currentOrganizationId === org.id) {
+          validatedOrgSlug = org.slug;
+        }
+      }
+    }
 
     // Handle shared folder access
     if (sharedFolderId) {
@@ -154,12 +184,6 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(enrichedItems);
     }
-
-    // Get user's organization for "all profiles" mode
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { currentOrganizationId: true },
-    });
 
     // Handle "all" profiles case OR no profileId - get items from all accessible profiles
     if (profileId === "all" || !profileId) {
@@ -206,11 +230,21 @@ export async function GET(request: NextRequest) {
         return NextResponse.json([]);
       }
 
+      // Build the where clause with optional organizationSlug filter through folder relation
+      const itemsWhereClause: any = {
+        OR: itemOrConditions,
+      };
+      
+      // If organizationSlug is provided, filter items by their folder's organization
+      if (validatedOrgSlug) {
+        itemsWhereClause.folder = {
+          organizationSlug: validatedOrgSlug,
+        };
+      }
+
       // Get items for all accessible profiles (only from profile owners)
       const items = await prisma.vaultItem.findMany({
-        where: {
-          OR: itemOrConditions,
-        },
+        where: itemsWhereClause,
         orderBy: {
           createdAt: "desc",
         },
@@ -245,13 +279,20 @@ export async function GET(request: NextRequest) {
       }
 
       // Build where clause for items - only show items from the profile owner
-      const whereClause: { profileId: string; clerkId: string; folderId?: string } = {
+      const whereClause: any = {
         profileId: profileId,
         clerkId: profileOwnerClerkId,
       };
       
       if (folderId) {
         whereClause.folderId = folderId;
+      }
+      
+      // If organizationSlug is provided, filter items by their folder's organization
+      if (validatedOrgSlug) {
+        whereClause.folder = {
+          organizationSlug: validatedOrgSlug,
+        };
       }
 
       const items = await prisma.vaultItem.findMany({

@@ -41,21 +41,27 @@ interface StorageData {
   limits: StorageLimits;
 }
 
-async function fetchStorageData(): Promise<StorageData> {
-  const response = await fetch('/api/billing/storage');
+async function fetchStorageData(organizationSlug?: string): Promise<StorageData> {
+  const url = organizationSlug 
+    ? `/api/billing/storage?organizationSlug=${organizationSlug}`
+    : '/api/billing/storage';
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch storage data');
   }
   return response.json();
 }
 
-async function recalculateStorage(): Promise<{
+async function recalculateStorage(organizationSlug?: string): Promise<{
   success: boolean;
   storageGB: number;
   limits: StorageLimits;
   message: string;
 }> {
-  const response = await fetch('/api/billing/storage/recalculate', {
+  const url = organizationSlug 
+    ? `/api/billing/storage?organizationSlug=${organizationSlug}`
+    : '/api/billing/storage';
+  const response = await fetch(url, {
     method: 'POST',
   });
   if (!response.ok) {
@@ -67,13 +73,14 @@ async function recalculateStorage(): Promise<{
 
 /**
  * Hook to fetch storage breakdown and limits
+ * @param organizationSlug - Optional organization slug to fetch storage for specific organization
  */
-export function useStorageData() {
+export function useStorageData(organizationSlug?: string) {
   const { user } = useUser();
 
   return useQuery({
-    queryKey: ['storage', 'data', user?.id],
-    queryFn: fetchStorageData,
+    queryKey: ['storage', 'data', user?.id, organizationSlug],
+    queryFn: () => fetchStorageData(organizationSlug),
     enabled: !!user,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
@@ -83,12 +90,13 @@ export function useStorageData() {
 
 /**
  * Hook to recalculate organization storage
+ * @param organizationSlug - Optional organization slug to recalculate storage for specific organization
  */
-export function useRecalculateStorage() {
+export function useRecalculateStorage(organizationSlug?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: recalculateStorage,
+    mutationFn: () => recalculateStorage(organizationSlug),
     onSuccess: () => {
       // Invalidate storage and billing queries
       queryClient.invalidateQueries({ queryKey: ['storage'] });

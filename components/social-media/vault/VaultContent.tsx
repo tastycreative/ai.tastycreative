@@ -207,6 +207,7 @@ interface VaultFolder {
   ownerName?: string | null;
   parentId?: string | null;
   subfolders?: Array<{ id: string }>;
+  organizationSlug?: string | null;
 }
 
 interface SharedVaultFolder {
@@ -1703,7 +1704,10 @@ export function VaultContent() {
     if (!selectedProfileId || selectedProfileId === 'all') return;
 
     try {
-      const response = await fetch(`/api/vault/folders?profileId=${selectedProfileId}`);
+      const url = tenant 
+        ? `/api/vault/folders?profileId=${selectedProfileId}&organizationSlug=${tenant}`
+        : `/api/vault/folders?profileId=${selectedProfileId}`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load folders");
 
       const data = await response.json();
@@ -1722,7 +1726,10 @@ export function VaultContent() {
   const loadAllFolders = async () => {
     try {
       // Pass profileId=all to get folders from all profiles including shared organization profiles
-      const response = await fetch('/api/vault/folders?profileId=all');
+      const url = tenant 
+        ? `/api/vault/folders?profileId=all&organizationSlug=${tenant}`
+        : '/api/vault/folders?profileId=all';
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load all folders");
 
       const data = await response.json();
@@ -1747,6 +1754,7 @@ export function VaultContent() {
           profileId: selectedProfileId,
           name: "All Media",
           isDefault: true,
+          organizationSlug: tenant,
         }),
       });
 
@@ -1767,7 +1775,10 @@ export function VaultContent() {
       // Load all items across all profiles (including shared org profiles)
       setLoadingItems(true);
       try {
-        const response = await fetch('/api/vault/items?profileId=all');
+        const url = tenant 
+          ? `/api/vault/items?profileId=all&organizationSlug=${tenant}`
+          : '/api/vault/items?profileId=all';
+        const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to load items");
 
         const data = await response.json();
@@ -1788,7 +1799,9 @@ export function VaultContent() {
 
     setLoadingItems(true);
     try {
-      const url = `/api/vault/items?profileId=${selectedProfileId}`;
+      const url = tenant 
+        ? `/api/vault/items?profileId=${selectedProfileId}&organizationSlug=${tenant}`
+        : `/api/vault/items?profileId=${selectedProfileId}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load items");
@@ -2194,6 +2207,7 @@ export function VaultContent() {
           profileId: selectedProfileId,
           name: folderNameInput.trim(),
           parentId: parentFolderForNew,
+          organizationSlug: tenant,
         }),
       });
 
@@ -2488,6 +2502,7 @@ export function VaultContent() {
             fileSize: file.size,
             profileId: selectedProfileId,
             folderId: selectedFolderId,
+            organizationSlug: tenant,
           }),
         });
 

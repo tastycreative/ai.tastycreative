@@ -1,13 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { HardDrive, Image, Video, Database, Cloud, RefreshCw, ChevronDown, ChevronUp, Users, FolderOpen } from 'lucide-react';
 import { useStorageData, useRecalculateStorage } from '@/lib/hooks/useStorage.query';
 import { toast } from 'sonner';
 
 export default function StorageBreakdown() {
-  const { data: storageData, isLoading, refetch } = useStorageData();
-  const recalculateMutation = useRecalculateStorage();
+  const params = useParams();
+  const tenant = params.tenant as string | undefined;
+  
+  const { data: storageData, isLoading, refetch } = useStorageData(tenant);
+  const recalculateMutation = useRecalculateStorage(tenant);
   const [showDetails, setShowDetails] = useState(false);
   const [showUserBreakdown, setShowUserBreakdown] = useState(false);
 
