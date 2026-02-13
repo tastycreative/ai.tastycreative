@@ -210,6 +210,17 @@ export const COLLAGE_PRESETS: Record<CollageLayout, CollagePreset> = {
   },
 };
 
+export interface ClipEffects {
+  brightness?: number; // 0-200, default 100
+  contrast?: number; // 0-200, default 100
+  saturation?: number; // 0-200, default 100
+  blur?: number; // 0-20, default 0
+  grayscale?: number; // 0-100, default 0
+  sepia?: number; // 0-100, default 0
+  hue?: number; // 0-360, default 0
+  vignette?: number; // 0-100, default 0
+}
+
 export interface VideoClip {
   type: "video";
   id: string;
@@ -221,6 +232,7 @@ export interface VideoClip {
   startFrame: number; // computed position on timeline
   volume: number; // 0-1
   slotIndex?: number; // which collage slot (0-based). undefined = slot 0
+  effects?: ClipEffects; // visual effects
 }
 
 export interface ImageClip {
@@ -232,6 +244,7 @@ export interface ImageClip {
   startFrame: number; // computed position on timeline
   objectFit: "contain" | "cover";
   slotIndex?: number; // which collage slot (0-based). undefined = slot 0
+  effects?: ClipEffects; // visual effects
 }
 
 export type Clip = VideoClip | ImageClip;
