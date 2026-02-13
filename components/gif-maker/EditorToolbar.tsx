@@ -2,6 +2,7 @@
 
 import { RefObject, useCallback } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useEditorHistory } from "@/lib/hooks/useEditorHistory";
 import {
   PLATFORM_DIMENSIONS,
   type PlatformPreset,
@@ -43,6 +44,9 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   const setSnapEnabled = useVideoEditorStore((s) => s.setSnapEnabled);
   const exportState = useVideoEditorStore((s) => s.exportState);
   const setExportState = useVideoEditorStore((s) => s.setExportState);
+
+  // History management
+  const { undo, redo, canUndo, canRedo, manualSave, lastSaveTime } = useEditorHistory();
 
   const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
 
@@ -217,22 +221,22 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   }, [playerRef, clips, overlays, totalDurationInFrames, settings, setExportState, needsCanvasExport]);
 
   return (
-    <div className="flex items-center gap-2 px-3 h-14 bg-[#161925] border-b border-[#2d3142] flex-shrink-0">
+    <div className="flex items-center gap-2 px-3 h-14 bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-800/50 flex-shrink-0">
       {/* GIF MAKER Branding */}
       <div className="flex items-center gap-2 mr-1">
-        <div className="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center">
+        <div className="w-8 h-8 bg-gradient-to-br from-brand-light-pink to-brand-dark-pink rounded flex items-center justify-center shadow-lg shadow-brand-light-pink/20">
           <Wand2 className="h-4 w-4 text-white" />
         </div>
-        <span className="font-bold text-lg tracking-tight text-slate-100">GIF MAKER</span>
+        <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue bg-clip-text text-transparent">GIF MAKER</span>
       </div>
 
-      <div className="w-px h-5 bg-[#2d3142] mx-1" />
+      <div className="w-px h-5 bg-zinc-800 mx-1" />
 
       {/* Platform Preset */}
       <select
         value={settings.platform}
         onChange={(e) => setPlatform(e.target.value as PlatformPreset)}
-        className="h-8 px-2.5 bg-slate-800 border border-[#2d3142] rounded-lg text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150"
+        className="h-8 px-2.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-100 hover:border-zinc-600 focus:border-brand-light-pink focus:ring-1 focus:ring-brand-light-pink/30 outline-none transition-all duration-150"
       >
         {Object.entries(PLATFORM_DIMENSIONS).map(([key, value]) => (
           <option key={key} value={key}>
@@ -242,40 +246,40 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       </select>
 
       {/* Dimension display */}
-      <span className="text-slate-500 text-xs font-mono">{settings.width} x {settings.height}</span>
+      <span className="text-zinc-500 text-xs font-mono">{settings.width} x {settings.height}</span>
 
-      <div className="w-px h-5 bg-[#2d3142] mx-1" />
+      <div className="w-px h-5 bg-zinc-800 mx-1" />
 
       {/* Zoom Group */}
-      <div className="flex items-center bg-slate-800 rounded-lg overflow-hidden border border-[#2d3142]">
+      <div className="flex items-center bg-zinc-800/50 rounded-lg overflow-hidden border border-zinc-700/50">
         <button
           onClick={() => setTimelineZoom(settings.timelineZoom - 0.5)}
-          className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-700 transition-colors duration-150"
+          className="h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors duration-150"
           title="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
-        <span className="h-8 px-2 flex items-center text-[10px] font-mono text-slate-400 border-x border-[#2d3142] min-w-[40px] justify-center select-none">
+        <span className="h-8 px-2 flex items-center text-[10px] font-mono text-zinc-400 border-x border-zinc-700/50 min-w-[40px] justify-center select-none">
           {settings.timelineZoom.toFixed(1)}x
         </span>
         <button
           onClick={() => setTimelineZoom(settings.timelineZoom + 0.5)}
-          className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-700 transition-colors duration-150"
+          className="h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors duration-150"
           title="Zoom in"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="w-px h-5 bg-[#2d3142] mx-1" />
+      <div className="w-px h-5 bg-zinc-800 mx-1" />
 
       {/* Snap Toggle */}
       <button
         onClick={() => setSnapEnabled(!settings.snapEnabled)}
         className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors duration-150 ${
           settings.snapEnabled
-            ? "text-indigo-400 bg-indigo-500/15 hover:bg-indigo-500/20"
-            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+            ? "text-brand-light-pink bg-brand-light-pink/15 hover:bg-brand-light-pink/20"
+            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
         }`}
         title="Snap to grid"
       >
@@ -283,38 +287,74 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         Snap
       </button>
 
-      <div className="w-px h-5 bg-[#2d3142] mx-1" />
+      <div className="w-px h-5 bg-zinc-800 mx-1" />
 
-      {/* Undo/Redo Placeholder */}
-      <div className="flex items-center bg-slate-800 rounded-lg overflow-hidden border border-[#2d3142]">
+      {/* Undo/Redo */}
+      <div className="flex items-center bg-zinc-800/50 rounded-lg overflow-hidden border border-zinc-700/50">
         <button
-          className="h-8 w-8 flex items-center justify-center text-slate-500 cursor-not-allowed"
-          title="Undo (coming soon)"
-          disabled
+          onClick={undo}
+          disabled={!canUndo}
+          className={`h-8 w-8 flex items-center justify-center transition-colors duration-150 ${
+            canUndo
+              ? "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50"
+              : "text-zinc-600 cursor-not-allowed"
+          }`}
+          title="Undo (Ctrl+Z)"
         >
           <Undo2 className="h-4 w-4" />
         </button>
         <button
-          className="h-8 w-8 flex items-center justify-center text-slate-500 cursor-not-allowed"
-          title="Redo (coming soon)"
-          disabled
+          onClick={redo}
+          disabled={!canRedo}
+          className={`h-8 w-8 flex items-center justify-center transition-colors duration-150 ${
+            canRedo
+              ? "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50"
+              : "text-zinc-600 cursor-not-allowed"
+          }`}
+          title="Redo (Ctrl+Shift+Z)"
         >
           <Redo2 className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Manual Save Button */}
+      <button
+        onClick={manualSave}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-all duration-150"
+        title="Save (Ctrl+S)"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+          />
+        </svg>
+        {lastSaveTime && (
+          <span className="text-[10px] text-brand-blue">
+            Saved
+          </span>
+        )}
+      </button>
 
       <div className="flex-1" />
 
       {/* Export Progress */}
       {exportState.isExporting && (
         <div className="flex items-center gap-2 mr-2">
-          <div className="w-24 bg-[#2d3142] rounded-full h-1.5 overflow-hidden">
+          <div className="w-24 bg-zinc-800/50 rounded-full h-1.5 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-indigo-500 to-indigo-400 h-full rounded-full transition-all duration-200"
+              className="bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue h-full rounded-full transition-all duration-200"
               style={{ width: `${exportState.progress}%` }}
             />
           </div>
-          <span className="text-[10px] text-slate-400">{exportState.message}</span>
+          <span className="text-[10px] text-zinc-400">{exportState.message}</span>
         </div>
       )}
 
@@ -322,7 +362,7 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       {!exportState.isExporting && exportState.phase !== "idle" && (
         <span
           className={`text-[10px] mr-2 ${
-            exportState.phase === "done" ? "text-green-400" : "text-red-400"
+            exportState.phase === "done" ? "text-brand-blue" : "text-red-400"
           }`}
         >
           {exportState.message}
@@ -335,8 +375,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         disabled={clips.length === 0 || exportState.isExporting}
         className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-all duration-150 ${
           clips.length === 0 || exportState.isExporting
-            ? "bg-[#2d3142] text-slate-500 cursor-not-allowed"
-            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+            ? "bg-zinc-800/30 text-zinc-500 cursor-not-allowed"
+            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 border border-zinc-700/50"
         }`}
         title="Capture current frame as PNG"
       >
@@ -350,8 +390,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         disabled={clips.length === 0 || exportState.isExporting}
         className={`flex items-center gap-2 h-9 px-5 rounded-lg text-xs font-semibold transition-all duration-150 ${
           clips.length === 0 || exportState.isExporting
-            ? "bg-[#2d3142] text-slate-500 cursor-not-allowed"
-            : "bg-gradient-to-r from-indigo-500 to-indigo-400 text-white hover:opacity-90 active:opacity-80 shadow-lg shadow-indigo-500/20"
+            ? "bg-zinc-800/30 text-zinc-500 cursor-not-allowed"
+            : "bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white hover:from-brand-dark-pink hover:to-brand-light-pink active:opacity-80 shadow-lg shadow-brand-light-pink/20 hover:shadow-brand-light-pink/40"
         }`}
       >
         {exportState.isExporting ? (
