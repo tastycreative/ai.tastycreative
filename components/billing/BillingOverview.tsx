@@ -733,13 +733,13 @@ export default function BillingOverview({
             </div>
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-mid-pink/50 transition-all">
               <UsageBar
-                label="AI Credits"
+                label="AI Credits Used This Month"
                 current={billingInfo.usage.credits.used}
-                max={billingInfo.usage.credits.available}
+                max={billingInfo.usage.credits.max}
                 icon={Zap}
               />
               <p className="text-xs text-muted-foreground mt-2">
-                {billingInfo.usage.credits.available} credits available
+                {billingInfo.usage.credits.available.toLocaleString()} credits available • {billingInfo.usage.credits.max.toLocaleString()}/month included
               </p>
             </div>
           </div>
