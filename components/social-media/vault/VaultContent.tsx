@@ -2067,7 +2067,7 @@ export function VaultContent() {
     if (!selectedProfileId || selectedProfileId === "all") return;
 
     try {
-      const url = tenant 
+      const url = tenant
         ? `/api/vault/folders?profileId=${selectedProfileId}&organizationSlug=${tenant}`
         : `/api/vault/folders?profileId=${selectedProfileId}`;
       const response = await fetch(url);
@@ -2092,9 +2092,9 @@ export function VaultContent() {
   const loadAllFolders = async () => {
     try {
       // Pass profileId=all to get folders from all profiles including shared organization profiles
-      const url = tenant 
+      const url = tenant
         ? `/api/vault/folders?profileId=all&organizationSlug=${tenant}`
-        : '/api/vault/folders?profileId=all';
+        : "/api/vault/folders?profileId=all";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load all folders");
 
@@ -2141,9 +2141,9 @@ export function VaultContent() {
       // Load all items across all profiles (including shared org profiles)
       setLoadingItems(true);
       try {
-        const url = tenant 
+        const url = tenant
           ? `/api/vault/items?profileId=all&organizationSlug=${tenant}`
-          : '/api/vault/items?profileId=all';
+          : "/api/vault/items?profileId=all";
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to load items");
 
@@ -2167,7 +2167,7 @@ export function VaultContent() {
 
     setLoadingItems(true);
     try {
-      const url = tenant 
+      const url = tenant
         ? `/api/vault/items?profileId=${selectedProfileId}&organizationSlug=${tenant}`
         : `/api/vault/items?profileId=${selectedProfileId}`;
 
@@ -2912,8 +2912,11 @@ export function VaultContent() {
       )
         return;
 
-      // Get all siblings
-      const siblings = [...folders, ...allFolders]
+      // Get all siblings (remove duplicates first)
+      const allFoldersMap = new Map([...folders, ...allFolders].map(f => [f.id, f]));
+      const uniqueFolders = Array.from(allFoldersMap.values());
+      
+      const siblings = uniqueFolders
         .filter(
           (f) =>
             f.parentId === sourceFolder.parentId &&
@@ -2950,6 +2953,13 @@ export function VaultContent() {
         order: idx * 10,
       }));
 
+      // Validate that all folders in updatedOrders exist in our current state
+      const invalidFolders = updatedOrders.filter(u => !allFoldersMap.has(u.folderId));
+      if (invalidFolders.length > 0) {
+        console.error("Trying to update folders that don't exist in state:", invalidFolders);
+        return;
+      }
+
       try {
         // Optimistically update UI first for instant feedback
         const updateFoldersOrder = (list: VaultFolder[]) =>
@@ -2962,13 +2972,19 @@ export function VaultContent() {
         setAllFolders((prevAllFolders) => updateFoldersOrder(prevAllFolders));
 
         // Call API in background
+        console.log("Sending reorder request:", { folderOrders: updatedOrders });
         const response = await fetch("/api/vault/folders/reorder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ folderOrders: updatedOrders }),
         });
 
-        if (!response.ok) throw new Error("Failed to reorder folders");
+        console.log("Reorder response status:", response.status);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Reorder API error:", errorText);
+          throw new Error("Failed to reorder folders");
+        }
       } catch (error) {
         console.error("Error reordering folder:", error);
         showToast("Failed to save folder order", "error");
