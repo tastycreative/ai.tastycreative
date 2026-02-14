@@ -11,6 +11,7 @@ import { ReferenceItem } from "@/hooks/useReferenceBank";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   AlertCircle,
   Archive,
@@ -212,6 +213,7 @@ export default function KlingMotionControl() {
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  const { canGenerate, storageError } = useCanGenerate();
   
   // Check if this specific tab has an active generation
   const hasActiveGeneration = hasActiveGenerationForType('kling-motion-control');
@@ -1167,6 +1169,13 @@ export default function KlingMotionControl() {
       setError("API client not available");
       return;
     }
+
+    // Check storage availability
+    if (!canGenerate) {
+      setError(storageError || "Storage is full. Please add more storage or free up space before generating.");
+      return;
+    }
+
     if (!targetFolder) {
       setError("Please select a vault folder to save your video");
       return;
@@ -2013,6 +2022,9 @@ export default function KlingMotionControl() {
                 </p>
               </div>
 
+              {/* Storage Warning */}
+              <StorageFullBanner showWarning={true} />
+
               {/* Error Display */}
               {error && (
                 <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300">
@@ -2025,7 +2037,7 @@ export default function KlingMotionControl() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={hasActiveGeneration || isCompressing || !imageFile || !videoFile}
+                  disabled={hasActiveGeneration || isCompressing || !imageFile || !videoFile || !canGenerate}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

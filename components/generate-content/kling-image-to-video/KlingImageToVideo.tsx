@@ -11,6 +11,7 @@ import { ReferenceItem } from "@/hooks/useReferenceBank";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   AlertCircle,
   Archive,
@@ -259,6 +260,7 @@ export default function KlingImageToVideo() {
   const tenant = params.tenant as string;
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use global profile from header
@@ -998,6 +1000,13 @@ export default function KlingImageToVideo() {
       showErrorToast("API client not available");
       return;
     }
+
+    // Check storage availability
+    if (!canGenerate) {
+      showErrorToast(storageError || "Storage is full. Please add more storage or free up space before generating.");
+      return;
+    }
+
     if (!targetFolder) {
       showErrorToast("Please select a vault folder to save your video");
       return;
@@ -2146,11 +2155,14 @@ export default function KlingImageToVideo() {
                 )}
               </div>
 
+              {/* Storage Warning */}
+              <StorageFullBanner showWarning={true} />
+
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={hasActiveGeneration || isCompressing || !uploadedImage}
+                  disabled={hasActiveGeneration || isCompressing || !uploadedImage || !canGenerate}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isGenerating ? (

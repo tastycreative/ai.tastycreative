@@ -9,6 +9,7 @@ import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import VaultFolderDropdown from "@/components/generate-content/shared/VaultFolderDropdown";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   Video,
   Upload,
@@ -221,6 +222,7 @@ export default function FPSBoostPage() {
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
@@ -440,6 +442,12 @@ export default function FPSBoostPage() {
   const handleGenerate = async () => {
     if (!apiClient) {
       alert("API client not ready");
+      return;
+    }
+
+    // Check storage availability
+    if (!canGenerate) {
+      alert(storageError || "Storage is full. Please add more storage or free up space before generating.");
       return;
     }
 
@@ -944,10 +952,13 @@ export default function FPSBoostPage() {
             </div>
           </div>
 
+          {/* Storage Warning */}
+          <StorageFullBanner showWarning={true} />
+
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || !params.uploadedVideo || !params.targetFolder}
+            disabled={isGenerating || !params.uploadedVideo || !params.targetFolder || !canGenerate}
             className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue text-white font-bold text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl hover:from-brand-dark-pink hover:via-brand-mid-pink hover:to-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />

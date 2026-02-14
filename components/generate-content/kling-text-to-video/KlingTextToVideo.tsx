@@ -8,6 +8,7 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   AlertCircle,
   Archive,
@@ -205,6 +206,7 @@ export default function KlingTextToVideo() {
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
 
   // Check if this specific tab has an active generation
   const hasActiveGeneration = hasActiveGenerationForType('kling-text-to-video');
@@ -764,6 +766,13 @@ export default function KlingTextToVideo() {
       showErrorToast("API client not available");
       return;
     }
+
+    // Check storage availability
+    if (!canGenerate) {
+      showErrorToast(storageError || "Storage is full. Please add more storage or free up space before generating.");
+      return;
+    }
+
     if (!targetFolder) {
       showErrorToast("Please select a vault folder to save your video");
       return;
@@ -1838,11 +1847,14 @@ export default function KlingTextToVideo() {
                 )}
               </div>
 
+              {/* Storage Full/Warning Banner */}
+              <StorageFullBanner showWarning={true} />
+
               {/* Action Buttons - Sticky on mobile */}
               <div className="flex flex-col sm:flex-row gap-3 sticky bottom-4 sm:static z-10">
                 <button
                   onClick={handleGenerate}
-                  disabled={hasActiveGeneration || !prompt.trim() || !targetFolder}
+                  disabled={hasActiveGeneration || !prompt.trim() || !targetFolder || !canGenerate}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] px-6 py-4 sm:py-3 text-base sm:text-sm font-bold sm:font-semibold text-white shadow-2xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 hover:from-[#E1518E] hover:to-[#EC67A1] hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}

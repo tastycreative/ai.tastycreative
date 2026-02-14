@@ -8,6 +8,7 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   ImageIcon,
   Wand2,
@@ -172,6 +173,7 @@ export default function FaceSwappingPage() {
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, profiles, isAllProfiles } = useInstagramProfile();
@@ -1292,6 +1294,12 @@ export default function FaceSwappingPage() {
   const handleGenerate = async () => {
     if (!apiClient) {
       alert("API client not available - please try again");
+      return;
+    }
+
+    // Check storage availability
+    if (!canGenerate) {
+      alert(storageError || "Storage is full. Please add more storage or free up space before generating.");
       return;
     }
 
@@ -2782,6 +2790,9 @@ export default function FaceSwappingPage() {
 
           {/* Progress information is now shown in the "Current Face Swap" section below */}
 
+          {/* Storage Warning */}
+          <StorageFullBanner showWarning={true} />
+
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
@@ -2791,7 +2802,8 @@ export default function FaceSwappingPage() {
               !originalImage ||
               !newFaceImage ||
               !targetFolder ||
-              uploadingImage
+              uploadingImage ||
+              !canGenerate
             }
             className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue text-white font-bold text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl hover:from-brand-dark-pink hover:via-brand-mid-pink hover:to-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
           >

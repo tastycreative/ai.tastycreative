@@ -28,6 +28,7 @@ import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import VaultFolderDropdown from '@/components/generate-content/shared/VaultFolderDropdown';
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from '@/components/credits/CreditCalculator';
+import { StorageFullBanner, useCanGenerate } from '@/components/generate-content/shared/StorageFullBanner';
 
 interface JobStatus {
   id: string;
@@ -105,6 +106,7 @@ export default function ImageToImageSkinEnhancerPage() {
   const { user } = useUser();
   const apiClient = useApiClient();
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
@@ -932,6 +934,12 @@ export default function ImageToImageSkinEnhancerPage() {
       return;
     }
 
+    // Check storage availability
+    if (!canGenerate) {
+      setError(storageError || 'Storage is full. Please add more storage or free up space before generating.');
+      return;
+    }
+
     if (!selectedImage) {
       setError('Please select an image to enhance');
       return;
@@ -1022,7 +1030,7 @@ export default function ImageToImageSkinEnhancerPage() {
       setError(error instanceof Error ? error.message : 'Failed to start generation');
       setIsProcessing(false);
     }
-  }, [user, selectedImage, targetFolder, vaultFolders, createWorkflowForImageToImageSkinEnhancer]);
+  }, [user, selectedImage, targetFolder, vaultFolders, createWorkflowForImageToImageSkinEnhancer, canGenerate, storageError]);
 
   // Poll for job updates with custom polling function (not useEffect-based)
   useEffect(() => {
@@ -1428,10 +1436,13 @@ export default function ImageToImageSkinEnhancerPage() {
               </div>
             </div>
 
+            {/* Storage Warning */}
+            <StorageFullBanner showWarning={true} />
+
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={handleGenerate}
-                disabled={isProcessing || !selectedImage || !targetFolder}
+                disabled={isProcessing || !selectedImage || !targetFolder || !canGenerate}
                 className="group flex-1 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-brand-mid-pink via-brand-light-pink to-brand-blue text-white font-semibold text-sm sm:text-base md:text-lg rounded-2xl hover:from-brand-dark-pink hover:via-brand-mid-pink hover:to-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />

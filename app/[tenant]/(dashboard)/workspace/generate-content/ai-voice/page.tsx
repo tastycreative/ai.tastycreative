@@ -23,6 +23,7 @@ import {
 import { createPortal } from "react-dom";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 
 interface Voice {
   id: string;
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
 
 export default function VoiceGeneratorPage() {
   const { refreshCredits } = useCredits();
+  const { canGenerate, storageError } = useCanGenerate();
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const [text, setText] = useState("");
@@ -211,6 +213,12 @@ export default function VoiceGeneratorPage() {
 
   const handleGenerate = async () => {
     if (!selectedVoice || !text.trim()) return;
+
+    // Check storage availability
+    if (!canGenerate) {
+      setError(storageError || "Storage is full. Please add more storage or free up space before generating.");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -748,10 +756,13 @@ export default function VoiceGeneratorPage() {
               </div>
             </div>
 
+            {/* Storage Warning */}
+            <StorageFullBanner showWarning={true} />
+
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              disabled={isLoading || !selectedVoice || !text.trim() || text.length > 5000}
+              disabled={isLoading || !selectedVoice || !text.trim() || text.length > 5000 || !canGenerate}
               className="relative w-full group/btn disabled:cursor-not-allowed"
             >
               <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-mid-pink to-brand-blue rounded-xl blur opacity-60 group-hover/btn:opacity-100 transition duration-200 group-disabled/btn:opacity-20" />

@@ -11,6 +11,7 @@ import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
+import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import {
@@ -209,6 +210,7 @@ export default function SeeDreamImageToImage() {
   const tenant = params.tenant as string;
   const { refreshCredits } = useCredits();
   const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { canGenerate, storageError } = useCanGenerate();
 
   // Check if this specific tab has an active generation
   const hasActiveGeneration = hasActiveGenerationForType('image-to-image');
@@ -1092,6 +1094,12 @@ export default function SeeDreamImageToImage() {
     
     if (!apiClient) {
       setError("API client not available");
+      return;
+    }
+
+    // Check storage availability
+    if (!canGenerate) {
+      setError(storageError || "Storage is full. Please add more storage or free up space before generating.");
       return;
     }
 
@@ -2232,11 +2240,14 @@ export default function SeeDreamImageToImage() {
                 </div>
               )}
 
+              {/* Storage Full/Warning Banner */}
+              <StorageFullBanner showWarning={true} />
+
               {/* Action Buttons - Sticky on Mobile */}
               <div className="sticky bottom-4 lg:static grid grid-cols-[1.6fr_0.4fr] gap-3 z-10">
                 <button
                   onClick={handleGenerate}
-                  disabled={hasActiveGeneration || !prompt.trim() || uploadedImages.length === 0}
+                  disabled={hasActiveGeneration || !prompt.trim() || uploadedImages.length === 0 || !canGenerate}
                   className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] px-6 py-3 font-semibold text-white shadow-xl shadow-[#EC67A1]/30 transition hover:-translate-y-0.5 disabled:from-zinc-400 disabled:to-zinc-400 disabled:shadow-none"
                 >
                   <div className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-10" />
