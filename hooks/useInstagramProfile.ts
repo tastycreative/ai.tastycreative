@@ -98,22 +98,23 @@ export function useInstagramProfile() {
 
   // Listen for profile updates from other components (e.g., when creating/editing/deleting a profile)
   useEffect(() => {
-    const handleProfilesUpdated = async (event: CustomEvent) => {
+    const handleProfilesUpdated = async (event: Event) => {
+      const customEvent = event as CustomEvent;
       // If deleting currently selected profile, mark it for auto-selection after fetch
-      if (event.detail?.deleted && event.detail?.deletedProfileId === profileId) {
-        pendingDeletedProfileId.current = event.detail.deletedProfileId;
+      if (customEvent.detail?.deleted && customEvent.detail?.deletedProfileId === profileId) {
+        pendingDeletedProfileId.current = customEvent.detail.deletedProfileId;
       }
       
       await fetchProfiles();
       
       // For create/edit operations, keep or set the specified profile as selected
-      if (event.detail?.profileId && !event.detail?.deleted) {
-        setProfileId(event.detail.profileId);
+      if (customEvent.detail?.profileId && !customEvent.detail?.deleted) {
+        setProfileId(customEvent.detail.profileId);
       }
     };
 
-    window.addEventListener('profilesUpdated', handleProfilesUpdated as EventListener);
-    return () => window.removeEventListener('profilesUpdated', handleProfilesUpdated as EventListener);
+    window.addEventListener('profilesUpdated', handleProfilesUpdated);
+    return () => window.removeEventListener('profilesUpdated', handleProfilesUpdated);
   }, [fetchProfiles, setProfileId, profileId]);
 
   // Auto-select another profile when the current one is deleted
