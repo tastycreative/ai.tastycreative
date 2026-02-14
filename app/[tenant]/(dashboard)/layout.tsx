@@ -105,418 +105,533 @@ export default function DashboardLayout({
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
   const { isContentCreator } = useIsContentCreator();
-  const { permissions, subscriptionInfo, loading: permissionsLoading } = usePermissions();
+  const {
+    permissions,
+    subscriptionInfo,
+    loading: permissionsLoading,
+  } = usePermissions();
   const { currentOrganization } = useOrganization();
 
   // Dynamic navigation based on user permissions
   // Don't build navigation until permissions are loaded to prevent showing unauthorized tabs
-  const navigation: (NavItem | NavSection)[] = permissionsLoading ? [] : [
-    {
-      name: "Dashboard",
-      href: `/${tenant}/dashboard`,
-      icon: Home,
-    },
-    {
-      name: "My Influencers",
-      href: `/${tenant}/workspace/my-influencers`,
-      icon: Users,
-    },
-    ...(permissions.hasContentTab
-      ? [
-          {
-            name: "Content Ops",
-            collapsible: true,
-            items: [
-              {
-                name: "OF Models",
-                href: `/${tenant}/of-models`,
-                icon: UserCheck,
-              },
-              {
-                name: "Gallery",
-                href: `/${tenant}/gallery`,
-                icon: ImageIcon,
-              },
-              {
-                name: "GIF Maker",
-                href: `/${tenant}/gif-maker`,
-                icon: Film,
-              },
-              {
-                name: "OTP/PTR",
-                href: `/${tenant}/submissions`,
-                icon: FileText,
-              },
-            ],
-          },
-        ]
-      : []),
-    {
-      name: "Vault",
-      href: `/${tenant}/workspace/vault`,
-      icon: Shield,
-    },
-    ...(permissions.hasReferenceBank
-      ? [
-          {
-            name: "Reference Bank",
-            href: `/${tenant}/workspace/reference-bank`,
-            icon: Library,
-          },
-        ]
-      : []),
-    ...(permissions.canCaptionBank
-      ? [
-          {
-            name: "Caption Banks",
-            collapsible: true,
-            items: [
-              {
-                name: "Captions",
-                href: `/${tenant}/workspace/caption-banks/captions`,
-                icon: FileText,
-              },
-            ],
-          },
-        ]
-      : []),
-    // Content Studio - check Instagram/Planning tab permissions and individual features
-    ...(permissions.hasInstagramTab || permissions.hasPlanningTab
-      ? [
-          {
-            name: "Content Studio",
-            collapsible: true,
-            items: [
-              // Sexting Set Organizer - always show first if user has the tab
-              {
-                name: "Sexting Set Organizer",
-                href: `/${tenant}/workspace/content-studio/sexting-set-organizer`,
-                icon: Flame,
-              },
-              // Always show these core features if user has the tab
-              {
-                name: "Staging",
-                href: `/${tenant}/workspace/content-studio/staging`,
-                icon: Layers,
-              },
-              {
-                name: "Calendar",
-                href: `/${tenant}/workspace/content-studio/calendar`,
-                icon: Calendar,
-              },
-              // Pipeline - check canContentPipeline permission
-              ...(permissions.canContentPipeline ? [{
-                name: "Pipeline",
-                href: `/${tenant}/workspace/content-studio/pipeline`,
-                icon: GitBranch,
-              }] : []),
-              // Stories - check canStoryPlanner permission
-              ...(permissions.canStoryPlanner ? [{
-                name: "Stories",
-                href: `/${tenant}/workspace/content-studio/stories`,
-                icon: Clock,
-              }] : []),
-              // Reels - check canReelPlanner permission
-              ...(permissions.canReelPlanner ? [{
-                name: "Reels",
-                href: `/${tenant}/workspace/content-studio/reels`,
-                icon: Sparkles,
-              }] : []),
-              // Feed Posts - check canFeedPostPlanner permission
-              ...(permissions.canFeedPostPlanner ? [{
-                name: "Feed Posts",
-                href: `/${tenant}/workspace/content-studio/feed-posts`,
-                icon: ImageIcon,
-              }] : []),
-              // Performance - check canPerformanceMetrics permission
-              ...(permissions.canPerformanceMetrics ? [{
-                name: "Performance",
-                href: `/${tenant}/workspace/content-studio/performance`,
-                icon: Activity,
-              }] : []),
-              // Formulas - always show if user has the tab (utility feature)
-              {
-                name: "Formulas",
-                href: `/${tenant}/workspace/content-studio/formulas`,
-                icon: Sparkles,
-              },
-              // Hashtags - check canHashtagBank permission
-              ...(permissions.canHashtagBank ? [{
-                name: "Hashtags",
-                href: `/${tenant}/workspace/content-studio/hashtags`,
-                icon: Hash,
-              }] : []),
-              // Workflow - always show if user has the tab (utility feature)
-              {
-                name: "Workflow",
-                href: `/${tenant}/workspace/content-studio/workflow`,
-                icon: ListChecks,
-              },
-            ],
-          },
-        ]
-      : []),
-    // Generate Content - check hasGenerateTab permission and individual feature permissions
-    ...(permissions.hasGenerateTab
-      ? [
-          {
-            name: "Generate Content",
-      collapsible: true,
-      items: [
-        // SeeDream 4.5 section - only show if user has SeeDream features
-        ...(permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ? [
-          {
-            name: "SEEDREAM_45_GROUP_LABEL",
-            href: "#",
-            icon: Sparkles,
-          },
-          ...(permissions.canSeeDreamTextToImage ? [{
-            name: "SeeDream Text to Image",
-            href: `/${tenant}/workspace/generate-content/seedream-text-to-image`,
-            icon: ImageIcon,
-          }] : []),
-          ...(permissions.canSeeDreamImageToImage ? [{
-            name: "SeeDream Image to Image",
-            href: `/${tenant}/workspace/generate-content/seedream-image-to-image`,
-            icon: Palette,
-          }] : []),
-          ...(permissions.canSeeDreamTextToVideo ? [{
-            name: "SeeDream Text to Video",
-            href: `/${tenant}/workspace/generate-content/seedream-text-to-video`,
-            icon: Video,
-          }] : []),
-          ...(permissions.canSeeDreamImageToVideo ? [{
-            name: "SeeDream Image to Video",
-            href: `/${tenant}/workspace/generate-content/seedream-image-to-video`,
-            icon: PlayCircle,
-          }] : []),
-        ] : []),
-        // Divider only if we have SeeDream features AND Kling features below
-        ...((permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo) &&
-            (permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
-          name: "DIVIDER_1",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
-        // Kling AI section - only show if user has Kling features
-        ...(permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl ? [
-          {
-            name: "KLING_AI_GROUP_LABEL",
-            href: "#",
-            icon: Film,
-          },
-          ...(permissions.canKlingTextToVideo ? [{
-            name: "Kling Text to Video",
-            href: `/${tenant}/workspace/generate-content/kling-text-to-video`,
-            icon: PlayCircle,
-          }] : []),
-          ...(permissions.canKlingImageToVideo ? [{
-            name: "Kling Image to Video",
-            href: `/${tenant}/workspace/generate-content/kling-image-to-video`,
-            icon: Video,
-          }] : []),
-          ...(permissions.canKlingMultiImageToVideo ? [{
-            name: "Kling Multi-Image to Video",
-            href: `/${tenant}/workspace/generate-content/kling-multi-image-to-video`,
-            icon: Film,
-          }] : []),
-          ...(permissions.canKlingMotionControl ? [{
-            name: "Kling Motion Control",
-            href: `/${tenant}/workspace/generate-content/kling-motion-control`,
-            icon: Move,
-          }] : []),
-        ] : []),
-        // Divider only if we have Kling features AND AI Voice feature below
-        ...((permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) &&
-            permissions.canAIVoice ? [{
-          name: "DIVIDER_2",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
-        // AI Voice section - only show if user has AI Voice permission
-        ...(permissions.canAIVoice ? [
-          {
-            name: "AI_VOICE_GROUP_LABEL",
-            href: "#",
-            icon: Mic,
-          },
-          {
-            name: "Voice Generator",
-            href: `/${tenant}/workspace/generate-content/ai-voice`,
-            icon: Mic,
-          },
-        ] : []),
-        // Divider only if we have AI Voice AND Advanced Tools below
-        ...(permissions.canAIVoice &&
-            (permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost) ? [{
-          name: "DIVIDER_3",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
-        // Advanced Tools section - only show if user has advanced features
-        ...(permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ? [
-          {
-            name: "ADVANCED_TOOLS_GROUP_LABEL",
-            href: "#",
-            icon: Wand2,
-          },
-          ...(permissions.canFaceSwap ? [{
-            name: "Face Swapping",
-            href: `/${tenant}/workspace/generate-content/face-swapping`,
-            icon: Shuffle,
-          }] : []),
-          ...(permissions.canImageToImageSkinEnhancer ? [{
-            name: "Image-to-Image Skin Enhancer",
-            href: `/${tenant}/workspace/generate-content/image-to-image-skin-enhancer`,
-            icon: Palette,
-          }] : []),
-          ...(permissions.canVideoFpsBoost ? [{
-            name: "FPS Boost",
-            href: `/${tenant}/workspace/generate-content/fps-boost`,
-            icon: PlayCircle,
-          }] : []),
-        ] : []),
-      ].flat(), // Flatten to remove nested arrays
-          },
-        ]
-      : []),
-    // Social Media - check hasFeedTab permission
-    ...(permissions.hasFeedTab
-      ? [
-          {
-            name: "Social Media",
-      collapsible: true,
-      items: [
+  const navigation: (NavItem | NavSection)[] = permissionsLoading
+    ? []
+    : [
         {
-          name: "User Feed",
-          href: `/${tenant}/workspace/user-feed`,
-          icon: Share2,
+          name: "Dashboard",
+          href: `/${tenant}/dashboard`,
+          icon: Home,
         },
         {
-          name: "My Profile",
-          href: `/${tenant}/workspace/my-profile`,
-          icon: UserCheck,
+          name: "My Influencers",
+          href: `/${tenant}/workspace/my-influencers`,
+          icon: Users,
         },
+        ...(permissions.hasContentTab
+          ? [
+              {
+                name: "Content Ops",
+                collapsible: true,
+                items: [
+                  {
+                    name: "OF Models",
+                    href: `/${tenant}/of-models`,
+                    icon: UserCheck,
+                  },
+                  {
+                    name: "Gallery",
+                    href: `/${tenant}/gallery`,
+                    icon: ImageIcon,
+                  },
+                  {
+                    name: "GIF Maker",
+                    href: `/${tenant}/gif-maker`,
+                    icon: Film,
+                  },
+                  {
+                    name: "OTP/PTR",
+                    href: `/${tenant}/submissions`,
+                    icon: FileText,
+                  },
+                ],
+              },
+            ]
+          : []),
         {
-          name: "Friends",
-          href: `/${tenant}/workspace/friends`,
-          icon: UserCheck,
+          name: "Vault",
+          href: `/${tenant}/workspace/vault`,
+          icon: Shield,
         },
-        {
-          name: "Bookmarks",
-          href: `/${tenant}/workspace/bookmarks`,
-          icon: Bookmark,
-        },
-      ],
-    },
+        ...(permissions.hasReferenceBank
+          ? [
+              {
+                name: "Reference Bank",
+                href: `/${tenant}/workspace/reference-bank`,
+                icon: Library,
+              },
+            ]
+          : []),
+        ...(permissions.canCaptionBank
+          ? [
+              {
+                name: "Caption Banks",
+                collapsible: true,
+                items: [
+                  {
+                    name: "Captions",
+                    href: `/${tenant}/workspace/caption-banks/captions`,
+                    icon: FileText,
+                  },
+                ],
+              },
+            ]
+          : []),
+        // Content Studio - check Instagram/Planning tab permissions and individual features
+        ...(permissions.hasInstagramTab || permissions.hasPlanningTab
+          ? [
+              {
+                name: "Content Studio",
+                collapsible: true,
+                items: [
+                  // Sexting Set Organizer - always show first if user has the tab
+                  {
+                    name: "Sexting Set Organizer",
+                    href: `/${tenant}/workspace/content-studio/sexting-set-organizer`,
+                    icon: Flame,
+                  },
+                  // Always show these core features if user has the tab
+                  {
+                    name: "Staging",
+                    href: `/${tenant}/workspace/content-studio/staging`,
+                    icon: Layers,
+                  },
+                  {
+                    name: "Calendar",
+                    href: `/${tenant}/workspace/content-studio/calendar`,
+                    icon: Calendar,
+                  },
+                  // Pipeline - check canContentPipeline permission
+                  ...(permissions.canContentPipeline
+                    ? [
+                        {
+                          name: "Pipeline",
+                          href: `/${tenant}/workspace/content-studio/pipeline`,
+                          icon: GitBranch,
+                        },
+                      ]
+                    : []),
+                  // Stories - check canStoryPlanner permission
+                  ...(permissions.canStoryPlanner
+                    ? [
+                        {
+                          name: "Stories",
+                          href: `/${tenant}/workspace/content-studio/stories`,
+                          icon: Clock,
+                        },
+                      ]
+                    : []),
+                  // Reels - check canReelPlanner permission
+                  ...(permissions.canReelPlanner
+                    ? [
+                        {
+                          name: "Reels",
+                          href: `/${tenant}/workspace/content-studio/reels`,
+                          icon: Sparkles,
+                        },
+                      ]
+                    : []),
+                  // Feed Posts - check canFeedPostPlanner permission
+                  ...(permissions.canFeedPostPlanner
+                    ? [
+                        {
+                          name: "Feed Posts",
+                          href: `/${tenant}/workspace/content-studio/feed-posts`,
+                          icon: ImageIcon,
+                        },
+                      ]
+                    : []),
+                  // Performance - check canPerformanceMetrics permission
+                  ...(permissions.canPerformanceMetrics
+                    ? [
+                        {
+                          name: "Performance",
+                          href: `/${tenant}/workspace/content-studio/performance`,
+                          icon: Activity,
+                        },
+                      ]
+                    : []),
+                  // Formulas - always show if user has the tab (utility feature)
+                  {
+                    name: "Formulas",
+                    href: `/${tenant}/workspace/content-studio/formulas`,
+                    icon: Sparkles,
+                  },
+                  // Hashtags - check canHashtagBank permission
+                  ...(permissions.canHashtagBank
+                    ? [
+                        {
+                          name: "Hashtags",
+                          href: `/${tenant}/workspace/content-studio/hashtags`,
+                          icon: Hash,
+                        },
+                      ]
+                    : []),
+                  // Workflow - always show if user has the tab (utility feature)
+                  {
+                    name: "Workflow",
+                    href: `/${tenant}/workspace/content-studio/workflow`,
+                    icon: ListChecks,
+                  },
+                ],
+              },
+            ]
+          : []),
+        // Generate Content - check hasGenerateTab permission and individual feature permissions
+        ...(permissions.hasGenerateTab
+          ? [
+              {
+                name: "Generate Content",
+                collapsible: true,
+                items: [
+                  // SeeDream 4.5 section - only show if user has SeeDream features
+                  ...(permissions.canSeeDreamTextToImage ||
+                  permissions.canSeeDreamImageToImage ||
+                  permissions.canSeeDreamTextToVideo ||
+                  permissions.canSeeDreamImageToVideo
+                    ? [
+                        {
+                          name: "SEEDREAM_45_GROUP_LABEL",
+                          href: "#",
+                          icon: Sparkles,
+                        },
+                        ...(permissions.canSeeDreamTextToImage
+                          ? [
+                              {
+                                name: "SeeDream Text to Image",
+                                href: `/${tenant}/workspace/generate-content/seedream-text-to-image`,
+                                icon: ImageIcon,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canSeeDreamImageToImage
+                          ? [
+                              {
+                                name: "SeeDream Image to Image",
+                                href: `/${tenant}/workspace/generate-content/seedream-image-to-image`,
+                                icon: Palette,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canSeeDreamTextToVideo
+                          ? [
+                              {
+                                name: "SeeDream Text to Video",
+                                href: `/${tenant}/workspace/generate-content/seedream-text-to-video`,
+                                icon: Video,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canSeeDreamImageToVideo
+                          ? [
+                              {
+                                name: "SeeDream Image to Video",
+                                href: `/${tenant}/workspace/generate-content/seedream-image-to-video`,
+                                icon: PlayCircle,
+                              },
+                            ]
+                          : []),
+                      ]
+                    : []),
+                  // Divider only if we have SeeDream features AND Kling features below
+                  ...((permissions.canSeeDreamTextToImage ||
+                    permissions.canSeeDreamImageToImage ||
+                    permissions.canSeeDreamTextToVideo ||
+                    permissions.canSeeDreamImageToVideo) &&
+                  (permissions.canKlingTextToVideo ||
+                    permissions.canKlingImageToVideo ||
+                    permissions.canKlingMultiImageToVideo ||
+                    permissions.canKlingMotionControl)
+                    ? [
+                        {
+                          name: "DIVIDER_1",
+                          href: "#",
+                          icon: Sparkles,
+                        },
+                      ]
+                    : []),
+                  // Kling AI section - only show if user has Kling features
+                  ...(permissions.canKlingTextToVideo ||
+                  permissions.canKlingImageToVideo ||
+                  permissions.canKlingMultiImageToVideo ||
+                  permissions.canKlingMotionControl
+                    ? [
+                        {
+                          name: "KLING_AI_GROUP_LABEL",
+                          href: "#",
+                          icon: Film,
+                        },
+                        ...(permissions.canKlingTextToVideo
+                          ? [
+                              {
+                                name: "Kling Text to Video",
+                                href: `/${tenant}/workspace/generate-content/kling-text-to-video`,
+                                icon: PlayCircle,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canKlingImageToVideo
+                          ? [
+                              {
+                                name: "Kling Image to Video",
+                                href: `/${tenant}/workspace/generate-content/kling-image-to-video`,
+                                icon: Video,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canKlingMultiImageToVideo
+                          ? [
+                              {
+                                name: "Kling Multi-Image to Video",
+                                href: `/${tenant}/workspace/generate-content/kling-multi-image-to-video`,
+                                icon: Film,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canKlingMotionControl
+                          ? [
+                              {
+                                name: "Kling Motion Control",
+                                href: `/${tenant}/workspace/generate-content/kling-motion-control`,
+                                icon: Move,
+                              },
+                            ]
+                          : []),
+                      ]
+                    : []),
+                  // Divider only if we have Kling features AND AI Voice feature below
+                  ...((permissions.canKlingTextToVideo ||
+                    permissions.canKlingImageToVideo ||
+                    permissions.canKlingMultiImageToVideo ||
+                    permissions.canKlingMotionControl) &&
+                  permissions.canAIVoice
+                    ? [
+                        {
+                          name: "DIVIDER_2",
+                          href: "#",
+                          icon: Sparkles,
+                        },
+                      ]
+                    : []),
+                  // AI Voice section - only show if user has AI Voice permission
+                  ...(permissions.canAIVoice
+                    ? [
+                        {
+                          name: "AI_VOICE_GROUP_LABEL",
+                          href: "#",
+                          icon: Mic,
+                        },
+                        {
+                          name: "Voice Generator",
+                          href: `/${tenant}/workspace/generate-content/ai-voice`,
+                          icon: Mic,
+                        },
+                      ]
+                    : []),
+                  // Divider only if we have AI Voice AND Advanced Tools below
+                  ...(permissions.canAIVoice &&
+                  (permissions.canFaceSwap ||
+                    permissions.canImageToImageSkinEnhancer ||
+                    permissions.canVideoFpsBoost)
+                    ? [
+                        {
+                          name: "DIVIDER_3",
+                          href: "#",
+                          icon: Sparkles,
+                        },
+                      ]
+                    : []),
+                  // Advanced Tools section - only show if user has advanced features
+                  ...(permissions.canFaceSwap ||
+                  permissions.canImageToImageSkinEnhancer ||
+                  permissions.canVideoFpsBoost
+                    ? [
+                        {
+                          name: "ADVANCED_TOOLS_GROUP_LABEL",
+                          href: "#",
+                          icon: Wand2,
+                        },
+                        ...(permissions.canFaceSwap
+                          ? [
+                              {
+                                name: "Face Swapping",
+                                href: `/${tenant}/workspace/generate-content/face-swapping`,
+                                icon: Shuffle,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canImageToImageSkinEnhancer
+                          ? [
+                              {
+                                name: "Image-to-Image Skin Enhancer",
+                                href: `/${tenant}/workspace/generate-content/image-to-image-skin-enhancer`,
+                                icon: Palette,
+                              },
+                            ]
+                          : []),
+                        ...(permissions.canVideoFpsBoost
+                          ? [
+                              {
+                                name: "FPS Boost",
+                                href: `/${tenant}/workspace/generate-content/fps-boost`,
+                                icon: PlayCircle,
+                              },
+                            ]
+                          : []),
+                      ]
+                    : []),
+                ].flat(), // Flatten to remove nested arrays
+              },
+            ]
+          : []),
+        // Social Media - check hasFeedTab permission
+        ...(permissions.hasFeedTab
+          ? [
+              {
+                name: "Social Media",
+                collapsible: true,
+                items: [
+                  {
+                    name: "User Feed",
+                    href: `/${tenant}/workspace/user-feed`,
+                    icon: Share2,
+                  },
+                  {
+                    name: "My Profile",
+                    href: `/${tenant}/workspace/my-profile`,
+                    icon: UserCheck,
+                  },
+                  {
+                    name: "Friends",
+                    href: `/${tenant}/workspace/friends`,
+                    icon: UserCheck,
+                  },
+                  {
+                    name: "Bookmarks",
+                    href: `/${tenant}/workspace/bookmarks`,
+                    icon: Bookmark,
+                  },
+                ],
+              },
+            ]
+          : []),
+        // Train Models - check hasTrainingTab permission
+        ...(permissions.hasTrainingTab
+          ? [
+              {
+                name: "Train Models",
+                collapsible: true,
+                items: [
+                  {
+                    name: "Train LoRA",
+                    href: `/${tenant}/workspace/train-lora`,
+                    icon: PlusCircle,
+                  },
+                  {
+                    name: "Training Jobs",
+                    href: `/${tenant}/workspace/training-jobs`,
+                    icon: BarChart3,
+                  },
+                ],
+              },
+            ]
+          : []),
+        // AI Tools - show if user has generation features
+        ...(permissions.hasGenerateTab
+          ? [
+              {
+                name: "AI Tools",
+                collapsible: true,
+                items: [
+                  {
+                    name: "My LoRA Models",
+                    href: `/${tenant}/workspace/my-lora-models`,
+                    icon: Users,
+                  },
+                  {
+                    name: "Instagram Extractor",
+                    href: `/${tenant}/workspace/ai-tools/instagram-extractor`,
+                    icon: Instagram,
+                  },
+                  {
+                    name: "Style Transfer Prompts",
+                    href: `/${tenant}/workspace/ai-tools/style-transfer-prompts`,
+                    icon: Wand2,
+                  },
+                  {
+                    name: "Video Prompts",
+                    href: `/${tenant}/workspace/ai-tools/video-prompts`,
+                    icon: PlayCircle,
+                  },
+                  {
+                    name: "Flux Kontext Prompts",
+                    href: `/${tenant}/workspace/ai-tools/flux-kontext-prompts`,
+                    icon: Sparkles,
+                  },
+                ],
+              },
+            ]
+          : []),
+        // Marketplace - check permission
+        ...(permissions.hasMarketplaceTab
+          ? [
+              {
+                name: "AI Marketplace",
+                href: `/${tenant}/workspace/ai-marketplace`,
+                icon: ShoppingBag,
+              },
+            ]
+          : []),
+        // Caption Banks - check canCaptionBank permission
 
-        ]
-      : []),
-    // Train Models - check hasTrainingTab permission
-    ...(permissions.hasTrainingTab
-      ? [
-          {
-            name: "Train Models",
-      collapsible: true,
-      items: [
-        {
-          name: "Train LoRA",
-          href: `/${tenant}/workspace/train-lora`,
-          icon: PlusCircle,
-        },
+        // Conditionally add content creator link
+        ...(isContentCreator
+          ? [
               {
-                name: "Training Jobs",
-                href: `/${tenant}/workspace/training-jobs`,
+                name: "Content Creator",
+                href: `/${tenant}/content-creator`,
                 icon: BarChart3,
               },
-            ],
-          },
-        ]
-      : []),
-    // AI Tools - show if user has generation features
-    ...(permissions.hasGenerateTab
-      ? [
-          {
-            name: "AI Tools",
-            collapsible: true,
-            items: [
+            ]
+          : []),
+        {
+          name: "Settings",
+          href: `/${tenant}/settings`,
+          icon: Settings,
+        },
+        // Billing - only show to OWNER and ADMIN
+        ...(currentOrganization?.role === "OWNER" ||
+        currentOrganization?.role === "ADMIN"
+          ? [
               {
-                name: "My LoRA Models",
-                href: `/${tenant}/workspace/my-lora-models`,
-                icon: Users,
+                name: "Billing",
+                href: `/${tenant}/billing`,
+                icon: CreditCard,
               },
+            ]
+          : []),
+        // Team - only show to OWNER, ADMIN, and MANAGER
+        ...(currentOrganization?.role === "OWNER" ||
+        currentOrganization?.role === "ADMIN" ||
+        currentOrganization?.role === "MANAGER"
+          ? [
               {
-                name: "Instagram Extractor",
-                href: `/${tenant}/workspace/ai-tools/instagram-extractor`,
-                icon: Instagram,
+                name: "Team",
+                href: `/${tenant}/team`,
+                icon: UserCheck,
               },
-              {
-                name: "Style Transfer Prompts",
-                href: `/${tenant}/workspace/ai-tools/style-transfer-prompts`,
-                icon: Wand2,
-              },
-              {
-                name: "Video Prompts",
-                href: `/${tenant}/workspace/ai-tools/video-prompts`,
-                icon: PlayCircle,
-              },
-              {
-                name: "Flux Kontext Prompts",
-                href: `/${tenant}/workspace/ai-tools/flux-kontext-prompts`,
-                icon: Sparkles,
-              },
-            ],
-          },
-        ]
-      : []),
-    // Marketplace - check permission
-    ...(permissions.hasMarketplaceTab
-      ? [
-          {
-            name: "AI Marketplace",
-            href: `/${tenant}/workspace/ai-marketplace`,
-            icon: ShoppingBag,
-          },
-        ]
-      : []),
-    // Caption Banks - check canCaptionBank permission
-
-    // Conditionally add content creator link
-    ...(isContentCreator
-      ? [
-          {
-            name: "Content Creator",
-            href: `/${tenant}/content-creator`,
-            icon: BarChart3,
-          },
-        ]
-      : []),
-    {
-      name: "Settings",
-      href: `/${tenant}/settings`,
-      icon: Settings,
-    },
-    // Billing - only show to OWNER and ADMIN
-    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN'
-      ? [
-          {
-            name: "Billing",
-            href: `/${tenant}/billing`,
-            icon: CreditCard,
-          },
-        ]
-      : []),
-    // Team - only show to OWNER, ADMIN, and MANAGER
-    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN' || currentOrganization?.role === 'MANAGER'
-      ? [
-          {
-            name: "Team",
-            href: `/${tenant}/team`,
-            icon: UserCheck,
-          },
-        ]
-      : []),
-  ];
+            ]
+          : []),
+      ];
 
   // Get user's first name or fallback
   const firstName = user?.firstName || user?.username || "User";
@@ -551,32 +666,38 @@ export default function DashboardLayout({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      
+
       // Don't close if clicking inside the user dropdown
       if (userDropdownRef.current && userDropdownRef.current.contains(target)) {
         return;
       }
-      
+
       // Don't close if clicking the user dropdown button
-      if (userDropdownButtonRef.current && userDropdownButtonRef.current.contains(target)) {
+      if (
+        userDropdownButtonRef.current &&
+        userDropdownButtonRef.current.contains(target)
+      ) {
         return;
       }
-      
+
       // Don't close if clicking inside any portal dropdown (like OrganizationSwitcher)
-      const portalElements = document.querySelectorAll('[data-dropdown-portal]');
+      const portalElements = document.querySelectorAll(
+        "[data-dropdown-portal]",
+      );
       for (const portal of Array.from(portalElements)) {
         if (portal.contains(target)) {
           return;
         }
       }
-      
+
       // Close the dropdown if clicking outside
       setUserDropdownOpen(false);
     };
 
     if (userDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [userDropdownOpen]);
 
@@ -843,19 +964,51 @@ export default function DashboardLayout({
     // Helper function to check if item should be hidden based on group state
     const isItemInCollapsedGroup = () => {
       // Map of group states to their item names
-      if (!fluxGroupOpen && ["Text to Image", "Style Transfer", "Skin Enhancer", "Flux Kontext"].includes(item.name)) {
+      if (
+        !fluxGroupOpen &&
+        [
+          "Text to Image",
+          "Style Transfer",
+          "Skin Enhancer",
+          "Flux Kontext",
+        ].includes(item.name)
+      ) {
         return true;
       }
-      if (!wan22GroupOpen && ["Text to Video", "Image to Video"].includes(item.name)) {
+      if (
+        !wan22GroupOpen &&
+        ["Text to Video", "Image to Video"].includes(item.name)
+      ) {
         return true;
       }
-      if (!advancedToolsGroupOpen && ["Face Swapping", "Image-to-Image Skin Enhancer", "FPS Boost"].includes(item.name)) {
+      if (
+        !advancedToolsGroupOpen &&
+        ["Face Swapping", "Image-to-Image Skin Enhancer", "FPS Boost"].includes(
+          item.name,
+        )
+      ) {
         return true;
       }
-      if (!seedreamGroupOpen && ["SeeDream Text to Image", "SeeDream Image to Image", "SeeDream Text to Video", "SeeDream Image to Video"].includes(item.name)) {
+      if (
+        !seedreamGroupOpen &&
+        [
+          "SeeDream Text to Image",
+          "SeeDream Image to Image",
+          "SeeDream Text to Video",
+          "SeeDream Image to Video",
+        ].includes(item.name)
+      ) {
         return true;
       }
-      if (!klingAiGroupOpen && ["Kling Text to Video", "Kling Image to Video", "Kling Multi-Image to Video", "Kling Motion Control"].includes(item.name)) {
+      if (
+        !klingAiGroupOpen &&
+        [
+          "Kling Text to Video",
+          "Kling Image to Video",
+          "Kling Multi-Image to Video",
+          "Kling Motion Control",
+        ].includes(item.name)
+      ) {
         return true;
       }
       if (!aiVoiceGroupOpen && ["Voice Generator"].includes(item.name)) {
@@ -1000,7 +1153,7 @@ export default function DashboardLayout({
               isSectionActive
                 ? "bg-sidebar-accent/80 border-l-4 border-[#EC67A1]"
                 : "border-l-4 border-transparent hover:border-[#EC67A1]/30",
-              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-xl transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md"
+              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-xl transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md",
             )}
           >
             <span className="flex items-center">
@@ -1049,9 +1202,7 @@ export default function DashboardLayout({
             >
               <SectionIcon
                 className={classNames(
-                  isSectionActive
-                    ? "text-[#EC67A1]"
-                    : "text-[#5DC3F8]",
+                  isSectionActive ? "text-[#EC67A1]" : "text-[#5DC3F8]",
                   "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300 hover:scale-110",
                 )}
               />
@@ -1206,7 +1357,9 @@ export default function DashboardLayout({
                         </p>
                       </div>
                     ) : (
-                      <p className="text-[11px] text-sidebar-foreground/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                      <p className="text-[11px] text-sidebar-foreground/40 font-medium tracking-wide">
+                        AI CONTENT STUDIO
+                      </p>
                     )}
                   </div>
                 </div>
@@ -1259,25 +1412,25 @@ export default function DashboardLayout({
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-          {permissionsLoading ? (
-            // Loading skeleton while permissions are being fetched
-            <div className="space-y-2 animate-pulse">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
-                />
-              ))}
-            </div>
-          ) : (
-            navigation.map((item) => {
-              if ("items" in item) {
-                return renderNavSection(item);
-              } else {
-                return renderNavItem(item);
-              }
-            })
-          )}
+            {permissionsLoading ? (
+              // Loading skeleton while permissions are being fetched
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                  />
+                ))}
+              </div>
+            ) : (
+              navigation.map((item) => {
+                if ("items" in item) {
+                  return renderNavSection(item);
+                } else {
+                  return renderNavItem(item);
+                }
+              })
+            )}
           </nav>
 
           {/* Sidebar Footer */}
@@ -1297,7 +1450,10 @@ export default function DashboardLayout({
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <ThemeToggle />
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sidebar-accent border border-[#EC67A1]/20" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
+                <div
+                  className="flex items-center justify-center w-12 h-12 rounded-xl bg-sidebar-accent border border-[#EC67A1]/20"
+                  title={`${currentOrganization?.availableCredits ?? 0} Credits`}
+                >
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
@@ -1376,10 +1532,7 @@ export default function DashboardLayout({
               // Loading skeleton while permissions are being fetched
               <div className="space-y-2 animate-pulse">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="h-10 bg-sidebar-accent rounded-xl"
-                  />
+                  <div key={i} className="h-10 bg-sidebar-accent rounded-xl" />
                 ))}
               </div>
             ) : (
@@ -1417,8 +1570,18 @@ export default function DashboardLayout({
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 rounded-xl text-header-muted hover:text-header-foreground hover:bg-sidebar-accent transition-all border border-transparent hover:border-[#EC67A1]/20"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
             <div className="flex items-center gap-2">
@@ -1454,13 +1617,21 @@ export default function DashboardLayout({
                       className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/30 transition-all duration-200"
                     >
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
-                        <span className="text-white text-xs font-bold">{initials}</span>
+                        <span className="text-white text-xs font-bold">
+                          {initials}
+                        </span>
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-medium text-header-foreground">{firstName}</p>
-                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">{email}</p>
+                        <p className="text-sm font-medium text-header-foreground">
+                          {firstName}
+                        </p>
+                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">
+                          {email}
+                        </p>
                       </div>
-                      <ChevronDown className={`w-4 h-4 text-[#EC67A1] transition-all duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 text-[#EC67A1] transition-all duration-200 ${userDropdownOpen ? "rotate-180" : ""}`}
+                      />
                     </button>
 
                     {/* User Dropdown */}
@@ -1469,69 +1640,74 @@ export default function DashboardLayout({
                         ref={userDropdownRef}
                         className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl animate-fadeIn z-50"
                       >
-                      <div className="px-4 py-3 border-b border-sidebar-border">
-                        <p className="text-sm font-semibold text-sidebar-foreground">{firstName}</p>
-                        <p className="text-xs text-sidebar-foreground/60 truncate">{email}</p>
-                      </div>
-
-                      {/* Organization Switcher Section */}
-                      {!permissionsLoading && (
-                        <div
-                          className="px-3 py-3 border-b border-sidebar-border"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="mb-2">
-                            <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-1">
-                              Organization
-                            </p>
-                          </div>
-                          <OrganizationSwitcher />
+                        <div className="px-4 py-3 border-b border-sidebar-border">
+                          <p className="text-sm font-semibold text-sidebar-foreground">
+                            {firstName}
+                          </p>
+                          <p className="text-xs text-sidebar-foreground/60 truncate">
+                            {email}
+                          </p>
                         </div>
-                      )}
 
-                      <div className="py-1">
-                        <Link
-                          href={`/${tenant}/settings`}
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
-                        >
-                          <Settings className="w-4 h-4 text-[#5DC3F8]" />
-                          Settings
-                        </Link>
-                        {(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN') && (
+                        {/* Organization Switcher Section */}
+                        {!permissionsLoading && (
+                          <div
+                            className="px-3 py-3 border-b border-sidebar-border"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="mb-2">
+                              <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-1">
+                                Organization
+                              </p>
+                            </div>
+                            <OrganizationSwitcher />
+                          </div>
+                        )}
+
+                        <div className="py-1">
                           <Link
-                            href={`/${tenant}/billing`}
+                            href={`/${tenant}/settings`}
                             onClick={() => setUserDropdownOpen(false)}
                             className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
                           >
-                            <CreditCard className="w-4 h-4 text-[#5DC3F8]" />
-                            Billing
+                            <Settings className="w-4 h-4 text-[#5DC3F8]" />
+                            Settings
                           </Link>
-                        )}
-                        {isAdmin && (
-                          <Link
-                            href={`/${tenant}/admin`}
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
+                          {(currentOrganization?.role === "OWNER" ||
+                            currentOrganization?.role === "ADMIN") && (
+                            <Link
+                              href={`/${tenant}/billing`}
+                              onClick={() => setUserDropdownOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
+                            >
+                              <CreditCard className="w-4 h-4 text-[#5DC3F8]" />
+                              Billing
+                            </Link>
+                          )}
+                          {isAdmin && (
+                            <Link
+                              href={`/${tenant}/admin`}
+                              onClick={() => setUserDropdownOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all rounded-lg mx-2"
+                            >
+                              <Shield className="w-4 h-4 text-[#5DC3F8]" />
+                              Admin Panel
+                            </Link>
+                          )}
+                        </div>
+                        <div className="border-t border-sidebar-border pt-1 mt-1">
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              signOut({ redirectUrl: "/" });
+                            }}
+                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all rounded-lg mx-2"
                           >
-                            <Shield className="w-4 h-4 text-[#5DC3F8]" />
-                            Admin Panel
-                          </Link>
-                        )}
+                            <ChevronRight className="w-4 h-4" />
+                            Sign Out
+                          </button>
+                        </div>
                       </div>
-                      <div className="border-t border-sidebar-border pt-1 mt-1">
-                        <button
-                          onClick={() => {
-                            setUserDropdownOpen(false);
-                            signOut({ redirectUrl: "/" });
-                          }}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all rounded-lg mx-2"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                          Sign Out
-                        </button>
-                      </div>
-                    </div>
                     )}
                   </div>
                 </div>
@@ -1541,9 +1717,7 @@ export default function DashboardLayout({
 
           {/* Content */}
           <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
-            <PermissionGuard>
-              {children}
-            </PermissionGuard>
+            <PermissionGuard>{children}</PermissionGuard>
           </div>
         </main>
       </div>

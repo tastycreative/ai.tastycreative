@@ -514,6 +514,8 @@ model InstagramProfile {
   customStrategies       Json?
   customContentTypes     String[]              @default([])
   selectedContentTypes   String[]              @default([])
+  type                   String                @default("real")
+  status                 String                @default("active")
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -923,6 +925,7 @@ model VaultFolder {
   isDefault        Boolean            @default(false)
   parentId         String?
   organizationSlug String?
+  order            Int                @default(0)
   shares           VaultFolderShare[]
   organization     Organization?      @relation(fields: [organizationSlug], references: [slug])
   parent           VaultFolder?       @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
@@ -1100,8 +1103,8 @@ model Organization {
   memberSlotPrice               Float?
   additionalContentProfileSlots Int                           @default(0)
   contentProfileSlotPrice       Float?
-  additionalStorageGB  Int                           @default(0)
-  storageSlotPrice     Float?
+  additionalStorageGB           Int                           @default(0)
+  storageSlotPrice              Float?
   transactions                  BillingTransaction[]
   content_submissions           content_submissions[]
   creditUsageLogs               CreditUsageLog[]

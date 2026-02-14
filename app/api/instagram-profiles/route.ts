@@ -2,6 +2,79 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
+// Auto-create default folder structure for new profiles
+async function createDefaultFolderStructure(profileId: string, clerkId: string) {
+  try {
+    console.log('📁 [instagram-profiles] Creating default folder structure for profile:', profileId);
+
+    // Define the folder structure
+    const parentFolders = [
+      { name: "Raw Generations", order: 1 },
+      { name: "Needs QA/Edits", order: 2 },
+      { name: "Ready to upload", order: 3 },
+    ];
+
+    const subfolders = [
+      "IG (SFW)",
+      "IG REELS (SFW)",
+      "X (SFW)",
+      "X (NSFW)",
+      "SEXTING SETS",
+      "WALL POST",
+      "PPV CONTENT",
+      "NSFW MISC",
+      "SFW MISC",
+      "TESTING",
+    ];
+
+    // Create parent folders and their subfolders
+    for (const parent of parentFolders) {
+      // Create parent folder
+      const parentFolder = await prisma.vaultFolder.create({
+        data: {
+          clerkId,
+          profileId,
+          name: parent.name,
+          isDefault: false,
+        },
+      });
+
+      console.log(`✅ Created parent folder: ${parent.name}`);
+
+      // Create all subfolders for this parent
+      for (const subfolderName of subfolders) {
+        await prisma.vaultFolder.create({
+          data: {
+            clerkId,
+            profileId,
+            name: subfolderName,
+            parentId: parentFolder.id,
+            isDefault: false,
+          },
+        });
+      }
+
+      console.log(`✅ Created ${subfolders.length} subfolders for: ${parent.name}`);
+    }
+
+    // Create "All Media" folder (standalone, no subfolders)
+    await prisma.vaultFolder.create({
+      data: {
+        clerkId,
+        profileId,
+        name: "All Media",
+        isDefault: true,
+      },
+    });
+
+    console.log('✅ Created standalone folder: All Media');
+    console.log('✅ [instagram-profiles] Default folder structure created successfully');
+  } catch (error) {
+    console.error('❌ [instagram-profiles] Error creating default folder structure:', error);
+    // Don't throw - we don't want folder creation failure to fail profile creation
+  }
+}
+
 export async function GET(request: NextRequest) {
   let userId: string | null = null;
   try {
@@ -188,6 +261,7 @@ export async function POST(request: NextRequest) {
       shareWithOrganization,
       modelBible,
       tags,
+      type, // "real" or "ai"
     } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -235,6 +309,8 @@ export async function POST(request: NextRequest) {
         organizationId,
         modelBible: modelBible || undefined,
         tags: tags || [],
+        type: type || "real", // Default to "real" if not specified
+        status: "pending", // All new profiles start as pending
       },
       include: {
         user: {
@@ -264,6 +340,9 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Auto-create default folder structure for the new profile
+    await createDefaultFolderStructure(newProfile.id, userId);
 
     return NextResponse.json(newProfile, { status: 201 });
   } catch (error) {

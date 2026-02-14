@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { deleteProfileVaultFiles } from "@/lib/s3-cleanup";
 
 // GET a single profile by ID
 export async function GET(
@@ -112,6 +113,7 @@ export async function PATCH(
     
     // Check if user has elevated role in the organization (for shared profiles)
     let canEdit = isOwner;
+    let hasElevatedRole = false;
     
     if (!isOwner && existingProfile.organizationId) {
       // Get user's database ID
@@ -138,7 +140,8 @@ export async function PATCH(
 
         // Allow OWNER, ADMIN, and MANAGER to edit
         const elevatedRoles = ["OWNER", "ADMIN", "MANAGER"];
-        canEdit = teamMembership ? elevatedRoles.includes(teamMembership.role) : false;
+        hasElevatedRole = teamMembership ? elevatedRoles.includes(teamMembership.role) : false;
+        canEdit = hasElevatedRole;
       }
     }
 
@@ -160,12 +163,28 @@ export async function PATCH(
       modelBible,
       tags,
       isFavorite,
+      pageStrategy,
+      customStrategies,
+      selectedContentTypes,
+      customContentTypes,
+      type,
+      status,
     } = body;
 
-    // Only profile owners can set as default or change sharing settings
-    if (!isOwner && (isDefault !== undefined || shareWithOrganization !== undefined)) {
+    // Only profile owners or users with elevated roles (OWNER, ADMIN, MANAGER) can change sharing settings
+    // Only profile owners can set as default
+    const canChangeSharing = isOwner || hasElevatedRole;
+    
+    if (!isOwner && isDefault !== undefined) {
       return NextResponse.json(
-        { error: "Only the profile owner can change default status or sharing settings" },
+        { error: "Only the profile owner can change default status" },
+        { status: 403 }
+      );
+    }
+    
+    if (!canChangeSharing && shareWithOrganization !== undefined) {
+      return NextResponse.json(
+        { error: "Only the profile owner or organization admins can change sharing settings" },
         { status: 403 }
       );
     }
@@ -182,9 +201,9 @@ export async function PATCH(
       });
     }
 
-    // Handle organization sharing (only for owners)
+    // Handle organization sharing (for owners and elevated role users)
     let organizationId = undefined;
-    if (shareWithOrganization !== undefined && isOwner) {
+    if (shareWithOrganization !== undefined && canChangeSharing) {
       if (shareWithOrganization) {
         // Get user's current organization
         const user = await prisma.user.findUnique({
@@ -210,11 +229,21 @@ export async function PATCH(
       updateData.profileImageUrl = profileImageUrl;
     if (tags !== undefined) updateData.tags = tags;
     if (isFavorite !== undefined) updateData.isFavorite = isFavorite;
+    if (pageStrategy !== undefined) updateData.pageStrategy = pageStrategy;
+    if (customStrategies !== undefined) updateData.customStrategies = customStrategies;
+    if (selectedContentTypes !== undefined) updateData.selectedContentTypes = selectedContentTypes;
+    if (customContentTypes !== undefined) updateData.customContentTypes = customContentTypes;
+    if (type !== undefined) updateData.type = type;
+    if (status !== undefined) updateData.status = status;
     
-    // Only allow owners to update these fields
-    if (isOwner) {
-      if (isDefault !== undefined) updateData.isDefault = isDefault;
-      if (organizationId !== undefined) updateData.organizationId = organizationId;
+    // Only allow owners to update isDefault
+    if (isOwner && isDefault !== undefined) {
+      updateData.isDefault = isDefault;
+    }
+    
+    // Allow owners and elevated role users to update organizationId (sharing)
+    if (canChangeSharing && organizationId !== undefined) {
+      updateData.organizationId = organizationId;
     }
 
     // Handle modelBible as JSON field
@@ -334,12 +363,40 @@ export async function DELETE(
       );
     }
 
-    // Delete the profile
+    console.log(`🗑️ Starting comprehensive profile deletion for: ${id}`);
+
+    // STEP 1: Delete all vault files from S3
+    console.log(`📦 Step 1: Deleting vault files from S3...`);
+    try {
+      const { deletedCount, failedCount } = await deleteProfileVaultFiles(id);
+      console.log(`✅ S3 cleanup: ${deletedCount} deleted, ${failedCount} failed`);
+      
+      if (failedCount > 0) {
+        console.warn(`⚠️ Warning: ${failedCount} files could not be deleted from S3`);
+      }
+    } catch (error) {
+      console.error('❌ Error during S3 cleanup:', error);
+      // Continue with deletion even if S3 cleanup fails
+    }
+
+    // STEP 2: Delete database records
+    // With CASCADE enabled in schema, the following will auto-delete:
+    // - VaultFolder (and their subfolders)
+    // - VaultItem
+    // - InstagramPost
+    // - FeedPost
+    // - Caption
+    // - Friendship requests
+    // - Likes, comments, bookmarks
+    console.log(`🗄️ Step 2: Deleting profile from database (CASCADE will clean related data)...`);
+    
     await prisma.instagramProfile.delete({
       where: { id },
     });
 
-    // If this was the default profile for the owner, set another one as default
+    console.log(`✅ Profile deleted successfully: ${id}`);
+
+    // STEP 3: If this was the default profile for the owner, set another one as default
     if (existingProfile.isDefault && isOwner) {
       const anotherProfile = await prisma.instagramProfile.findFirst({
         where: { clerkId: userId },
@@ -351,10 +408,14 @@ export async function DELETE(
           where: { id: anotherProfile.id },
           data: { isDefault: true },
         });
+        console.log(`✅ Set new default profile: ${anotherProfile.id}`);
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      message: "Profile and all associated data deleted successfully" 
+    });
   } catch (error) {
     console.error("Error deleting profile:", error);
     return NextResponse.json(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 
 export interface Profile {
@@ -48,6 +48,7 @@ export function useInstagramProfile() {
   });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const pendingDeletedProfileId = useRef<string | null>(null);
 
   const fetchProfiles = useCallback(async () => {
     try {
@@ -72,6 +73,13 @@ export function useInstagramProfile() {
     }
   }, []);
 
+  const setProfileId = useCallback((newProfileId: string) => {
+    setProfileIdState(newProfileId);
+    localStorage.setItem(STORAGE_KEY, newProfileId);
+    // Trigger storage event for other components to pick up the change
+    window.dispatchEvent(new Event('storage'));
+  }, []);
+
   useEffect(() => {
     if (!isLoaded || !user) return;
     fetchProfiles();
@@ -88,12 +96,40 @@ export function useInstagramProfile() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const setProfileId = useCallback((newProfileId: string) => {
-    setProfileIdState(newProfileId);
-    localStorage.setItem(STORAGE_KEY, newProfileId);
-    // Trigger storage event for other components to pick up the change
-    window.dispatchEvent(new Event('storage'));
-  }, []);
+  // Listen for profile updates from other components (e.g., when creating/editing/deleting a profile)
+  useEffect(() => {
+    const handleProfilesUpdated = async (event: CustomEvent) => {
+      // If deleting currently selected profile, mark it for auto-selection after fetch
+      if (event.detail?.deleted && event.detail?.deletedProfileId === profileId) {
+        pendingDeletedProfileId.current = event.detail.deletedProfileId;
+      }
+      
+      await fetchProfiles();
+      
+      // For create/edit operations, keep or set the specified profile as selected
+      if (event.detail?.profileId && !event.detail?.deleted) {
+        setProfileId(event.detail.profileId);
+      }
+    };
+
+    window.addEventListener('profilesUpdated', handleProfilesUpdated as EventListener);
+    return () => window.removeEventListener('profilesUpdated', handleProfilesUpdated as EventListener);
+  }, [fetchProfiles, setProfileId, profileId]);
+
+  // Auto-select another profile when the current one is deleted
+  useEffect(() => {
+    if (pendingDeletedProfileId.current && !loadingProfiles) {
+      if (profiles.length > 0) {
+        // Select the first default profile or the first available profile
+        const defaultProfile = profiles.find((p: Profile) => p.isDefault);
+        const firstProfile = defaultProfile || profiles[0];
+        setProfileId(firstProfile.id);
+      } else {
+        setProfileId('all');
+      }
+      pendingDeletedProfileId.current = null;
+    }
+  }, [profiles, loadingProfiles, setProfileId]);
 
   const selectedProfile = profileId === 'all' ? ALL_PROFILES_OPTION : profiles.find(p => p.id === profileId);
   const isAllProfiles = profileId === 'all';
