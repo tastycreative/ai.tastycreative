@@ -5,6 +5,7 @@ import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
 import { deductCredits } from '@/lib/credits';
 import { trackStorageUpload } from '@/lib/storageEvents';
+import { convertS3ToCdnUrl } from '@/lib/cdnUtils';
 
 // Vercel function configuration - extend timeout for image generation
 export const runtime = 'nodejs';
@@ -691,7 +692,7 @@ export async function GET(request: NextRequest) {
       const imgProfileId = metadata?.vaultProfileId || null;
       return {
         id: img.id,
-        imageUrl: img.awsS3Url || '',
+        imageUrl: convertS3ToCdnUrl(img.awsS3Url) || '',
         prompt: metadata?.prompt || '',
         modelVersion: metadata?.model || 'SeeDream 4.5',
         size: img.width && img.height ? `${img.width}x${img.height}` : (metadata?.size || 'Unknown'),
@@ -716,7 +717,7 @@ export async function GET(request: NextRequest) {
       const metadata = img.metadata as any;
       return {
         id: img.id,
-        imageUrl: img.awsS3Url || '',
+        imageUrl: convertS3ToCdnUrl(img.awsS3Url) || '',
         prompt: metadata?.prompt || '',
         modelVersion: metadata?.model || 'SeeDream 4.5',
         size: metadata?.size || 'Unknown',

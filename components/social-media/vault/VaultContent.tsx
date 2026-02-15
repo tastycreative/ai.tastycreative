@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter, useParams } from "next/navigation";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -1966,6 +1967,7 @@ export function VaultContent() {
         setContentCreatorItems(
           (data.items || []).map((item: any) => ({
             ...item,
+            awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.updatedAt),
           })),
@@ -2151,6 +2153,7 @@ export function VaultContent() {
         setVaultItems(
           data.map((item: any) => ({
             ...item,
+            awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.updatedAt),
           })),
@@ -2178,6 +2181,7 @@ export function VaultContent() {
       setVaultItems(
         data.map((item: any) => ({
           ...item,
+          awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt),
         })),
@@ -2204,6 +2208,7 @@ export function VaultContent() {
       setSharedFolderItems(
         data.map((item: any) => ({
           ...item,
+          awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt),
         })),
@@ -3286,6 +3291,7 @@ export function VaultContent() {
       setVaultItems([
         ...uploadedItems.map((item) => ({
           ...item,
+          awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt),
         })),
