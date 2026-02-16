@@ -91,8 +91,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check if any captions are using this content type
-    const captionsCount = await prisma.caption.count({
+    // Check if any captions are using this content type via junction table
+    const captionsCount = await prisma.captionToContentType.count({
       where: { contentTypeId: id },
     });
 
