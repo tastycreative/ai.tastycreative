@@ -26,23 +26,45 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<bo
     return true;
   }
 
-  // Check if it's a shared organization profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { currentOrganizationId: true },
+  // Get the profile to check if it belongs to an organization
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+    select: { organizationId: true },
   });
 
-  if (user?.currentOrganizationId) {
-    const orgProfile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        organizationId: user.currentOrganizationId,
-      },
-    });
+  if (!profile?.organizationId) {
+    return false; // Profile doesn't belong to an organization
+  }
 
-    if (orgProfile) {
-      return true;
-    }
+  // Check if user is a member of the organization that owns this profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { 
+      id: true,
+      currentOrganizationId: true,
+      teamMemberships: {
+        where: {
+          organizationId: profile.organizationId,
+        },
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return false;
+  }
+
+  // User has access if they're a member of the organization
+  if (user.teamMemberships.length > 0) {
+    return true;
+  }
+
+  // Fallback: check if currentOrganizationId matches (for backward compatibility)
+  if (user.currentOrganizationId === profile.organizationId) {
+    return true;
   }
 
   return false;
@@ -250,7 +272,7 @@ export async function DELETE(
       if (!sharePermission || sharePermission.permission !== 'EDIT') {
         console.log("[DELETE Vault Item] Permission denied - not owner, no profile access, and no EDIT permission");
         return NextResponse.json(
-          { error: "You don't have permission to delete this item" },
+          { error: "You don't have permission to delete this item. You must be the owner, a member of the profile's organization, or have EDIT access to the folder." },
           { status: 403 }
         );
       }

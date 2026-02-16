@@ -514,8 +514,8 @@ model InstagramProfile {
   customStrategies       Json?
   customContentTypes     String[]              @default([])
   selectedContentTypes   String[]              @default([])
-  type                   String                @default("real")
   status                 String                @default("active")
+  type                   String                @default("real")
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -983,22 +983,26 @@ model VaultItem {
 }
 
 model Caption {
-  id              String           @id @default(cuid())
-  clerkId         String
-  profileId       String
-  caption         String
-  captionCategory String
-  captionTypes    String
-  captionBanks    String
-  usageCount      Int              @default(0)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  cooldownDays    Int              @default(7)
-  isFavorite      Boolean          @default(false)
-  lastUsedAt      DateTime?
-  notes           String?
-  tags            String?
-  profile         InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id                String                          @id @default(cuid())
+  clerkId           String
+  profileId         String
+  caption           String
+  captionCategory   String
+  captionTypes      String
+  captionBanks      String
+  usageCount        Int                             @default(0)
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+  cooldownDays      Int                             @default(7)
+  isFavorite        Boolean                         @default(false)
+  lastUsedAt        DateTime?
+  notes             String?
+  tags              String?
+  originalModelName String?
+  totalRevenue      Decimal                         @default(0) @db.Decimal(10, 2)
+  profile           InstagramProfile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  contentTypes      CaptionToContentType[]
+  messageTypes      CaptionToMessageType[]
 
   @@index([clerkId])
   @@index([profileId])
@@ -1006,6 +1010,54 @@ model Caption {
   @@index([isFavorite])
   @@index([lastUsedAt])
   @@map("captions")
+}
+
+model CaptionContentType {
+  id        String                 @id @default(cuid())
+  name      String                 @unique
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  captions  CaptionToContentType[]
+
+  @@map("caption_content_types")
+}
+
+model CaptionMessageType {
+  id        String                 @id @default(cuid())
+  name      String                 @unique
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  captions  CaptionToMessageType[]
+
+  @@map("caption_message_types")
+}
+
+// Junction table for Caption <-> ContentType many-to-many
+model CaptionToContentType {
+  captionId     String
+  contentTypeId String
+  caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
+  contentType   CaptionContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
+  assignedAt    DateTime           @default(now())
+
+  @@id([captionId, contentTypeId])
+  @@index([captionId])
+  @@index([contentTypeId])
+  @@map("caption_to_content_types")
+}
+
+// Junction table for Caption <-> MessageType many-to-many
+model CaptionToMessageType {
+  captionId     String
+  messageTypeId String
+  caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
+  messageType   CaptionMessageType @relation(fields: [messageTypeId], references: [id], onDelete: Cascade)
+  assignedAt    DateTime           @default(now())
+
+  @@id([captionId, messageTypeId])
+  @@index([captionId])
+  @@index([messageTypeId])
+  @@map("caption_to_message_types")
 }
 
 model SextingSet {

@@ -25,28 +25,50 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{ 
     return { hasAccess: true, profile: ownProfile };
   }
 
-  // Check if it's a shared organization profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { currentOrganizationId: true },
+  // Get the profile to check if it belongs to an organization
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+    select: { 
+      id: true,
+      organizationId: true,
+      name: true,
+      clerkId: true,
+    },
   });
 
-  if (user?.currentOrganizationId) {
-    const orgProfile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        organizationId: user.currentOrganizationId,
-      },
-      include: {
-        user: {
-          select: { clerkId: true },
+  if (!profile?.organizationId) {
+    return { hasAccess: false, profile: null }; // Profile doesn't belong to an organization
+  }
+
+  // Check if user is a member of the organization that owns this profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { 
+      id: true,
+      currentOrganizationId: true,
+      teamMemberships: {
+        where: {
+          organizationId: profile.organizationId,
+        },
+        select: {
+          role: true,
         },
       },
-    });
+    },
+  });
 
-    if (orgProfile) {
-      return { hasAccess: true, profile: orgProfile };
-    }
+  if (!user) {
+    return { hasAccess: false, profile: null };
+  }
+
+  // User has access if they're a member of the organization
+  if (user.teamMemberships.length > 0) {
+    return { hasAccess: true, profile };
+  }
+
+  // Fallback: check if currentOrganizationId matches (for backward compatibility)
+  if (user.currentOrganizationId === profile.organizationId) {
+    return { hasAccess: true, profile };
   }
 
   return { hasAccess: false, profile: null };
@@ -89,6 +111,8 @@ export async function PATCH(
     const body = await request.json();
     const { name, parentId } = body;
 
+    console.log("[PATCH Vault Folder] Updating folder:", id, "by user:", userId, "with data:", { name, parentId });
+
     // At least one field must be provided
     if (!name && parentId === undefined) {
       return NextResponse.json({ error: "name or parentId is required" }, { status: 400 });
@@ -108,13 +132,23 @@ export async function PATCH(
     });
 
     if (!folder) {
+      console.log("[PATCH Vault Folder] Folder not found:", id);
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
+
+    console.log("[PATCH Vault Folder] Found folder:", { 
+      id: folder.id, 
+      name: folder.name, 
+      profileId: folder.profileId, 
+      clerkId: folder.clerkId,
+      isDefault: folder.isDefault 
+    });
 
     // Prevent modifying default folder
     if (folder.isDefault && (name || parentId !== undefined)) {
       // Allow moving default folder's parentId but not renaming
       if (name) {
+        console.log("[PATCH Vault Folder] Attempted to rename default folder");
         return NextResponse.json(
           { error: "Cannot rename default folder" },
           { status: 400 }
@@ -125,9 +159,16 @@ export async function PATCH(
     // Check if user has access to the profile this folder belongs to
     const { hasAccess } = await hasAccessToProfile(userId, folder.profileId);
     
+    console.log("[PATCH Vault Folder] Access check result:", { 
+      userId, 
+      profileId: folder.profileId, 
+      hasAccess 
+    });
+    
     if (!hasAccess) {
+      console.log("[PATCH Vault Folder] Access denied - user does not have access to profile");
       return NextResponse.json(
-        { error: "Access denied to this folder" },
+        { error: "Access denied to this folder. You must be the owner or a member of the profile's organization." },
         { status: 403 }
       );
     }
@@ -215,6 +256,8 @@ export async function DELETE(
 
     const { id } = await params;
 
+    console.log("[DELETE Vault Folder] Attempting to delete folder:", id, "by user:", userId);
+
     // Get the folder to check permissions
     const folder = await prisma.vaultFolder.findUnique({
       where: { id },
@@ -227,11 +270,20 @@ export async function DELETE(
     });
 
     if (!folder) {
+      console.log("[DELETE Vault Folder] Folder not found:", id);
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
+    console.log("[DELETE Vault Folder] Found folder:", { 
+      id: folder.id, 
+      profileId: folder.profileId, 
+      clerkId: folder.clerkId, 
+      isDefault: folder.isDefault 
+    });
+
     // Prevent deleting default folder
     if (folder.isDefault) {
+      console.log("[DELETE Vault Folder] Attempted to delete default folder");
       return NextResponse.json(
         { error: "Cannot delete default folder" },
         { status: 400 }
@@ -241,9 +293,16 @@ export async function DELETE(
     // Check if user has access to the profile this folder belongs to
     const { hasAccess } = await hasAccessToProfile(userId, folder.profileId);
     
+    console.log("[DELETE Vault Folder] Access check result:", { 
+      userId, 
+      profileId: folder.profileId, 
+      hasAccess 
+    });
+    
     if (!hasAccess) {
+      console.log("[DELETE Vault Folder] Access denied - user does not have access to profile");
       return NextResponse.json(
-        { error: "Access denied to this folder" },
+        { error: "Access denied to this folder. You must be the owner or a member of the profile's organization." },
         { status: 403 }
       );
     }

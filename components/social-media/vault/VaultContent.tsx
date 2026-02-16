@@ -3,21 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
-import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
-import {
-  useVaultFolders,
-  useVaultItems,
-  useSharedFolders,
-  useCreateFolder,
-  useUpdateFolder,
-  useDeleteFolder,
-  useDeleteItems,
-  useInvalidateVaultCache,
-} from "@/hooks/useVaultData";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -29,7 +16,10 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Optimized image component with Next.js Image
+// Constants for pagination
+const ITEMS_PER_PAGE = 50;
+
+// Lazy loading image component with intersection observer
 const LazyImage = memo(function LazyImage({
   src,
   alt,
@@ -39,35 +29,45 @@ const LazyImage = memo(function LazyImage({
   src: string;
   alt: string;
   className?: string;
-  onError?: () => void;
+  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!imgRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" },
+    );
+
+    observer.observe(imgRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className={`${className} relative`}>
-      {!error ? (
-        <Image
+    <div ref={imgRef} className={className}>
+      {isInView ? (
+        <img
           src={src}
           alt={alt}
-          fill
-          className={`object-cover transition-opacity duration-300 ${isLoaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? "opacity-100" : "opacity-0"}`}
           onLoad={() => setIsLoaded(true)}
-          onError={() => {
-            setError(true);
-            onError?.();
-          }}
-          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-          quality={75}
+          onError={onError}
           loading="lazy"
-          unoptimized={src.includes('blob:') || src.includes('data:')}
+          decoding="async"
         />
       ) : (
-        <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-          <ImageIcon className="w-8 h-8 text-zinc-400" />
-        </div>
+        <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
       )}
-      {!isLoaded && !error && (
+      {isInView && !isLoaded && (
         <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
       )}
     </div>
@@ -485,6 +485,13 @@ const VaultGridItem = memo(function VaultGridItem({
               src={item.awsS3Url}
               alt={item.fileName}
               className="w-full h-full rounded-lg bg-zinc-100 dark:bg-zinc-800 relative overflow-hidden"
+              onError={(e) => {
+                const img = e.currentTarget as HTMLImageElement;
+                if (!img.dataset.retried) {
+                  img.dataset.retried = "true";
+                  img.src = item.awsS3Url + "?t=" + Date.now();
+                }
+              }}
             />
           ) : item.fileType.startsWith("video/") ? (
             <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden">
@@ -658,6 +665,13 @@ const VaultListItem = memo(function VaultListItem({
             src={item.awsS3Url}
             alt={item.fileName}
             className="w-full h-full relative"
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              if (!img.dataset.retried) {
+                img.dataset.retried = "true";
+                img.src = item.awsS3Url + "?t=" + Date.now();
+              }
+            }}
           />
         ) : item.fileType.startsWith("video/") ? (
           <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-800">
@@ -759,6 +773,11 @@ interface FolderTreeItemProps {
     parentId: string | null;
     profileId: string;
   } | null>;
+  getRecursiveItemCount: (
+    folderId: string,
+    folderList: VaultFolder[],
+    items: VaultItem[],
+  ) => number;
 }
 
 const FolderTreeItem = memo(function FolderTreeItem({
@@ -784,6 +803,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
   onCreateSubfolder,
   onMoveFolder,
   onReorderFolder,
+  getRecursiveItemCount,
   onContextMenu,
   onDropFolder,
   folderSelectionMode,
@@ -963,7 +983,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
 
   const itemCount = folder.isDefault
     ? vaultItems.filter((item) => item.profileId === folder.profileId).length
-    : vaultItems.filter((item) => item.folderId === folder.id).length;
+    : getRecursiveItemCount(folder.id, allFolders, vaultItems);
 
   const handleClick = () => {
     onSelectFolder(folder.id);
@@ -1159,6 +1179,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
               setSelectedSharedFolder={setSelectedSharedFolder}
               setSharedFolderItems={setSharedFolderItems}
               draggedFolderRef={draggedFolderRef}
+              getRecursiveItemCount={getRecursiveItemCount}
             />
           ))}
         </div>
@@ -1225,17 +1246,9 @@ export function VaultContent() {
     [globalProfiles],
   );
 
-  // TanStack Query hooks for folders (replaces manual fetching)
-  const foldersQuery = useVaultFolders(selectedProfileId, tenant);
-  const allFoldersQuery = useVaultFolders('all', tenant);
-  
-  // Derived state from queries
-  const folders = foldersQuery.data || [];
-  const allFolders = allFoldersQuery.data || [];
-  
+  const [folders, setFolders] = useState<VaultFolder[]>([]);
+  const [allFolders, setAllFolders] = useState<VaultFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  const [selectedSharedFolder, setSelectedSharedFolder] =
-    useState<SharedVaultFolder | null>(null);
   const [folderNameInput, setFolderNameInput] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
@@ -1282,17 +1295,7 @@ export function VaultContent() {
     profileId: string;
   } | null>(null);
 
-  // TanStack Query hook for vault items (replaces manual fetching)
-  const vaultItemsQuery = useVaultItems(
-    selectedProfileId,
-    selectedFolderId,
-    tenant,
-    selectedSharedFolder?.folderId
-  );
-  
-  // Derived state from query
-  const vaultItems = vaultItemsQuery.data || [];
-  const loadingItems = vaultItemsQuery.isLoading;
+  const [vaultItems, setVaultItems] = useState<VaultItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [contentFilter, setContentFilter] = useState<
     "all" | "photos" | "videos" | "audio" | "gifs"
@@ -1309,27 +1312,17 @@ export function VaultContent() {
   const [isCopyMode, setIsCopyMode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  // loadingItems is now derived from vaultItemsQuery.isLoading above
+  const [loadingItems, setLoadingItems] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // TanStack Query hook for shared folders (replaces manual fetching)
-  const sharedFoldersQuery = useSharedFolders();
-  
-  // Derived state from query
-  const sharedFolders = sharedFoldersQuery.data || [];
-  const loadingSharedFolders = sharedFoldersQuery.isLoading;
-  
-  // TanStack Query mutation hooks
-  const createFolderMutation = useCreateFolder();
-  const updateFolderMutation = useUpdateFolder();
-  const deleteFolderMutation = useDeleteFolder();
-  const deleteItemsMutation = useDeleteItems();
-  const invalidateCache = useInvalidateVaultCache();
-  
+  const [sharedFolders, setSharedFolders] = useState<SharedVaultFolder[]>([]);
+  const [loadingSharedFolders, setLoadingSharedFolders] = useState(false);
+  const [selectedSharedFolder, setSelectedSharedFolder] =
+    useState<SharedVaultFolder | null>(null);
   const [sharedFolderItems, setSharedFolderItems] = useState<VaultItem[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [folderToShare, setFolderToShare] = useState<VaultFolder | null>(null);
@@ -1344,6 +1337,7 @@ export function VaultContent() {
   const [shareNote, setShareNote] = useState("");
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
@@ -1501,6 +1495,17 @@ export function VaultContent() {
 
   // Debounce search for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Reset display count when folder or filter changes
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE);
+  }, [
+    selectedFolderId,
+    selectedSharedFolder,
+    contentFilter,
+    debouncedSearchQuery,
+  ]);
+
   // Clear selection when changing folders
   useEffect(() => {
     setSelectedItems(new Set());
@@ -1778,12 +1783,12 @@ export function VaultContent() {
 
   const toggleSelectAll = () => {
     if (
-      selectedItems.size === currentFilteredItems.length &&
-      currentFilteredItems.length > 0
+      selectedItems.size === filteredItems.length &&
+      filteredItems.length > 0
     ) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(currentFilteredItems.map((item) => item.id)));
+      setSelectedItems(new Set(filteredItems.map((item) => item.id)));
     }
   };
 
@@ -1796,20 +1801,73 @@ export function VaultContent() {
 
     setIsDeleting(true);
     try {
-      await deleteItemsMutation.mutateAsync(Array.from(selectedItems));
-      
-      // Clear local state for shared folder items if applicable
-      if (selectedSharedFolder) {
-        setSharedFolderItems(
-          sharedFolderItems.filter((item) => !selectedItems.has(item.id)),
+      const deletePromises = Array.from(selectedItems).map(async (id) => {
+        const response = await fetch(`/api/vault/items/${id}`, {
+          method: "DELETE",
+        });
+        return { id, success: response.ok, status: response.status, response };
+      });
+
+      const results = await Promise.all(deletePromises);
+
+      // Separate successful and failed deletions
+      const successfulDeletes = results
+        .filter((r) => r.success)
+        .map((r) => r.id);
+      const failedDeletes = results.filter((r) => !r.success);
+
+      // Log detailed error information for debugging
+      if (failedDeletes.length > 0) {
+        console.error("Failed deletions:", failedDeletes);
+        for (const failed of failedDeletes) {
+          try {
+            const errorData = await failed.response.json();
+            console.error(`Failed to delete item ${failed.id}:`, {
+              status: failed.status,
+              error: errorData.error,
+            });
+          } catch (e) {
+            console.error(
+              `Failed to delete item ${failed.id}: Status ${failed.status}`,
+            );
+          }
+        }
+      }
+
+      // Remove only successfully deleted items from UI
+      if (successfulDeletes.length > 0) {
+        if (selectedSharedFolder) {
+          setSharedFolderItems(
+            sharedFolderItems.filter(
+              (item) => !successfulDeletes.includes(item.id),
+            ),
+          );
+        } else {
+          setVaultItems(
+            vaultItems.filter((item) => !successfulDeletes.includes(item.id)),
+          );
+        }
+      }
+
+      setSelectedItems(new Set());
+
+      // Show appropriate message based on results
+      if (failedDeletes.length === 0) {
+        showToast(`Deleted ${successfulDeletes.length} file(s)`, "success");
+      } else if (successfulDeletes.length === 0) {
+        showToast(
+          `Failed to delete all ${failedDeletes.length} file(s). You may not have permission.`,
+          "error",
+        );
+      } else {
+        showToast(
+          `Deleted ${successfulDeletes.length} file(s). Failed to delete ${failedDeletes.length} file(s) - you may not have permission.`,
+          "error",
         );
       }
-      
-      setSelectedItems(new Set());
-      showToast(`Deleted ${selectedItems.size} file(s)`, "success");
     } catch (error) {
       console.error("Error deleting items:", error);
-      showToast("Failed to delete some files", "error");
+      showToast("Failed to delete files", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -1965,7 +2023,6 @@ export function VaultContent() {
         setContentCreatorItems(
           (data.items || []).map((item: any) => ({
             ...item,
-            awsS3Url: convertS3ToCdnUrl(item.awsS3Url),
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.updatedAt),
           })),
@@ -2036,55 +2093,205 @@ export function VaultContent() {
   }, [selectedProfileId]);
 
   useEffect(() => {
-    // When profile changes, reset folder selection
-    // Folders are automatically loaded by TanStack Query based on selectedProfileId
-    if (selectedProfileId) {
-      setSelectedFolderId(null);
-      setSelectedSharedFolder(null);
-      setSharedFolderItems([]);
+    if (selectedProfileId === "all") {
+      // When viewing all profiles, load all folders
+      loadAllFolders();
+    } else if (selectedProfileId) {
+      loadFolders();
     }
   }, [selectedProfileId]);
 
-  // Auto-select first folder when folders load
   useEffect(() => {
-    if (folders.length > 0 && !selectedFolderId && selectedProfileId && selectedProfileId !== 'all') {
-      setSelectedFolderId(folders[0].id);
+    loadSharedFolders();
+  }, []);
+
+  useEffect(() => {
+    if (profiles.length > 0) {
+      loadAllFolders();
     }
-  }, [folders, selectedFolderId, selectedProfileId]);
+  }, [profiles]);
 
-  // Removed loadSharedFolders() call - shared folders are now loaded automatically by TanStack Query
-  // Removed loadAllFolders() call - all folders are now loaded automatically by TanStack Query
+  useEffect(() => {
+    if (
+      selectedProfileId === "all" ||
+      (selectedFolderId && selectedProfileId)
+    ) {
+      loadItems();
+    }
+  }, [selectedFolderId, selectedProfileId, folders]);
 
-  // Create default folder using mutation
+  const loadFolders = async () => {
+    if (!selectedProfileId || selectedProfileId === "all") return;
+
+    try {
+      const url = tenant
+        ? `/api/vault/folders?profileId=${selectedProfileId}&organizationSlug=${tenant}`
+        : `/api/vault/folders?profileId=${selectedProfileId}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load folders");
+
+      const data = await response.json();
+      setFolders(data);
+
+      if (data.length === 0) {
+        await createDefaultFolder();
+      } else if (
+        !selectedFolderId ||
+        !data.some((f: VaultFolder) => f.id === selectedFolderId)
+      ) {
+        setSelectedFolderId(data[0].id);
+      }
+    } catch (error) {
+      console.error("Error loading folders:", error);
+    }
+  };
+
+  const loadAllFolders = async () => {
+    try {
+      // Pass profileId=all to get folders from all profiles including shared organization profiles
+      const url = tenant
+        ? `/api/vault/folders?profileId=all&organizationSlug=${tenant}`
+        : "/api/vault/folders?profileId=all";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load all folders");
+
+      const data = await response.json();
+      setAllFolders(data);
+      // When viewing all profiles, also set folders for display
+      if (selectedProfileId === "all") {
+        setFolders(data);
+      }
+    } catch (error) {
+      console.error("Error loading all folders:", error);
+    }
+  };
+
   const createDefaultFolder = async () => {
     if (!selectedProfileId) return;
 
     try {
-      const folder = await createFolderMutation.mutateAsync({
-        profileId: selectedProfileId,
-        name: "All Media",
-        isDefault: true,
-        organizationSlug: tenant,
+      const response = await fetch("/api/vault/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId: selectedProfileId,
+          name: "All Media",
+          isDefault: true,
+          organizationSlug: tenant,
+        }),
       });
+
+      if (!response.ok) throw new Error("Failed to create default folder");
+
+      const folder = await response.json();
+      setFolders([folder]);
+      setAllFolders((prev) => [...prev, folder]);
       setSelectedFolderId(folder.id);
     } catch (error) {
       console.error("Error creating default folder:", error);
-      showToast("Failed to create default folder", "error");
     }
   };
 
-  // Create default folder if no folders exist
-  useEffect(() => {
-    if (selectedProfileId && selectedProfileId !== 'all' && folders.length === 0 && !foldersQuery.isLoading) {
-      createDefaultFolder();
-    }
-  }, [selectedProfileId, folders.length, foldersQuery.isLoading]);
+  const loadItems = async () => {
+    // When viewing all profiles, we need either a selected folder or just load all items
+    if (selectedProfileId === "all") {
+      // Load all items across all profiles (including shared org profiles)
+      setLoadingItems(true);
+      try {
+        const url = tenant
+          ? `/api/vault/items?profileId=all&organizationSlug=${tenant}`
+          : "/api/vault/items?profileId=all";
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to load items");
 
-  // Load shared folder items (keeps local state for shared folder view)
+        const data = await response.json();
+        setVaultItems(
+          data.map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt),
+          })),
+        );
+      } catch (error) {
+        console.error("Error loading items:", error);
+      } finally {
+        setLoadingItems(false);
+      }
+      return;
+    }
+
+    if (!selectedFolderId || !selectedProfileId) return;
+
+    setLoadingItems(true);
+    try {
+      const url = tenant
+        ? `/api/vault/items?profileId=${selectedProfileId}&organizationSlug=${tenant}`
+        : `/api/vault/items?profileId=${selectedProfileId}`;
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load items");
+
+      const data = await response.json();
+      setVaultItems(
+        data.map((item: any) => ({
+          ...item,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+      );
+    } catch (error) {
+      console.error("Error loading items:", error);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
   const loadSharedFolderItems = async (sharedFolder: SharedVaultFolder) => {
+    setLoadingItems(true);
     setSelectedSharedFolder(sharedFolder);
     setSelectedFolderId(null);
-    // Items are automatically loaded by the vaultItemsQuery hook
+
+    try {
+      const response = await fetch(
+        `/api/vault/items?sharedFolderId=${sharedFolder.folderId}`,
+      );
+      if (!response.ok) throw new Error("Failed to load shared folder items");
+
+      const data = await response.json();
+      setSharedFolderItems(
+        data.map((item: any) => ({
+          ...item,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+      );
+    } catch (error) {
+      console.error("Error loading shared folder items:", error);
+      showToast("Failed to load shared folder items", "error");
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const loadSharedFolders = async () => {
+    setLoadingSharedFolders(true);
+    try {
+      const response = await fetch("/api/vault/folders/shared");
+      if (!response.ok) throw new Error("Failed to load shared folders");
+
+      const data = await response.json();
+      setSharedFolders(
+        data.shares.map((share: any) => ({
+          ...share,
+          createdAt: new Date(share.createdAt),
+          updatedAt: new Date(share.updatedAt),
+        })),
+      );
+    } catch (error) {
+      console.error("Error loading shared folders:", error);
+    } finally {
+      setLoadingSharedFolders(false);
+    }
   };
 
   // ==================== Google Drive Functions ====================
@@ -2324,7 +2531,7 @@ export function VaultContent() {
       }
 
       // Reload vault items
-      invalidateCache.invalidateItems();
+      loadItems();
 
       setGoogleDriveImportSuccess({ itemCount: data.itemCount });
       showToast(
@@ -2425,8 +2632,7 @@ export function VaultContent() {
       setShareNote("");
       setSharePermission("VIEW");
       await loadCurrentShares(folderToShare.id);
-      // Invalidate folders cache to refresh share indicators
-      invalidateCache.invalidateFolders(selectedProfileId || undefined, tenant);
+      loadFolders();
     } catch (error) {
       console.error("Error sharing folder:", error);
       showToast("Failed to share folder", "error");
@@ -2455,8 +2661,7 @@ export function VaultContent() {
 
       showToast(`Removed access for ${displayName}`, "success");
       await loadCurrentShares(folderToShare.id);
-      // Invalidate folders cache to refresh share indicators
-      invalidateCache.invalidateFolders(selectedProfileId || undefined, tenant);
+      loadFolders();
     } catch (error) {
       console.error("Error removing share:", error);
       showToast("Failed to remove share", "error");
@@ -2467,11 +2672,22 @@ export function VaultContent() {
     if (!selectedProfileId || !folderNameInput.trim()) return;
 
     try {
-      const newFolder = await createFolderMutation.mutateAsync({
-        profileId: selectedProfileId,
-        name: folderNameInput.trim(),
-        organizationSlug: tenant,
+      const response = await fetch("/api/vault/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId: selectedProfileId,
+          name: folderNameInput.trim(),
+          parentId: parentFolderForNew,
+          organizationSlug: tenant,
+        }),
       });
+
+      if (!response.ok) throw new Error("Failed to create folder");
+
+      const newFolder = await response.json();
+      setFolders([...folders, newFolder]);
+      setAllFolders([...allFolders, newFolder]);
 
       // If creating a subfolder, expand the parent
       if (parentFolderForNew) {
@@ -2524,6 +2740,24 @@ export function VaultContent() {
       return descendants;
     },
     [],
+  );
+
+  // Helper function to count items in a folder and all its descendants
+  const getRecursiveItemCount = useCallback(
+    (
+      folderId: string,
+      folderList: VaultFolder[],
+      items: VaultItem[],
+    ): number => {
+      // Get all descendant folder IDs
+      const descendantIds = getDescendantFolderIds(folderId, folderList);
+
+      // Count items in this folder + all descendant folders
+      return items.filter((item) => {
+        return item.folderId === folderId || descendantIds.has(item.folderId);
+      }).length;
+    },
+    [getDescendantFolderIds],
   );
 
   const startMoveFolder = useCallback((folder: VaultFolder) => {
@@ -2585,8 +2819,17 @@ export function VaultContent() {
           throw new Error(data.error || "Failed to move folder");
         }
 
-        // Update successful - invalidate cache to refresh
-        invalidateCache.invalidateFolders();
+        // Update local state
+        const updatedFolder = await response.json();
+        const updateFolderInList = (list: VaultFolder[]) =>
+          list.map((f) =>
+            f.id === sourceFolderId
+              ? { ...f, parentId: destinationFolderId }
+              : f,
+          );
+
+        setFolders(updateFolderInList);
+        setAllFolders(updateFolderInList);
 
         // Expand destination folder so user can see the moved folder
         if (destinationFolderId) {
@@ -2706,7 +2949,8 @@ export function VaultContent() {
             return update ? { ...f, order: update.order } : f;
           });
 
-        // Folders are managed by TanStack Query - changes will reflect automatically after API update
+        setFolders((prevFolders) => updateFoldersOrder(prevFolders));
+        setAllFolders((prevAllFolders) => updateFoldersOrder(prevAllFolders));
         showToast("Folder reordered", "success");
       } catch (error) {
         console.error("Error reordering folder:", error);
@@ -2744,9 +2988,11 @@ export function VaultContent() {
         return;
 
       // Get all siblings (remove duplicates first)
-      const allFoldersMap = new Map([...folders, ...allFolders].map(f => [f.id, f]));
+      const allFoldersMap = new Map(
+        [...folders, ...allFolders].map((f) => [f.id, f]),
+      );
       const uniqueFolders = Array.from(allFoldersMap.values());
-      
+
       const siblings = uniqueFolders
         .filter(
           (f) =>
@@ -2785,15 +3031,32 @@ export function VaultContent() {
       }));
 
       // Validate that all folders in updatedOrders exist in our current state
-      const invalidFolders = updatedOrders.filter(u => !allFoldersMap.has(u.folderId));
+      const invalidFolders = updatedOrders.filter(
+        (u) => !allFoldersMap.has(u.folderId),
+      );
       if (invalidFolders.length > 0) {
-        console.error("Trying to update folders that don't exist in state:", invalidFolders);
+        console.error(
+          "Trying to update folders that don't exist in state:",
+          invalidFolders,
+        );
         return;
       }
 
       try {
-        // Call API to update order
-        console.log("Sending reorder request:", { folderOrders: updatedOrders });
+        // Optimistically update UI first for instant feedback
+        const updateFoldersOrder = (list: VaultFolder[]) =>
+          list.map((f) => {
+            const update = updatedOrders.find((u) => u.folderId === f.id);
+            return update ? { ...f, order: update.order } : f;
+          });
+
+        setFolders((prevFolders) => updateFoldersOrder(prevFolders));
+        setAllFolders((prevAllFolders) => updateFoldersOrder(prevAllFolders));
+
+        // Call API in background
+        console.log("Sending reorder request:", {
+          folderOrders: updatedOrders,
+        });
         const response = await fetch("/api/vault/folders/reorder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2806,12 +3069,11 @@ export function VaultContent() {
           console.error("Reorder API error:", errorText);
           throw new Error("Failed to reorder folders");
         }
-        // Folders managed by TanStack Query will update automatically
       } catch (error) {
         console.error("Error reordering folder:", error);
         showToast("Failed to save folder order", "error");
-        // Revert on error - invalidate cache to refetch
-        invalidateCache.invalidateFolders(selectedProfileId || undefined, tenant);
+        // Revert optimistic update on error
+        loadFolders();
       }
     },
     [folders, allFolders, showToast],
@@ -2908,8 +3170,22 @@ export function VaultContent() {
 
       const data = await response.json();
 
-      // Invalidate cache to refresh folders
-      invalidateCache.invalidateFolders();
+      // Update local state for successfully moved folders
+      const movedIds = new Set(
+        data.results
+          .filter((r: { folderId: string; success: boolean }) => r.success)
+          .map((r: { folderId: string }) => r.folderId),
+      );
+
+      const updateFolderParent = (list: VaultFolder[]) =>
+        list.map((f) =>
+          movedIds.has(f.id)
+            ? { ...f, parentId: bulkMoveFolderDestinationId }
+            : f,
+        );
+
+      setFolders(updateFolderParent);
+      setAllFolders(updateFolderParent);
 
       // Expand destination so user sees moved folders
       if (bulkMoveFolderDestinationId) {
@@ -2952,18 +3228,44 @@ export function VaultContent() {
     if (!editingFolderId || !editingFolderName.trim()) return;
 
     try {
-      await updateFolderMutation.mutateAsync({
-        folderId: editingFolderId,
-        name: editingFolderName.trim(),
-        organizationSlug: tenant,
+      const response = await fetch(`/api/vault/folders/${editingFolderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingFolderName.trim() }),
       });
 
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to update folder" }));
+        console.error(
+          "Folder update failed with status:",
+          response.status,
+          errorData,
+        );
+        throw new Error(errorData.error || "Failed to update folder");
+      }
+
+      setFolders((prev) =>
+        prev.map((folder) =>
+          folder.id === editingFolderId
+            ? { ...folder, name: editingFolderName.trim() }
+            : folder,
+        ),
+      );
+      setAllFolders((prev) =>
+        prev.map((folder) =>
+          folder.id === editingFolderId
+            ? { ...folder, name: editingFolderName.trim() }
+            : folder,
+        ),
+      );
       setEditingFolderId(null);
       setEditingFolderName("");
       showToast("Folder renamed", "success");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating folder:", error);
-      showToast("Failed to update folder", "error");
+      showToast(error.message || "Failed to update folder", "error");
     }
   };
 
@@ -2974,10 +3276,25 @@ export function VaultContent() {
     if (!confirm("Delete this folder and all its contents?")) return;
 
     try {
-      await deleteFolderMutation.mutateAsync({
-        folderId,
-        organizationSlug: tenant,
+      const response = await fetch(`/api/vault/folders/${folderId}`, {
+        method: "DELETE",
       });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to delete folder" }));
+        console.error(
+          "Folder deletion failed with status:",
+          response.status,
+          errorData,
+        );
+        throw new Error(errorData.error || "Failed to delete folder");
+      }
+
+      setFolders(folders.filter((f) => f.id !== folderId));
+      setAllFolders(allFolders.filter((f) => f.id !== folderId));
+      setVaultItems(vaultItems.filter((item) => item.folderId !== folderId));
 
       if (selectedFolderId === folderId) {
         const remaining = folders.filter(
@@ -2986,9 +3303,9 @@ export function VaultContent() {
         setSelectedFolderId(remaining[0]?.id || null);
       }
       showToast("Folder deleted", "success");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting folder:", error);
-      showToast("Failed to delete folder", "error");
+      showToast(error.message || "Failed to delete folder", "error");
     }
   };
 
@@ -3070,9 +3387,14 @@ export function VaultContent() {
 
       const uploadedItems = await Promise.all(uploadPromises);
 
-      // Invalidate cache to refresh items list
-      invalidateCache.invalidateItems(selectedProfileId, selectedFolderId, tenant);
-      
+      setVaultItems([
+        ...uploadedItems.map((item) => ({
+          ...item,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })),
+        ...vaultItems,
+      ]);
       setNewFiles([]);
       setIsAddingNew(false);
       setUploadProgress(0);
@@ -3088,12 +3410,24 @@ export function VaultContent() {
     if (!confirm("Delete this file?")) return;
 
     try {
-      await deleteItemsMutation.mutateAsync([id]);
+      const response = await fetch(`/api/vault/items/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to delete item" }));
+        console.error("Delete failed with status:", response.status, errorData);
+        throw new Error(errorData.error || "Failed to delete item");
+      }
 
       if (selectedSharedFolder) {
         setSharedFolderItems(
           sharedFolderItems.filter((item) => item.id !== id),
         );
+      } else {
+        setVaultItems(vaultItems.filter((item) => item.id !== id));
       }
       showToast("File deleted", "success");
     } catch (error: any) {
@@ -3647,61 +3981,17 @@ export function VaultContent() {
     return allFilteredItems;
   }, [isAdmin, adminViewMode, allFilteredCreatorItems, allFilteredItems]);
 
-  // Get grid template for responsive auto-fill
-  const getGridTemplate = useCallback(() => {
-    if (viewMode !== "grid") return "";
-    
-    switch (thumbnailSize) {
-      case "small":
-        return "repeat(auto-fill, minmax(min(140px, 100%), 1fr))";
-      case "large":
-        return "repeat(auto-fill, minmax(min(280px, 100%), 1fr))";
-      default: // medium
-        return "repeat(auto-fill, minmax(min(200px, 100%), 1fr))";
-    }
-  }, [viewMode, thumbnailSize]);
+  // Paginated items for display (still keeping some limit for initial render)
+  const filteredItems = useMemo(() => {
+    return currentFilteredItems.slice(0, displayCount);
+  }, [currentFilteredItems, displayCount]);
 
-  // Get gap size for grid
-  const getGapSize = useCallback(() => {
-    switch (thumbnailSize) {
-      case "small":
-        return "0.5rem"; // 8px
-      case "large":
-        return "1rem"; // 16px
-      default: // medium
-        return "0.75rem"; // 12px
-    }
-  }, [thumbnailSize]);
-
-  // Get estimated item height for virtualization
-  const getEstimatedItemHeight = useCallback(() => {
-    if (viewMode !== "grid") return 80; // list view height
-    
-    switch (thumbnailSize) {
-      case "small":
-        return 180; // small cards
-      case "large":
-        return 350; // large cards
-      default: // medium
-        return 250; // medium cards
-    }
-  }, [viewMode, thumbnailSize]);
-
-  // Virtualized list virtualizer (for list view only)
-  const rowVirtualizer = useVirtualizer({
-    count: currentFilteredItems.length,
-    getScrollElement: () => contentRef.current,
-    estimateSize: () => getEstimatedItemHeight(),
-    overscan: 5,
-    enabled: viewMode === "list",
-  });
-
-  // Wrapped select handler that includes currentFilteredItems for range selection
+  // Wrapped select handler that includes filteredItems for range selection
   const onSelectItem = useCallback(
     (id: string, e?: React.MouseEvent) => {
-      handleSelectItem(id, e, currentFilteredItems);
+      handleSelectItem(id, e, filteredItems);
     },
-    [handleSelectItem, currentFilteredItems],
+    [handleSelectItem, filteredItems],
   );
 
   // Keyboard shortcuts for selection
@@ -3730,6 +4020,25 @@ export function VaultContent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedItems.size, currentFilteredItems]);
+
+  const hasMoreItems = displayCount < currentFilteredItems.length;
+
+  const loadMoreItems = useCallback(() => {
+    setDisplayCount((prev) =>
+      Math.min(prev + ITEMS_PER_PAGE, currentFilteredItems.length),
+    );
+  }, [currentFilteredItems.length]);
+
+  // Infinite scroll handler
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreItems) {
+        loadMoreItems();
+      }
+    },
+    [hasMoreItems, loadMoreItems],
+  );
 
   // isAllProfiles comes from the useInstagramProfile hook
   const visibleFolders = isAllProfiles
@@ -4378,8 +4687,7 @@ export function VaultContent() {
                               `Copied ${itemsToProcess.length} item(s)`,
                               "success",
                             );
-                          // Invalidate cache to refresh items
-                          invalidateCache.invalidateItems();
+                          await loadItems();
                         } else {
                           const results = await Promise.all(
                             itemsToProcess.map(async (itemId) => {
@@ -4415,9 +4723,8 @@ export function VaultContent() {
                                 (item) => !selectedItems.has(item.id),
                               ),
                             );
-                          }
-                          // Invalidate cache to refresh items
-                          invalidateCache.invalidateItems();
+                            await loadItems();
+                          } else await loadItems();
                         }
                         setSelectedItems(new Set());
                         setShowMoveModal(false);
@@ -4824,17 +5131,17 @@ export function VaultContent() {
             >
               <X className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
             </button>
-            {currentFilteredItems.length > 1 && (
+            {filteredItems.length > 1 && (
               <>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const idx = currentFilteredItems.findIndex(
+                    const idx = filteredItems.findIndex(
                       (item) => item.id === previewItem.id,
                     );
                     setPreviewItem(
-                      currentFilteredItems[
-                        idx > 0 ? idx - 1 : currentFilteredItems.length - 1
+                      filteredItems[
+                        idx > 0 ? idx - 1 : filteredItems.length - 1
                       ],
                     );
                   }}
@@ -4845,12 +5152,12 @@ export function VaultContent() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const idx = currentFilteredItems.findIndex(
+                    const idx = filteredItems.findIndex(
                       (item) => item.id === previewItem.id,
                     );
                     setPreviewItem(
-                      currentFilteredItems[
-                        idx < currentFilteredItems.length - 1 ? idx + 1 : 0
+                      filteredItems[
+                        idx < filteredItems.length - 1 ? idx + 1 : 0
                       ],
                     );
                   }}
@@ -6028,6 +6335,9 @@ export function VaultContent() {
                                     }
                                     setSharedFolderItems={setSharedFolderItems}
                                     draggedFolderRef={draggedFolderRef}
+                                    getRecursiveItemCount={
+                                      getRecursiveItemCount
+                                    }
                                   />
                                 ))}
                               </div>
@@ -6099,6 +6409,7 @@ export function VaultContent() {
                             setSelectedSharedFolder={setSelectedSharedFolder}
                             setSharedFolderItems={setSharedFolderItems}
                             draggedFolderRef={draggedFolderRef}
+                            getRecursiveItemCount={getRecursiveItemCount}
                           />
                         ));
                       })()}
@@ -6541,13 +6852,13 @@ export function VaultContent() {
                       : selectedFolder?.name || "Select a folder"}
                 </h1>
                 {isAllProfiles && !selectedFolder && (
-                  <p className="text-xs xl:text-sm text-header-muted items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Users className="w-3.5 h-3.5" /> Viewing all{" "}
                     {profiles.length} profiles
                   </p>
                 )}
                 {isViewingShared && selectedSharedFolder && (
-                  <p className="text-xs xl:text-sm text-header-muted items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Share2 className="w-3.5 h-3.5" /> Shared by{" "}
                     {selectedSharedFolder.sharedBy}
                     {!canEdit && (
@@ -6556,7 +6867,7 @@ export function VaultContent() {
                   </p>
                 )}
                 {isViewingCreators && (
-                  <p className="text-xs xl:text-sm text-header-muted items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Crown className="w-3.5 h-3.5 text-amber-500" />
                     Content Creator Generations
                     <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full ml-2">
@@ -6687,7 +6998,7 @@ export function VaultContent() {
                   </button>
                 ))}
               </div>
-              {currentFilteredItems.length > 0 && (
+              {filteredItems.length > 0 && (
                 <button
                   onClick={() => {
                     if (selectionMode) {
@@ -6764,6 +7075,7 @@ export function VaultContent() {
 
           <div
             ref={contentRef}
+            onScroll={handleScroll}
             className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-white dark:bg-[#0a0a0f] rounded-br-2xl"
           >
             {/* Admin Creator View - Loading/Empty States */}
@@ -6902,7 +7214,7 @@ export function VaultContent() {
             ) : viewMode === "grid" ? (
               <>
                 {/* Selection header */}
-                {currentFilteredItems.length > 0 && selectionMode && (
+                {filteredItems.length > 0 && selectionMode && (
                   <div className="flex items-center justify-between mb-2 px-3 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl">
                     <div className="flex items-center gap-2">
                       <input
@@ -6925,16 +7237,9 @@ export function VaultContent() {
                     </span>
                   </div>
                 )}
-                {/* Responsive Grid (no virtualization for grid due to CSS auto-fill) */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: getGridTemplate(),
-                    gap: getGapSize(),
-                    width: '100%',
-                  }}
-                >
-                  {currentFilteredItems.map((item) => (
+                {/* Standard Grid with lazy loaded images */}
+                <div className={getGridClasses}>
+                  {filteredItems.map((item) => (
                     <VaultGridItem
                       key={item.id}
                       item={item}
@@ -6955,11 +7260,22 @@ export function VaultContent() {
                     />
                   ))}
                 </div>
+                {hasMoreItems && (
+                  <div className="flex justify-center mt-4 sm:mt-6">
+                    <button
+                      onClick={loadMoreItems}
+                      className="px-4 sm:px-6 py-2.5 sm:py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20"
+                    >
+                      <Loader2 className="w-4 h-4" /> Load more (
+                      {currentFilteredItems.length - filteredItems.length})
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <>
                 {/* Selection header for list view */}
-                {currentFilteredItems.length > 0 && selectionMode && (
+                {filteredItems.length > 0 && selectionMode && (
                   <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl mb-2">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <input
@@ -6982,50 +7298,38 @@ export function VaultContent() {
                     </span>
                   </div>
                 )}
-                {/* Virtualized List */}
-                <div
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const item = currentFilteredItems[virtualRow.index];
-                    
-                    return (
-                      <div
-                        key={virtualRow.key}
-                        data-index={virtualRow.index}
-                        ref={rowVirtualizer.measureElement}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          transform: `translateY(${virtualRow.start}px)`,
-                          paddingBottom: '8px',
-                        }}
-                      >
-                        <VaultListItem
-                          key={item.id}
-                          item={item}
-                          isSelected={selectedItems.has(item.id)}
-                          selectionMode={selectionMode}
-                          canEdit={canEdit && !isViewingCreators}
-                          onSelect={onSelectItem}
-                          onPreview={handlePreview}
-                          onDelete={handleDeleteItem}
-                          onDownload={handleDownloadSingleFile}
-                          formatFileSize={formatFileSize}
-                          favorites={favorites}
-                          toggleFavorite={toggleFavorite}
-                          showGeneratorInfo={isViewingCreators}
-                        />
-                      </div>
-                    );
-                  })}
+                {/* Standard List with lazy loaded images */}
+                <div className="space-y-2">
+                  {filteredItems.map((item) => (
+                    <VaultListItem
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedItems.has(item.id)}
+                      selectionMode={selectionMode}
+                      canEdit={canEdit && !isViewingCreators}
+                      onSelect={onSelectItem}
+                      onPreview={handlePreview}
+                      onDelete={handleDeleteItem}
+                      onDownload={handleDownloadSingleFile}
+                      formatFileSize={formatFileSize}
+                      favorites={favorites}
+                      toggleFavorite={toggleFavorite}
+                      showGeneratorInfo={isViewingCreators}
+                    />
+                  ))}
                 </div>
+                {hasMoreItems && (
+                  <div className="flex justify-center mt-6">
+                    <button
+                      onClick={loadMoreItems}
+                      className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20"
+                    >
+                      <Loader2 className="w-4 h-4" /> Load more (
+                      {currentFilteredItems.length - filteredItems.length}{" "}
+                      remaining)
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

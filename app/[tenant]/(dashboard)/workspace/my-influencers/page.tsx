@@ -33,6 +33,9 @@ import {
   Settings,
   Upload,
   CreditCard,
+  Pause,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -494,7 +497,11 @@ export default function MyInfluencersPage() {
 
   // Sort profiles
   const sortedProfiles = [...filteredProfiles].sort((a, b) => {
-    // Favorites always on top
+    // Default profiles always on top
+    if (a.isDefault && !b.isDefault) return -1;
+    if (!a.isDefault && b.isDefault) return 1;
+
+    // Then favorites
     if (a.isFavorite && !b.isFavorite) return -1;
     if (!a.isFavorite && b.isFavorite) return 1;
 
@@ -964,40 +971,51 @@ function ProfileCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute top-3 left-3 flex flex-wrap gap-2">
           {profile.isFavorite && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg">
-              <Star className="w-3 h-3 fill-current" />
-              Favorite
-            </span>
+            <div className="group/tooltip relative">
+              <div className="p-2 bg-yellow-500/90 backdrop-blur-sm rounded-lg shadow-lg">
+                <Star className="w-3.5 h-3.5 text-white fill-current" />
+              </div>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-black/90 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+                Favorite
+              </div>
+            </div>
           )}
           {profile.isDefault && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg">
-              <Star className="w-3 h-3" />
-              Default
-            </span>
-          )}
-          {!isOwn && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#5DC3F8]/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg">
-              <Share2 className="w-3 h-3" />
-              Shared
-            </span>
+            <div className="group/tooltip relative">
+              <div className="p-2 bg-amber-500/90 backdrop-blur-sm rounded-lg shadow-lg">
+                <Star className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-black/90 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+                Default
+              </div>
+            </div>
           )}
           {profile.organizationId && isOwn && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EC67A1]/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg">
-              <Building2 className="w-3 h-3" />
-              Org
+            <div className="group/tooltip relative">
+              <div className="p-2 bg-[#EC67A1]/90 backdrop-blur-sm rounded-lg shadow-lg">
+                <Building2 className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-black/90 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+                Shared with Org
+              </div>
+            </div>
+          )}
+          {/* Status Badge */}
+          {profile.status && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg capitalize ${
+                profile.status === "active"
+                  ? "bg-emerald-500/90"
+                  : profile.status === "paused"
+                    ? "bg-amber-500/90"
+                    : profile.status === "dropped"
+                      ? "bg-red-500/90"
+                      : "bg-gray-500/90"
+              }`}
+            >
+              {profile.status}
             </span>
           )}
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg ${
-              color === "emerald"
-                ? "bg-emerald-500/90"
-                : color === "amber"
-                  ? "bg-amber-500/90"
-                  : "bg-red-500/90"
-            }`}
-          >
-            {completeness.percentage}%
-          </span>
         </div>
         {canEdit && (
           <div className="absolute top-3 right-3" ref={menuRef}>
@@ -1096,39 +1114,6 @@ function ProfileCard({
               <Camera className="w-3.5 h-3.5" />
               {totalPosts} posts
             </span>
-            <span className="text-xs font-semibold text-sidebar-foreground">
-              {completeness.filledCount}/{completeness.totalSections} sections
-            </span>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-medium text-header-muted uppercase tracking-wider">
-                Profile Complete
-              </span>
-              <span
-                className={`text-[10px] font-bold ${
-                  color === "emerald"
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : color === "amber"
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {getCompletenessLabel(completeness.percentage)}
-              </span>
-            </div>
-            <div className="relative h-1.5 bg-zinc-100 dark:bg-[#1a1625]/70 rounded-full overflow-hidden border border-[#EC67A1]/10">
-              <div
-                className={`absolute left-0 top-0 h-full transition-all duration-500 rounded-full ${
-                  color === "emerald"
-                    ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
-                    : color === "amber"
-                      ? "bg-gradient-to-r from-amber-500 to-amber-600"
-                      : "bg-gradient-to-r from-red-500 to-red-600"
-                }`}
-                style={{ width: `${completeness.percentage}%` }}
-              />
-            </div>
           </div>
 
           {/* Tags */}

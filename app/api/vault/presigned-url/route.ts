@@ -26,28 +26,50 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{ 
     return { hasAccess: true, profile: ownProfile };
   }
 
-  // Check if it's a shared organization profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { currentOrganizationId: true },
+  // Get the profile to check if it belongs to an organization
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+    select: { 
+      id: true,
+      organizationId: true,
+      name: true,
+      clerkId: true,
+    },
   });
 
-  if (user?.currentOrganizationId) {
-    const orgProfile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        organizationId: user.currentOrganizationId,
-      },
-      include: {
-        user: {
-          select: { clerkId: true },
+  if (!profile?.organizationId) {
+    return { hasAccess: false, profile: null }; // Profile doesn't belong to an organization
+  }
+
+  // Check if user is a member of the organization that owns this profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { 
+      id: true,
+      currentOrganizationId: true,
+      teamMemberships: {
+        where: {
+          organizationId: profile.organizationId,
+        },
+        select: {
+          role: true,
         },
       },
-    });
+    },
+  });
 
-    if (orgProfile) {
-      return { hasAccess: true, profile: orgProfile };
-    }
+  if (!user) {
+    return { hasAccess: false, profile: null };
+  }
+
+  // User has access if they're a member of the organization
+  if (user.teamMemberships.length > 0) {
+    return { hasAccess: true, profile };
+  }
+
+  // Fallback: check if currentOrganizationId matches (for backward compatibility)
+  if (user.currentOrganizationId === profile.organizationId) {
+    return { hasAccess: true, profile };
   }
 
   return { hasAccess: false, profile: null };

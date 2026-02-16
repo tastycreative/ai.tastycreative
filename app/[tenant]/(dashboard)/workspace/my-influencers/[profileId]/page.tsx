@@ -40,6 +40,7 @@ import {
 import { useApiClient } from "@/lib/apiClient";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
+import { ModelCaptionBank } from "@/components/model-profile/ModelCaptionBank";
 
 interface InfluencerProfile {
   id: string;
@@ -89,7 +90,7 @@ interface InfluencerProfile {
   selectedContentTypes?: string[];
   customContentTypes?: string[];
   type?: "real" | "ai";
-  status?: "active" | "paused" | "pending";
+  status?: "active" | "paused" | "pending" | "dropped";
 }
 
 interface LinkedLoRA {
@@ -3129,7 +3130,7 @@ export default function ModelProfilePage() {
   };
 
   const handleStatusChange = async (
-    newStatus: "active" | "paused" | "pending",
+    newStatus: "active" | "paused" | "pending" | "dropped",
   ) => {
     if (!apiClient || !profile || savingStatus) return;
 
@@ -3870,14 +3871,18 @@ export default function ModelProfilePage() {
                           ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                           : (profile.status || "active") === "paused"
                             ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                            : "bg-gray-500/15 text-gray-400 border border-gray-500/30"
+                            : (profile.status || "active") === "dropped"
+                              ? "bg-red-500/15 text-red-400 border border-red-500/30"
+                              : "bg-gray-500/15 text-gray-400 border border-gray-500/30"
                       }`}
                     >
                       {(profile.status || "active") === "active"
                         ? "Active"
                         : (profile.status || "active") === "paused"
                           ? "Paused"
-                          : "Pending"}
+                          : (profile.status || "active") === "dropped"
+                            ? "Dropped"
+                            : "Pending"}
                       <ChevronDown
                         size={12}
                         className={`transition-transform ${showStatusDropdown ? "rotate-180" : ""}`}
@@ -3894,12 +3899,17 @@ export default function ModelProfilePage() {
                           },
                           { value: "paused", label: "Paused", color: "amber" },
                           { value: "pending", label: "Pending", color: "gray" },
+                          { value: "dropped", label: "Dropped", color: "red" },
                         ].map((status) => (
                           <button
                             key={status.value}
                             onClick={() =>
                               handleStatusChange(
-                                status.value as "active" | "paused" | "pending",
+                                status.value as
+                                  | "active"
+                                  | "paused"
+                                  | "pending"
+                                  | "dropped",
                               )
                             }
                             disabled={
@@ -3921,7 +3931,9 @@ export default function ModelProfilePage() {
                                   ? "bg-emerald-400"
                                   : status.color === "amber"
                                     ? "bg-amber-400"
-                                    : "bg-gray-400"
+                                    : status.color === "red"
+                                      ? "bg-red-400"
+                                      : "bg-gray-400"
                               }`}
                             />
                             {status.label}
@@ -4901,58 +4913,11 @@ export default function ModelProfilePage() {
             />
           )}
 
-          {activeTab === "captions" && (
-            <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-semibold mb-1">
-                    Captions for {profile.name}
-                  </h3>
-                  <p className="text-[13px] text-[#71717a]">
-                    Showing captions matching active content types
-                  </p>
-                </div>
-                <button className="px-4 py-2.5 bg-[#3b82f6] rounded-lg text-white text-[13px] hover:bg-[#2563eb] transition-colors">
-                  + Add Caption
-                </button>
-              </div>
-
-              <div className="py-10 bg-[#0c0c0f] rounded-lg text-center text-[#52525b]">
-                <MessageSquare size={32} className="mx-auto mb-3 opacity-50" />
-                <div className="text-sm mb-1">Caption Bank</div>
-                <div className="text-xs">
-                  Filtered by model's content types. Only shows relevant
-                  captions.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "gallery" && (
-            <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-semibold mb-1">
-                    Captions for {profile.name}
-                  </h3>
-                  <p className="text-[13px] text-[#71717a]">
-                    Showing captions matching active content types
-                  </p>
-                </div>
-                <button className="px-4 py-2.5 bg-[#3b82f6] rounded-lg text-white text-[13px] hover:bg-[#2563eb] transition-colors">
-                  + Add Caption
-                </button>
-              </div>
-
-              <div className="py-10 bg-[#0c0c0f] rounded-lg text-center text-[#52525b]">
-                <MessageSquare size={32} className="mx-auto mb-3 opacity-50" />
-                <div className="text-sm mb-1">Caption Bank</div>
-                <div className="text-xs">
-                  Filtered by model's content types. Only shows relevant
-                  captions.
-                </div>
-              </div>
-            </div>
+          {activeTab === "captions" && profile && (
+            <ModelCaptionBank
+              profileId={profileId}
+              profileName={profile.name}
+            />
           )}
 
           {activeTab === "gallery" && (
