@@ -373,18 +373,18 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
     const isStatusChange = updates.status === 'completed' || updates.status === 'failed';
     const shouldSyncToServer = isStatusChange;
 
-    if (shouldSyncToServer && updatedJob) {
+    if (shouldSyncToServer && updatedJob !== null) {
       try {
         const response = await fetch('/api/active-generations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             jobId: updatedJob.jobId,
-            generationType: updatedJob.generationType.toUpperCase().replace(/-/g, '_'),
+            generationType: updatedJob.generationType.toUpperCase().replace(/-/g, '_') as any,
             progress: updatedJob.progress,
             stage: updatedJob.stage,
             message: updatedJob.message,
-            status: updatedJob.status.toUpperCase(),
+            status: updatedJob.status.toUpperCase() as any,
             startedAt: updatedJob.startedAt,
             completedAt: updatedJob.completedAt,
             elapsedTime: updatedJob.elapsedTime,
