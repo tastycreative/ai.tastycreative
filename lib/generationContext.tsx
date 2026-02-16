@@ -348,7 +348,7 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const updateJob = useCallback(async (jobId: string, updates: Partial<GenerationJob>) => {
-    let updatedJob: GenerationJob | null = null;
+    let updatedJob: GenerationJob | undefined;
 
     // Update local state immediately (optimistic update)
     setActiveJobs(prev => {
@@ -373,7 +373,7 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
     const isStatusChange = updates.status === 'completed' || updates.status === 'failed';
     const shouldSyncToServer = isStatusChange;
 
-    if (shouldSyncToServer && updatedJob !== null) {
+    if (shouldSyncToServer && updatedJob) {
       try {
         const response = await fetch('/api/active-generations', {
           method: 'POST',
