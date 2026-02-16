@@ -210,7 +210,7 @@ export default function KlingMotionControl() {
   const { user } = useUser();
   const params = useParams();
   const tenant = params.tenant as string;
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
   const { canGenerate, storageError } = useCanGenerate();
@@ -591,28 +591,43 @@ export default function KlingMotionControl() {
   useEffect(() => {
     if (!mounted || isGenerating) return;
     
-    const lastCompletedJob = getLastCompletedJobForType('kling-motion-control');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+    // Get only the LATEST completed job to display in "Generated Videos" section
+    const latestJob = getLastCompletedJobForType('kling-motion-control');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedVideos(prev => {
         const existingIds = new Set(prev.map((video: any) => video.id));
-        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        const newResults = latestJob.results.filter((video: any) => !existingIds.has(video.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed Kling Motion Control:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest Kling Motion Control generation with ${newResults.length} new videos`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
-      
-      setGenerationHistory((prev: any) => {
-        const allVideos = [...lastCompletedJob.results, ...prev];
-        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
-          index === self.findIndex((v: any) => v.id === video.id)
-        ).slice(0, 20);
-        return uniqueHistory;
-      });
     }
-  }, [mounted, getLastCompletedJobForType, activeJobs]);
+    
+    // Update history with ALL completed jobs
+    const completedJobs = getCompletedJobsForType('kling-motion-control');
+    if (completedJobs.length > 0) {
+      const allResults: any[] = [];
+      for (const job of completedJobs) {
+        if (job.results && Array.isArray(job.results)) {
+          allResults.push(...job.results);
+        }
+      }
+      
+      if (allResults.length > 0) {
+        setGenerationHistory((prev: any) => {
+          const combinedVideos = [...allResults, ...prev];
+          const uniqueHistory = combinedVideos.filter((video: any, index: number, self: any[]) =>
+            index === self.findIndex((v: any) => v.id === video.id)
+          ).slice(0, 50);
+          return uniqueHistory;
+        });
+      }
+    }
+  }, [mounted, getLastCompletedJobForType, getCompletedJobsForType, activeJobs, isGenerating]);
 
   useEffect(() => {
     if (user && apiClient) {
@@ -1200,9 +1215,6 @@ export default function KlingMotionControl() {
       }
     }
 
-    // Clear previous completed jobs for this type
-    await clearCompletedJobsForType('kling-motion-control');
-    
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -1395,8 +1407,6 @@ export default function KlingMotionControl() {
 
   // Reset form
   const handleReset = async () => {
-    await clearCompletedJobsForType('kling-motion-control');
-    
     setPrompt("");
     setMode("std");
     setCharacterOrientation("image");

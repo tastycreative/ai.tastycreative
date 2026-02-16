@@ -49,6 +49,7 @@ interface GenerationContextType {
   clearCompletedJobsForType: (generationType: GenerationJob['generationType']) => Promise<void>;
   hasActiveGenerationForType: (generationType: GenerationJob['generationType']) => boolean;
   getLastCompletedJobForType: (generationType: GenerationJob['generationType']) => GenerationJob | null;
+  getCompletedJobsForType: (generationType: GenerationJob['generationType']) => GenerationJob[]; // 🆕 Get ALL completed jobs
 }
 
 const GenerationContext = createContext<GenerationContextType | undefined>(undefined);
@@ -69,119 +70,183 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
   const [activeJobs, setActiveJobs] = useState<GenerationJob[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Hydrate activeJobs from database on mount
+  // 🔥 SSE connection for real-time updates (replaces polling)
   useEffect(() => {
-    const fetchJobs = async () => {
+    console.log('📡 Establishing SSE connection for real-time updates...');
+    
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isUnmounted = false;
+
+    const connect = () => {
+      if (isUnmounted) return;
+
       try {
-        const response = await fetch('/api/active-generations');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.jobs && Array.isArray(data.jobs)) {
-            // Convert database format to local format
-            const jobs: GenerationJob[] = data.jobs.map((job: any) => ({
-              jobId: job.jobId,
-              generationType: job.generationType.toLowerCase().replace(/_/g, '-') as GenerationJob['generationType'],
-              progress: job.progress,
-              stage: job.stage,
-              message: job.message,
-              status: job.status.toLowerCase() as GenerationJob['status'],
-              startedAt: new Date(job.startedAt).getTime(),
-              completedAt: job.completedAt ? new Date(job.completedAt).getTime() : undefined,
-              elapsedTime: job.elapsedTime,
-              estimatedTimeRemaining: job.estimatedTimeRemaining,
-              metadata: job.metadata,
-              results: job.results,
-              error: job.error,
-            }));
+        eventSource = new EventSource('/api/active-generations/stream');
+
+        eventSource.onopen = () => {
+          console.log('📡 SSE connection established');
+        };
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
             
-            // Check for stale jobs (pending/processing for more than 10 minutes)
-            const now = Date.now();
-            const staleThreshold = 10 * 60 * 1000; // 10 minutes
-            
-            const updatedJobs = jobs.map(job => {
-              if ((job.status === 'pending' || job.status === 'processing')) {
-                const age = now - job.startedAt;
-                if (age > staleThreshold) {
-                  // Mark as failed due to timeout/stale state
-                  return {
-                    ...job,
-                    status: 'failed' as const,
-                    message: 'Generation timed out or was interrupted',
-                    error: 'Job exceeded maximum processing time or was interrupted by page refresh',
-                    completedAt: now,
-                  };
+            switch (data.type) {
+              case 'connected':
+                console.log('📡 SSE:', data.message);
+                break;
+
+              case 'initial':
+                // Initial state from server
+                if (data.jobs && Array.isArray(data.jobs)) {
+                  const jobs: GenerationJob[] = data.jobs.map((job: any) => ({
+                    jobId: job.jobId,
+                    generationType: job.generationType.toLowerCase().replace(/_/g, '-') as GenerationJob['generationType'],
+                    progress: job.progress,
+                    stage: job.stage,
+                    message: job.message,
+                    status: job.status.toLowerCase() as GenerationJob['status'],
+                    startedAt: new Date(job.startedAt).getTime(),
+                    completedAt: job.completedAt ? new Date(job.completedAt).getTime() : undefined,
+                    elapsedTime: job.elapsedTime,
+                    estimatedTimeRemaining: job.estimatedTimeRemaining,
+                    metadata: job.metadata,
+                    results: job.results,
+                    error: job.error,
+                  }));
+                  
+                  setActiveJobs(jobs);
+                  setIsHydrated(true);
+                  console.log(`📡 Loaded ${jobs.length} initial jobs via SSE`);
                 }
-              }
-              return job;
-            });
-            
-            setActiveJobs(updatedJobs);
+                break;
+
+              case 'job-update':
+                // Real-time job update
+                if (data.job) {
+                  const job = data.job;
+                  const updatedJob: GenerationJob = {
+                    jobId: job.jobId,
+                    generationType: job.generationType.toLowerCase().replace(/_/g, '-') as GenerationJob['generationType'],
+                    progress: job.progress,
+                    stage: job.stage,
+                    message: job.message,
+                    status: job.status.toLowerCase() as GenerationJob['status'],
+                    startedAt: new Date(job.startedAt).getTime(),
+                    completedAt: job.completedAt ? new Date(job.completedAt).getTime() : undefined,
+                    elapsedTime: job.elapsedTime,
+                    estimatedTimeRemaining: job.estimatedTimeRemaining,
+                    metadata: job.metadata,
+                    results: job.results,
+                    error: job.error,
+                  };
+
+                  setActiveJobs(prev => {
+                    const existingIndex = prev.findIndex(j => j.jobId === updatedJob.jobId);
+                    if (existingIndex >= 0) {
+                      const updated = [...prev];
+                      updated[existingIndex] = updatedJob;
+                      return updated;
+                    } else {
+                      return [...prev, updatedJob];
+                    }
+                  });
+                }
+                break;
+
+              case 'job-deleted':
+                // Job deletion
+                if (data.jobId) {
+                  setActiveJobs(prev => prev.filter(j => j.jobId !== data.jobId));
+                  console.log(`📡 Job deleted: ${data.jobId}`);
+                }
+                break;
+
+              case 'jobs-cleared':
+                // Bulk job clearing
+                if (data.generationType) {
+                  setActiveJobs(prev => prev.filter(j => 
+                    !(j.generationType === data.generationType && (j.status === 'completed' || j.status === 'failed'))
+                  ));
+                  console.log(`📡 Cleared ${data.count} completed jobs for ${data.generationType}`);
+                } else {
+                  setActiveJobs(prev => prev.filter(j => j.status === 'pending' || j.status === 'processing'));
+                  console.log(`📡 Cleared ${data.count} completed jobs`);
+                }
+                break;
+            }
+          } catch (error) {
+            console.error('Failed to parse SSE message:', error);
           }
-        }
+        };
+
+        eventSource.onerror = (error) => {
+          console.error('📡 SSE connection error:', error);
+          eventSource?.close();
+          
+          // Reconnect after 3 seconds
+          if (!isUnmounted) {
+            console.log('📡 Reconnecting in 3 seconds...');
+            reconnectTimeout = setTimeout(connect, 3000);
+          }
+        };
+
       } catch (error) {
-        console.error('Failed to fetch active generations:', error);
-      } finally {
-        setIsHydrated(true);
+        console.error('Failed to establish SSE connection:', error);
+        if (!isUnmounted) {
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
       }
     };
 
-    fetchJobs();
+    // Initial connection
+    connect();
+
+    // Cleanup on unmount
+    return () => {
+      isUnmounted = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      console.log('📡 SSE connection closed');
+    };
   }, []);
 
-  // Debounced save to database
-  useEffect(() => {
-    if (!isHydrated) return;
+  // ❌ REMOVED: Debounced save to database (SSE handles sync now)
+  // ❌ REMOVED: Polling via useEffect (SSE replaces this)
 
-    // Debounce to avoid excessive API calls
-    const timeoutId = setTimeout(async () => {
-      // Save each job that has been modified
-      for (const job of activeJobs) {
-        try {
-          await fetch('/api/active-generations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jobId: job.jobId,
-              generationType: job.generationType.toUpperCase().replace(/-/g, '_'),
-              progress: job.progress,
-              stage: job.stage,
-              message: job.message,
-              status: job.status.toUpperCase(),
-              startedAt: job.startedAt,
-              completedAt: job.completedAt,
-              elapsedTime: job.elapsedTime,
-              estimatedTimeRemaining: job.estimatedTimeRemaining,
-              metadata: job.metadata,
-              results: job.results,
-              error: job.error,
-            }),
-          });
-        } catch (error) {
-          console.error('Failed to save generation job:', job.jobId, error);
-        }
-      }
-    }, 500); // 500ms debounce
+  // ❌ REMOVED: Debounced save to database (SSE handles sync now)
+  // ❌ REMOVED: Polling via useEffect (SSE replaces this)
 
-    return () => clearTimeout(timeoutId);
-  }, [activeJobs, isHydrated]);
-
-  // Update elapsed time for active jobs every second
+  // ✅ KEPT: Update elapsed time for active jobs locally (client-side only, not saved)
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveJobs(prev => {
         const now = Date.now();
-        return prev.map(job => {
+        let hasChanges = false;
+        
+        const updated = prev.map(job => {
           if (job.status === 'processing' || job.status === 'pending') {
             const elapsedTime = Math.floor((now - job.startedAt) / 1000);
-            return { ...job, elapsedTime };
+            if (elapsedTime !== job.elapsedTime) {
+              hasChanges = true;
+              return { ...job, elapsedTime };
+            }
           }
           // For completed/failed jobs without elapsedTime, calculate it from timestamps
           if ((job.status === 'completed' || job.status === 'failed') && !job.elapsedTime && job.completedAt) {
             const elapsedTime = Math.floor((job.completedAt - job.startedAt) / 1000);
+            hasChanges = true;
             return { ...job, elapsedTime };
           }
           return job;
         });
+
+        return hasChanges ? updated : prev; // Only update if something changed
       });
     }, 1000);
 
@@ -246,45 +311,158 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
     setGlobalProgress(initialProgress);
   }, []);
 
-  const addJob = useCallback((job: GenerationJob) => {
+  const addJob = useCallback(async (job: GenerationJob) => {
+    // Update local state immediately (optimistic update)
     setActiveJobs(prev => {
-      // Check if job already exists
       const exists = prev.some(j => j.jobId === job.jobId);
       if (exists) {
-        // Update existing job
         return prev.map(j => j.jobId === job.jobId ? job : j);
       }
-      // Add new job
       return [...prev, job];
     });
+
+    // 🔥 Sync to server (will broadcast via SSE to all clients)
+    try {
+      await fetch('/api/active-generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job.jobId,
+          generationType: job.generationType.toUpperCase().replace(/-/g, '_'),
+          progress: job.progress,
+          stage: job.stage,
+          message: job.message,
+          status: job.status.toUpperCase(),
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+          elapsedTime: job.elapsedTime,
+          estimatedTimeRemaining: job.estimatedTimeRemaining,
+          metadata: job.metadata,
+          results: job.results,
+          error: job.error,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to sync job to server:', job.jobId, error);
+    }
   }, []);
 
-  const updateJob = useCallback((jobId: string, updates: Partial<GenerationJob>) => {
+  const updateJob = useCallback(async (jobId: string, updates: Partial<GenerationJob>) => {
+    let updatedJob: GenerationJob | null = null;
+
+    // Update local state immediately (optimistic update)
     setActiveJobs(prev => {
       return prev.map(job => {
         if (job.jobId === jobId) {
-          const updatedJob = { ...job, ...updates };
+          const updated = { ...job, ...updates };
           // Auto-set completedAt if status changes to completed or failed
-          if ((updates.status === 'completed' || updates.status === 'failed') && !updatedJob.completedAt) {
-            updatedJob.completedAt = Date.now();
-            // Calculate final elapsed time
-            updatedJob.elapsedTime = Math.floor((updatedJob.completedAt - job.startedAt) / 1000);
+          if ((updates.status === 'completed' || updates.status === 'failed') && !updated.completedAt) {
+            updated.completedAt = Date.now();
+            updated.elapsedTime = Math.floor((updated.completedAt - job.startedAt) / 1000);
           }
-          return updatedJob;
+          updatedJob = updated;
+          return updated;
         }
         return job;
       });
     });
+
+    // 🔥 Sync to server ONLY when status changes (completed/failed) or on first creation
+    // Progress-only updates (progress/stage/message without status change) stay local-only
+    // to prevent race conditions where a late-arriving progress update overwrites a completion
+    const isStatusChange = updates.status === 'completed' || updates.status === 'failed';
+    const shouldSyncToServer = isStatusChange;
+
+    if (shouldSyncToServer && updatedJob) {
+      try {
+        const response = await fetch('/api/active-generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId: updatedJob.jobId,
+            generationType: updatedJob.generationType.toUpperCase().replace(/-/g, '_'),
+            progress: updatedJob.progress,
+            stage: updatedJob.stage,
+            message: updatedJob.message,
+            status: updatedJob.status.toUpperCase(),
+            startedAt: updatedJob.startedAt,
+            completedAt: updatedJob.completedAt,
+            elapsedTime: updatedJob.elapsedTime,
+            estimatedTimeRemaining: updatedJob.estimatedTimeRemaining,
+            metadata: updatedJob.metadata,
+            results: updatedJob.results,
+            error: updatedJob.error,
+          }),
+        });
+        if (!response.ok) {
+          console.error(`❌ Server rejected job update for ${jobId}: ${response.status}`);
+        } else {
+          console.log(`✅ Job ${jobId} synced to server with status: ${updatedJob.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to sync job update to server:', jobId, error);
+      }
+    } else if (isStatusChange && !updatedJob) {
+      // Critical: Job completed but wasn't in local state - still sync to server
+      console.warn(`⚠️ Job ${jobId} not found in local state but has completion status. Syncing directly to server...`);
+      try {
+        const response = await fetch('/api/active-generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId,
+            generationType: (updates as any).generationType?.toUpperCase().replace(/-/g, '_') || 'TEXT_TO_IMAGE',
+            status: updates.status!.toUpperCase(),
+            progress: updates.progress ?? 100,
+            stage: updates.stage ?? 'completed',
+            message: updates.message ?? 'Generation completed',
+            completedAt: Date.now(),
+            results: updates.results,
+            error: updates.error,
+          }),
+        });
+        if (!response.ok) {
+          console.error(`❌ Server rejected direct sync for ${jobId}: ${response.status}`);
+        } else {
+          console.log(`✅ Job ${jobId} completion synced directly to server`);
+        }
+      } catch (error) {
+        console.error('Failed to sync job completion to server:', jobId, error);
+      }
+    } else if (!shouldSyncToServer) {
+      // Progress-only update - local state only, no server sync
+      // This prevents race conditions with in-flight progress requests
+    }
   }, []);
 
-  const removeJob = useCallback((jobId: string) => {
+  const removeJob = useCallback(async (jobId: string) => {
+    // Update local state immediately (optimistic update)
     setActiveJobs(prev => prev.filter(job => job.jobId !== jobId));
+
+    // 🔥 Sync to server (will broadcast via SSE to all clients)
+    try {
+      await fetch(`/api/active-generations?jobId=${jobId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete job from server:', jobId, error);
+    }
   }, []);
 
-  const clearCompletedJobs = useCallback(() => {
+  const clearCompletedJobs = useCallback(async () => {
+    // Update local state immediately (optimistic update)
     setActiveJobs(prev => prev.filter(job => 
       job.status === 'pending' || job.status === 'processing'
     ));
+
+    // 🔥 Sync to server (will broadcast via SSE to all clients)
+    try {
+      await fetch('/api/active-generations?clearCompleted=true', {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to clear completed jobs from server:', error);
+    }
   }, []);
 
   const clearCompletedJobsForType = useCallback(async (generationType: GenerationJob['generationType']) => {
@@ -324,6 +502,17 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
     return completedJobs[0] || null;
   }, [activeJobs]);
 
+  // 🆕 Get ALL completed jobs for a specific type (for history display)
+  const getCompletedJobsForType = useCallback((generationType: GenerationJob['generationType']) => {
+    return activeJobs
+      .filter(job => 
+        job.generationType === generationType && 
+        job.status === 'completed' &&
+        job.results // Only return jobs that have results
+      )
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)); // Latest first
+  }, [activeJobs]);
+
   return (
     <GenerationContext.Provider value={{
       globalProgress,
@@ -337,6 +526,7 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
       clearCompletedJobsForType,
       hasActiveGenerationForType,
       getLastCompletedJobForType,
+      getCompletedJobsForType, // 🆕 Export new function
     }}>
       {children}
     </GenerationContext.Provider>

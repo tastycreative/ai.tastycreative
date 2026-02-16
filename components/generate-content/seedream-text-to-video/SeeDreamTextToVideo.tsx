@@ -106,7 +106,7 @@ export default function SeeDreamTextToVideo() {
   const { user } = useUser();
   const params = useParams();
   const tenant = params.tenant as string;
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
 
@@ -180,6 +180,22 @@ export default function SeeDreamTextToVideo() {
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
   
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
   // Check for stale active jobs and try to complete them from history
   useEffect(() => {
     if (!mounted || !apiClient) return;
@@ -252,22 +268,22 @@ export default function SeeDreamTextToVideo() {
   useEffect(() => {
     if (!mounted || isGenerating) return; // Don't sync while actively generating
     
-    const lastCompletedJob = getLastCompletedJobForType('text-to-video');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
-      // Display the results if not already showing
+    // Get only the LATEST completed job to display in "Generated Videos" section
+    const latestJob = getLastCompletedJobForType('text-to-video');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedVideos(prev => {
-        // Check if we already have these results
         const existingIds = new Set(prev.map((video: any) => video.id));
-        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        const newResults = latestJob.results.filter((video: any) => !existingIds.has(video.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed T2V generation:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest T2V generation with ${newResults.length} new videos`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
     }
-  }, [mounted, getLastCompletedJobForType]);
+  }, [mounted, getLastCompletedJobForType, activeJobs, isGenerating]);
 
   // Check for reuse data from sessionStorage (from Vault)
   useEffect(() => {
@@ -417,22 +433,6 @@ export default function SeeDreamTextToVideo() {
     setPrompt(template.prompt);
     setShowTemplates(false);
   };
-
-  // Vault folder state - only for the selected profile
-  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
-  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
-
-  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
-  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pollingStatus, setPollingStatus] = useState("");
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const pauseAllPreviews = () => {
     const previewVideos = document.querySelectorAll<HTMLVideoElement>("video[data-role='preview']");
@@ -616,9 +616,6 @@ export default function SeeDreamTextToVideo() {
   };
 
   const handleGenerate = async () => {
-    // Clear any old completed jobs for this generation type
-    clearCompletedJobsForType('text-to-video');
-    
     if (!apiClient) {
       setError("API client not available");
       return;
@@ -784,9 +781,6 @@ export default function SeeDreamTextToVideo() {
   };
 
   const handleReset = () => {
-    // Clear any completed jobs for this generation type
-    clearCompletedJobsForType('text-to-video');
-    
     setPrompt("");
     setDuration(4);
     setDurationSliderValue(1);

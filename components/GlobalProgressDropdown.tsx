@@ -136,13 +136,35 @@ export function GlobalProgressDropdown() {
     return `${mins}m ${secs}s`;
   };
 
-  const activeProcessingJobs = activeJobs.filter(job => 
-    job.status === 'processing' || job.status === 'pending'
-  );
+  // Format date and time
+  const formatDateTime = (timestamp: number | undefined) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+    
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    } else if (isYesterday) {
+      return `Yesterday, ${timeStr}`;
+    } else {
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + `, ${timeStr}`;
+    }
+  };
+
+  // Sort and filter jobs - newest first
+  const activeProcessingJobs = activeJobs
+    .filter(job => job.status === 'processing' || job.status === 'pending')
+    .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
   
-  const completedJobs = activeJobs.filter(job => 
-    job.status === 'completed' || job.status === 'failed'
-  );
+  const completedJobs = activeJobs
+    .filter(job => job.status === 'completed' || job.status === 'failed')
+    .sort((a, b) => (b.completedAt || b.startedAt || 0) - (a.completedAt || a.startedAt || 0));
 
   const hasActiveJobs = activeProcessingJobs.length > 0;
   const hasAnyJobs = activeJobs.length > 0;
@@ -214,14 +236,27 @@ export function GlobalProgressDropdown() {
                     Generation Tasks
                   </h3>
                 </div>
-                {completedJobs.length > 0 && (
-                  <button
-                    onClick={clearCompletedJobs}
-                    className="text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
-                  >
-                    Clear Completed
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {activeProcessingJobs.length > 1 && (
+                    <button
+                      onClick={() => {
+                        // Clear all active/processing jobs
+                        activeProcessingJobs.forEach(job => removeJob(job.jobId));
+                      }}
+                      className="text-xs text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 transition-colors"
+                    >
+                      Clear Active
+                    </button>
+                  )}
+                  {completedJobs.length > 0 && (
+                    <button
+                      onClick={clearCompletedJobs}
+                      className="text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+                    >
+                      Clear Completed
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -235,10 +270,16 @@ export function GlobalProgressDropdown() {
                   </div>
                   {activeProcessingJobs.map((job) => {
                     const Icon = getGenerationIcon(job.generationType);
+                    const elapsedMinutes = job.elapsedTime ? Math.floor(job.elapsedTime / 60) : 0;
+                    const isStuck = elapsedMinutes > 10 && job.progress === 0; // Consider stuck if 10+ min with no progress
                     return (
                       <div
                         key={job.jobId}
-                        className="mb-2 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50"
+                        className={`mb-2 p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-800/50 ${
+                          isStuck 
+                            ? 'border-yellow-300 dark:border-yellow-700' 
+                            : 'border-zinc-200 dark:border-zinc-700'
+                        }`}
                       >
                         {/* Job Header */}
                         <div className="flex items-start justify-between gap-2 mb-2">
@@ -255,9 +296,28 @@ export function GlobalProgressDropdown() {
                               )}
                             </div>
                           </div>
-                          {getStatusBadge(job.status)}
+                          <div className="flex items-center gap-1">
+                            {getStatusBadge(job.status)}
+                            {/* Dismiss button for stuck jobs */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeJob(job.jobId);
+                              }}
+                              className="p-1 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground/40 hover:text-sidebar-foreground/80 transition-colors"
+                              title="Dismiss this job"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
+                        {/* Stuck warning */}
+                        {isStuck && (
+                          <div className="mb-2 px-2 py-1 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs">
+                            Job may be stuck. Click X to dismiss.
+                          </div>
+                        )}
                         {/* Progress Bar */}
                         <div className="mb-2">
                           <div className="flex items-center justify-between text-xs text-sidebar-foreground/60 mb-1">
@@ -283,6 +343,9 @@ export function GlobalProgressDropdown() {
                               </span>
                             )}
                           </div>
+                          <span className="text-sidebar-foreground/40 text-[10px]">
+                            {formatDateTime(job.startedAt)}
+                          </span>
                         </div>
                       </div>
                     );
@@ -336,9 +399,14 @@ export function GlobalProgressDropdown() {
                         </div>
 
                         {/* Completion Time */}
-                        <div className="flex items-center gap-2 text-xs text-sidebar-foreground/60 mt-2">
-                          <Clock className="w-3 h-3" />
-                          <span>Completed in {formatTime(job.elapsedTime)}</span>
+                        <div className="flex items-center justify-between text-xs text-sidebar-foreground/60 mt-2">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3 h-3" />
+                            <span>Completed in {formatTime(job.elapsedTime)}</span>
+                          </div>
+                          <span className="text-sidebar-foreground/40 text-[10px]">
+                            {formatDateTime(job.completedAt || job.startedAt)}
+                          </span>
                         </div>
                       </div>
                     );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { sseBroadcaster } from "@/lib/sse-broadcaster";
 
 /**
  * GET /api/active-generations
@@ -40,7 +41,10 @@ export async function GET(request: NextRequest) {
           },
         ],
       },
-      orderBy: { startedAt: "desc" },
+      orderBy: [
+        { completedAt: "desc" }, // Newest completed jobs first
+        { startedAt: "desc" },   // Then by start time for pending/processing jobs
+      ],
       take: 50, // Limit to recent 50 jobs
     });
 
@@ -89,6 +93,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🛡️ Guard against status downgrade race conditions
+    // Never overwrite COMPLETED/FAILED with PROCESSING/PENDING
+    // This prevents late-arriving progress updates from reverting a completed job
+    const existingJob = await prisma.activeGeneration.findUnique({
+      where: { jobId },
+      select: { status: true },
+    });
+
+    const isTerminalStatus = existingJob?.status === 'COMPLETED' || existingJob?.status === 'FAILED';
+    const isDowngrade = isTerminalStatus && status && status !== 'COMPLETED' && status !== 'FAILED';
+
+    if (isDowngrade) {
+      console.log(`🛡️ Blocked status downgrade for job ${jobId}: ${existingJob.status} → ${status}`);
+      // Return the existing job without modifying it
+      const currentJob = await prisma.activeGeneration.findUnique({ where: { jobId } });
+      return NextResponse.json({ job: currentJob });
+    }
+
     // Upsert the job (create or update)
     const job = await prisma.activeGeneration.upsert({
       where: { jobId },
@@ -121,6 +143,12 @@ export async function POST(request: NextRequest) {
         estimatedTimeRemaining,
       },
     });
+
+    // 🔥 Broadcast update to connected SSE clients
+    sseBroadcaster.broadcastToUser(userId, {
+      type: 'job-update',
+      job,
+    }, generationType?.toLowerCase().replace(/_/g, '-'));
 
     return NextResponse.json({ job });
   } catch (error: any) {
@@ -156,6 +184,13 @@ export async function DELETE(request: NextRequest) {
           jobId,
         },
       });
+
+      // 🔥 Broadcast deletion to connected SSE clients
+      sseBroadcaster.broadcastToUser(userId, {
+        type: 'job-deleted',
+        jobId,
+      });
+
       return NextResponse.json({ success: true, deleted: 1 });
     }
 
@@ -171,6 +206,14 @@ export async function DELETE(request: NextRequest) {
       }
 
       const result = await prisma.activeGeneration.deleteMany({ where });
+
+      // 🔥 Broadcast bulk deletion to connected SSE clients
+      sseBroadcaster.broadcastToUser(userId, {
+        type: 'jobs-cleared',
+        generationType: generationType?.toLowerCase().replace(/_/g, '-'),
+        count: result.count,
+      }, generationType?.toLowerCase().replace(/_/g, '-'));
+
       return NextResponse.json({ success: true, deleted: result.count });
     }
 

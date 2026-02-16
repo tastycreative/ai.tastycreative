@@ -204,7 +204,7 @@ const TOOLTIPS = {
 export default function KlingTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
 
@@ -219,6 +219,61 @@ export default function KlingTextToVideo() {
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Form state
+  const [prompt, setPrompt] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [model, setModel] = useState<string>("kling-v1-6");
+  const [mode, setMode] = useState<string>("std");
+  const [duration, setDuration] = useState<string>("5");
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+  const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [sound, setSound] = useState<"on" | "off">("off");
+  const [useCameraControl, setUseCameraControl] = useState(false);
+  const [cameraControlType, setCameraControlType] = useState<string>("simple");
+  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
+    horizontal: 0,
+    vertical: 0,
+    pan: 0,
+    tilt: 0,
+    roll: 0,
+    zoom: 0,
+  });
+  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
+
+  // Folder state
+  const [targetFolder, setTargetFolder] = useState<string>("");
+
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+
+  // Generation state
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Toast notification state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // Presets state
+  const [userPresets, setUserPresets] = useState<any[]>([]);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   
   // Check for stale active jobs and try to complete them from history
   useEffect(() => {
@@ -346,32 +401,43 @@ export default function KlingTextToVideo() {
   useEffect(() => {
     if (!mounted || isGenerating) return;
     
-    const lastCompletedJob = getLastCompletedJobForType('kling-text-to-video');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+    // Get only the LATEST completed job to display in "Generated Videos" section
+    const latestJob = getLastCompletedJobForType('kling-text-to-video');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedVideos(prev => {
         const existingIds = new Set(prev.map((video: any) => video.id));
-        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        const newResults = latestJob.results.filter((video: any) => !existingIds.has(video.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed Kling T2V:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest Kling T2V generation with ${newResults.length} new videos`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
-      
-      setGenerationHistory((prev: any) => {
-        const allVideos = [...lastCompletedJob.results, ...prev];
-        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
-          index === self.findIndex((v: any) => v.id === video.id)
-        ).slice(0, 20);
-        return uniqueHistory;
-      });
     }
-  }, [mounted, getLastCompletedJobForType, activeJobs]);
-
-  // Folder dropdown state
-  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
+    
+    // Update history with ALL completed jobs
+    const completedJobs = getCompletedJobsForType('kling-text-to-video');
+    if (completedJobs.length > 0) {
+      const allResults: any[] = [];
+      for (const job of completedJobs) {
+        if (job.results && Array.isArray(job.results)) {
+          allResults.push(...job.results);
+        }
+      }
+      
+      if (allResults.length > 0) {
+        setGenerationHistory((prev: any) => {
+          const combinedVideos = [...allResults, ...prev];
+          const uniqueHistory = combinedVideos.filter((video: any, index: number, self: any[]) =>
+            index === self.findIndex((v: any) => v.id === video.id)
+          ).slice(0, 50);
+          return uniqueHistory;
+        });
+      }
+    }
+  }, [mounted, getLastCompletedJobForType, getCompletedJobsForType, activeJobs, isGenerating]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -384,62 +450,11 @@ export default function KlingTextToVideo() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Form state
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
-  const [model, setModel] = useState<string>("kling-v1-6");
-  const [mode, setMode] = useState<string>("std");
-  const [duration, setDuration] = useState<string>("5");
-  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
-  const [cfgScale, setCfgScale] = useState<number>(0.5);
-  const [sound, setSound] = useState<"on" | "off">("off");
-  const [useCameraControl, setUseCameraControl] = useState(false);
-  const [cameraControlType, setCameraControlType] = useState<string>("simple");
-  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
-    horizontal: 0,
-    vertical: 0,
-    pan: 0,
-    tilt: 0,
-    roll: 0,
-    zoom: 0,
-  });
-  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
-
   // Check model feature support
   const currentModel = MODEL_OPTIONS.find(m => m.value === model);
   const currentModelSupportsSound = currentModel?.supportsSound ?? false;
   const currentModelSupportsCfgScale = currentModel?.supportsCfgScale ?? true;
   const currentModelSupportsCameraControl = currentModel?.supportsCameraControl ?? false;
-
-  // Folder state
-  const [targetFolder, setTargetFolder] = useState<string>("");
-
-  // Vault folder state - only for the selected profile
-  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
-  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
-
-  // Generation state
-  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
-  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pollingStatus, setPollingStatus] = useState("");
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-  // Toast notification state
-  const [toastError, setToastError] = useState<string | null>(null);
-  const [showToast, setShowToast] = useState(false);
-
-  // Presets state
-  const [userPresets, setUserPresets] = useState<any[]>([]);
-  const [showPresetModal, setShowPresetModal] = useState(false);
-  const [presetName, setPresetName] = useState("");
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // Load user presets from localStorage
   useEffect(() => {
@@ -782,9 +797,6 @@ export default function KlingTextToVideo() {
       return;
     }
 
-    // Clear previous completed jobs for this type
-    await clearCompletedJobsForType('kling-text-to-video');
-    
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -922,9 +934,6 @@ export default function KlingTextToVideo() {
   };
 
   const handleReset = async () => {
-    // Clear completed jobs for this type
-    await clearCompletedJobsForType('kling-text-to-video');
-    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");

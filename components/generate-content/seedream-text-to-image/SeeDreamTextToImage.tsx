@@ -80,7 +80,7 @@ export default function SeeDreamTextToImage() {
   const { user } = useUser();
   const params = useParams();
   const tenant = params.tenant as string;
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
 
@@ -158,7 +158,7 @@ export default function SeeDreamTextToImage() {
             if (matchingImages.length > 0) {
               console.log('✅ Found completed images for stale job, marking as complete');
               // Update the job as completed with the results
-              updateJob(activeJob.jobId, {
+              await updateJob(activeJob.jobId, {
                 status: 'completed',
                 progress: 100,
                 message: 'Generation completed',
@@ -190,33 +190,45 @@ export default function SeeDreamTextToImage() {
 
   // Check for completed generations when component mounts or jobs update
   useEffect(() => {
-    if (!mounted || isGenerating) return; // Don't sync while actively generating
+    if (!mounted) return;
     
-    const lastCompletedJob = getLastCompletedJobForType('text-to-image');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
-      // Display the results if not already showing
+    // Get only the LATEST completed job to display in "Generated Images" section
+    const latestJob = getLastCompletedJobForType('text-to-image');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedImages(prev => {
-        // Check if we already have these results
         const existingIds = new Set(prev.map(img => img.id));
-        const newResults = lastCompletedJob.results.filter((img: any) => !existingIds.has(img.id));
+        const newResults = latestJob.results.filter((img: any) => !existingIds.has(img.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed generation:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest T2I generation with ${newResults.length} new images`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
-      
-      // Also update history
-      setGenerationHistory(prev => {
-        const allImages = [...lastCompletedJob.results, ...prev];
-        const uniqueHistory = allImages.filter((img: any, index: number, self: any[]) =>
-          index === self.findIndex((i: any) => i.id === img.id)
-        ).slice(0, 20);
-        return uniqueHistory;
-      });
     }
-  }, [mounted, getLastCompletedJobForType]);
+    
+    // Update history with ALL completed jobs
+    const completedJobs = getCompletedJobsForType('text-to-image');
+    if (completedJobs.length > 0) {
+      const allResults: any[] = [];
+      for (const job of completedJobs) {
+        if (job.results && Array.isArray(job.results)) {
+          allResults.push(...job.results);
+        }
+      }
+      
+      if (allResults.length > 0) {
+        setGenerationHistory(prev => {
+          const combinedImages = [...allResults, ...prev];
+          const uniqueHistory = combinedImages.filter((img: any, index: number, self: any[]) =>
+            index === self.findIndex((i: any) => i.id === img.id)
+          ).slice(0, 50);
+          return uniqueHistory;
+        });
+      }
+    }
+  }, [mounted, getLastCompletedJobForType, getCompletedJobsForType, activeJobs]);
 
   // Load smart defaults from localStorage per profile
   useEffect(() => {
@@ -510,9 +522,6 @@ export default function SeeDreamTextToImage() {
   };
 
   const handleGenerate = async () => {
-    // Clear any old completed jobs for this generation type
-    clearCompletedJobsForType('text-to-image');
-    
     if (!apiClient) {
       setError("API client not available");
       return;
@@ -660,23 +669,6 @@ export default function SeeDreamTextToImage() {
       // Refresh credit balance in the UI after successful generation
       refreshCredits();
 
-      // Update job as completed
-      updateJob(taskId, {
-        progress: 100,
-        stage: "completed",
-        message: "Generation completed!",
-        status: "completed",
-      });
-
-      updateGlobalProgress({
-        isGenerating: false,
-        progress: 100,
-        stage: "completed",
-        message: "Generation completed!",
-        generationType: "text-to-image",
-        jobId: taskId,
-      });
-
       // Use the images returned from the API (already saved to database)
       const images: GeneratedImage[] = data.images.map((img: any) => ({
         id: img.id,
@@ -691,12 +683,25 @@ export default function SeeDreamTextToImage() {
       console.log('📋 Generated images:', images.length);
       console.log('📋 Image URLs:', images.map(i => ({ id: i.id, hasUrl: !!i.imageUrl, url: i.imageUrl?.slice(0, 50) })));
 
-      setGeneratedImages(images);
-      
-      // Store results in the job so they persist across tab navigation
-      updateJob(taskId, {
-        results: images,
+      // Update job as completed WITH results in a single call to prevent race condition
+      await updateJob(taskId, {
+        progress: 100,
+        stage: "completed",
+        message: "Generation completed!",
+        status: "completed",
+        results: images, // Include results in same call to ensure status is persisted
       });
+
+      updateGlobalProgress({
+        isGenerating: false,
+        progress: 100,
+        stage: "completed",
+        message: "Generation completed!",
+        generationType: "text-to-image",
+        jobId: taskId,
+      });
+
+      setGeneratedImages(images);
       
       // Also add new images to history immediately for instant feedback
       setGenerationHistory(prev => {
@@ -716,7 +721,7 @@ export default function SeeDreamTextToImage() {
       setError(error.message || "Failed to generate images");
       
       // Update job as failed
-      updateJob(taskId, {
+      await updateJob(taskId, {
         progress: 0,
         stage: "failed",
         message: error.message || "Generation failed",
@@ -779,9 +784,6 @@ export default function SeeDreamTextToImage() {
   };
 
   const handleReset = () => {
-    // Clear any completed jobs for this generation type
-    clearCompletedJobsForType('text-to-image');
-    
     setPrompt("");
     setNegativePrompt("");
     setSelectedResolution("2K");

@@ -258,7 +258,7 @@ export default function KlingImageToVideo() {
   const { user } = useUser();
   const params = useParams();
   const tenant = params.tenant as string;
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -274,6 +274,70 @@ export default function KlingImageToVideo() {
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+
+  // Form state
+  const [prompt, setPrompt] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [model, setModel] = useState<string>("kling-v1-6");
+  const [mode, setMode] = useState<string>("std");
+  const [duration, setDuration] = useState<string>("5");
+  const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [sound, setSound] = useState<"on" | "off">("off");
+  const [useCameraControl, setUseCameraControl] = useState(false);
+  const [cameraControlType, setCameraControlType] = useState<string>("simple");
+  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
+    horizontal: 0,
+    vertical: 0,
+    pan: 0,
+    tilt: 0,
+    roll: 0,
+    zoom: 0,
+  });
+  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
+
+  // Image upload state
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageMode, setImageMode] = useState<string>("normal");
+  const [tailImage, setTailImage] = useState<File | null>(null);
+  const [tailImagePreview, setTailImagePreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [fromReferenceBank, setFromReferenceBank] = useState(false);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+
+  // Folder state
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+
+  // Generation state
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Toast notifications state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // Advanced settings collapse
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   
   // Check for stale active jobs and try to complete them from history
   useEffect(() => {
@@ -440,32 +504,43 @@ export default function KlingImageToVideo() {
   useEffect(() => {
     if (!mounted || isGenerating) return;
     
-    const lastCompletedJob = getLastCompletedJobForType('kling-image-to-video');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+    // Get only the LATEST completed job to display in "Generated Videos" section
+    const latestJob = getLastCompletedJobForType('kling-image-to-video');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedVideos(prev => {
         const existingIds = new Set(prev.map((video: any) => video.id));
-        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        const newResults = latestJob.results.filter((video: any) => !existingIds.has(video.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed Kling I2V:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest Kling I2V generation with ${newResults.length} new videos`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
-      
-      setGenerationHistory((prev: any) => {
-        const allVideos = [...lastCompletedJob.results, ...prev];
-        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
-          index === self.findIndex((v: any) => v.id === video.id)
-        ).slice(0, 20);
-        return uniqueHistory;
-      });
     }
-  }, [mounted, getLastCompletedJobForType, activeJobs]);
-
-  // Folder dropdown state
-  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
+    
+    // Update history with ALL completed jobs
+    const completedJobs = getCompletedJobsForType('kling-image-to-video');
+    if (completedJobs.length > 0) {
+      const allResults: any[] = [];
+      for (const job of completedJobs) {
+        if (job.results && Array.isArray(job.results)) {
+          allResults.push(...job.results);
+        }
+      }
+      
+      if (allResults.length > 0) {
+        setGenerationHistory((prev: any) => {
+          const combinedVideos = [...allResults, ...prev];
+          const uniqueHistory = combinedVideos.filter((video: any, index: number, self: any[]) =>
+            index === self.findIndex((v: any) => v.id === video.id)
+          ).slice(0, 50);
+          return uniqueHistory;
+        });
+      }
+    }
+  }, [mounted, getCompletedJobsForType, activeJobs, isGenerating]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -478,73 +553,11 @@ export default function KlingImageToVideo() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Form state
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
-  const [model, setModel] = useState<string>("kling-v1-6");
-  const [mode, setMode] = useState<string>("std");
-  const [duration, setDuration] = useState<string>("5");
-  const [cfgScale, setCfgScale] = useState<number>(0.5);
-  const [sound, setSound] = useState<"on" | "off">("off");
-  const [useCameraControl, setUseCameraControl] = useState(false);
-  const [cameraControlType, setCameraControlType] = useState<string>("simple");
-  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
-    horizontal: 0,
-    vertical: 0,
-    pan: 0,
-    tilt: 0,
-    roll: 0,
-    zoom: 0,
-  });
-  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
-
   // Check model feature support
   const currentModel = MODEL_OPTIONS.find(m => m.value === model);
   const currentModelSupportsSound = currentModel?.supportsSound ?? false;
   const currentModelSupportsCfgScale = currentModel?.supportsCfgScale ?? true;
   const currentModelSupportsCameraControl = currentModel?.supportsCameraControl ?? false;
-
-  // Image upload state
-  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageMode, setImageMode] = useState<string>("normal");
-  const [tailImage, setTailImage] = useState<File | null>(null);
-  const [tailImagePreview, setTailImagePreview] = useState<string | null>(null);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
-  
-  // Reference Bank state
-  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
-  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
-  const [fromReferenceBank, setFromReferenceBank] = useState(false);
-  const [referenceId, setReferenceId] = useState<string | null>(null);
-
-  // Folder state
-  const [targetFolder, setTargetFolder] = useState<string>("");
-
-  // Vault folder state - only for the selected profile
-  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
-  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
-
-  // Generation state
-  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
-  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pollingStatus, setPollingStatus] = useState("");
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-  // Toast notifications state
-  const [toastError, setToastError] = useState<string | null>(null);
-  const [showToast, setShowToast] = useState(false);
-
-  // Advanced settings collapse
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // Toast notification helper
   const showErrorToast = (message: string) => {
@@ -1016,9 +1029,6 @@ export default function KlingImageToVideo() {
       return;
     }
 
-    // Clear previous completed jobs for this type
-    await clearCompletedJobsForType('kling-image-to-video');
-    
     setIsGenerating(true);
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
@@ -1192,8 +1202,6 @@ export default function KlingImageToVideo() {
   };
 
   const handleReset = async () => {
-    await clearCompletedJobsForType('kling-image-to-video');
-    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");

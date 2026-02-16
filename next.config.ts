@@ -122,6 +122,12 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'cdn.tastycreative.xyz',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'tastycreative.s3.amazonaws.com',
         port: '',
         pathname: '/outputs/**',

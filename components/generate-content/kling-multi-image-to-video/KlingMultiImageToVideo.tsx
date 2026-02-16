@@ -241,7 +241,7 @@ export default function KlingMultiImageToVideo() {
   const { user } = useUser();
   const params = useParams();
   const tenant = params.tenant as string;
-  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
+  const { updateGlobalProgress, clearGlobalProgress, addJob, updateJob, hasActiveGenerationForType, getLastCompletedJobForType, getCompletedJobsForType, clearCompletedJobsForType, activeJobs } = useGenerationProgress();
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
 
@@ -256,6 +256,50 @@ export default function KlingMultiImageToVideo() {
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
+
+  // Form state
+  const [prompt, setPrompt] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [model, setModel] = useState<string>("kling-v1-6");
+  const [mode, setMode] = useState<string>("std");
+  const [duration, setDuration] = useState<string>("5");
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+
+  // Image upload state - API supports up to 4 images
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_IMAGES = 4;
+  const [isCompressing, setIsCompressing] = useState(false);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+
+  // Folder state
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+
+  // Generation state
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Toast notification state
+  const [toastError, setToastError] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
   
   // Check for stale active jobs and try to complete them from history
   useEffect(() => {
@@ -393,32 +437,43 @@ export default function KlingMultiImageToVideo() {
   useEffect(() => {
     if (!mounted || isGenerating) return;
     
-    const lastCompletedJob = getLastCompletedJobForType('kling-multi-image-to-video');
-    if (lastCompletedJob && lastCompletedJob.results && Array.isArray(lastCompletedJob.results)) {
+    // Get only the LATEST completed job to display in "Generated Videos" section
+    const latestJob = getLastCompletedJobForType('kling-multi-image-to-video');
+    
+    if (latestJob && latestJob.results && Array.isArray(latestJob.results)) {
       setGeneratedVideos(prev => {
         const existingIds = new Set(prev.map((video: any) => video.id));
-        const newResults = lastCompletedJob.results.filter((video: any) => !existingIds.has(video.id));
+        const newResults = latestJob.results.filter((video: any) => !existingIds.has(video.id));
         
         if (newResults.length > 0) {
-          console.log('📋 Displaying results from completed Kling Multi I2V:', newResults.length);
-          return [...newResults, ...prev];
+          console.log(`📋 Displaying latest Kling Multi I2V generation with ${newResults.length} new videos`);
+          return newResults; // Replace with latest generation only
         }
         return prev;
       });
-      
-      setGenerationHistory((prev: any) => {
-        const allVideos = [...lastCompletedJob.results, ...prev];
-        const uniqueHistory = allVideos.filter((video: any, index: number, self: any[]) =>
-          index === self.findIndex((v: any) => v.id === video.id)
-        ).slice(0, 20);
-        return uniqueHistory;
-      });
     }
-  }, [mounted, getLastCompletedJobForType, activeJobs]);
-
-  // Folder dropdown state
-  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
+    
+    // Update history with ALL completed jobs
+    const completedJobs = getCompletedJobsForType('kling-multi-image-to-video');
+    if (completedJobs.length > 0) {
+      const allResults: any[] = [];
+      for (const job of completedJobs) {
+        if (job.results && Array.isArray(job.results)) {
+          allResults.push(...job.results);
+        }
+      }
+      
+      if (allResults.length > 0) {
+        setGenerationHistory((prev: any) => {
+          const combinedVideos = [...allResults, ...prev];
+          const uniqueHistory = combinedVideos.filter((video: any, index: number, self: any[]) =>
+            index === self.findIndex((v: any) => v.id === video.id)
+          ).slice(0, 50);
+          return uniqueHistory;
+        });
+      }
+    }
+  }, [mounted, getLastCompletedJobForType, getCompletedJobsForType, activeJobs, isGenerating]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -430,48 +485,6 @@ export default function KlingMultiImageToVideo() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Form state
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
-  const [model, setModel] = useState<string>("kling-v1-6");
-  const [mode, setMode] = useState<string>("std");
-  const [duration, setDuration] = useState<string>("5");
-  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
-
-  // Image upload state - API supports up to 4 images
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const MAX_IMAGES = 4;
-  const [isCompressing, setIsCompressing] = useState(false);
-  
-  // Reference Bank state
-  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
-  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
-
-  // Folder state
-  const [targetFolder, setTargetFolder] = useState<string>("");
-
-  // Vault folder state - only for the selected profile
-  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
-  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
-
-  // Generation state
-  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
-  const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pollingStatus, setPollingStatus] = useState("");
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-  // Toast notification state
-  const [toastError, setToastError] = useState<string | null>(null);
-  const [showToast, setShowToast] = useState(false);
 
   // Show error as toast notification
   const showErrorToast = (message: string) => {
@@ -1019,9 +1032,6 @@ export default function KlingMultiImageToVideo() {
       return;
     }
 
-    // Clear previous completed jobs for this type
-    await clearCompletedJobsForType('kling-multi-image-to-video');
-    
     setIsGenerating(true);
     setGeneratedVideos([]);
     setPollingStatus("Uploading images...");
@@ -1164,8 +1174,6 @@ export default function KlingMultiImageToVideo() {
   };
 
   const handleReset = async () => {
-    await clearCompletedJobsForType('kling-multi-image-to-video');
-    
     setPrompt("");
     setNegativePrompt("");
     setModel("kling-v1-6");
