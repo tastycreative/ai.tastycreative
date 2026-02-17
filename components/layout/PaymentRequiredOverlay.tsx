@@ -46,7 +46,7 @@ export function PaymentRequiredOverlay({ tenant, isAdmin }: PaymentRequiredOverl
             {/* Status Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-lg">
               <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                Status: {organization?.publicMetadata?.subscriptionStatus || 'UNKNOWN'}
+                Status: {String((organization?.publicMetadata as { subscriptionStatus?: string })?.subscriptionStatus || 'UNKNOWN')}
               </span>
             </div>
 
