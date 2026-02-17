@@ -1359,7 +1359,12 @@ export default function SeeDreamImageToImage() {
           if (contentType && contentType.includes("application/json")) {
             const errorData = await response.json();
             errorMessage = errorData.error || errorData.message || "Generation failed";
-            isInsufficientCredits = errorData.insufficientCredits || errorMessage.toLowerCase().includes("insufficient credits") || errorMessage.toLowerCase().includes("out of credits");
+            // Safely check for insufficient credits only if errorMessage is a string
+            if (typeof errorMessage === 'string') {
+              isInsufficientCredits = errorData.insufficientCredits || errorMessage.toLowerCase().includes("insufficient credits") || errorMessage.toLowerCase().includes("out of credits");
+            } else {
+              isInsufficientCredits = errorData.insufficientCredits || false;
+            }
           } else {
             // Non-JSON response (plain text error from CDN/proxy)
             const errorText = await response.text();
@@ -1368,6 +1373,8 @@ export default function SeeDreamImageToImage() {
             // Provide user-friendly error messages for common issues
             if (response.status === 413 || errorText.toLowerCase().includes("entity too large") || errorText.toLowerCase().includes("payload too large")) {
               errorMessage = "Image file is too large. Please use smaller images (under 4MB each) or reduce image quality.";
+            } else if (response.status === 429) {
+              errorMessage = "API rate limit exceeded or server is overloaded. Please wait a few moments and try again with fewer images (1-3 recommended).";
             } else if (response.status === 408 || errorText.toLowerCase().includes("timeout")) {
               errorMessage = "Request timed out. Please try with fewer images (max 5 per batch).";
             } else if (response.status === 504 || errorText.includes("FUNCTION_INVOCATION_TIMEOUT")) {

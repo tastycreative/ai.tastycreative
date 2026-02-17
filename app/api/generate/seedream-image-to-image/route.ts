@@ -178,9 +178,26 @@ export async function POST(request: NextRequest) {
         error: errorData,
         fullResponse: errorText
       });
+      
+      // Extract error message, handling nested error objects
+      let errorMessage = "Image generation failed";
+      if (typeof errorData.message === 'string') {
+        errorMessage = errorData.message;
+      } else if (typeof errorData.error === 'string') {
+        errorMessage = errorData.error;
+      } else if (errorData.error && typeof errorData.error === 'object') {
+        // Handle nested error object (e.g., {error: {code: "ServerOverloaded", message: "..."}})
+        errorMessage = errorData.error.message || errorData.error.code || "Image generation failed";
+      }
+      
+      // Add user-friendly messages for specific error codes
+      if (response.status === 429 || errorData.error?.code === 'ServerOverloaded') {
+        errorMessage = "API rate limit exceeded or server is overloaded. Please try again in a few moments with fewer images (1-3 recommended).";
+      }
+      
       return NextResponse.json(
         { 
-          error: errorData.message || errorData.error || "Image generation failed",
+          error: errorMessage,
           details: errorData 
         },
         { status: response.status }

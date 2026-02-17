@@ -202,8 +202,21 @@ export async function POST(request: NextRequest) {
       
       try {
         const errorData = JSON.parse(responseText);
-        errorMessage = errorData.error?.message || errorData.message || errorMessage;
+        // Handle nested error objects properly
+        if (typeof errorData.message === 'string') {
+          errorMessage = errorData.message;
+        } else if (typeof errorData.error === 'string') {
+          errorMessage = errorData.error;
+        } else if (errorData.error && typeof errorData.error === 'object') {
+          // Handle nested error object (e.g., {error: {code: "ServerOverloaded", message: "..."}})
+          errorMessage = errorData.error.message || errorData.error.code || errorMessage;
+        }
         errorDetails = errorData;
+        
+        // Add user-friendly messages for specific error codes
+        if (response.status === 429 || errorData.error?.code === 'ServerOverloaded') {
+          errorMessage = "API rate limit exceeded or server is overloaded. Please try again in a few moments with fewer images (1-3 recommended).";
+        }
       } catch (e) {
         // If response is not JSON, use the text
         errorMessage = responseText || errorMessage;
