@@ -12,6 +12,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
   Archive,
@@ -2234,7 +2235,7 @@ export default function KlingImageToVideo() {
                       className="border border-zinc-200 dark:border-zinc-700 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-zinc-800/30 backdrop-blur"
                     >
                       <video
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         controls
                         className="w-full aspect-video bg-black"
                         data-role="preview"
@@ -2386,7 +2387,7 @@ export default function KlingImageToVideo() {
               </button>
               <div className="p-6">
                 <video
-                  src={selectedVideo.videoUrl}
+                  src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                   controls
                   autoPlay
                   className="w-full aspect-video bg-black rounded-2xl mb-4"
@@ -2398,7 +2399,7 @@ export default function KlingImageToVideo() {
                         Source Image:
                       </p>
                       <img
-                        src={selectedVideo.imageUrl}
+                        src={convertS3ToCdnUrl(selectedVideo.imageUrl)}
                         alt="Source"
                         className="w-32 h-32 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700"
                       />
@@ -2507,7 +2508,7 @@ export default function KlingImageToVideo() {
                           <video
                             data-role="preview"
                             preload="metadata"
-                            src={video.videoUrl}
+                            src={convertS3ToCdnUrl(video.videoUrl)}
                             className="w-full aspect-video object-cover pointer-events-none"
                             controlsList="nodownload noplaybackrate noremoteplayback"
                           />
@@ -2522,7 +2523,7 @@ export default function KlingImageToVideo() {
                         {video.imageUrl && (
                           <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition">
                             <img
-                              src={video.imageUrl}
+                              src={convertS3ToCdnUrl(video.imageUrl)}
                               alt="Source"
                               className="w-12 h-12 rounded-lg border border-zinc-200 dark:border-zinc-600 object-cover"
                             />

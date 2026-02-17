@@ -12,6 +12,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
   Archive,
@@ -2098,7 +2099,7 @@ export default function KlingMotionControl() {
                     >
                       <video
                         data-role="preview"
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         muted
                         playsInline
                         className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-300"
@@ -2242,7 +2243,7 @@ export default function KlingMotionControl() {
                 controls
                 autoPlay
                 playsInline
-                src={selectedVideo.videoUrl}
+                src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
               <div className="p-4 text-sm text-sidebar-foreground flex justify-between items-start">

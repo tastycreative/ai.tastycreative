@@ -10,6 +10,7 @@ import VaultFolderDropdown from "@/components/generate-content/shared/VaultFolde
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   Video,
   Upload,
@@ -123,8 +124,8 @@ const VideoPlayer = ({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const awsS3Url = useMemo(() => {
-    if (video.awsS3Url) return video.awsS3Url;
-    if (video.awsS3Key) return `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+    if (video.awsS3Url) return convertS3ToCdnUrl(video.awsS3Url);
+    if (video.awsS3Key) return convertS3ToCdnUrl(`https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`);
     return null;
   }, [video.awsS3Key, video.awsS3Url]);
 

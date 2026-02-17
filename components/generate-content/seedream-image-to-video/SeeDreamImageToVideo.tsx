@@ -13,6 +13,7 @@ import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   Video,
   Download,
@@ -1685,7 +1686,7 @@ export default function SeeDreamImageToVideo() {
                       <div className="aspect-video relative bg-black">
                         <video
                           data-role="preview"
-                          src={video.videoUrl}
+                          src={convertS3ToCdnUrl(video.videoUrl)}
                           className="w-full h-full object-cover pointer-events-none"
                           muted
                           playsInline
@@ -1777,7 +1778,7 @@ export default function SeeDreamImageToVideo() {
                       <div className="aspect-video relative bg-black">
                         <video
                           data-role="preview"
-                          src={video.videoUrl}
+                          src={convertS3ToCdnUrl(video.videoUrl)}
                           className="w-full h-full object-cover pointer-events-none"
                           muted
                           playsInline
@@ -1847,7 +1848,7 @@ export default function SeeDreamImageToVideo() {
                 controls
                 autoPlay
                 playsInline
-                src={selectedVideo.videoUrl}
+                src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
               <div className="p-4 text-sm text-sidebar-foreground">

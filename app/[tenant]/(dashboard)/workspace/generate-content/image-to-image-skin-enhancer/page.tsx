@@ -29,6 +29,7 @@ import VaultFolderDropdown from '@/components/generate-content/shared/VaultFolde
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from '@/components/credits/CreditCalculator';
 import { StorageFullBanner, useCanGenerate } from '@/components/generate-content/shared/StorageFullBanner';
+import { convertS3ToCdnUrl } from '@/lib/cdnUtils';
 
 interface JobStatus {
   id: string;
@@ -1730,14 +1731,14 @@ export default function ImageToImageSkinEnhancerPage() {
                             </div>
                             <div className="rounded-2xl border-2 border-[#EC67A1]/20 dark:border-[#EC67A1]/30 overflow-hidden bg-[#F8F8F8] dark:bg-[#0a0a0f] shadow-sm">
                               <p className="px-4 py-2 text-xs font-semibold text-muted-foreground tracking-wider">AFTER</p>
-                              <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="w-full object-cover" />
+                              <img src={convertS3ToCdnUrl((currentJobImages[0].dataUrl || currentJobImages[0].url) as string)} alt="Enhanced" className="w-full object-cover" />
                             </div>
                           </div>
                         ) : (
                           <div className="space-y-2">
                             <p className="text-xs font-semibold text-muted-foreground text-center tracking-wider">DRAG TO COMPARE</p>
                             <div className="relative aspect-square rounded-2xl overflow-hidden border border-border bg-muted">
-                              <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="absolute inset-0 w-full h-full object-cover" />
+                              <img src={convertS3ToCdnUrl((currentJobImages[0].dataUrl || currentJobImages[0].url) as string)} alt="Enhanced" className="absolute inset-0 w-full h-full object-cover" />
                               <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}>
                                 <img src={selectedImage.preview} alt="Original" className="absolute inset-0 w-full h-full object-cover" />
                               </div>
@@ -1816,16 +1817,16 @@ export default function ImageToImageSkinEnhancerPage() {
                             <div key={dbImage.id} className="relative group">
                               {(dbImage.dataUrl || dbImage.url) ? (
                                 <img
-                                  src={(dbImage.dataUrl || dbImage.url) as string}
+                                  src={convertS3ToCdnUrl((dbImage.dataUrl || dbImage.url) as string)}
                                   alt={dbImage.filename}
                                   className="w-full rounded-2xl border border-border shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
-                                  onClick={() => openLightbox((dbImage.dataUrl || dbImage.url) as string, dbImage.filename)}
+                                  onClick={() => openLightbox(convertS3ToCdnUrl((dbImage.dataUrl || dbImage.url) as string), dbImage.filename)}
                                   onError={(event) => {
                                     const target = event.target as HTMLImageElement;
-                                    if (target.src === dbImage.dataUrl && dbImage.url) {
-                                      target.src = dbImage.url;
-                                    } else if (target.src === dbImage.url && dbImage.dataUrl) {
-                                      target.src = dbImage.dataUrl;
+                                    if (target.src === convertS3ToCdnUrl(dbImage.dataUrl || '') && dbImage.url) {
+                                      target.src = convertS3ToCdnUrl(dbImage.url);
+                                    } else if (target.src === convertS3ToCdnUrl(dbImage.url || '') && dbImage.dataUrl) {
+                                      target.src = convertS3ToCdnUrl(dbImage.dataUrl);
                                     } else {
                                       target.style.display = 'none';
                                     }

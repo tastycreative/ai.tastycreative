@@ -12,6 +12,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
   Archive,
@@ -1899,7 +1900,7 @@ export default function KlingMultiImageToVideo() {
                     >
                       <video
                         data-role="preview"
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         className="w-full aspect-video object-cover"
                         muted
                         loop
@@ -2035,7 +2036,7 @@ export default function KlingMultiImageToVideo() {
                 controls
                 autoPlay
                 playsInline
-                src={selectedVideo.videoUrl}
+                src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-t-3xl"
               />
               <div className="p-4 text-sm text-sidebar-foreground">

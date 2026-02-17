@@ -5,6 +5,7 @@ import { prisma } from "@/lib/database";
 import { v4 as uuidv4 } from "uuid";
 import { deductCredits } from '@/lib/credits';
 import { trackStorageUpload } from '@/lib/storageEvents';
+import { convertS3ToCdnUrl } from '@/lib/cdnUtils';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = 'nodejs';
@@ -306,7 +307,7 @@ export async function GET(request: NextRequest) {
           const videoProfileId = params?.vaultProfileId;
           return {
             id: video.id,
-            videoUrl: video.awsS3Url || video.s3Key,
+            videoUrl: convertS3ToCdnUrl(video.awsS3Url) || video.s3Key,
             prompt: params?.prompt || "Unknown prompt",
             modelVersion: "SeeDream 4.5",
             duration: metadata?.duration || video.duration || 5,
@@ -599,7 +600,7 @@ export async function GET(request: NextRequest) {
 
         let formattedVideo: any = {
           id: savedVideo.id,
-          videoUrl: awsS3Url,
+          videoUrl: convertS3ToCdnUrl(awsS3Url),
           prompt: params?.prompt || "Unknown prompt",
           modelVersion: "SeeDream 4.5",
           duration: data.duration || 5,
@@ -667,7 +668,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
           status: "completed",
-          videoUrl: awsS3Url,
+          videoUrl: convertS3ToCdnUrl(awsS3Url),
           taskId: data.id,
           videos: [formattedVideo],
           metadata: {

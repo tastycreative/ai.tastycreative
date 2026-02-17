@@ -5,6 +5,7 @@ import { prisma } from "@/lib/database";
 import * as jose from "jose";
 import { deductCredits } from '@/lib/credits';
 import { trackStorageUpload } from '@/lib/storageEvents';
+import { convertS3ToCdnUrl } from '@/lib/cdnUtils';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = "nodejs";
@@ -371,7 +372,7 @@ export async function GET(request: NextRequest) {
           const videoProfileId = params?.vaultProfileId || null;
           return {
             id: video.id,
-            videoUrl: video.awsS3Url || video.s3Key || "",
+            videoUrl: convertS3ToCdnUrl(video.awsS3Url) || video.s3Key || "",
             prompt: params?.prompt || "Unknown prompt",
             model: params?.model || "kling-v1",
             duration: params?.duration || "5",
@@ -641,7 +642,7 @@ export async function GET(request: NextRequest) {
 
         let savedVideo: any = {
           id: generatedVideo.id,
-          videoUrl: awsS3Url,
+          videoUrl: convertS3ToCdnUrl(awsS3Url),
           prompt: params?.prompt || "",
           model: params?.model || "kling-v1",
           duration: params?.duration || "5",
@@ -715,6 +716,7 @@ export async function GET(request: NextRequest) {
           status: "completed",
           videos: [savedVideo],
           taskId: taskId,
+          videoUrl: convertS3ToCdnUrl(awsS3Url),
           metadata: {
             model: params?.model,
             duration: params?.duration,

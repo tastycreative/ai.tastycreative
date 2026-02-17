@@ -9,6 +9,7 @@ import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   ImageIcon,
   Wand2,
@@ -3040,7 +3041,7 @@ export default function FaceSwappingPage() {
                                   </div>
                                 </div>
                                 <img
-                                  src={dbImage.dataUrl || dbImage.url}
+                                  src={convertS3ToCdnUrl(dbImage.dataUrl || dbImage.url)}
                                   alt={`Face swap result ${index + 1}`}
                                   className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
                                   onError={(e) => {

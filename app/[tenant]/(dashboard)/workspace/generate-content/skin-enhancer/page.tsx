@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Clock,
 } from "lucide-react";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 // Types
 interface LoRAConfig {

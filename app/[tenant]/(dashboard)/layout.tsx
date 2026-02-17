@@ -10,6 +10,7 @@ import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
 import { usePermissions } from "@/lib/hooks/usePermissions.query";
 import { useOrganization } from "@/lib/hooks/useOrganization.query";
 import { CreditIndicator } from "@/components/credits/CreditIndicator";
+import { PaymentRequiredOverlay } from "@/components/layout/PaymentRequiredOverlay";
 import {
   ChevronLeft,
   ChevronRight,
@@ -111,6 +112,15 @@ export default function DashboardLayout({
     loading: permissionsLoading,
   } = usePermissions();
   const { currentOrganization } = useOrganization();
+
+  // Check if organization payment is required
+  // Exclude billing page from payment block so users can access it to pay
+  const isBillingPage = pathname === `/${tenant}/billing`;
+  const isPaymentRequired = !isBillingPage && (
+    currentOrganization?.subscriptionStatus === 'PAST_DUE' ||
+    currentOrganization?.subscriptionStatus === 'CANCELLED' ||
+    currentOrganization?.subscriptionStatus === 'EXPIRED'
+  );
 
   // Dynamic navigation based on user permissions
   // Don't build navigation until permissions are loaded to prevent showing unauthorized tabs
@@ -1716,8 +1726,12 @@ export default function DashboardLayout({
           </div>
 
           {/* Content */}
-          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
-            <PermissionGuard>{children}</PermissionGuard>
+          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn relative">
+            {isPaymentRequired ? (
+              <PaymentRequiredOverlay tenant={tenant} isAdmin={isAdmin} />
+            ) : (
+              <PermissionGuard>{children}</PermissionGuard>
+            )}
           </div>
         </main>
       </div>

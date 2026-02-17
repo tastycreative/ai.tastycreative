@@ -11,6 +11,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
   Archive,
@@ -1345,7 +1346,7 @@ export default function SeeDreamTextToVideo() {
                       <video
                         data-role="preview"
                         preload="metadata"
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         className="w-full h-52 object-cover pointer-events-none"
                         controlsList="nodownload noplaybackrate noremoteplayback"
                       />
@@ -1424,7 +1425,7 @@ export default function SeeDreamTextToVideo() {
                       <video
                         data-role="preview"
                         preload="metadata"
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         className="w-full h-40 object-cover pointer-events-none"
                         controlsList="nodownload noplaybackrate noremoteplayback"
                       />
@@ -1481,7 +1482,7 @@ export default function SeeDreamTextToVideo() {
                 controls
                 autoPlay
                 playsInline
-                src={selectedVideo.videoUrl}
+                src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                 className="w-full h-auto max-h-[60vh] object-contain bg-black rounded-t-3xl"
               />
               <div className="p-4 text-sm text-modal-foreground space-y-3">
@@ -1668,7 +1669,7 @@ export default function SeeDreamTextToVideo() {
                         <video
                           data-role="preview"
                           preload="metadata"
-                          src={video.videoUrl}
+                          src={convertS3ToCdnUrl(video.videoUrl)}
                           className="w-full h-32 object-cover pointer-events-none"
                           controlsList="nodownload noplaybackrate noremoteplayback"
                         />

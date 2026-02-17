@@ -9,6 +9,7 @@ import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
   Archive,
@@ -1915,7 +1916,7 @@ export default function KlingTextToVideo() {
                       <video
                         data-role="preview"
                         preload="metadata"
-                        src={video.videoUrl}
+                        src={convertS3ToCdnUrl(video.videoUrl)}
                         className="w-full h-52 object-cover pointer-events-none"
                         controlsList="nodownload noplaybackrate noremoteplayback"
                       />
@@ -2042,7 +2043,7 @@ export default function KlingTextToVideo() {
                 controls
                 autoPlay
                 playsInline
-                src={selectedVideo.videoUrl}
+                src={convertS3ToCdnUrl(selectedVideo.videoUrl)}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
               <div className="p-4 text-sm text-sidebar-foreground">

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/database";
 import * as jose from "jose";
 import { deductCredits } from '@/lib/credits';
 import { trackStorageUpload } from '@/lib/storageEvents';
+import { convertS3ToCdnUrl } from '@/lib/cdnUtils';
 
 // Vercel function configuration - extend timeout for video generation
 export const runtime = "nodejs";
@@ -418,12 +419,12 @@ export async function GET(request: NextRequest) {
           const videoProfileId = params?.vaultProfileId || null;
           return {
             id: video.id,
-            videoUrl: video.awsS3Url || video.s3Key || "",
+            videoUrl: convertS3ToCdnUrl(video.awsS3Url) || video.s3Key || "",
             prompt: params?.prompt || "",
             model: params?.model || "kling-v1",
             duration: params?.duration || "5",
             aspectRatio: "auto",
-            imageUrl: params?.imageUrl || null,
+            imageUrl: convertS3ToCdnUrl(params?.imageUrl) || null,
             createdAt: video.createdAt.toISOString(),
             status: "completed" as const,
             source: "generated" as const,
@@ -435,7 +436,7 @@ export async function GET(request: NextRequest) {
               sound: params?.sound || null,
               cameraControl: params?.camera_control || null,
               imageMode: params?.image_mode || "normal",
-              referenceImageUrl: params?.imageUrl || null,
+              referenceImageUrl: convertS3ToCdnUrl(params?.imageUrl) || null,
               tailImageUrl: params?.tailImageUrl || null,
               profileId: videoProfileId,
             },
@@ -694,12 +695,12 @@ export async function GET(request: NextRequest) {
 
         let savedVideo: any = {
           id: generatedVideo.id,
-          videoUrl: awsS3Url,
+          videoUrl: convertS3ToCdnUrl(awsS3Url),
           prompt: params?.prompt || "",
           model: params?.model || "kling-v1",
           duration: params?.duration || "5",
           aspectRatio: "auto",
-          imageUrl: params?.imageUrl || null,
+          imageUrl: convertS3ToCdnUrl(params?.imageUrl) || null,
           createdAt: generatedVideo.createdAt.toISOString(),
           status: "completed" as const,
           metadata: {
@@ -709,7 +710,7 @@ export async function GET(request: NextRequest) {
             sound: params?.sound || null,
             cameraControl: params?.camera_control || null,
             imageMode: params?.image_mode || "normal",
-            referenceImageUrl: params?.imageUrl || null,
+            referenceImageUrl: convertS3ToCdnUrl(params?.imageUrl) || null,
             profileId: vaultProfileId || null,
           },
         };
@@ -775,7 +776,7 @@ export async function GET(request: NextRequest) {
           metadata: {
             model: params?.model,
             duration: params?.duration,
-            imageUrl: params?.imageUrl,
+            imageUrl: convertS3ToCdnUrl(params?.imageUrl),
           },
         });
       } catch (saveError) {
