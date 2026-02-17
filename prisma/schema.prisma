@@ -516,6 +516,7 @@ model InstagramProfile {
   selectedContentTypes   String[]              @default([])
   status                 String                @default("active")
   type                   String                @default("real")
+  metadata               Json?
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -1542,6 +1543,7 @@ model of_models {
   of_model_assets             of_model_assets[]
   of_model_details            of_model_details?
   of_model_pricing_categories of_model_pricing_categories[]
+  contentTypeOptions          ContentTypeOption[]           @relation("ModelContentTypes")
 
   @@index([slug])
   @@index([status])
@@ -1764,6 +1766,7 @@ model content_submissions {
   caption                              String?
   driveLink                            String?
   contentType                          String?
+  contentTypeOptionId                  String?
   contentCount                         String?
   contentLength                        String?
   contentTags                          String[]                              @default([])
@@ -1778,6 +1781,7 @@ model content_submissions {
   content_submission_files             content_submission_files[]
   content_submission_pricing           content_submission_pricing?
   content_submission_release_schedules content_submission_release_schedules?
+  contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1790,6 +1794,61 @@ model content_submissions {
   @@index([pricingCategory])
   @@index([status])
   @@index([submissionType])
+}
+
+model ContentTypeOption {
+  id             String                      @id @default(cuid())
+  value          String
+  label          String
+  priceType      String?
+  priceFixed     Float?
+  priceMin       Float?
+  priceMax       Float?
+  description    String?
+  isActive       Boolean                     @default(true)
+  order          Int                         @default(0)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  category       String
+  isFree         Boolean                     @default(false)
+  modelId        String?
+  pageType       String?                     @default("ALL_PAGES")
+  model          of_models?                  @relation("ModelContentTypes", fields: [modelId], references: [id], onDelete: Cascade)
+  pricingHistory ContentTypePricingHistory[] @relation("ContentTypePricingHistory")
+  submissions    content_submissions[]       @relation("SubmissionContentType")
+
+  @@index([isActive])
+  @@index([order])
+  @@index([category])
+  @@index([isFree])
+  @@index([modelId])
+  @@index([pageType])
+  @@index([value, category, modelId, pageType])
+}
+
+model ContentTypePricingHistory {
+  id                  String            @id @default(cuid())
+  contentTypeOptionId String
+  changeType          String
+  oldPriceType        String?
+  oldPriceFixed       Float?
+  oldPriceMin         Float?
+  oldPriceMax         Float?
+  oldLabel            String?
+  oldIsFree           Boolean?
+  newPriceType        String?
+  newPriceFixed       Float?
+  newPriceMin         Float?
+  newPriceMax         Float?
+  newLabel            String?
+  newIsFree           Boolean?
+  changedById         String?
+  reason              String?
+  createdAt           DateTime          @default(now())
+  contentTypeOption   ContentTypeOption @relation("ContentTypePricingHistory", fields: [contentTypeOptionId], references: [id], onDelete: Cascade)
+
+  @@index([contentTypeOptionId])
+  @@index([createdAt])
 }
 
 enum SyncStatus {

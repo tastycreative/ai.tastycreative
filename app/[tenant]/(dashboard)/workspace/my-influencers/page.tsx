@@ -83,8 +83,9 @@ interface InfluencerProfile {
     | null;
   tags?: string[];
   isFavorite?: boolean;
-  type?: string; // "real" or "ai"
+  type?: string; // "real", "ai", or "of_model"
   status?: string; // "active", "pending", etc.
+  metadata?: Record<string, string | string[] | boolean>;
 }
 
 interface LinkedLoRA {
@@ -162,11 +163,65 @@ interface ModelBible {
   dayChatter?: string;
   nightChatter?: string;
   internalNotes?: string;
+
+  // OF Model Business Fields
+  displayName?: string;
+  slug?: string;
+  percentageTaken?: number;
+  guaranteedAmount?: number;
+  launchDate?: string;
+  referrerName?: string;
+  chattingManagers?: string[];
+
+  // Social URLs
+  twitterUrl?: string;
+  tiktokUrl?: string;
+  websiteUrl?: string;
+  profileLinkUrl?: string;
+
+  // Extended Details
+  fullName?: string;
+  birthday?: string;
+  height?: string;
+  weight?: string;
+  ethnicity?: string;
+  timezone?: string;
+  interests?: string[];
+  favoriteColors?: string[];
+  amazonWishlist?: string;
+  restrictedTerms?: string[];
+
+  // Enriched Pricing
+  pricingCategories?: PricingCategory[];
+
+  // Migration tracking
+  migratedFromOfModel?: string;
+  migratedAt?: string;
 }
 
 interface PricingItem {
   item: string;
   price: string;
+}
+
+interface PricingCategory {
+  name: string;
+  slug: string;
+  description?: string;
+  order: number;
+  items: PricingCategoryItem[];
+}
+
+interface PricingCategoryItem {
+  name: string;
+  price: number;
+  description?: string;
+  order: number;
+  isActive: boolean;
+  isFree: boolean;
+  priceType: "FIXED" | "RANGE" | "MINIMUM";
+  priceMin?: number;
+  priceMax?: number;
 }
 
 type FilterMode = "all" | "mine" | "shared";
@@ -475,6 +530,9 @@ export default function MyInfluencersPage() {
   };
 
   const filteredProfiles = profiles.filter((profile) => {
+    // Exclude OF Model profiles from this page
+    if (profile.type === "of_model") return false;
+
     const matchesSearch =
       profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       profile.instagramUsername
@@ -530,8 +588,9 @@ export default function MyInfluencersPage() {
     }
   });
 
-  const myProfilesCount = profiles.filter((p) => isOwnProfile(p)).length;
-  const sharedProfilesCount = profiles.filter((p) => !isOwnProfile(p)).length;
+  const visibleProfiles = profiles.filter((p) => p.type !== "of_model");
+  const myProfilesCount = visibleProfiles.filter((p) => isOwnProfile(p)).length;
+  const sharedProfilesCount = visibleProfiles.filter((p) => !isOwnProfile(p)).length;
 
   if (!apiClient || loading) {
     return (
@@ -562,7 +621,7 @@ export default function MyInfluencersPage() {
                   Influencers
                 </h1>
                 <p className="text-xs text-header-muted">
-                  {profiles.length} profile{profiles.length !== 1 ? "s" : ""}
+                  {visibleProfiles.length} profile{visibleProfiles.length !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
@@ -593,7 +652,7 @@ export default function MyInfluencersPage() {
             </div>
             <div className="inline-flex items-center p-1 bg-white dark:bg-[#1a1625] rounded-xl border border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
               {[
-                { key: "all", label: "All", count: profiles.length },
+                { key: "all", label: "All", count: visibleProfiles.length },
                 { key: "mine", label: "Mine", count: myProfilesCount },
                 { key: "shared", label: "Shared", count: sharedProfilesCount },
               ].map((filter) => (
@@ -1165,7 +1224,7 @@ function CreateEditProfileModal({
     isDefault: profile?.isDefault || false,
     shareWithOrganization: !!profile?.organizationId,
     tags: profile?.tags || [],
-    type: profile?.type || "real", // "real" or "ai"
+    type: profile?.type || "real", // "real", "ai", or "of_model"
     age: profile?.modelBible?.age || "",
     location: profile?.modelBible?.location || "",
     nationality: profile?.modelBible?.nationality || "",
@@ -1540,7 +1599,7 @@ function CreateEditProfileModal({
                   </div>
                 </FormField>
 
-                {/* Profile Type - Real or AI */}
+                {/* Profile Type */}
                 <FormField label="Profile Type" required>
                   <div className="flex gap-3">
                     <button

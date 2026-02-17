@@ -161,6 +161,7 @@ export async function PATCH(
       isDefault,
       shareWithOrganization,
       modelBible,
+      metadata,
       tags,
       isFavorite,
       pageStrategy,
@@ -249,6 +250,11 @@ export async function PATCH(
     // Handle modelBible as JSON field
     if (modelBible !== undefined) {
       updateData.modelBible = modelBible;
+    }
+
+    // Handle metadata as JSON field
+    if (metadata !== undefined) {
+      updateData.metadata = metadata;
     }
 
     const updatedProfile = await prisma.instagramProfile.update({
