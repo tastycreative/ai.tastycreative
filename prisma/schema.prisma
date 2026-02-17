@@ -1061,6 +1061,34 @@ model CaptionToMessageType {
   @@map("caption_to_message_types")
 }
 
+model CaptionQueueTicket {
+  id               String   @id @default(cuid())
+  clerkId          String
+  profileId        String?
+  modelName        String
+  modelAvatar      String
+  profileImageUrl  String?
+  description      String
+  contentTypes     String[] @default([])
+  messageTypes     String[] @default([])
+  urgency          String   @default("medium")
+  releaseDate      DateTime
+  status           String   @default("pending")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  assignedTo       String?
+  completedAt      DateTime?
+  captionText      String?
+  
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([status])
+  @@index([urgency])
+  @@index([releaseDate])
+  @@index([clerkId, status])
+  @@map("caption_queue_tickets")
+}
+
 model SextingSet {
   id            String         @id @default(cuid())
   userId        String

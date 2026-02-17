@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
           });
 
           if (vaultFolder) {
-            console.log('📂 Using organization shared vault folder:', vaultFolder.name);
+            console.log('� Using organization shared vault folder:', vaultFolder.name);
           }
         } else {
           // Check if folder is explicitly shared via VaultFolderShare
@@ -349,12 +349,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process and save each generated image
-    const savedImages = [];
+    // Process and save each generated image IN PARALLEL (much faster!)
+    console.log(`⚡ Processing ${data.data.length} images in parallel...`);
     
-    for (let index = 0; index < data.data.length; index++) {
-      const item = data.data[index];
-      
+    const imageProcessingPromises = data.data.map(async (item: any, index: number) => {
       try {
         // Get image data (either from URL or base64)
         let imageBuffer: Buffer;
@@ -374,7 +372,7 @@ export async function POST(request: NextRequest) {
           imageBuffer = Buffer.from(item.b64_json, 'base64');
         } else {
           console.error('❌ No image data found for index:', index);
-          continue;
+          return null; // Skip this image
         }
 
         // Generate filename
@@ -467,7 +465,7 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          savedImages.push({
+          return {
             id: vaultItem.id,
             url: publicUrl,
             size: item.size || body.size,
@@ -475,7 +473,7 @@ export async function POST(request: NextRequest) {
             model: data.model,
             createdAt: vaultItem.createdAt.toISOString(),
             savedToVault: true,
-          });
+          };
         } else {
           // Save to regular generated images database
           const savedImage = await prisma.generatedImage.create({
@@ -509,23 +507,27 @@ export async function POST(request: NextRequest) {
 
           console.log(`✅ Saved to database: ${savedImage.id}`);
 
-          savedImages.push({
+          return {
             id: savedImage.id,
             url: publicUrl,
             size: item.size || body.size,
             prompt: body.prompt,
             model: data.model,
             createdAt: savedImage.createdAt.toISOString(),
-          });
+          };
         }
 
       } catch (error: any) {
         console.error(`❌ Error processing image ${index}:`, error);
-        // Continue with other images even if one fails
+        return null; // Return null for failed images
       }
-    }
+    });
 
-    console.log(`✅ Successfully saved ${savedImages.length}/${data.data.length} images`);
+    // Wait for all images to process in parallel
+    const savedImagesResults = await Promise.all(imageProcessingPromises);
+    const savedImages = savedImagesResults.filter((img): img is NonNullable<typeof img> => img !== null);
+
+    console.log(`✅ Successfully saved ${savedImages.length}/${data.data.length} images in parallel`);
 
     // Extract images from response
     const images = savedImages.length > 0 ? savedImages : data.data?.map((item: any) => ({

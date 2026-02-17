@@ -169,17 +169,21 @@ export async function POST(request: NextRequest) {
 
     console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
-    // Upload all images to S3 and get URLs
+    // Upload all images to S3 IN PARALLEL (much faster!)
     // API expects image_list as array of objects with "image" key (not "url")
-    const imageList: Array<{ image: string }> = [];
-    for (let i = 0; i < images.length; i++) {
-      const imageBuffer = Buffer.from(await images[i].arrayBuffer());
+    console.log(`⚡ Uploading ${images.length} images to S3 in parallel...`);
+    
+    const imageUploadPromises = images.map(async (imageFile, i) => {
+      const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
       const imageFilename = `kling-multi-i2v-source-${Date.now()}-${i + 1}.jpg`;
       const imageUrl = await uploadImageToS3(imageBuffer, imageFilename, userId);
-      // Format: array of objects with "image" key as per Kling API docs
-      imageList.push({ image: imageUrl });
       console.log(`[Kling Multi-I2V] Image ${i + 1} uploaded to:`, imageUrl);
-    }
+      // Format: array of objects with "image" key as per Kling API docs
+      return { image: imageUrl };
+    });
+
+    const imageList = await Promise.all(imageUploadPromises);
+    console.log(`✅ All ${imageList.length} images uploaded in parallel`);
 
     // Prepare Kling API request payload according to Kling API spec
     // The multi-image2video endpoint expects 'image_list' as an array of objects with "image" key
