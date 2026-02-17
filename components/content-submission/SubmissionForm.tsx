@@ -381,7 +381,84 @@ export const SubmissionForm = memo(function SubmissionForm({
                   </StepContent>
                 )}
 
-                {/* Add other step renderings as needed */}
+                {/* File Upload Step */}
+                {currentStepInfo?.id === 'files' && (
+                  <StepContent title="Upload Files" subtitle="Upload images, videos, or other files for this submission">
+                    {submissionId ? (
+                      <FileUploadZone submissionId={submissionId} />
+                    ) : (
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
+                        <p className="text-sm text-amber-200/80 font-light">
+                          Save the submission first to upload files
+                        </p>
+                      </div>
+                    )}
+                  </StepContent>
+                )}
+
+                {/* Review & Submit Step */}
+                {currentStepInfo?.id === 'review' && (
+                  <StepContent title="Review & Submit" subtitle="Review your submission details before finalizing">
+                    <div className="space-y-4">
+                      <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+                        <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-zinc-500 mb-1">Type</p>
+                            <p className="text-white font-medium">{submissionType === 'otp' ? 'One-Time Post (OTP)' : 'Pay-to-Release (PTR)'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-zinc-500 mb-1">Content Style</p>
+                            <p className="text-white font-medium capitalize">{contentStyle}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-zinc-500 mb-1">Platform</p>
+                            <p className="text-white font-medium capitalize">{platform}</p>
+                          </div>
+                          {watch('modelName') && (
+                            <div>
+                              <p className="text-xs text-zinc-500 mb-1">Model</p>
+                              <p className="text-white font-medium">{watch('modelName')}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {watch('caption') && (
+                        <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+                          <h3 className="text-sm font-medium text-zinc-400 mb-3">Caption</h3>
+                          <p className="text-white text-sm line-clamp-3">{watch('caption')}</p>
+                        </div>
+                      )}
+
+                      {isPTR && watch('releaseSchedule.releaseDate') && (
+                        <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+                          <h3 className="text-sm font-medium text-zinc-400 mb-3">Release Schedule</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-zinc-500 mb-1">Release Date</p>
+                              <p className="text-white">{watch('releaseSchedule.releaseDate')?.toString()}</p>
+                            </div>
+                            {watch('releaseSchedule.releaseTime') && (
+                              <div>
+                                <p className="text-xs text-zinc-500 mb-1">Release Time</p>
+                                <p className="text-white">{watch('releaseSchedule.releaseTime')?.toString()}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
+                        <p className="text-white font-medium mb-1">Ready to submit?</p>
+                        <p className="text-sm text-zinc-400">
+                          Click Submit below to create your {submissionType === 'otp' ? 'OTP' : 'PTR'} submission.
+                          {!submissionId && ' Files can be uploaded after creation.'}
+                        </p>
+                      </div>
+                    </div>
+                  </StepContent>
+                )}
               </div>
             </motion.div>
           </AnimatePresence>
@@ -457,9 +534,11 @@ export const SubmissionForm = memo(function SubmissionForm({
 // Helper Components
 const StepContent = memo(function StepContent({
   title,
+  subtitle,
   children,
 }: {
   title: string;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -468,6 +547,9 @@ const StepContent = memo(function StepContent({
         <h2 className="text-3xl sm:text-4xl font-light text-white tracking-tight">
           {title}
         </h2>
+        {subtitle && (
+          <p className="text-lg text-zinc-400 font-light">{subtitle}</p>
+        )}
       </div>
       {children}
     </div>

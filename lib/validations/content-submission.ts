@@ -9,18 +9,8 @@ export const contentStyleSchema = z.enum(['normal', 'poll', 'game', 'ppv', 'bund
 // Priority enum
 export const prioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 
-// Content type enum - expanded for detailed tracking
-export const contentTypeSchema = z.enum([
-  'photo',
-  'video',
-  'photo_set',
-  'video_set',
-  'mixed', // Photos + Videos
-  'gif',
-  'livestream',
-  'audio',
-  'text',
-]);
+// Content type - accepts any string value (dynamic from ContentTypeOption database)
+export const contentTypeSchema = z.string();
 
 // Component module enum
 export const componentModuleSchema = z.enum(['pricing', 'release', 'upload']);

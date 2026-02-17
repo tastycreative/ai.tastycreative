@@ -260,8 +260,9 @@ export async function POST(request: NextRequest) {
       isDefault,
       shareWithOrganization,
       modelBible,
+      metadata,
       tags,
-      type, // "real" or "ai"
+      type, // "real", "ai", or "of_model"
     } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -308,6 +309,7 @@ export async function POST(request: NextRequest) {
         isDefault: isDefault || existingProfileCount === 0,
         organizationId,
         modelBible: modelBible || undefined,
+        metadata: metadata || undefined,
         tags: tags || [],
         type: type || "real", // Default to "real" if not specified
         status: "pending", // All new profiles start as pending
