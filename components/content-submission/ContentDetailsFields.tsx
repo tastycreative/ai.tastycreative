@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { X, Search, ChevronDown, Check, User, Users, Loader2, RefreshCw } from 'lucide-react';
+import { X, Search, ChevronDown, Check, User, Users, Loader2, RefreshCw, Calendar, Clock, Globe } from 'lucide-react';
 import type { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors } from 'react-hook-form';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
 import { PricingTierSelector } from './PricingTierSelector';
@@ -698,6 +698,19 @@ interface ContentDetailsFieldsProps {
   errors: FieldErrors<CreateSubmissionWithComponents>;
 }
 
+const TIMEZONE_OPTIONS = [
+  { value: 'UTC', label: 'UTC (GMT+0)' },
+  { value: 'America/New_York', label: 'EST (GMT-5)' },
+  { value: 'America/Chicago', label: 'CST (GMT-6)' },
+  { value: 'America/Denver', label: 'MST (GMT-7)' },
+  { value: 'America/Los_Angeles', label: 'PST (GMT-8)' },
+  { value: 'Europe/London', label: 'GMT (GMT+0)' },
+  { value: 'Europe/Paris', label: 'CET (GMT+1)' },
+  { value: 'Europe/Bucharest', label: 'EET (GMT+2)' },
+  { value: 'Asia/Tokyo', label: 'JST (GMT+9)' },
+  { value: 'Australia/Sydney', label: 'AEST (GMT+10)' },
+];
+
 export function ContentDetailsFields({
   register,
   setValue,
@@ -709,6 +722,9 @@ export function ContentDetailsFields({
   const pricingCategory = watch('pricingCategory') || 'PORN_ACCURATE';
   const modelId = watch('modelId') || '';
   const contentTags = watch('contentTags') || [];
+  const releaseDate = watch('releaseSchedule.releaseDate');
+  const releaseTime = watch('releaseSchedule.releaseTime');
+  const releaseTimezone = watch('releaseSchedule.timezone') || '';
 
   const [profiles, setProfiles] = useState<ProfileItem[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
@@ -775,9 +791,11 @@ export function ContentDetailsFields({
     (option: ContentTypeOption | null) => {
       if (option) {
         setValue('contentType', option.value as any);
+        setValue('contentTypeOptionId', option.id);
         setSelectedContentTypeOptionId(option.id);
       } else {
         setValue('contentType', undefined);
+        setValue('contentTypeOptionId', undefined);
         setSelectedContentTypeOptionId('');
       }
     },
@@ -956,6 +974,82 @@ export function ContentDetailsFields({
         {errors.internalModelTags && (
           <p className="text-sm text-red-400 mt-1">
             {errors.internalModelTags.message}
+          </p>
+        )}
+      </div>
+
+      {/* Release Schedule */}
+      <div className="pt-4 border-t border-zinc-800/50">
+        <h3 className="text-lg font-semibold text-white mb-1">Release Schedule</h3>
+        <p className="text-sm text-zinc-400 mb-4">Set a release date and time for scheduled content</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Release Date */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                Release Date
+              </span>
+              <span className="text-zinc-500 text-xs ml-1">(Optional)</span>
+            </label>
+            <input
+              type="date"
+              value={releaseDate ? new Date(releaseDate).toISOString().split('T')[0] : ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setValue('releaseSchedule.releaseDate', new Date(e.target.value));
+                } else {
+                  setValue('releaseSchedule.releaseDate', undefined as any);
+                }
+              }}
+              className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all [color-scheme:dark]"
+            />
+          </div>
+
+          {/* Release Time */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                Release Time
+              </span>
+              <span className="text-zinc-500 text-xs ml-1">(Optional)</span>
+            </label>
+            <input
+              type="time"
+              value={releaseTime || ''}
+              onChange={(e) => setValue('releaseSchedule.releaseTime', e.target.value || undefined)}
+              className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all [color-scheme:dark]"
+            />
+          </div>
+
+          {/* Timezone */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <span className="inline-flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-zinc-400" />
+                Timezone
+              </span>
+            </label>
+            <select
+              value={releaseTimezone}
+              onChange={(e) => setValue('releaseSchedule.timezone', e.target.value)}
+              className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-zinc-900 text-zinc-500">Select timezone...</option>
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <option key={tz.value} value={tz.value} className="bg-zinc-900 text-white">
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {errors.releaseSchedule && (
+          <p className="text-sm text-red-400 mt-2">
+            {(errors.releaseSchedule as any)?.releaseDate?.message || (errors.releaseSchedule as any)?.message}
           </p>
         )}
       </div>

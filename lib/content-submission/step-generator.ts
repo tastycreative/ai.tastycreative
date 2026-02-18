@@ -15,26 +15,12 @@ export function generateSteps(
   selectedComponents: ComponentModule[]
 ): WizardStep[] {
   const steps: WizardStep[] = [
-    { id: 'platform-type', title: 'Platform & Type' },
+    { id: 'platform-type', title: 'Select Platform' },
     { id: 'style-components', title: 'Style & Components' },
     { id: 'details', title: 'Content Details' },
+    { id: 'files', title: 'File Uploads' },
+    { id: 'review', title: 'Review & Submit' },
   ];
-
-  // Add conditional steps based on selected components
-  if (selectedComponents.includes('release')) {
-    steps.push({ id: 'schedule', title: 'Release Schedule' });
-  }
-
-  if (selectedComponents.includes('pricing')) {
-    steps.push({ id: 'pricing', title: 'Pricing' });
-  }
-
-  if (selectedComponents.includes('upload')) {
-    steps.push({ id: 'files', title: 'File Uploads' });
-  }
-
-  // Always end with review
-  steps.push({ id: 'review', title: 'Review & Submit' });
 
   return steps;
 }
@@ -44,7 +30,7 @@ export function generateSteps(
  */
 export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
   const fieldMap: Record<string, string[]> = {
-    'platform-type': ['platform', 'submissionType'],
+    'platform-type': ['platform'],
     'style-components': ['contentStyle', 'selectedComponents'],
     details: [
       'modelName',
@@ -58,6 +44,7 @@ export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
       'externalCreatorTags',
       'internalModelTags',
       'pricingCategory',
+      'releaseSchedule',
     ],
     schedule: ['releaseSchedule'],
     pricing: ['pricing'],
