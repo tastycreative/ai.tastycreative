@@ -40,6 +40,17 @@ export async function GET(request: NextRequest) {
           encoder.encode(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`)
         );
 
+        // Send heartbeat every 30 seconds to keep connection alive
+        const heartbeatInterval = setInterval(() => {
+          try {
+            controller.enqueue(
+              encoder.encode(`: heartbeat\n\n`)
+            );
+          } catch (e) {
+            clearInterval(heartbeatInterval);
+          }
+        }, 30000);
+
         // Send initial job state immediately
         try {
           const where: any = { clerkId: userId };
@@ -80,6 +91,7 @@ export async function GET(request: NextRequest) {
         // Handle client disconnect
         request.signal.addEventListener('abort', () => {
           console.log(`📡 SSE client disconnected (abort): ${userId}`);
+          clearInterval(heartbeatInterval);
           sseBroadcaster.removeClient(userId, controller);
           try {
             controller.close();

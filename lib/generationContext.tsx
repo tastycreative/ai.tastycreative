@@ -77,6 +77,7 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let isUnmounted = false;
+    let reconnectAttempts = 0;
 
     const connect = () => {
       if (isUnmounted) return;
@@ -86,6 +87,7 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
 
         eventSource.onopen = () => {
           console.log('📡 SSE connection established');
+          reconnectAttempts = 0; // Reset on successful connection
         };
 
         eventSource.onmessage = (event) => {
@@ -181,13 +183,16 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
           }
         };
 
-        eventSource.onerror = (error) => {
-          console.error('📡 SSE connection error:', error);
+        ev// Note: Vercel timeouts after 60s are expected on Pro plan
+          // This is normal SSE behavior - connection will auto-reconnect
           eventSource?.close();
           
-          // Reconnect after 3 seconds
+          // Exponential backoff: 1s, 2s, 3s, max 5s
           if (!isUnmounted) {
-            console.log('📡 Reconnecting in 3 seconds...');
+            reconnectAttempts++;
+            const delay = Math.min(reconnectAttempts * 1000, 5000);
+            console.log(`📡 SSE reconnecting in ${delay / 1000}s...`);
+            reconnectTimeout = setTimeout(connect, delay.');
             reconnectTimeout = setTimeout(connect, 3000);
           }
         };
