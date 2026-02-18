@@ -28,11 +28,21 @@ const platforms: PlatformOption[] = [
 ];
 
 interface PlatformSelectorProps {
-  value: 'onlyfans' | 'fansly';
-  onChange: (value: 'onlyfans' | 'fansly') => void;
+  value: ('onlyfans' | 'fansly')[];
+  onChange: (value: ('onlyfans' | 'fansly')[]) => void;
 }
 
 export function PlatformSelector({ value, onChange }: PlatformSelectorProps) {
+  const toggle = (id: 'onlyfans' | 'fansly') => {
+    if (value.includes(id)) {
+      // Don't allow deselecting if it's the only one selected
+      if (value.length === 1) return;
+      onChange(value.filter((v) => v !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -40,19 +50,19 @@ export function PlatformSelector({ value, onChange }: PlatformSelectorProps) {
           Select Platform
         </h3>
         <p className="text-zinc-400">
-          Choose which platform this content will be posted to
+          Choose which platform(s) this content will be posted to
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {platforms.map((platform) => {
-          const isSelected = value === platform.id;
+          const isSelected = value.includes(platform.id);
 
           return (
             <button
               key={platform.id}
               type="button"
-              onClick={() => onChange(platform.id)}
+              onClick={() => toggle(platform.id)}
               className={`
                 relative p-6 rounded-xl border-2 transition-all text-left
                 ${

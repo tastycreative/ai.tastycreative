@@ -47,7 +47,7 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
       submissionType: 'otp',
       contentStyle: 'normal',
       priority: 'normal',
-      platform: 'onlyfans',
+      platform: ['onlyfans'],
       selectedComponents: [],
       contentTags: [],
       internalModelTags: [],
