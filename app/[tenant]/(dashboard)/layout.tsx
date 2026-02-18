@@ -57,6 +57,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import { SpacesDropdown } from "./spaces/SpacesDropdown";
 
 interface NavItem {
   name: string;
@@ -1443,13 +1444,16 @@ export default function DashboardLayout({
                 ))}
               </div>
             ) : (
-              navigation.map((item) => {
-                if ("items" in item) {
-                  return renderNavSection(item);
-                } else {
-                  return renderNavItem(item);
-                }
-              })
+              <>
+                {navigation.map((item) => {
+                  if ("items" in item) {
+                    return renderNavSection(item);
+                  } else {
+                    return renderNavItem(item);
+                  }
+                })}
+                <SpacesDropdown tenant={tenant} sidebarOpen={sidebarOpen} />
+              </>
             )}
           </nav>
 
@@ -1556,13 +1560,16 @@ export default function DashboardLayout({
                 ))}
               </div>
             ) : (
-              navigation.map((item) => {
-                if ("items" in item) {
-                  return renderNavSection(item);
-                } else {
-                  return renderNavItem(item);
-                }
-              })
+              <>
+                {navigation.map((item) => {
+                  if ("items" in item) {
+                    return renderNavSection(item);
+                  } else {
+                    return renderNavItem(item);
+                  }
+                })}
+                <SpacesDropdown tenant={tenant} sidebarOpen={true} />
+              </>
             )}
           </nav>
 
