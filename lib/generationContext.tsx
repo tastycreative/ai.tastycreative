@@ -183,7 +183,8 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
           }
         };
 
-        ev// Note: Vercel timeouts after 60s are expected on Pro plan
+        eventSource.onerror = (error) => {
+          // Note: Vercel timeouts after 60s are expected on Pro plan
           // This is normal SSE behavior - connection will auto-reconnect
           eventSource?.close();
           
@@ -192,15 +193,16 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
             reconnectAttempts++;
             const delay = Math.min(reconnectAttempts * 1000, 5000);
             console.log(`📡 SSE reconnecting in ${delay / 1000}s...`);
-            reconnectTimeout = setTimeout(connect, delay.');
-            reconnectTimeout = setTimeout(connect, 3000);
+            reconnectTimeout = setTimeout(connect, delay);
           }
         };
 
       } catch (error) {
         console.error('Failed to establish SSE connection:', error);
         if (!isUnmounted) {
-          reconnectTimeout = setTimeout(connect, 3000);
+          reconnectAttempts++;
+          const delay = Math.min(reconnectAttempts * 1000, 5000);
+          reconnectTimeout = setTimeout(connect, delay);
         }
       }
     };
