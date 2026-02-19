@@ -1996,7 +1996,7 @@ function PricingTab({
                 {/* Existing Services */}
                 <div className="space-y-2">
                   {Object.entries(sectionForm.otherServices || {}).map(
-                    ([serviceName, price]) => (
+                    ([serviceName, price]: [string, number]) => (
                       <div
                         key={serviceName}
                         className="flex items-center gap-2 p-3 bg-[#0c0c0f] rounded-lg group"
