@@ -3,8 +3,16 @@
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
+import {
+  useVaultItems,
+  useSharedFolderItems,
+  useInvalidateVaultItems,
+  useContentCreatorItems,
+} from "@/lib/hooks/useVaultItems.query";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -16,11 +24,12 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Constants for pagination
-const ITEMS_PER_PAGE = 50;
+// Constants for pagination - optimized for large datasets
+const INITIAL_ITEMS_COUNT = 100; // Start with more items for better UX
+const ITEMS_PER_PAGE = 100; // Load more items per page for efficiency
 
-// Lazy loading image component with intersection observer
-const LazyImage = memo(function LazyImage({
+// Optimized image component using Next.js Image
+const OptimizedImage = memo(function OptimizedImage({
   src,
   alt,
   className,
@@ -29,47 +38,26 @@ const LazyImage = memo(function LazyImage({
   src: string;
   alt: string;
   className?: string;
-  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  onError?: () => void;
 }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!imgRef.current) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "100px" },
-    );
-
-    observer.observe(imgRef.current);
-    return () => observer.disconnect();
-  }, []);
+  if (error && onError) {
+    onError();
+  }
 
   return (
-    <div ref={imgRef} className={className}>
-      {isInView ? (
-        <img
-          src={src}
-          alt={alt}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? "opacity-100" : "opacity-0"}`}
-          onLoad={() => setIsLoaded(true)}
-          onError={onError}
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-      )}
-      {isInView && !isLoaded && (
-        <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-      )}
+    <div className={className}>
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, (max-width: 1280px) 16vw, 14vw"
+        className="object-cover transition-opacity duration-300"
+        quality={85}
+        loading="lazy"
+        onError={() => setError(true)}
+      />
     </div>
   );
 });
@@ -481,16 +469,13 @@ const VaultGridItem = memo(function VaultGridItem({
         </div>
         <div className="aspect-square p-2 sm:p-3" onClick={handlePreviewClick}>
           {item.fileType.startsWith("image/") ? (
-            <LazyImage
+            <OptimizedImage
               src={item.awsS3Url}
               alt={item.fileName}
               className="w-full h-full rounded-lg bg-zinc-100 dark:bg-zinc-800 relative overflow-hidden"
-              onError={(e) => {
-                const img = e.currentTarget as HTMLImageElement;
-                if (!img.dataset.retried) {
-                  img.dataset.retried = "true";
-                  img.src = item.awsS3Url + "?t=" + Date.now();
-                }
+              onError={() => {
+                // Retry with cache-busting parameter
+                console.warn("Image failed to load:", item.awsS3Url);
               }}
             />
           ) : item.fileType.startsWith("video/") ? (
@@ -661,16 +646,12 @@ const VaultListItem = memo(function VaultListItem({
       </div>
       <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
         {item.fileType.startsWith("image/") ? (
-          <LazyImage
+          <OptimizedImage
             src={item.awsS3Url}
             alt={item.fileName}
             className="w-full h-full relative"
-            onError={(e) => {
-              const img = e.currentTarget as HTMLImageElement;
-              if (!img.dataset.retried) {
-                img.dataset.retried = "true";
-                img.src = item.awsS3Url + "?t=" + Date.now();
-              }
+            onError={() => {
+              console.warn("Image failed to load:", item.awsS3Url);
             }}
           />
         ) : item.fileType.startsWith("video/") ? (
@@ -767,7 +748,6 @@ interface FolderTreeItemProps {
   setSidebarOpen: (open: boolean) => void;
   setAdminViewMode: (mode: "personal" | "creators") => void;
   setSelectedSharedFolder: (folder: any) => void;
-  setSharedFolderItems: (items: any[]) => void;
   draggedFolderRef: React.MutableRefObject<{
     id: string;
     parentId: string | null;
@@ -812,7 +792,6 @@ const FolderTreeItem = memo(function FolderTreeItem({
   setSidebarOpen,
   setAdminViewMode,
   setSelectedSharedFolder,
-  setSharedFolderItems,
   draggedFolderRef,
 }: FolderTreeItemProps) {
   const subfolders = allFolders
@@ -987,8 +966,7 @@ const FolderTreeItem = memo(function FolderTreeItem({
 
   const handleClick = () => {
     onSelectFolder(folder.id);
-    setSelectedSharedFolder(null);
-    setSharedFolderItems([]);
+    setSelectedSharedFolder(null); // Query will automatically clear shared items
     setSidebarOpen(false);
     setAdminViewMode("personal");
   };
@@ -1177,7 +1155,6 @@ const FolderTreeItem = memo(function FolderTreeItem({
               setSidebarOpen={setSidebarOpen}
               setAdminViewMode={setAdminViewMode}
               setSelectedSharedFolder={setSelectedSharedFolder}
-              setSharedFolderItems={setSharedFolderItems}
               draggedFolderRef={draggedFolderRef}
               getRecursiveItemCount={getRecursiveItemCount}
             />
@@ -1207,30 +1184,26 @@ export function VaultContent() {
   const [adminViewMode, setAdminViewMode] = useState<"personal" | "creators">(
     "personal",
   );
-  const [contentCreators, setContentCreators] = useState<ContentCreator[]>([]);
   const [selectedContentCreator, setSelectedContentCreator] =
     useState<ContentCreator | null>(null);
-  const [contentCreatorItems, setContentCreatorItems] = useState<VaultItem[]>(
-    [],
-  );
-  const [loadingCreatorItems, setLoadingCreatorItems] = useState(false);
-  // Content creator folders (admin view)
-  const [creatorFolders, setCreatorFolders] = useState<
-    Array<{
-      id: string;
-      name: string;
-      profileId: string;
-      isDefault: boolean;
-      itemCount: number;
-      profileName: string;
-    }>
-  >([]);
-  const [creatorProfiles, setCreatorProfiles] = useState<
-    Array<{ id: string; name: string; instagramUsername?: string | null }>
-  >([]);
   const [selectedCreatorFolderId, setSelectedCreatorFolderId] = useState<
     string | null
   >(null);
+
+  // Use TanStack Query for content creator items with automatic caching
+  const {
+    data: creatorData,
+    isLoading: loadingCreatorItems,
+    refetch: refetchCreatorItems,
+  } = useContentCreatorItems(selectedContentCreator?.id, {
+    enabled: isAdmin && adminViewMode === "creators",
+  });
+
+  // Derive state from query data
+  const contentCreators = creatorData?.contentCreators || [];
+  const contentCreatorItems = creatorData?.items || [];
+  const creatorFolders = creatorData?.folders || [];
+  const creatorProfiles = creatorData?.profiles || [];
 
   // Local state derived from global profile - sync with global selector
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
@@ -1295,7 +1268,6 @@ export function VaultContent() {
     profileId: string;
   } | null>(null);
 
-  const [vaultItems, setVaultItems] = useState<VaultItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [contentFilter, setContentFilter] = useState<
     "all" | "photos" | "videos" | "audio" | "gifs"
@@ -1312,7 +1284,6 @@ export function VaultContent() {
   const [isCopyMode, setIsCopyMode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [loadingItems, setLoadingItems] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
@@ -1323,7 +1294,31 @@ export function VaultContent() {
   const [loadingSharedFolders, setLoadingSharedFolders] = useState(false);
   const [selectedSharedFolder, setSelectedSharedFolder] =
     useState<SharedVaultFolder | null>(null);
-  const [sharedFolderItems, setSharedFolderItems] = useState<VaultItem[]>([]);
+
+  // Cache invalidation hook for mutations
+  const invalidateVaultItems = useInvalidateVaultItems();
+
+  // Use TanStack Query for vault items with automatic caching
+  const {
+    data: vaultItems = [],
+    isLoading: loadingItems,
+    refetch: refetchVaultItems,
+  } = useVaultItems(
+    adminViewMode === "creators" ? null : selectedProfileId,
+    tenant,
+    {
+      enabled: adminViewMode !== "creators" && !!selectedProfileId,
+    },
+  );
+
+  // Use TanStack Query for shared folder items
+  const {
+    data: sharedFolderItems = [],
+    isLoading: loadingSharedItems,
+    refetch: refetchSharedItems,
+  } = useSharedFolderItems(selectedSharedFolder?.folderId ?? null, {
+    enabled: !!selectedSharedFolder,
+  });
   const [showShareModal, setShowShareModal] = useState(false);
   const [folderToShare, setFolderToShare] = useState<VaultFolder | null>(null);
   const [shareModalLoading, setShareModalLoading] = useState(false);
@@ -1337,7 +1332,7 @@ export function VaultContent() {
   const [shareNote, setShareNote] = useState("");
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
-  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
+  const [displayCount, setDisplayCount] = useState(INITIAL_ITEMS_COUNT);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
@@ -1347,6 +1342,7 @@ export function VaultContent() {
     null,
   );
   const contentRef = useRef<HTMLDivElement>(null);
+  const isLoadingMore = useRef(false); // Prevent duplicate load requests
 
   // Import from Google Drive state
   const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
@@ -1498,7 +1494,7 @@ export function VaultContent() {
 
   // Reset display count when folder or filter changes
   useEffect(() => {
-    setDisplayCount(ITEMS_PER_PAGE);
+    setDisplayCount(INITIAL_ITEMS_COUNT);
   }, [
     selectedFolderId,
     selectedSharedFolder,
@@ -1834,18 +1830,14 @@ export function VaultContent() {
         }
       }
 
-      // Remove only successfully deleted items from UI
+      // Invalidate cache after successful deletes
       if (successfulDeletes.length > 0) {
         if (selectedSharedFolder) {
-          setSharedFolderItems(
-            sharedFolderItems.filter(
-              (item) => !successfulDeletes.includes(item.id),
-            ),
-          );
-        } else {
-          setVaultItems(
-            vaultItems.filter((item) => !successfulDeletes.includes(item.id)),
-          );
+          invalidateVaultItems.invalidateShared(selectedSharedFolder.folderId);
+        } else if (isViewingCreators) {
+          invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
+        } else if (selectedProfileId) {
+          invalidateVaultItems.invalidateProfile(selectedProfileId);
         }
       }
 
@@ -2003,69 +1995,15 @@ export function VaultContent() {
     }
   };
 
-  // Load content creator items (admin only)
-  const loadContentCreatorItems = useCallback(
-    async (creatorId?: string) => {
-      if (!isAdmin) return;
-
-      setLoadingCreatorItems(true);
-      try {
-        const url = creatorId
-          ? `/api/vault/admin/content-creator-items?contentCreatorId=${creatorId}`
-          : "/api/vault/admin/content-creator-items";
-
-        const response = await fetch(url);
-        if (!response.ok)
-          throw new Error("Failed to fetch content creator items");
-
-        const data = await response.json();
-        setContentCreators(data.contentCreators || []);
-        setContentCreatorItems(
-          (data.items || []).map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt),
-          })),
-        );
-        if (data.selectedContentCreator) {
-          setSelectedContentCreator(data.selectedContentCreator);
-        }
-        // Set creator folders and profiles if available
-        setCreatorFolders(data.folders || []);
-        setCreatorProfiles(data.profiles || []);
-        // Reset selected folder when changing creators
-        if (!creatorId || creatorId !== selectedContentCreator?.id) {
-          setSelectedCreatorFolderId(null);
-        }
-      } catch (error) {
-        console.error("Error loading content creator items:", error);
-        showToast("Failed to load content creator items", "error");
-      } finally {
-        setLoadingCreatorItems(false);
-      }
-    },
-    [isAdmin],
-  );
-
-  // Load content creator items when admin view mode changes
-  useEffect(() => {
-    if (isAdmin && adminViewMode === "creators") {
-      loadContentCreatorItems(selectedContentCreator?.id);
-    }
-  }, [
-    isAdmin,
-    adminViewMode,
-    selectedContentCreator?.id,
-    loadContentCreatorItems,
-  ]);
+  // loadContentCreatorItems removed - now handled by TanStack Query hook
+  // Items are automatically cached by creator and won't refetch on folder navigation
 
   // Sync with global profile selector
   useEffect(() => {
     if (globalProfileId && globalProfileId !== selectedProfileId) {
       setSelectedProfileId(globalProfileId);
       setSelectedFolderId(null); // Reset folder selection when profile changes
-      setSelectedSharedFolder(null);
-      setSharedFolderItems([]);
+      setSelectedSharedFolder(null); // Query will automatically clear items
     }
   }, [globalProfileId]);
 
@@ -2076,8 +2014,7 @@ export function VaultContent() {
       if (newProfileId && newProfileId !== selectedProfileId) {
         setSelectedProfileId(newProfileId);
         setSelectedFolderId(null); // Reset folder selection when profile changes
-        setSelectedSharedFolder(null);
-        setSharedFolderItems([]);
+        setSelectedSharedFolder(null); // Query will automatically clear items
       }
     };
 
@@ -2111,14 +2048,8 @@ export function VaultContent() {
     }
   }, [profiles]);
 
-  useEffect(() => {
-    if (
-      selectedProfileId === "all" ||
-      (selectedFolderId && selectedProfileId)
-    ) {
-      loadItems();
-    }
-  }, [selectedFolderId, selectedProfileId, folders]);
+  // No longer need to load items on folder change - TanStack Query handles caching
+  // Items are fetched once per profile and cached, folder switching just filters the view
 
   const loadFolders = async () => {
     if (!selectedProfileId || selectedProfileId === "all") return;
@@ -2192,85 +2123,13 @@ export function VaultContent() {
     }
   };
 
-  const loadItems = async () => {
-    // When viewing all profiles, we need either a selected folder or just load all items
-    if (selectedProfileId === "all") {
-      // Load all items across all profiles (including shared org profiles)
-      setLoadingItems(true);
-      try {
-        const url = tenant
-          ? `/api/vault/items?profileId=all&organizationSlug=${tenant}`
-          : "/api/vault/items?profileId=all";
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to load items");
+  // loadItems and loadSharedFolderItems removed - now handled by TanStack Query hooks
+  // Items are automatically cached by profile/shared folder and won't refetch on folder navigation
 
-        const data = await response.json();
-        setVaultItems(
-          data.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt),
-          })),
-        );
-      } catch (error) {
-        console.error("Error loading items:", error);
-      } finally {
-        setLoadingItems(false);
-      }
-      return;
-    }
-
-    if (!selectedFolderId || !selectedProfileId) return;
-
-    setLoadingItems(true);
-    try {
-      const url = tenant
-        ? `/api/vault/items?profileId=${selectedProfileId}&organizationSlug=${tenant}`
-        : `/api/vault/items?profileId=${selectedProfileId}`;
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to load items");
-
-      const data = await response.json();
-      setVaultItems(
-        data.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt),
-        })),
-      );
-    } catch (error) {
-      console.error("Error loading items:", error);
-    } finally {
-      setLoadingItems(false);
-    }
-  };
-
-  const loadSharedFolderItems = async (sharedFolder: SharedVaultFolder) => {
-    setLoadingItems(true);
+  const loadSharedFolderItems = (sharedFolder: SharedVaultFolder) => {
+    // Simply set the selected shared folder - the query hook will handle fetching
     setSelectedSharedFolder(sharedFolder);
     setSelectedFolderId(null);
-
-    try {
-      const response = await fetch(
-        `/api/vault/items?sharedFolderId=${sharedFolder.folderId}`,
-      );
-      if (!response.ok) throw new Error("Failed to load shared folder items");
-
-      const data = await response.json();
-      setSharedFolderItems(
-        data.map((item: any) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt),
-        })),
-      );
-    } catch (error) {
-      console.error("Error loading shared folder items:", error);
-      showToast("Failed to load shared folder items", "error");
-    } finally {
-      setLoadingItems(false);
-    }
   };
 
   const loadSharedFolders = async () => {
@@ -2530,8 +2389,10 @@ export function VaultContent() {
         throw new Error(data.error || "Failed to import");
       }
 
-      // Reload vault items
-      loadItems();
+      // Invalidate cache to refetch vault items
+      if (selectedProfileId) {
+        invalidateVaultItems.invalidateProfile(selectedProfileId);
+      }
 
       setGoogleDriveImportSuccess({ itemCount: data.itemCount });
       showToast(
@@ -3294,7 +3155,13 @@ export function VaultContent() {
 
       setFolders(folders.filter((f) => f.id !== folderId));
       setAllFolders(allFolders.filter((f) => f.id !== folderId));
-      setVaultItems(vaultItems.filter((item) => item.folderId !== folderId));
+
+      // Invalidate cache to refetch items
+      if (isViewingCreators) {
+        invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
+      } else if (selectedProfileId) {
+        invalidateVaultItems.invalidateProfile(selectedProfileId);
+      }
 
       if (selectedFolderId === folderId) {
         const remaining = folders.filter(
@@ -3387,14 +3254,13 @@ export function VaultContent() {
 
       const uploadedItems = await Promise.all(uploadPromises);
 
-      setVaultItems([
-        ...uploadedItems.map((item) => ({
-          ...item,
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt),
-        })),
-        ...vaultItems,
-      ]);
+      // Invalidate cache to show newly uploaded items
+      if (isViewingCreators) {
+        invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
+      } else if (selectedProfileId) {
+        invalidateVaultItems.invalidateProfile(selectedProfileId);
+      }
+
       setNewFiles([]);
       setIsAddingNew(false);
       setUploadProgress(0);
@@ -3422,13 +3288,15 @@ export function VaultContent() {
         throw new Error(errorData.error || "Failed to delete item");
       }
 
+      // Invalidate cache after delete
       if (selectedSharedFolder) {
-        setSharedFolderItems(
-          sharedFolderItems.filter((item) => item.id !== id),
-        );
-      } else {
-        setVaultItems(vaultItems.filter((item) => item.id !== id));
+        invalidateVaultItems.invalidateShared(selectedSharedFolder.folderId);
+      } else if (isViewingCreators) {
+        invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
+      } else if (selectedProfileId) {
+        invalidateVaultItems.invalidateProfile(selectedProfileId);
       }
+
       showToast("File deleted", "success");
     } catch (error: any) {
       console.error("Error deleting item:", error);
@@ -4024,21 +3892,48 @@ export function VaultContent() {
   const hasMoreItems = displayCount < currentFilteredItems.length;
 
   const loadMoreItems = useCallback(() => {
-    setDisplayCount((prev) =>
-      Math.min(prev + ITEMS_PER_PAGE, currentFilteredItems.length),
-    );
+    if (isLoadingMore.current) return;
+    isLoadingMore.current = true;
+
+    setDisplayCount((prev) => {
+      const newCount = Math.min(
+        prev + ITEMS_PER_PAGE,
+        currentFilteredItems.length,
+      );
+      // Reset loading flag after state update
+      setTimeout(() => {
+        isLoadingMore.current = false;
+      }, 100);
+      return newCount;
+    });
   }, [currentFilteredItems.length]);
 
-  // Infinite scroll handler
+  // Infinite scroll handler - triggers when user scrolls near bottom
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
+      if (isLoadingMore.current) return;
+
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-      if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreItems) {
+      const scrollThreshold = 400; // Trigger 400px before bottom for smoother UX
+
+      if (
+        scrollHeight - scrollTop - clientHeight < scrollThreshold &&
+        hasMoreItems
+      ) {
         loadMoreItems();
       }
     },
     [hasMoreItems, loadMoreItems],
   );
+
+  // Virtualized list for list view (grid uses native rendering for better CSS Grid support)
+  const listVirtualizer = useVirtualizer({
+    count: currentFilteredItems.length,
+    getScrollElement: () => contentRef.current,
+    estimateSize: () => 80,
+    overscan: 5,
+    enabled: viewMode === "list",
+  });
 
   // isAllProfiles comes from the useInstagramProfile hook
   const visibleFolders = isAllProfiles
@@ -4073,37 +3968,58 @@ export function VaultContent() {
     (!isViewingShared && !isViewingCreators) ||
     selectedSharedFolder?.permission === "EDIT";
 
-  const totalItems = isAllProfiles
-    ? vaultItems.length
-    : vaultItems.filter((item) => item.profileId === selectedProfileId).length;
-  const totalSize = isAllProfiles
-    ? vaultItems.reduce((acc, item) => acc + item.fileSize, 0)
-    : vaultItems
-        .filter((item) => item.profileId === selectedProfileId)
-        .reduce((acc, item) => acc + item.fileSize, 0);
-  const imageCount = vaultItems.filter(
-    (item) =>
-      (isAllProfiles || item.profileId === selectedProfileId) &&
-      item.fileType.startsWith("image/"),
-  ).length;
-  const videoCount = vaultItems.filter(
-    (item) =>
-      (isAllProfiles || item.profileId === selectedProfileId) &&
-      item.fileType.startsWith("video/"),
-  ).length;
+  // Memoize storage stats to prevent recalculation on every render
+  const totalItems = useMemo(() => {
+    return isAllProfiles
+      ? vaultItems.length
+      : vaultItems.filter((item) => item.profileId === selectedProfileId)
+          .length;
+  }, [vaultItems, isAllProfiles, selectedProfileId]);
 
-  // Creator items stats
-  const creatorTotalItems = contentCreatorItems.length;
-  const creatorTotalSize = contentCreatorItems.reduce(
-    (acc, item) => acc + item.fileSize,
-    0,
-  );
-  const creatorImageCount = contentCreatorItems.filter((item) =>
-    item.fileType.startsWith("image/"),
-  ).length;
-  const creatorVideoCount = contentCreatorItems.filter((item) =>
-    item.fileType.startsWith("video/"),
-  ).length;
+  const totalSize = useMemo(() => {
+    return isAllProfiles
+      ? vaultItems.reduce((acc, item) => acc + item.fileSize, 0)
+      : vaultItems
+          .filter((item) => item.profileId === selectedProfileId)
+          .reduce((acc, item) => acc + item.fileSize, 0);
+  }, [vaultItems, isAllProfiles, selectedProfileId]);
+
+  const imageCount = useMemo(() => {
+    return vaultItems.filter(
+      (item) =>
+        (isAllProfiles || item.profileId === selectedProfileId) &&
+        item.fileType.startsWith("image/"),
+    ).length;
+  }, [vaultItems, isAllProfiles, selectedProfileId]);
+
+  const videoCount = useMemo(() => {
+    return vaultItems.filter(
+      (item) =>
+        (isAllProfiles || item.profileId === selectedProfileId) &&
+        item.fileType.startsWith("video/"),
+    ).length;
+  }, [vaultItems, isAllProfiles, selectedProfileId]);
+
+  // Memoize creator items stats
+  const creatorTotalItems = useMemo(() => {
+    return contentCreatorItems.length;
+  }, [contentCreatorItems]);
+
+  const creatorTotalSize = useMemo(() => {
+    return contentCreatorItems.reduce((acc, item) => acc + item.fileSize, 0);
+  }, [contentCreatorItems]);
+
+  const creatorImageCount = useMemo(() => {
+    return contentCreatorItems.filter((item) =>
+      item.fileType.startsWith("image/"),
+    ).length;
+  }, [contentCreatorItems]);
+
+  const creatorVideoCount = useMemo(() => {
+    return contentCreatorItems.filter((item) =>
+      item.fileType.startsWith("video/"),
+    ).length;
+  }, [contentCreatorItems]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -4687,7 +4603,8 @@ export function VaultContent() {
                               `Copied ${itemsToProcess.length} item(s)`,
                               "success",
                             );
-                          await loadItems();
+                          // Invalidate cache for both source and destination profiles
+                          invalidateVaultItems.invalidateAll();
                         } else {
                           const results = await Promise.all(
                             itemsToProcess.map(async (itemId) => {
@@ -4717,14 +4634,19 @@ export function VaultContent() {
                               `Moved ${itemsToProcess.length} item(s)`,
                               "success",
                             );
+                          // Invalidate cache after move
                           if (selectedSharedFolder) {
-                            setSharedFolderItems(
-                              sharedFolderItems.filter(
-                                (item) => !selectedItems.has(item.id),
-                              ),
+                            invalidateVaultItems.invalidateShared(
+                              selectedSharedFolder.folderId,
                             );
-                            await loadItems();
-                          } else await loadItems();
+                            if (selectedProfileId) {
+                              invalidateVaultItems.invalidateProfile(
+                                selectedProfileId,
+                              );
+                            }
+                          } else {
+                            invalidateVaultItems.invalidateAll();
+                          }
                         }
                         setSelectedItems(new Set());
                         setShowMoveModal(false);
@@ -5965,8 +5887,7 @@ export function VaultContent() {
                     setAdminViewMode("personal");
                     setSelectedContentCreator(null);
                     setSelectedCreatorFolderId(null);
-                    setCreatorFolders([]);
-                    setCreatorProfiles([]);
+                    // Query will automatically clean up creator data when mode changes
                   }}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     adminViewMode === "personal"
@@ -6004,15 +5925,11 @@ export function VaultContent() {
                   const value = e.target.value;
                   setSelectedCreatorFolderId(null); // Reset folder selection when changing creators
                   if (value === "all") {
-                    setSelectedContentCreator(null);
-                    setCreatorFolders([]);
-                    setCreatorProfiles([]);
-                    loadContentCreatorItems();
+                    setSelectedContentCreator(null); // Query will automatically fetch all creators
                   } else {
                     const creator = contentCreators.find((c) => c.id === value);
                     if (creator) {
-                      setSelectedContentCreator(creator);
-                      loadContentCreatorItems(creator.id);
+                      setSelectedContentCreator(creator); // Query will automatically fetch this creator's items
                     }
                   }
                 }}
@@ -6304,8 +6221,7 @@ export function VaultContent() {
                                     onToggleExpand={toggleFolderExpand}
                                     onSelectFolder={(id) => {
                                       setSelectedFolderId(id);
-                                      setSelectedSharedFolder(null);
-                                      setSharedFolderItems([]);
+                                      setSelectedSharedFolder(null); // Query handles clearing items
                                       setSidebarOpen(false);
                                       setAdminViewMode("personal");
                                     }}
@@ -6333,7 +6249,6 @@ export function VaultContent() {
                                     setSelectedSharedFolder={
                                       setSelectedSharedFolder
                                     }
-                                    setSharedFolderItems={setSharedFolderItems}
                                     draggedFolderRef={draggedFolderRef}
                                     getRecursiveItemCount={
                                       getRecursiveItemCount
@@ -6382,8 +6297,7 @@ export function VaultContent() {
                             onToggleExpand={toggleFolderExpand}
                             onSelectFolder={(id) => {
                               setSelectedFolderId(id);
-                              setSelectedSharedFolder(null);
-                              setSharedFolderItems([]);
+                              setSelectedSharedFolder(null); // Query handles clearing items
                               setSidebarOpen(false);
                               setAdminViewMode("personal");
                             }}
@@ -6407,7 +6321,6 @@ export function VaultContent() {
                             setSidebarOpen={setSidebarOpen}
                             setAdminViewMode={setAdminViewMode}
                             setSelectedSharedFolder={setSelectedSharedFolder}
-                            setSharedFolderItems={setSharedFolderItems}
                             draggedFolderRef={draggedFolderRef}
                             getRecursiveItemCount={getRecursiveItemCount}
                           />
@@ -7069,7 +6982,7 @@ export function VaultContent() {
               onDisableVideoThumbnailsToggle={() =>
                 setDisableVideoThumbnails(!disableVideoThumbnails)
               }
-              filteredCount={allFilteredItems.length}
+              filteredCount={currentFilteredItems.length}
             />
           </div>
 
@@ -7189,7 +7102,7 @@ export function VaultContent() {
                   </div>
                 ))}
               </div>
-            ) : allFilteredItems.length === 0 ? (
+            ) : currentFilteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 rounded-2xl flex items-center justify-center mb-4 border border-[#EC67A1]/30">
                   <FileIcon className="w-8 h-8 text-[#EC67A1]" />
@@ -7237,7 +7150,7 @@ export function VaultContent() {
                     </span>
                   </div>
                 )}
-                {/* Standard Grid with lazy loaded images */}
+                {/* Optimized Grid - render paginated items with Next.js Image lazy loading */}
                 <div className={getGridClasses}>
                   {filteredItems.map((item) => (
                     <VaultGridItem
@@ -7260,14 +7173,17 @@ export function VaultContent() {
                     />
                   ))}
                 </div>
+                {/* Load More Button for Grid View */}
                 {hasMoreItems && (
-                  <div className="flex justify-center mt-4 sm:mt-6">
+                  <div className="flex justify-center mt-6 mb-4">
                     <button
                       onClick={loadMoreItems}
-                      className="px-4 sm:px-6 py-2.5 sm:py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20"
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-xl font-medium transition-all shadow-lg shadow-[#EC67A1]/25"
                     >
-                      <Loader2 className="w-4 h-4" /> Load more (
-                      {currentFilteredItems.length - filteredItems.length})
+                      <RefreshCw className="w-4 h-4" />
+                      Load More ({currentFilteredItems.length -
+                        displayCount}{" "}
+                      remaining)
                     </button>
                   </div>
                 )}
@@ -7275,7 +7191,7 @@ export function VaultContent() {
             ) : (
               <>
                 {/* Selection header for list view */}
-                {filteredItems.length > 0 && selectionMode && (
+                {currentFilteredItems.length > 0 && selectionMode && (
                   <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/50 border border-[#EC67A1]/10 rounded-xl mb-2">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <input
@@ -7298,38 +7214,50 @@ export function VaultContent() {
                     </span>
                   </div>
                 )}
-                {/* Standard List with lazy loaded images */}
-                <div className="space-y-2">
-                  {filteredItems.map((item) => (
-                    <VaultListItem
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedItems.has(item.id)}
-                      selectionMode={selectionMode}
-                      canEdit={canEdit && !isViewingCreators}
-                      onSelect={onSelectItem}
-                      onPreview={handlePreview}
-                      onDelete={handleDeleteItem}
-                      onDownload={handleDownloadSingleFile}
-                      formatFileSize={formatFileSize}
-                      favorites={favorites}
-                      toggleFavorite={toggleFavorite}
-                      showGeneratorInfo={isViewingCreators}
-                    />
-                  ))}
-                </div>
-                {hasMoreItems && (
-                  <div className="flex justify-center mt-6">
-                    <button
-                      onClick={loadMoreItems}
-                      className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-header-muted rounded-xl font-medium transition-all flex items-center gap-2 border border-[#EC67A1]/20"
-                    >
-                      <Loader2 className="w-4 h-4" /> Load more (
-                      {currentFilteredItems.length - filteredItems.length}{" "}
-                      remaining)
-                    </button>
+                {/* Virtualized List */}
+                <div
+                  style={{
+                    height: `${listVirtualizer.getTotalSize()}px`,
+                    width: "100%",
+                    position: "relative",
+                  }}
+                >
+                  <div className="space-y-2">
+                    {listVirtualizer.getVirtualItems().map((virtualItem) => {
+                      const item = currentFilteredItems[virtualItem.index];
+                      if (!item) return null;
+
+                      return (
+                        <div
+                          key={virtualItem.key}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: `${virtualItem.size}px`,
+                            transform: `translateY(${virtualItem.start}px)`,
+                          }}
+                        >
+                          <VaultListItem
+                            item={item}
+                            isSelected={selectedItems.has(item.id)}
+                            selectionMode={selectionMode}
+                            canEdit={canEdit && !isViewingCreators}
+                            onSelect={onSelectItem}
+                            onPreview={handlePreview}
+                            onDelete={handleDeleteItem}
+                            onDownload={handleDownloadSingleFile}
+                            formatFileSize={formatFileSize}
+                            favorites={favorites}
+                            toggleFavorite={toggleFavorite}
+                            showGeneratorInfo={isViewingCreators}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
               </>
             )}
           </div>

@@ -26,6 +26,9 @@ import {
   Building2,
   Mic,
   UserCircle,
+  UserPlus,
+  Mail,
+  CheckCircle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -51,7 +54,10 @@ export default function AdminLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const [expandedSections, setExpandedSections] = useState<string[]>(["AI Voice Note Tracker"]);
+  const [expandedSections, setExpandedSections] = useState<string[]>([
+    "Onboarding",
+    "AI Voice Note Tracker",
+  ]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const pathname = usePathname();
   const params = useParams();
@@ -65,13 +71,13 @@ export default function AdminLayout({
   useEffect(() => {
     const checkSuperAdmin = async () => {
       try {
-        const response = await fetch('/api/auth/check-role');
+        const response = await fetch("/api/auth/check-role");
         if (response.ok) {
           const data = await response.json();
           setIsSuperAdmin(data.isSuperAdmin || false);
         }
       } catch (error) {
-        console.error('Error checking super admin status:', error);
+        console.error("Error checking super admin status:", error);
       }
     };
     checkSuperAdmin();
@@ -97,26 +103,45 @@ export default function AdminLayout({
   ];
 
   // Super admin only navigation items
-  const superAdminNavigation: (NavItem | NavSection)[] = isSuperAdmin ? [
-    {
-      name: "Organizations",
-      href: `/${tenant}/admin/organizations`,
-      icon: Building2,
-    },
-    {
-      name: "Subscription Plans",
-      href: `/${tenant}/admin/plans`,
-      icon: CreditCard,
-    },
-    {
-      name: "Feature Pricing",
-      href: `/${tenant}/admin/feature-pricing`,
-      icon: Zap,
-    },
-  ] : [];
+  const superAdminNavigation: (NavItem | NavSection)[] = isSuperAdmin
+    ? [
+        {
+          name: "Organizations",
+          href: `/${tenant}/admin/organizations`,
+          icon: Building2,
+        },
+        {
+          name: "Subscription Plans",
+          href: `/${tenant}/admin/plans`,
+          icon: CreditCard,
+        },
+        {
+          name: "Feature Pricing",
+          href: `/${tenant}/admin/feature-pricing`,
+          icon: Zap,
+        },
+      ]
+    : [];
 
   // Common navigation items
   const commonNavigation: (NavItem | NavSection)[] = [
+    {
+      name: "Onboarding",
+      icon: UserPlus,
+      collapsible: true,
+      items: [
+        {
+          name: "Invitations",
+          href: `/${tenant}/admin/onboarding-invitations`,
+          icon: Mail,
+        },
+        {
+          name: "Pending Submissions",
+          href: `/${tenant}/admin/onboarding-submissions`,
+          icon: CheckCircle,
+        },
+      ],
+    },
     {
       name: "Production Tracker",
       href: `/${tenant}/admin/production`,
@@ -223,7 +248,7 @@ export default function AdminLayout({
     setExpandedSections((prev) =>
       prev.includes(sectionName)
         ? prev.filter((name) => name !== sectionName)
-        : [...prev, sectionName]
+        : [...prev, sectionName],
     );
   };
 
@@ -244,7 +269,10 @@ export default function AdminLayout({
     const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
       if (!sidebarOpen) {
         const rect = e.currentTarget.getBoundingClientRect();
-        setTooltipPosition({ x: rect.right + 8, y: rect.top + rect.height / 2 });
+        setTooltipPosition({
+          x: rect.right + 8,
+          y: rect.top + rect.height / 2,
+        });
         setHoveredItem(item.name);
       }
     };
@@ -265,7 +293,7 @@ export default function AdminLayout({
             ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-lg shadow-[#EC67A1]/25 scale-[1.02] border-2 border-[#EC67A1]/30"
             : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md hover:border-[#EC67A1]/20 border-2 border-transparent",
           "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 active:scale-95",
-          !sidebarOpen ? "justify-center" : ""
+          !sidebarOpen ? "justify-center" : "",
         )}
       >
         <Icon
@@ -275,7 +303,7 @@ export default function AdminLayout({
               : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
             "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300",
             sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
-            isActive ? "scale-110" : "group-hover:scale-110"
+            isActive ? "scale-110" : "group-hover:scale-110",
           )}
           aria-hidden="true"
         />
@@ -286,7 +314,9 @@ export default function AdminLayout({
 
   const renderNavSection = (section: NavSection) => {
     const isExpanded = isSectionExpanded(section.name);
-    const hasActiveItem = section.items.some((item) => isNavItemActive(item.href));
+    const hasActiveItem = section.items.some((item) =>
+      isNavItemActive(item.href),
+    );
     const Icon = section.icon;
 
     return (
@@ -298,7 +328,7 @@ export default function AdminLayout({
               ? "bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 border-2 border-[#EC67A1]/30"
               : "border-2 border-transparent hover:border-[#EC67A1]/20",
             "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-xl transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md",
-            !sidebarOpen ? "justify-center" : "justify-between"
+            !sidebarOpen ? "justify-center" : "justify-between",
           )}
         >
           <div className="flex items-center">
@@ -308,7 +338,7 @@ export default function AdminLayout({
                   ? "text-[#EC67A1]"
                   : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
                 "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-all duration-300",
-                sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : ""
+                sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
               )}
               aria-hidden="true"
             />
@@ -318,7 +348,7 @@ export default function AdminLayout({
             <ChevronDown
               className={classNames(
                 "h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300",
-                isExpanded ? "rotate-180" : ""
+                isExpanded ? "rotate-180" : "",
               )}
             />
           )}
@@ -337,13 +367,15 @@ export default function AdminLayout({
                     isActive
                       ? "bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25 border-2 border-[#EC67A1]/30"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-[#EC67A1]/20 border-2 border-transparent",
-                    "group flex items-center px-3 py-2 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-md"
+                    "group flex items-center px-3 py-2 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-md",
                   )}
                 >
                   <SubIcon
                     className={classNames(
-                      isActive ? "text-white" : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
-                      "h-4 w-4 xs:h-5 xs:w-5 flex-shrink-0 mr-2 transition-all duration-300"
+                      isActive
+                        ? "text-white"
+                        : "text-[#5DC3F8] group-hover:text-[#EC67A1]",
+                      "h-4 w-4 xs:h-5 xs:w-5 flex-shrink-0 mr-2 transition-all duration-300",
                     )}
                     aria-hidden="true"
                   />
@@ -387,7 +419,9 @@ export default function AdminLayout({
                     <h1 className="text-xl font-bold text-sidebar-foreground">
                       Admin Panel
                     </h1>
-                    <p className="text-xs text-sidebar-foreground/60">System Control</p>
+                    <p className="text-xs text-sidebar-foreground/60">
+                      System Control
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -442,7 +476,7 @@ export default function AdminLayout({
       <div
         className={classNames(
           "lg:hidden fixed inset-0 z-50 transition-opacity duration-300",
-          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >
         {/* Backdrop */}
@@ -457,7 +491,7 @@ export default function AdminLayout({
             "w-72 xs:w-80 h-full p-3 transition-all duration-300 ease-out",
             sidebarOpen
               ? "transform translate-x-0 opacity-100"
-              : "transform -translate-x-full opacity-0"
+              : "transform -translate-x-full opacity-0",
           )}
         >
           <div className="h-full rounded-3xl bg-background backdrop-blur-2xl border border-sidebar-border flex flex-col overflow-hidden shadow-xl">
@@ -469,8 +503,12 @@ export default function AdminLayout({
                     <Shield className="w-6 h-6 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-bold text-sidebar-foreground">Admin Panel</h1>
-                    <p className="text-xs text-sidebar-foreground/60">System Control</p>
+                    <h1 className="text-xl font-bold text-sidebar-foreground">
+                      Admin Panel
+                    </h1>
+                    <p className="text-xs text-sidebar-foreground/60">
+                      System Control
+                    </p>
                   </div>
                 </div>
                 <button
@@ -530,7 +568,9 @@ export default function AdminLayout({
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 bg-gradient-to-r from-[#EC67A1]/10 to-[#F774B9]/10 px-4 py-2.5 rounded-2xl border-2 border-[#EC67A1]/30">
                     <Shield className="w-5 h-5 text-[#EC67A1]" />
-                    <h2 className="text-base font-semibold text-header-foreground">Admin Control Panel</h2>
+                    <h2 className="text-base font-semibold text-header-foreground">
+                      Admin Control Panel
+                    </h2>
                   </div>
                 </div>
 
@@ -543,11 +583,17 @@ export default function AdminLayout({
                   <div className="relative group">
                     <button className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-sidebar-accent hover:bg-sidebar-accent/80 border-2 border-transparent hover:border-[#EC67A1]/30 transition-all duration-200">
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] via-[#F774B9] to-[#5DC3F8] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
-                        <span className="text-white text-xs font-bold">{initials}</span>
+                        <span className="text-white text-xs font-bold">
+                          {initials}
+                        </span>
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-medium text-header-foreground">{firstName}</p>
-                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">{email}</p>
+                        <p className="text-sm font-medium text-header-foreground">
+                          {firstName}
+                        </p>
+                        <p className="text-[10px] text-header-muted truncate max-w-[120px]">
+                          {email}
+                        </p>
                       </div>
                       <ChevronDown className="w-4 h-4 text-[#EC67A1] transition-all duration-200 group-hover:rotate-180" />
                     </button>
@@ -555,11 +601,17 @@ export default function AdminLayout({
                     {/* User Dropdown */}
                     <div className="absolute right-0 mt-2 w-72 py-2 bg-sidebar rounded-2xl border border-sidebar-border shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                       <div className="px-4 py-3 border-b border-sidebar-border">
-                        <p className="text-sm font-semibold text-sidebar-foreground">{firstName}</p>
-                        <p className="text-xs text-sidebar-foreground/60 truncate">{email}</p>
+                        <p className="text-sm font-semibold text-sidebar-foreground">
+                          {firstName}
+                        </p>
+                        <p className="text-xs text-sidebar-foreground/60 truncate">
+                          {email}
+                        </p>
                         <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] rounded-full">
                           <Shield className="w-3 h-3 text-white" />
-                          <span className="text-xs text-white font-semibold">Admin</span>
+                          <span className="text-xs text-white font-semibold">
+                            Admin
+                          </span>
                         </div>
                       </div>
 
@@ -609,7 +661,7 @@ export default function AdminLayout({
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
-            transform: 'translateY(-50%)'
+            transform: "translateY(-50%)",
           }}
         >
           {hoveredItem}
