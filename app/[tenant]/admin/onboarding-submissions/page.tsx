@@ -836,7 +836,7 @@ export default function OnboardingSubmissionsPage() {
                   selectedSubmission.selectedContentTypes.length > 0 && (
                     <div className="mb-8">
                       <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4">
-                        Content Types
+                        Content Type
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {selectedSubmission.selectedContentTypes.map(

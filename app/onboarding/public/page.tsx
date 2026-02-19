@@ -561,7 +561,13 @@ function PublicOnboardingContent() {
 
 export default function PublicOnboardingPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#09090b] flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-light-pink" /></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-light-pink" />
+        </div>
+      }
+    >
       <PublicOnboardingContent />
     </Suspense>
   );

@@ -1995,39 +1995,42 @@ function PricingTab({
 
                 {/* Existing Services */}
                 <div className="space-y-2">
-                  {(Object.entries(sectionForm.otherServices || {}) as [string, number][]).map(
-                    ([serviceName, price]) => (
-                      <div
-                        key={serviceName}
-                        className="flex items-center gap-2 p-3 bg-[#0c0c0f] rounded-lg group"
-                      >
-                        <div className="flex-1">
-                          <div className="text-[13px] font-medium text-[#e4e4e7]">
-                            {serviceName}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={price}
-                            onChange={(e) =>
-                              updateOtherService(
-                                serviceName,
-                                Number(e.target.value),
-                              )
-                            }
-                            className="w-24 h-8 px-2 text-sm bg-[#18181b] border border-[#27272a] rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
-                          />
-                          <button
-                            onClick={() => deleteOtherService(serviceName)}
-                            className="p-1.5 text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                  {(
+                    Object.entries(sectionForm.otherServices || {}) as [
+                      string,
+                      number,
+                    ][]
+                  ).map(([serviceName, price]) => (
+                    <div
+                      key={serviceName}
+                      className="flex items-center gap-2 p-3 bg-[#0c0c0f] rounded-lg group"
+                    >
+                      <div className="flex-1">
+                        <div className="text-[13px] font-medium text-[#e4e4e7]">
+                          {serviceName}
                         </div>
                       </div>
-                    ),
-                  )}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={price}
+                          onChange={(e) =>
+                            updateOtherService(
+                              serviceName,
+                              Number(e.target.value),
+                            )
+                          }
+                          className="w-24 h-8 px-2 text-sm bg-[#18181b] border border-[#27272a] rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                        />
+                        <button
+                          onClick={() => deleteOtherService(serviceName)}
+                          className="p-1.5 text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   {(!sectionForm.otherServices ||
                     Object.keys(sectionForm.otherServices).length === 0) && (
                     <div className="text-center py-6 text-[#71717a] text-sm">
