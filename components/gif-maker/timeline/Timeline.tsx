@@ -21,7 +21,7 @@ interface TimelineProps {
 export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Optimize: Use single selector with useShallow to prevent re-renders on unrelated state changes
+  // Data fields — useShallow bails out when values are referentially the same
   const {
     getEffectiveTracks,
     totalDurationInFrames,
@@ -31,7 +31,6 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
     snapEnabled,
     fps,
     tracks,
-    setCurrentFrame,
   } = useVideoEditorStore(
     useShallow((s) => ({
       getEffectiveTracks: s.getEffectiveTracks,
@@ -42,9 +41,10 @@ export function Timeline({ onFrameChange, onTogglePlayback }: TimelineProps) {
       snapEnabled: s.settings.snapEnabled,
       fps: s.settings.fps,
       tracks: s.tracks,
-      setCurrentFrame: s.setCurrentFrame,
     }))
   );
+  // Action is a stable Zustand reference — select separately, no shallow needed
+  const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
 
   // Memoize effective tracks — only recompute when layout or tracks change
   const effectiveTracks = useMemo(

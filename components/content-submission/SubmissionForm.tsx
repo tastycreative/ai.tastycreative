@@ -113,9 +113,8 @@ export const SubmissionForm = memo(function SubmissionForm({
   const { isSaving, lastSaved, error: saveError } = useAutoSave({
     data: formData,
     onSave: async (data) => {
-      // Simulate auto-save - replace with actual API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log('Auto-saved:', data);
+      if (!submissionId) return;
+      await updateSubmission.mutateAsync({ id: submissionId, ...data });
     },
     delay: 3000,
     enabled: isEditMode && Object.keys(dirtyFields).length > 0,

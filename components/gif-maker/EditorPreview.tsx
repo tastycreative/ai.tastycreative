@@ -2,6 +2,7 @@
 
 import { forwardRef, useMemo, useCallback } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import { PreviewPlayer, type PreviewPlayerRef } from "./PreviewPlayer";
 import { CanvasOverlayLayer } from "./overlays/CanvasOverlayLayer";
 import type { Clip, Transition, Overlay, CollageLayout } from "@/lib/gif-maker/types";
@@ -22,10 +23,17 @@ export interface ClipEditorInputProps {
 
 export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
   function EditorPreview({ width, height, fps, durationInFrames }, ref) {
-    const clips = useVideoEditorStore((s) => s.clips);
-    const transitions = useVideoEditorStore((s) => s.transitions);
-    const overlays = useVideoEditorStore((s) => s.overlays);
-    const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
+    // Data fields need shallow comparison (references change on update)
+    const { clips, transitions, overlays, activeCollageLayout } =
+      useVideoEditorStore(
+        useShallow((s) => ({
+          clips: s.clips,
+          transitions: s.transitions,
+          overlays: s.overlays,
+          activeCollageLayout: s.settings.activeCollageLayout,
+        }))
+      );
+    // Actions are stable Zustand references — select separately, no shallow needed
     const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
     const setPlaying = useVideoEditorStore((s) => s.setPlaying);
 

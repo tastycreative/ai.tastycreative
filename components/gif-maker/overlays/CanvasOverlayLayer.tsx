@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import { DraggableOverlay } from "./DraggableOverlay";
 
 interface CanvasOverlayLayerProps {
@@ -13,20 +13,19 @@ export function CanvasOverlayLayer({
   containerWidth,
   containerHeight,
 }: CanvasOverlayLayerProps) {
-  const overlays = useVideoEditorStore((s) => s.overlays);
-  const currentFrame = useVideoEditorStore((s) => s.currentFrame);
-  const clearSelection = useVideoEditorStore((s) => s.clearSelection);
-
-  // Only show overlays that are active at the current frame
-  const visibleOverlays = useMemo(
-    () =>
-      overlays.filter(
+  // useShallow bails out when the filtered array contains the same overlay
+  // objects in the same order — prevents re-renders on every frame tick
+  // during playback when no overlays are appearing/disappearing
+  const visibleOverlays = useVideoEditorStore(
+    useShallow((s) =>
+      s.overlays.filter(
         (o) =>
-          currentFrame >= o.startFrame &&
-          currentFrame < o.startFrame + o.durationInFrames
-      ),
-    [overlays, currentFrame]
+          s.currentFrame >= o.startFrame &&
+          s.currentFrame < o.startFrame + o.durationInFrames
+      )
+    )
   );
+  const clearSelection = useVideoEditorStore((s) => s.clearSelection);
 
   return (
     <div

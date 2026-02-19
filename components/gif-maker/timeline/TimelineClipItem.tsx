@@ -40,23 +40,30 @@ export const TimelineClipItem = memo(function TimelineClipItem({ clip, zoom }: T
     startValue: number;
   } | null>(null);
 
+  // Always holds latest clip — callbacks read from this at event time so they
+  // don't need clip fields in their dependency arrays (same pattern as DraggableOverlay)
+  const clipRef = useRef(clip);
+  clipRef.current = clip;
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, type: "move" | "resize-left" | "resize-right") => {
       e.stopPropagation();
       e.preventDefault(); // prevent HTML5 drag from starting
       e.currentTarget.setPointerCapture(e.pointerId);
       setIsResizing(true);
+      const c = clipRef.current;
+      const isImg = c.type === "image";
       dragRef.current = {
         type,
         startX: e.clientX,
-        startValue: isImage
-          ? clip.displayDurationInFrames
+        startValue: isImg
+          ? c.displayDurationInFrames
           : type === "resize-left"
-          ? clip.trimStartFrame
-          : clip.trimEndFrame,
+          ? c.trimStartFrame
+          : c.trimEndFrame,
       };
     },
-    [clip, isImage]
+    [] // stable forever
   );
 
   const handlePointerMove = useCallback(
@@ -64,39 +71,40 @@ export const TimelineClipItem = memo(function TimelineClipItem({ clip, zoom }: T
       if (!dragRef.current) return;
       const dx = e.clientX - dragRef.current.startX;
       const dFrames = pixelsToFrames(dx, zoom);
+      const c = clipRef.current;
 
-      if (isImage) {
+      if (c.type === "image") {
         // Image clips: only right resize adjusts displayDurationInFrames
         if (dragRef.current.type === "resize-right") {
           const newDuration = Math.max(
             15, // minimum ~0.5s at 30fps
             dragRef.current.startValue + dFrames
           );
-          updateClip(clip.id, { displayDurationInFrames: newDuration });
+          updateClip(c.id, { displayDurationInFrames: newDuration });
         }
-      } else if (clip.type === "video") {
+      } else if (c.type === "video") {
         if (dragRef.current.type === "resize-left") {
           const newStart = Math.max(
             0,
             Math.min(
               dragRef.current.startValue + dFrames,
-              clip.trimEndFrame - 1
+              c.trimEndFrame - 1
             )
           );
-          updateClip(clip.id, { trimStartFrame: newStart });
+          updateClip(c.id, { trimStartFrame: newStart });
         } else if (dragRef.current.type === "resize-right") {
           const newEnd = Math.min(
-            clip.durationInFrames,
+            c.durationInFrames,
             Math.max(
               dragRef.current.startValue + dFrames,
-              clip.trimStartFrame + 1
+              c.trimStartFrame + 1
             )
           );
-          updateClip(clip.id, { trimEndFrame: newEnd });
+          updateClip(c.id, { trimEndFrame: newEnd });
         }
       }
     },
-    [clip, zoom, updateClip, isImage]
+    [zoom, updateClip] // no clip fields in deps
   );
 
   const handlePointerUp = useCallback(() => {
