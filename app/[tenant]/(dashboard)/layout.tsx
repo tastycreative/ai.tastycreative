@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
@@ -77,6 +77,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [contentOpsOpen, setContentOpsOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [socialMediaOpen, setSocialMediaOpen] = useState(false);
   const [contentStudioOpen, setContentStudioOpen] = useState(false);
@@ -1101,6 +1102,7 @@ export default function DashboardLayout({
   };
 
   const renderNavSection = (section: NavSection) => {
+    const isContentOpsSection = section.name === "Content Ops";
     const isWorkspaceSection = section.name === "Workspace";
     const isSocialMediaSection = section.name === "Social Media";
     const isContentStudioSection = section.name === "Content Studio";
@@ -1111,7 +1113,9 @@ export default function DashboardLayout({
 
     // Determine if section is expanded
     let isExpanded = true;
-    if (isWorkspaceSection) {
+    if (isContentOpsSection) {
+      isExpanded = contentOpsOpen;
+    } else if (isWorkspaceSection) {
       isExpanded = workspaceOpen;
     } else if (isSocialMediaSection) {
       isExpanded = socialMediaOpen;
@@ -1143,7 +1147,9 @@ export default function DashboardLayout({
 
     // Handle section toggle
     const handleSectionToggle = () => {
-      if (isWorkspaceSection) {
+      if (isContentOpsSection) {
+        setContentOpsOpen(!contentOpsOpen);
+      } else if (isWorkspaceSection) {
         setWorkspaceOpen(!workspaceOpen);
       } else if (isSocialMediaSection) {
         setSocialMediaOpen(!socialMediaOpen);
@@ -1446,13 +1452,18 @@ export default function DashboardLayout({
             ) : (
               <>
                 {navigation.map((item) => {
-                  if ("items" in item) {
-                    return renderNavSection(item);
-                  } else {
-                    return renderNavItem(item);
-                  }
+                  const rendered = "items" in item
+                    ? renderNavSection(item)
+                    : renderNavItem(item);
+                  return (
+                    <React.Fragment key={item.name}>
+                      {rendered}
+                      {!("items" in item) && item.name === "My Influencers" && (
+                        <SpacesDropdown tenant={tenant} sidebarOpen={sidebarOpen} />
+                      )}
+                    </React.Fragment>
+                  );
                 })}
-                <SpacesDropdown tenant={tenant} sidebarOpen={sidebarOpen} />
               </>
             )}
           </nav>
@@ -1562,13 +1573,18 @@ export default function DashboardLayout({
             ) : (
               <>
                 {navigation.map((item) => {
-                  if ("items" in item) {
-                    return renderNavSection(item);
-                  } else {
-                    return renderNavItem(item);
-                  }
+                  const rendered = "items" in item
+                    ? renderNavSection(item)
+                    : renderNavItem(item);
+                  return (
+                    <React.Fragment key={item.name}>
+                      {rendered}
+                      {!("items" in item) && item.name === "My Influencers" && (
+                        <SpacesDropdown tenant={tenant} sidebarOpen={true} />
+                      )}
+                    </React.Fragment>
+                  );
                 })}
-                <SpacesDropdown tenant={tenant} sidebarOpen={true} />
               </>
             )}
           </nav>
