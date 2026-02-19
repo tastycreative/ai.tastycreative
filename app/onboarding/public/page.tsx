@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -78,7 +78,7 @@ const SECTIONS = [
   },
 ];
 
-export default function PublicOnboardingPage() {
+function PublicOnboardingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
@@ -556,5 +556,13 @@ export default function PublicOnboardingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PublicOnboardingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#09090b] flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-light-pink" /></div>}>
+      <PublicOnboardingContent />
+    </Suspense>
   );
 }
