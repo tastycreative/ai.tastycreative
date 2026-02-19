@@ -194,6 +194,256 @@ export async function captureCanvasAnimation(
 }
 
 /**
+ * Capture frames from a Remotion Player by drawing its media elements to canvas.
+ * Works with any content type (videos, images, mixed, collages).
+ * Unlike captureCanvasAnimation, this does NOT rely on a <canvas> element existing
+ * in the DOM — it finds all <video> and <img> elements and draws them directly.
+ * Pre-fetches media as same-origin blobs to avoid CORS canvas tainting.
+ */
+export async function capturePlayerFrames(
+  getContainer: () => HTMLElement | null,
+  seekToFrame: (frame: number) => void,
+  options: {
+    totalFrames: number;
+    width: number;
+    height: number;
+    everyNthFrame?: number;
+    fps?: number;
+  },
+  onProgress?: (progress: GifRenderProgress) => void
+): Promise<HTMLCanvasElement[]> {
+  const frames: HTMLCanvasElement[] = [];
+  const step = options.everyNthFrame || 1;
+  const { width, height } = options;
+  const fps = options.fps || 30;
+  const totalCaptureFrames = Math.ceil(options.totalFrames / step);
+
+  const container = getContainer();
+  if (!container) return frames;
+
+  // ── Pre-fetch all media sources as blobs to avoid CORS tainting ──
+  const blobCache = new Map<
+    string,
+    { blobUrl: string; element: HTMLVideoElement | HTMLImageElement }
+  >();
+  const cleanupUrls: string[] = [];
+
+  const initialMediaElements = container.querySelectorAll<
+    HTMLVideoElement | HTMLImageElement
+  >("video, img");
+
+  for (const el of initialMediaElements) {
+    const src = el.src;
+    if (!src || blobCache.has(src)) continue;
+
+    // Try direct CORS fetch first, then fall back to server-side proxy
+    let blob: Blob | null = null;
+
+    try {
+      const response = await fetch(src, { mode: "cors" });
+      if (response.ok) {
+        blob = await response.blob();
+      }
+    } catch {
+      // Direct CORS fetch blocked — try server proxy
+    }
+
+    if (!blob) {
+      try {
+        const proxyUrl = `/api/media-proxy?url=${encodeURIComponent(src)}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+          blob = await response.blob();
+        }
+      } catch {
+        // Proxy also failed — skip this source
+      }
+    }
+
+    if (!blob) continue;
+
+    try {
+      const blobUrl = URL.createObjectURL(blob);
+      cleanupUrls.push(blobUrl);
+
+      if (el instanceof HTMLVideoElement) {
+        const video = document.createElement("video");
+        video.src = blobUrl;
+        video.muted = true;
+        video.playsInline = true;
+        await new Promise<void>((resolve, reject) => {
+          video.onloadeddata = () => resolve();
+          video.onerror = () => reject(new Error("Failed to load video blob"));
+          video.load();
+        });
+        blobCache.set(src, { blobUrl, element: video });
+      } else {
+        const img = new Image();
+        img.src = blobUrl;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("Failed to load image blob"));
+        });
+        blobCache.set(src, { blobUrl, element: img });
+      }
+    } catch {
+      // Element creation failed — skip
+    }
+  }
+
+  try {
+    for (let frame = 0; frame < options.totalFrames; frame += step) {
+      seekToFrame(frame);
+      // Wait for the Remotion Player to render the new frame
+      await new Promise((r) => setTimeout(r, 100));
+
+      const currentContainer = getContainer();
+      if (!currentContainer) continue;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+
+      // Fill black background
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, width, height);
+
+      const containerRect = currentContainer.getBoundingClientRect();
+      if (containerRect.width === 0 || containerRect.height === 0) continue;
+
+      // Find all video and image elements in the player container
+      const mediaElements = currentContainer.querySelectorAll<
+        HTMLVideoElement | HTMLImageElement
+      >("video, img");
+
+      for (const el of mediaElements) {
+        const rect = el.getBoundingClientRect();
+        // Skip hidden or zero-size elements
+        if (rect.width === 0 || rect.height === 0) continue;
+        // Skip elements outside the container
+        if (
+          rect.right < containerRect.left ||
+          rect.left > containerRect.right ||
+          rect.bottom < containerRect.top ||
+          rect.top > containerRect.bottom
+        )
+          continue;
+
+        try {
+          const isVideo = el instanceof HTMLVideoElement;
+          const src = el.src;
+
+          // Use the blob-cached element for drawing (same-origin, no taint)
+          let drawSource: HTMLVideoElement | HTMLImageElement = el;
+          const cached = blobCache.get(src);
+
+          if (cached) {
+            // For videos, seek the blob copy to the correct time
+            if (isVideo && cached.element instanceof HTMLVideoElement) {
+              const timeInSeconds = frame / fps;
+              cached.element.currentTime = timeInSeconds;
+              await new Promise<void>((resolve) => {
+                const onSeeked = () => {
+                  (cached.element as HTMLVideoElement).removeEventListener(
+                    "seeked",
+                    onSeeked
+                  );
+                  resolve();
+                };
+                cached.element.addEventListener("seeked", onSeeked);
+                setTimeout(resolve, 150);
+              });
+              if (cached.element.readyState < 2) continue;
+            }
+            drawSource = cached.element;
+          } else {
+            // No blob available — use original (may taint canvas)
+            if (isVideo && el.readyState < 2) continue;
+          }
+
+          const isVideoSource = drawSource instanceof HTMLVideoElement;
+          const naturalW = isVideoSource
+            ? (drawSource as HTMLVideoElement).videoWidth
+            : (drawSource as HTMLImageElement).naturalWidth;
+          const naturalH = isVideoSource
+            ? (drawSource as HTMLVideoElement).videoHeight
+            : (drawSource as HTMLImageElement).naturalHeight;
+          if (!naturalW || !naturalH) continue;
+
+          // Scale from container coordinates to output canvas coordinates
+          const scaleX = width / containerRect.width;
+          const scaleY = height / containerRect.height;
+          const x = (rect.left - containerRect.left) * scaleX;
+          const y = (rect.top - containerRect.top) * scaleY;
+          const w = rect.width * scaleX;
+          const h = rect.height * scaleY;
+
+          const style = window.getComputedStyle(el);
+          const objectFit = style.objectFit || "fill";
+
+          if (objectFit === "cover") {
+            const contentAspect = naturalW / naturalH;
+            const boxAspect = w / h;
+            let sx = 0,
+              sy = 0,
+              sw = naturalW,
+              sh = naturalH;
+            if (contentAspect > boxAspect) {
+              sw = naturalH * boxAspect;
+              sx = (naturalW - sw) / 2;
+            } else {
+              sh = naturalW / boxAspect;
+              sy = (naturalH - sh) / 2;
+            }
+            ctx.drawImage(drawSource, sx, sy, sw, sh, x, y, w, h);
+          } else if (objectFit === "contain") {
+            const contentAspect = naturalW / naturalH;
+            const boxAspect = w / h;
+            let drawW = w,
+              drawH = h,
+              drawX = x,
+              drawY = y;
+            if (contentAspect > boxAspect) {
+              drawH = w / contentAspect;
+              drawY = y + (h - drawH) / 2;
+            } else {
+              drawW = h * contentAspect;
+              drawX = x + (w - drawW) / 2;
+            }
+            ctx.drawImage(drawSource, drawX, drawY, drawW, drawH);
+          } else {
+            ctx.drawImage(drawSource, x, y, w, h);
+          }
+        } catch {
+          // Skip elements that cause errors
+        }
+      }
+
+      frames.push(canvas);
+
+      const capturedFrameIndex = Math.floor(frame / step);
+      onProgress?.({
+        phase: "capturing",
+        progress: Math.round(
+          ((capturedFrameIndex + 1) / totalCaptureFrames) * 100
+        ),
+        currentFrame: capturedFrameIndex + 1,
+        totalFrames: totalCaptureFrames,
+      });
+    }
+  } finally {
+    // Clean up blob URLs to free memory
+    for (const url of cleanupUrls) {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  return frames;
+}
+
+/**
  * Blur region definition for canvas-based blur
  */
 export interface BlurRegionDef {
@@ -241,29 +491,53 @@ export async function captureVideoWithBlur(
   let blobUrl: string | null = null;
 
   try {
-    // Try to fetch video as blob (works if server allows it or same-origin)
-    const response = await fetch(originalVideo.src, { mode: "cors" });
-    if (response.ok) {
-      const blob = await response.blob();
-      blobUrl = URL.createObjectURL(blob);
+    // Try direct CORS fetch first, then server-side proxy
+    let blob: Blob | null = null;
 
-      // Create new video with blob URL
-      videoToCapture = document.createElement("video");
-      videoToCapture.src = blobUrl;
-      videoToCapture.muted = true;
-      videoToCapture.playsInline = true;
-
-      // Wait for video to load
-      await new Promise<void>((resolve, reject) => {
-        videoToCapture.onloadeddata = () => resolve();
-        videoToCapture.onerror = () => reject(new Error("Failed to load video blob"));
-        videoToCapture.load();
-      });
+    try {
+      const response = await fetch(originalVideo.src, { mode: "cors" });
+      if (response.ok) {
+        blob = await response.blob();
+      }
+    } catch {
+      // Direct CORS fetch blocked
     }
+
+    if (!blob) {
+      try {
+        const proxyUrl = `/api/media-proxy?url=${encodeURIComponent(originalVideo.src)}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+          blob = await response.blob();
+        }
+      } catch {
+        // Proxy also failed
+      }
+    }
+
+    if (!blob) {
+      console.warn("Could not fetch video via CORS or proxy, deferring to fallback");
+      return frames;
+    }
+
+    blobUrl = URL.createObjectURL(blob);
+
+    // Create new video with blob URL
+    videoToCapture = document.createElement("video");
+    videoToCapture.src = blobUrl;
+    videoToCapture.muted = true;
+    videoToCapture.playsInline = true;
+
+    // Wait for video to load
+    await new Promise<void>((resolve, reject) => {
+      videoToCapture.onloadeddata = () => resolve();
+      videoToCapture.onerror = () => reject(new Error("Failed to load video blob"));
+      videoToCapture.load();
+    });
   } catch {
-    // Fall back to original video if fetch fails
-    console.warn("Could not fetch video as blob, using original (may have CORS issues)");
-    videoToCapture = originalVideo;
+    // Can't create blob video — return empty so the fallback capture path is used
+    console.warn("Could not create blob video, deferring to fallback capture");
+    return frames;
   }
 
   try {

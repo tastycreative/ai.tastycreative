@@ -1103,26 +1103,26 @@ model VaultItem {
 }
 
 model Caption {
-  id                String                          @id @default(cuid())
+  id                String                 @id @default(cuid())
   clerkId           String
   profileId         String
   caption           String
   captionCategory   String
   captionTypes      String
   captionBanks      String
-  usageCount        Int                             @default(0)
-  createdAt         DateTime                        @default(now())
-  updatedAt         DateTime                        @updatedAt
-  cooldownDays      Int                             @default(7)
-  isFavorite        Boolean                         @default(false)
+  usageCount        Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  cooldownDays      Int                    @default(7)
+  isFavorite        Boolean                @default(false)
   lastUsedAt        DateTime?
   notes             String?
   tags              String?
   originalModelName String?
-  totalRevenue      Decimal                         @default(0) @db.Decimal(10, 2)
-  profile           InstagramProfile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  totalRevenue      Decimal                @default(0) @db.Decimal(10, 2)
   contentTypes      CaptionToContentType[]
   messageTypes      CaptionToMessageType[]
+  profile           InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([profileId])
@@ -1152,13 +1152,12 @@ model CaptionMessageType {
   @@map("caption_message_types")
 }
 
-// Junction table for Caption <-> ContentType many-to-many
 model CaptionToContentType {
   captionId     String
   contentTypeId String
+  assignedAt    DateTime           @default(now())
   caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
   contentType   CaptionContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
-  assignedAt    DateTime           @default(now())
 
   @@id([captionId, contentTypeId])
   @@index([captionId])
@@ -1166,13 +1165,12 @@ model CaptionToContentType {
   @@map("caption_to_content_types")
 }
 
-// Junction table for Caption <-> MessageType many-to-many
 model CaptionToMessageType {
   captionId     String
   messageTypeId String
+  assignedAt    DateTime           @default(now())
   caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
   messageType   CaptionMessageType @relation(fields: [messageTypeId], references: [id], onDelete: Cascade)
-  assignedAt    DateTime           @default(now())
 
   @@id([captionId, messageTypeId])
   @@index([captionId])
@@ -1181,24 +1179,24 @@ model CaptionToMessageType {
 }
 
 model CaptionQueueTicket {
-  id               String   @id @default(cuid())
-  clerkId          String
-  profileId        String?
-  modelName        String
-  modelAvatar      String
-  profileImageUrl  String?
-  description      String
-  contentTypes     String[] @default([])
-  messageTypes     String[] @default([])
-  urgency          String   @default("medium")
-  releaseDate      DateTime
-  status           String   @default("pending")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  assignedTo       String?
-  completedAt      DateTime?
-  captionText      String?
-  
+  id              String    @id @default(cuid())
+  clerkId         String
+  profileId       String?
+  modelName       String
+  modelAvatar     String
+  description     String
+  urgency         String    @default("medium")
+  releaseDate     DateTime
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  assignedTo      String?
+  completedAt     DateTime?
+  captionText     String?
+  contentTypes    String[]  @default([])
+  messageTypes    String[]  @default([])
+  profileImageUrl String?
+
   @@index([clerkId])
   @@index([profileId])
   @@index([status])
@@ -1686,11 +1684,11 @@ model of_models {
   createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime
   createdBy                   String?
+  contentTypeOptions          ContentTypeOption[]           @relation("ModelContentTypes")
   gallery_items               gallery_items[]
   of_model_assets             of_model_assets[]
   of_model_details            of_model_details?
   of_model_pricing_categories of_model_pricing_categories[]
-  contentTypeOptions          ContentTypeOption[]           @relation("ModelContentTypes")
 
   @@index([slug])
   @@index([status])
@@ -1913,7 +1911,6 @@ model content_submissions {
   caption                              String?
   driveLink                            String?
   contentType                          String?
-  contentTypeOptionId                  String?
   contentCount                         String?
   contentLength                        String?
   contentTags                          String[]                              @default([])
@@ -1925,11 +1922,12 @@ model content_submissions {
   createdAt                            DateTime                              @default(now())
   updatedAt                            DateTime
   pricingCategory                      String?                               @default("PORN_ACCURATE")
+  contentTypeOptionId                  String?
   content_submission_files             content_submission_files[]
   content_submission_pricing           content_submission_pricing?
   content_submission_release_schedules content_submission_release_schedules?
-  contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])

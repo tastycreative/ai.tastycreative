@@ -33,8 +33,8 @@ export const createSubmissionInputSchema = z.object({
   submissionType: submissionTypeSchema,
   contentStyle: contentStyleSchema,
 
-  // Platform selection
-  platform: platformSchema.default('onlyfans'),
+  // Platform selection (multi-select)
+  platform: z.array(platformSchema).min(1, 'Select at least one platform').default(['onlyfans']),
 
   // Component modules selection
   selectedComponents: z.array(componentModuleSchema).default([]),
@@ -48,6 +48,7 @@ export const createSubmissionInputSchema = z.object({
 
   // Enhanced content metadata
   contentType: contentTypeSchema.optional(),
+  contentTypeOptionId: z.string().optional(), // FK to ContentTypeOption
   contentCount: z.string().optional(), // Changed to string: "1 Video", "3 Photos"
   contentLength: z.string().optional(), // Duration: "8:43" or "8 mins 43 secs"
 

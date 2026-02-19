@@ -159,7 +159,7 @@ export default function DashboardLayout({
                     icon: Film,
                   },
                   {
-                    name: "OTP/PTR",
+                    name: "Content Submissions",
                     href: `/${tenant}/submissions`,
                     icon: FileText,
                   },
