@@ -9,17 +9,14 @@ import { ShapeOverlayProperties } from "./ShapeOverlayProperties";
 import { Settings2, MousePointerClick } from "lucide-react";
 
 export function PropertiesPanel() {
-  const selectedClipId = useVideoEditorStore((s) => s.selectedClipId);
-  const selectedOverlayId = useVideoEditorStore((s) => s.selectedOverlayId);
-  const clips = useVideoEditorStore((s) => s.clips);
-  const overlays = useVideoEditorStore((s) => s.overlays);
-
-  const selectedClip = selectedClipId
-    ? clips.find((c) => c.id === selectedClipId)
-    : null;
-  const selectedOverlay = selectedOverlayId
-    ? overlays.find((o) => o.id === selectedOverlayId)
-    : null;
+  // Derive selected items directly in selectors — only re-renders when the
+  // selected clip/overlay itself changes, not when any unrelated clip updates
+  const selectedClip = useVideoEditorStore((s) =>
+    s.selectedClipId ? (s.clips.find((c) => c.id === s.selectedClipId) ?? null) : null
+  );
+  const selectedOverlay = useVideoEditorStore((s) =>
+    s.selectedOverlayId ? (s.overlays.find((o) => o.id === s.selectedOverlayId) ?? null) : null
+  );
 
   return (
     <div className="h-full flex flex-col">
