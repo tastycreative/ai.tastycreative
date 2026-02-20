@@ -43,7 +43,9 @@ model User {
   influencers              InfluencerLoRA[]
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
+  model_onboarding_drafts  model_onboarding_drafts[]
   notifications            Notification[]
+  onboarding_invitations   onboarding_invitations[]
   productionEntries        ProductionEntry[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
@@ -984,26 +986,26 @@ model VaultItem {
 }
 
 model Caption {
-  id                String                          @id @default(cuid())
+  id                String                 @id @default(cuid())
   clerkId           String
   profileId         String
   caption           String
   captionCategory   String
   captionTypes      String
   captionBanks      String
-  usageCount        Int                             @default(0)
-  createdAt         DateTime                        @default(now())
-  updatedAt         DateTime                        @updatedAt
-  cooldownDays      Int                             @default(7)
-  isFavorite        Boolean                         @default(false)
+  usageCount        Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  cooldownDays      Int                    @default(7)
+  isFavorite        Boolean                @default(false)
   lastUsedAt        DateTime?
   notes             String?
   tags              String?
   originalModelName String?
-  totalRevenue      Decimal                         @default(0) @db.Decimal(10, 2)
-  profile           InstagramProfile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  totalRevenue      Decimal                @default(0) @db.Decimal(10, 2)
   contentTypes      CaptionToContentType[]
   messageTypes      CaptionToMessageType[]
+  profile           InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([profileId])
@@ -1033,13 +1035,12 @@ model CaptionMessageType {
   @@map("caption_message_types")
 }
 
-// Junction table for Caption <-> ContentType many-to-many
 model CaptionToContentType {
   captionId     String
   contentTypeId String
+  assignedAt    DateTime           @default(now())
   caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
   contentType   CaptionContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
-  assignedAt    DateTime           @default(now())
 
   @@id([captionId, contentTypeId])
   @@index([captionId])
@@ -1047,13 +1048,12 @@ model CaptionToContentType {
   @@map("caption_to_content_types")
 }
 
-// Junction table for Caption <-> MessageType many-to-many
 model CaptionToMessageType {
   captionId     String
   messageTypeId String
+  assignedAt    DateTime           @default(now())
   caption       Caption            @relation(fields: [captionId], references: [id], onDelete: Cascade)
   messageType   CaptionMessageType @relation(fields: [messageTypeId], references: [id], onDelete: Cascade)
-  assignedAt    DateTime           @default(now())
 
   @@id([captionId, messageTypeId])
   @@index([captionId])
@@ -1062,24 +1062,24 @@ model CaptionToMessageType {
 }
 
 model CaptionQueueTicket {
-  id               String   @id @default(cuid())
-  clerkId          String
-  profileId        String?
-  modelName        String
-  modelAvatar      String
-  profileImageUrl  String?
-  description      String
-  contentTypes     String[] @default([])
-  messageTypes     String[] @default([])
-  urgency          String   @default("medium")
-  releaseDate      DateTime
-  status           String   @default("pending")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  assignedTo       String?
-  completedAt      DateTime?
-  captionText      String?
-  
+  id              String    @id @default(cuid())
+  clerkId         String
+  profileId       String?
+  modelName       String
+  modelAvatar     String
+  description     String
+  urgency         String    @default("medium")
+  releaseDate     DateTime
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  assignedTo      String?
+  completedAt     DateTime?
+  captionText     String?
+  contentTypes    String[]  @default([])
+  messageTypes    String[]  @default([])
+  profileImageUrl String?
+
   @@index([clerkId])
   @@index([profileId])
   @@index([status])
@@ -1272,12 +1272,19 @@ model Workspace {
   isActive       Boolean           @default(true)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @default(now()) @updatedAt
+  access         SpaceAccess       @default(OPEN)
+  config         Json?
+  key            String?
+  templateType   SpaceTemplateType @default(KANBAN)
+  boards         Board[]
   members        WorkspaceMember[]
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
+  @@unique([organizationId, key])
   @@index([organizationId])
   @@index([isActive])
+  @@index([templateType])
   @@map("workspaces")
 }
 
@@ -1296,6 +1303,93 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@map("workspace_members")
+}
+
+model Board {
+  id          String        @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  position    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  columns     BoardColumn[]
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, position])
+  @@map("boards")
+}
+
+model BoardColumn {
+  id        String      @id @default(cuid())
+  boardId   String
+  name      String
+  color     String?
+  position  Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  items     BoardItem[]
+
+  @@index([boardId])
+  @@index([boardId, position])
+  @@map("board_columns")
+}
+
+model BoardItem {
+  id          String             @id @default(cuid())
+  columnId    String
+  title       String
+  description String?
+  type        BoardItemType      @default(TASK)
+  priority    BoardItemPriority  @default(MEDIUM)
+  assigneeId  String?
+  dueDate     DateTime?
+  position    Int                @default(0)
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdBy   String?
+  comments    BoardItemComment[]
+  media       BoardItemMedia[]
+  column      BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@index([columnId])
+  @@index([columnId, position])
+  @@index([assigneeId])
+  @@index([createdBy])
+  @@index([dueDate])
+  @@map("board_items")
+}
+
+model BoardItemComment {
+  id        String    @id @default(cuid())
+  itemId    String
+  content   String
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([createdBy])
+  @@index([itemId, createdAt])
+  @@map("board_item_comments")
+}
+
+model BoardItemMedia {
+  id        String    @id @default(cuid())
+  itemId    String
+  url       String
+  type      String
+  name      String?
+  size      Int?
+  createdAt DateTime  @default(now())
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("board_item_media")
 }
 
 model CreditUsageLog {
@@ -1567,11 +1661,11 @@ model of_models {
   createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime
   createdBy                   String?
+  contentTypeOptions          ContentTypeOption[]           @relation("ModelContentTypes")
   gallery_items               gallery_items[]
   of_model_assets             of_model_assets[]
   of_model_details            of_model_details?
   of_model_pricing_categories of_model_pricing_categories[]
-  contentTypeOptions          ContentTypeOption[]           @relation("ModelContentTypes")
 
   @@index([slug])
   @@index([status])
@@ -1794,7 +1888,6 @@ model content_submissions {
   caption                              String?
   driveLink                            String?
   contentType                          String?
-  contentTypeOptionId                  String?
   contentCount                         String?
   contentLength                        String?
   contentTags                          String[]                              @default([])
@@ -1806,11 +1899,12 @@ model content_submissions {
   createdAt                            DateTime                              @default(now())
   updatedAt                            DateTime
   pricingCategory                      String?                               @default("PORN_ACCURATE")
+  contentTypeOptionId                  String?
   content_submission_files             content_submission_files[]
   content_submission_pricing           content_submission_pricing?
   content_submission_release_schedules content_submission_release_schedules?
-  contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
@@ -1877,6 +1971,93 @@ model ContentTypePricingHistory {
 
   @@index([contentTypeOptionId])
   @@index([createdAt])
+}
+
+model model_onboarding_drafts {
+  id                     String                  @id
+  clerkId                String?
+  createdByClerkId       String
+  organizationId         String?
+  status                 OnboardingStatus        @default(DRAFT)
+  currentStep            Int                     @default(1)
+  completionPercentage   Int                     @default(0)
+  name                   String?
+  description            String?
+  instagramUsername      String?
+  profileImageUrl        String?
+  type                   String?                 @default("real")
+  age                    String?
+  birthday               String?
+  location               String?
+  nationality            String?
+  ethnicity              String?
+  occupation             String?
+  relationshipStatus     String?
+  backstory              String?
+  interests              String[]                @default([])
+  selectedContentTypes   String[]                @default([])
+  customContentTypes     String[]                @default([])
+  primaryNiche           String?
+  feedAesthetic          String?
+  commonThemes           String?
+  uniqueHook             String?
+  platformPricing        Json?
+  platforms              Json?
+  socials                Json?
+  modelBible             Json?
+  restrictions           Json?
+  schedule               Json?
+  internalNotes          String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime
+  submittedAt            DateTime?
+  completedAt            DateTime?
+  lastAutoSaveAt         DateTime?
+  invitationId           String?
+  isPublicSubmission     Boolean                 @default(false)
+  submitterIp            String?
+  createdProfileId       String?
+  rejectionReason        String?
+  reviewStatus           ReviewStatus?           @default(PENDING)
+  reviewedAt             DateTime?
+  reviewedBy             String?
+  users                  User?                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  onboarding_invitations onboarding_invitations? @relation(fields: [invitationId], references: [id])
+
+  @@index([clerkId])
+  @@index([clerkId, status])
+  @@index([createdByClerkId])
+  @@index([invitationId])
+  @@index([isPublicSubmission])
+  @@index([organizationId])
+  @@index([reviewStatus])
+  @@index([status])
+  @@index([status, reviewStatus])
+}
+
+model onboarding_invitations {
+  id                      String                    @id
+  token                   String                    @unique
+  email                   String?
+  modelName               String?
+  notes                   String?
+  createdByClerkId        String
+  organizationId          String?
+  expiresAt               DateTime?
+  maxUses                 Int                       @default(1)
+  usedCount               Int                       @default(0)
+  isActive                Boolean                   @default(true)
+  createdAt               DateTime                  @default(now())
+  lastUsedAt              DateTime?
+  ipAddresses             String[]                  @default([])
+  model_onboarding_drafts model_onboarding_drafts[]
+  users                   User                      @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+
+  @@index([createdByClerkId])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@index([organizationId])
+  @@index([token])
 }
 
 enum SyncStatus {
@@ -2176,4 +2357,46 @@ enum SubmissionStatus {
   APPROVED
   REJECTED
   PUBLISHED
+}
+
+enum OnboardingStatus {
+  DRAFT
+  IN_PROGRESS
+  AWAITING_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum SpaceTemplateType {
+  KANBAN
+  WALL_POST
+  SEXTING_SETS
+  OTP_PTR
+}
+
+enum SpaceAccess {
+  OPEN
+  PRIVATE
+}
+
+enum BoardItemType {
+  TASK
+  POST
+  REQUEST
+  SET
+  NOTE
+}
+
+enum BoardItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
