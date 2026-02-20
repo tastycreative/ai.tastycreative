@@ -24,9 +24,6 @@ import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles } from 'lucide-reac
 // Lazy load heavy components
 import dynamic from 'next/dynamic';
 
-const SubmissionTypeSelector = dynamic(() =>
-  import('./SubmissionTypeSelector').then((mod) => mod.SubmissionTypeSelector)
-);
 const ContentStyleSelector = dynamic(() =>
   import('./ContentStyleSelector').then((mod) => mod.ContentStyleSelector)
 );
@@ -75,7 +72,7 @@ export const SubmissionForm = memo(function SubmissionForm({
       submissionType: 'otp',
       contentStyle: 'normal',
       priority: 'normal',
-      platform: 'onlyfans',
+      platform: ['onlyfans'],
       selectedComponents: [],
       contentTags: [],
       internalModelTags: [],
@@ -92,9 +89,8 @@ export const SubmissionForm = memo(function SubmissionForm({
   // Watch form values
   const submissionType = watch('submissionType');
   const contentStyle = watch('contentStyle');
-  const platform = watch('platform');
+  const platforms = watch('platform');
   const selectedComponents = watch('selectedComponents') || [];
-  const isPTR = submissionType === 'ptr';
 
   // Memoized computations
   const steps = useMemo(
@@ -117,9 +113,8 @@ export const SubmissionForm = memo(function SubmissionForm({
   const { isSaving, lastSaved, error: saveError } = useAutoSave({
     data: formData,
     onSave: async (data) => {
-      // Simulate auto-save - replace with actual API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log('Auto-saved:', data);
+      if (!submissionId) return;
+      await updateSubmission.mutateAsync({ id: submissionId, ...data });
     },
     delay: 3000,
     enabled: isEditMode && Object.keys(dirtyFields).length > 0,
@@ -175,13 +170,20 @@ export const SubmissionForm = memo(function SubmissionForm({
 
   const onSubmit = async (data: FormData) => {
     try {
+      // Mark as SUBMITTED when submitting from the review step
+      const submissionData = {
+        ...data,
+        metadata: { ...data.metadata, submitStatus: 'SUBMITTED' },
+      };
+
       if (isEditMode) {
         await updateSubmission.mutateAsync({
           id: submissionId,
-          ...data,
+          ...submissionData,
+          status: 'SUBMITTED',
         });
       } else {
-        const result = await createSubmission.mutateAsync(data);
+        const result = await createSubmission.mutateAsync(submissionData as FormData);
         console.log('Submission created:', result);
       }
 
@@ -334,18 +336,11 @@ export const SubmissionForm = memo(function SubmissionForm({
               <div className="relative">
                 {/* Render step content based on currentStepInfo.id */}
                 {currentStepInfo?.id === 'platform-type' && (
-                  <StepContent title="Platform & Submission Type">
-                    <div className="space-y-8">
-                      <PlatformSelector
-                        value={platform}
-                        onChange={(value) => setValue('platform', value)}
-                      />
-                      <Divider />
-                      <SubmissionTypeSelector
-                        value={submissionType}
-                        onChange={(value) => setValue('submissionType', value)}
-                      />
-                    </div>
+                  <StepContent title="Select Platform">
+                    <PlatformSelector
+                      value={platforms || ['onlyfans']}
+                      onChange={(value) => setValue('platform', value)}
+                    />
                   </StepContent>
                 )}
 
@@ -404,16 +399,12 @@ export const SubmissionForm = memo(function SubmissionForm({
                         <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-xs text-zinc-500 mb-1">Type</p>
-                            <p className="text-white font-medium">{submissionType === 'otp' ? 'One-Time Post (OTP)' : 'Pay-to-Release (PTR)'}</p>
+                            <p className="text-xs text-zinc-500 mb-1">Platform(s)</p>
+                            <p className="text-white font-medium capitalize">{(platforms || []).join(', ')}</p>
                           </div>
                           <div>
                             <p className="text-xs text-zinc-500 mb-1">Content Style</p>
                             <p className="text-white font-medium capitalize">{contentStyle}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Platform</p>
-                            <p className="text-white font-medium capitalize">{platform}</p>
                           </div>
                           {watch('modelName') && (
                             <div>
@@ -431,7 +422,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                         </div>
                       )}
 
-                      {isPTR && watch('releaseSchedule.releaseDate') && (
+                      {watch('releaseSchedule.releaseDate') && (
                         <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
                           <h3 className="text-sm font-medium text-zinc-400 mb-3">Release Schedule</h3>
                           <div className="grid grid-cols-2 gap-4">
@@ -445,6 +436,12 @@ export const SubmissionForm = memo(function SubmissionForm({
                                 <p className="text-white">{watch('releaseSchedule.releaseTime')?.toString()}</p>
                               </div>
                             )}
+                            {watch('releaseSchedule.timezone') && (
+                              <div>
+                                <p className="text-xs text-zinc-500 mb-1">Timezone</p>
+                                <p className="text-white">{watch('releaseSchedule.timezone')?.toString()}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -452,7 +449,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                       <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
                         <p className="text-white font-medium mb-1">Ready to submit?</p>
                         <p className="text-sm text-zinc-400">
-                          Click Submit below to create your {submissionType === 'otp' ? 'OTP' : 'PTR'} submission.
+                          Click Submit below to create your content submission.
                           {!submissionId && ' Files can be uploaded after creation.'}
                         </p>
                       </div>

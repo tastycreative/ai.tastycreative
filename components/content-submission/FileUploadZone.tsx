@@ -98,7 +98,7 @@ export function FileUploadZone({
     if (!confirm('Delete this file?')) return;
 
     try {
-      await deleteFile.mutateAsync({ id: fileId });
+      await deleteFile.mutateAsync({ id: fileId, submissionId });
       refetch();
     } catch (error) {
       console.error('Delete failed:', error);

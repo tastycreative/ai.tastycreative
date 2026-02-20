@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   '/about(.*)',
   '/pricing(.*)',
   '/demo(.*)',
+  '/onboarding/public(.*)', // ✅ Public onboarding form (token-based access)
 ]);
 
 const isAuthRoute = createRouteMatcher([
@@ -45,6 +46,9 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/sexting-sets(.*)', // ✅ Add sexting sets routes (handle their own auth)
   '/api/sexting-sets/media(.*)', // ✅ Add sexting sets media proxy as public
   '/api/export/platform-ready', // ✅ V1a: Platform specs endpoint (GET only returns public config)
+  '/api/onboarding-invitations/validate(.*)', // ✅ Public token validation endpoint
+  '/api/onboarding-public(.*)', // ✅ Public onboarding draft endpoints (token-based)
+  '/api/upload/profile-image(.*)', // ✅ Profile image upload (handles own auth via token or session)
 ]);
 
 // ✅ Special handling for API routes that need custom auth

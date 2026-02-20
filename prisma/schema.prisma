@@ -53,6 +53,8 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
+  modelOnboardingDrafts    ModelOnboardingDraft[]
+  onboardingInvitations    OnboardingInvitation[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -538,6 +540,123 @@ model InstagramProfile {
   @@index([isFavorite])
   @@index([tags])
   @@map("instagram_profiles")
+}
+
+model OnboardingInvitation {
+  id               String                   @id @default(cuid())
+  token            String                   @unique @default(cuid())
+  
+  // Optional pre-fill data
+  email            String?
+  modelName        String?
+  notes            String?
+  
+  // Security & Usage
+  createdByClerkId String
+  organizationId   String?
+  expiresAt        DateTime?
+  maxUses          Int                      @default(1)
+  usedCount        Int                      @default(0)
+  isActive         Boolean                  @default(true)
+  
+  // Tracking
+  createdAt        DateTime                 @default(now())
+  lastUsedAt       DateTime?
+  ipAddresses      String[]                 @default([])
+  
+  // Relations
+  createdBy        User                     @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+  drafts           ModelOnboardingDraft[]
+  
+  @@index([token])
+  @@index([createdByClerkId])
+  @@index([organizationId])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("onboarding_invitations")
+}
+
+model ModelOnboardingDraft {
+  id                   String                @id @default(cuid())
+  clerkId              String?               // Now optional for public submissions
+  createdByClerkId     String
+  organizationId       String?
+  status               OnboardingStatus      @default(DRAFT)
+  currentStep          Int                   @default(1)
+  completionPercentage Int                   @default(0)
+  
+  // Public Submission Tracking
+  invitationId         String?               // Link to invitation if public
+  isPublicSubmission   Boolean               @default(false)
+  submitterIp          String?
+  
+  // Basic Info (Step 1)
+  name                 String?
+  description          String?
+  instagramUsername    String?
+  profileImageUrl      String?
+  type                 String?               @default("real")
+  
+  // Background/Persona (Step 2)
+  age                  String?
+  birthday             String?
+  location             String?
+  nationality          String?
+  ethnicity            String?
+  occupation           String?
+  relationshipStatus   String?
+  backstory            String?
+  interests            String[]              @default([])
+  
+  // Content & Content Types (Step 3)
+  selectedContentTypes String[]              @default([])
+  customContentTypes   String[]              @default([])
+  primaryNiche         String?
+  feedAesthetic        String?
+  commonThemes         String?
+  uniqueHook           String?
+  
+  // Pricing (Step 4)
+  platformPricing      Json?
+  
+  // Social Accounts (Step 5)
+  platforms            Json?
+  socials              Json?
+  
+  // Additional Data (Step 6)
+  modelBible           Json?
+  restrictions         Json?
+  schedule             Json?
+  internalNotes        String?
+  
+  // Metadata
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  submittedAt          DateTime?
+  completedAt          DateTime?
+  lastAutoSaveAt       DateTime?
+  
+  // Review & Approval
+  reviewStatus         ReviewStatus?         @default(PENDING)
+  reviewedBy           String?               // Clerk ID of reviewer
+  reviewedAt           DateTime?
+  rejectionReason      String?
+  createdProfileId     String?               // Link to created InstagramProfile after approval
+  
+  // Relations
+  user                 User?                 @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  invitation           OnboardingInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([clerkId])
+  @@index([createdByClerkId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([invitationId])
+  @@index([isPublicSubmission])
+  @@index([clerkId, status])
+  @@index([reviewStatus])
+  @@index([status, reviewStatus])
+  @@map("model_onboarding_drafts")
 }
 
 model Friendship {
@@ -2372,31 +2491,4 @@ enum ReviewStatus {
   APPROVED
   REJECTED
   CHANGES_REQUESTED
-}
-
-enum SpaceTemplateType {
-  KANBAN
-  WALL_POST
-  SEXTING_SETS
-  OTP_PTR
-}
-
-enum SpaceAccess {
-  OPEN
-  PRIVATE
-}
-
-enum BoardItemType {
-  TASK
-  POST
-  REQUEST
-  SET
-  NOTE
-}
-
-enum BoardItemPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
 }

@@ -9,7 +9,7 @@ import {
 } from "@/lib/gif-maker/types";
 import {
   captureVideoWithBlur,
-  captureCanvasAnimation,
+  capturePlayerFrames,
   renderFramesToGif,
   downloadBlob,
   exportCanvasAsPng,
@@ -117,15 +117,16 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       let frames: HTMLCanvasElement[];
 
       if (needsCanvasExport) {
-        // Mixed timeline or image-only: use canvas-based capture (works with <Img>)
-        frames = await captureCanvasAnimation(
-          () => player.getCanvas(),
+        // Image/collage timeline: capture by drawing media elements from the player DOM
+        frames = await capturePlayerFrames(
+          () => player.getContainerElement(),
           (frame) => player.seekToFrame(frame),
           {
             totalFrames,
             width: settings.width,
             height: settings.height,
             everyNthFrame,
+            fps: settings.fps,
           },
           (progress) =>
             setExportState({
@@ -168,6 +169,33 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
               message: `Capturing... ${Math.round(progress.progress)}%`,
             })
         );
+
+        // Fallback: if video capture returned 0 frames, try DOM-based capture
+        if (frames.length === 0) {
+          setExportState({
+            progress: 0,
+            phase: "capturing",
+            message: "Retrying capture...",
+          });
+
+          frames = await capturePlayerFrames(
+            () => player.getContainerElement(),
+            (frame) => player.seekToFrame(frame),
+            {
+              totalFrames,
+              width: settings.width,
+              height: settings.height,
+              everyNthFrame,
+              fps: settings.fps,
+            },
+            (progress) =>
+              setExportState({
+                progress: progress.progress * 0.5,
+                phase: "capturing",
+                message: `Capturing... ${Math.round(progress.progress)}%`,
+              })
+          );
+        }
       }
 
       if (frames.length === 0) throw new Error("No frames captured");

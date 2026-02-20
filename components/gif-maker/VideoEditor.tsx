@@ -14,16 +14,17 @@ import type { PreviewPlayerRef } from "./PreviewPlayer";
 export function VideoEditor() {
   const playerRef = useRef<PreviewPlayerRef>(null);
 
-  // Optimize: Use single selector with useShallow to prevent re-renders on unrelated state changes
-  const { settings, clips, overlays, totalDurationInFrames, setCurrentFrame } = useVideoEditorStore(
+  // Data fields — useShallow bails out when values are referentially the same
+  const { settings, clips, overlays, totalDurationInFrames } = useVideoEditorStore(
     useShallow((s) => ({
       settings: s.settings,
       clips: s.clips,
       overlays: s.overlays,
       totalDurationInFrames: s.totalDurationInFrames,
-      setCurrentFrame: s.setCurrentFrame,
     }))
   );
+  // Actions are stable Zustand references — select separately, no shallow needed
+  const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
 
   const handleFrameChange = useCallback(
     (frame: number) => {
@@ -220,11 +221,14 @@ export function VideoEditor() {
 
 // ─── Left Panel Tabs ─────────────────────────────────
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Film, Layers, LayoutGrid, Sparkles, BookOpen } from "lucide-react";
-import { LayoutPicker } from "./panels/LayoutPicker";
-import { EffectsPanel } from "./panels/EffectsPanel";
-import { TemplateLibrary } from "./panels/TemplateLibrary";
+
+// IMPORTANT: These must stay at module scope — React.lazy() must be called
+// outside render functions or the lazy boundary resets on every render.
+const LayoutPicker = lazy(() => import("./panels/LayoutPicker").then((m) => ({ default: m.LayoutPicker })));
+const EffectsPanel = lazy(() => import("./panels/EffectsPanel").then((m) => ({ default: m.EffectsPanel })));
+const TemplateLibrary = lazy(() => import("./panels/TemplateLibrary").then((m) => ({ default: m.TemplateLibrary })));
 
 function LeftPanelTabs() {
   const [activeTab, setActiveTab] = useState<"clips" | "overlays" | "effects" | "layout" | "templates">("clips");
@@ -309,11 +313,17 @@ function LeftPanelTabs() {
         ) : activeTab === "overlays" ? (
           <OverlayPanel />
         ) : activeTab === "effects" ? (
-          <EffectsPanel />
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-500 text-xs p-4">Loading...</div>}>
+            <EffectsPanel />
+          </Suspense>
         ) : activeTab === "templates" ? (
-          <TemplateLibrary />
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-500 text-xs p-4">Loading...</div>}>
+            <TemplateLibrary />
+          </Suspense>
         ) : (
-          <LayoutPicker />
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-500 text-xs p-4">Loading...</div>}>
+            <LayoutPicker />
+          </Suspense>
         )}
       </div>
     </>

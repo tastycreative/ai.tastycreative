@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, memo } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import type { Overlay } from "@/lib/gif-maker/types";
 
@@ -10,7 +10,10 @@ interface DraggableOverlayProps {
   containerHeight: number;
 }
 
-export function DraggableOverlay({
+// memo prevents re-renders for overlays that are NOT being dragged.
+// The actively-dragged overlay still re-renders on each pointermove
+// (overlay.x/y changes), but callbacks stay stable across those renders.
+export const DraggableOverlay = memo(function DraggableOverlay({
   overlay,
   containerWidth,
   containerHeight,
@@ -31,22 +34,28 @@ export function DraggableOverlay({
     startOh: number;
   } | null>(null);
 
+  // Always holds latest overlay values — callbacks read from this at event time
+  // so they don't need position/size in their dependency arrays
+  const overlayRef = useRef(overlay);
+  overlayRef.current = overlay;
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, type: "move" | "resize") => {
       e.stopPropagation();
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      const o = overlayRef.current;
       dragRef.current = {
         type,
         startX: e.clientX,
         startY: e.clientY,
-        startOx: overlay.x,
-        startOy: overlay.y,
-        startOw: overlay.width,
-        startOh: overlay.height,
+        startOx: o.x,
+        startOy: o.y,
+        startOw: o.width,
+        startOh: o.height,
       };
     },
-    [overlay.x, overlay.y, overlay.width, overlay.height]
+    [] // stable forever
   );
 
   const handlePointerMove = useCallback(
@@ -59,19 +68,20 @@ export function DraggableOverlay({
       const dxPct = (dx / containerWidth) * 100;
       const dyPct = (dy / containerHeight) * 100;
 
+      const o = overlayRef.current;
       if (dragRef.current.type === "move") {
-        updateOverlay(overlay.id, {
-          x: Math.max(0, Math.min(100 - overlay.width, dragRef.current.startOx + dxPct)),
-          y: Math.max(0, Math.min(100 - overlay.height, dragRef.current.startOy + dyPct)),
+        updateOverlay(o.id, {
+          x: Math.max(0, Math.min(100 - o.width, dragRef.current.startOx + dxPct)),
+          y: Math.max(0, Math.min(100 - o.height, dragRef.current.startOy + dyPct)),
         });
       } else if (dragRef.current.type === "resize") {
-        updateOverlay(overlay.id, {
+        updateOverlay(o.id, {
           width: Math.max(2, Math.min(100, dragRef.current.startOw + dxPct)),
           height: Math.max(2, Math.min(100, dragRef.current.startOh + dyPct)),
         });
       }
     },
-    [overlay.id, overlay.width, overlay.height, containerWidth, containerHeight, updateOverlay]
+    [containerWidth, containerHeight, updateOverlay] // no position/size deps
   );
 
   const handlePointerUp = useCallback(() => {
@@ -121,4 +131,4 @@ export function DraggableOverlay({
       )}
     </div>
   );
-}
+});

@@ -105,7 +105,7 @@ interface PlatformPricing {
   customVideo?: { perMin?: number | null; minimum?: number | null };
   videoCall?: { perMin?: number | null; minimum?: number | null };
   privateLive?: { perMin?: number | null; minimum?: number | null };
-  dickRating?: { text?: number | null; nude?: number | null };
+  otherServices?: { [key: string]: number };
   contentMinimums?: { [key: string]: number };
   notes?: string;
   sfwOnly?: boolean;
@@ -1171,7 +1171,7 @@ function PricingTab({
         customVideo: { perMin: null, minimum: null },
         videoCall: { perMin: null, minimum: null },
         privateLive: { perMin: null, minimum: null },
-        dickRating: { text: null, nude: null },
+        otherServices: {},
         contentMinimums: {},
         notes: "",
         sfwOnly: platformId === "oftv",
@@ -1208,9 +1208,7 @@ function PricingTab({
         setSectionForm({ contentMinimums: pricing.contentMinimums || {} });
         break;
       case "otherServices":
-        setSectionForm({
-          dickRating: pricing.dickRating || { text: null, nude: null },
-        });
+        setSectionForm({ otherServices: pricing.otherServices || {} });
         break;
     }
     setEditingSection(section);
@@ -1245,6 +1243,26 @@ function PricingTab({
     setSectionForm({
       ...sectionForm,
       contentMinimums: newMinimums,
+    });
+  };
+
+  // Helper to add/update other service
+  const updateOtherService = (serviceName: string, price: number) => {
+    setSectionForm({
+      ...sectionForm,
+      otherServices: {
+        ...sectionForm.otherServices,
+        [serviceName]: price,
+      },
+    });
+  };
+
+  const deleteOtherService = (serviceName: string) => {
+    const newServices = { ...sectionForm.otherServices };
+    delete newServices[serviceName];
+    setSectionForm({
+      ...sectionForm,
+      otherServices: newServices,
     });
   };
 
@@ -1900,92 +1918,150 @@ function PricingTab({
               )}
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <div className="p-3 bg-[#0c0c0f] rounded-lg">
-                <div className="text-[11px] text-[#71717a] mb-2">
-                  Dick Rating
+            {editingSection === "otherServices" ? (
+              <div className="space-y-3">
+                {/* Add New Service */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Service name (e.g., Dick Rating, Sexting)"
+                    id="newServiceName"
+                    className="flex-1 h-9 px-3 text-sm bg-[#0c0c0f] border border-[#27272a] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const input = e.currentTarget;
+                        const priceInput = document.getElementById(
+                          "newServicePrice",
+                        ) as HTMLInputElement;
+                        if (input.value.trim() && priceInput.value) {
+                          updateOtherService(
+                            input.value.trim(),
+                            Number(priceInput.value),
+                          );
+                          input.value = "";
+                          priceInput.value = "";
+                          input.focus();
+                        }
+                      }
+                    }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Price"
+                    id="newServicePrice"
+                    className="w-28 h-9 px-3 text-sm bg-[#0c0c0f] border border-[#27272a] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const nameInput = document.getElementById(
+                          "newServiceName",
+                        ) as HTMLInputElement;
+                        const priceInput = e.currentTarget;
+                        if (nameInput.value.trim() && priceInput.value) {
+                          updateOtherService(
+                            nameInput.value.trim(),
+                            Number(priceInput.value),
+                          );
+                          nameInput.value = "";
+                          priceInput.value = "";
+                          nameInput.focus();
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const nameInput = document.getElementById(
+                        "newServiceName",
+                      ) as HTMLInputElement;
+                      const priceInput = document.getElementById(
+                        "newServicePrice",
+                      ) as HTMLInputElement;
+                      if (nameInput.value.trim() && priceInput.value) {
+                        updateOtherService(
+                          nameInput.value.trim(),
+                          Number(priceInput.value),
+                        );
+                        nameInput.value = "";
+                        priceInput.value = "";
+                        nameInput.focus();
+                      }
+                    }}
+                    className="px-4 h-9 bg-[#3b82f6] rounded-lg text-white text-sm hover:bg-[#2563eb] transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={14} />
+                    Add
+                  </button>
                 </div>
-                {editingSection === "otherServices" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-[#71717a] mb-1 block">
-                        Text
-                      </label>
-                      <input
-                        type="number"
-                        value={sectionForm.dickRating?.text || ""}
-                        onChange={(e) =>
-                          setSectionForm({
-                            ...sectionForm,
-                            dickRating: {
-                              ...sectionForm.dickRating,
-                              text: e.target.value
-                                ? Number(e.target.value)
-                                : null,
-                            },
-                          })
-                        }
-                        placeholder="$"
-                        className="w-full h-8 px-2 text-sm bg-[#18181b] border border-[#27272a] rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
-                      />
+
+                {/* Existing Services */}
+                <div className="space-y-2">
+                  {(
+                    Object.entries(sectionForm.otherServices || {}) as [
+                      string,
+                      number,
+                    ][]
+                  ).map(([serviceName, price]) => (
+                    <div
+                      key={serviceName}
+                      className="flex items-center gap-2 p-3 bg-[#0c0c0f] rounded-lg group"
+                    >
+                      <div className="flex-1">
+                        <div className="text-[13px] font-medium text-[#e4e4e7]">
+                          {serviceName}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={price}
+                          onChange={(e) =>
+                            updateOtherService(
+                              serviceName,
+                              Number(e.target.value),
+                            )
+                          }
+                          className="w-24 h-8 px-2 text-sm bg-[#18181b] border border-[#27272a] rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                        />
+                        <button
+                          onClick={() => deleteOtherService(serviceName)}
+                          className="p-1.5 text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-[#71717a] mb-1 block">
-                        Nude
-                      </label>
-                      <input
-                        type="number"
-                        value={sectionForm.dickRating?.nude || ""}
-                        onChange={(e) =>
-                          setSectionForm({
-                            ...sectionForm,
-                            dickRating: {
-                              ...sectionForm.dickRating,
-                              nude: e.target.value
-                                ? Number(e.target.value)
-                                : null,
-                            },
-                          })
-                        }
-                        placeholder="$"
-                        className="w-full h-8 px-2 text-sm bg-[#18181b] border border-[#27272a] rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
-                      />
+                  ))}
+                  {(!sectionForm.otherServices ||
+                    Object.keys(sectionForm.otherServices).length === 0) && (
+                    <div className="text-center py-6 text-[#71717a] text-sm">
+                      No services added yet. Add your first service above.
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-[13px]">
-                    ${currentPricing.dickRating?.text || 0} text / $
-                    {currentPricing.dickRating?.nude || 0} nude
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(currentPricing.otherServices || {}).map(
+                  ([serviceName, price]) => (
+                    <div
+                      key={serviceName}
+                      className="flex items-center justify-between p-3 bg-[#0c0c0f] rounded-lg"
+                    >
+                      <div className="text-[13px] font-medium text-[#e4e4e7]">
+                        {serviceName}
+                      </div>
+                      <div className="text-[13px] text-[#a1a1aa]">${price}</div>
+                    </div>
+                  ),
+                )}
+                {(!currentPricing.otherServices ||
+                  Object.keys(currentPricing.otherServices).length === 0) && (
+                  <div className="text-center py-6 text-[#71717a] text-sm">
+                    No services configured yet
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-[#27272a]">
-              <div className="text-[11px] text-[#71717a] mb-2">
-                Services on {currentPlatform?.label}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { label: "Customs", active: true },
-                  { label: "Wishlist", active: true },
-                  { label: "Private Lives", active: true },
-                  { label: "Video Calls", active: true },
-                ].map((item) => (
-                  <span
-                    key={item.label}
-                    className={`px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 ${
-                      item.active
-                        ? "bg-emerald-500/15 text-emerald-400 border border-transparent"
-                        : "bg-[#0c0c0f] text-[#52525b] border border-[#27272a]"
-                    }`}
-                  >
-                    {item.active && <Check size={12} />}
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Copy from another platform */}

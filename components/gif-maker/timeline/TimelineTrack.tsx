@@ -63,13 +63,14 @@ export const TimelineTrack = memo(function TimelineTrack({ track, zoom }: Timeli
       e.preventDefault();
 
       const targetSlotIndex = parseInt(track.id.replace("slot-", ""), 10);
-      const clip = clips.find((c) => c.id === clipId);
+      // Read clips from store directly to avoid `clips` in dependency array
+      const clip = useVideoEditorStore.getState().clips.find((c) => c.id === clipId);
       if (!clip) return;
       if ((clip.slotIndex ?? 0) === targetSlotIndex) return;
 
       moveClipToSlot(clipId, targetSlotIndex);
     },
-    [isSlotTrack, clips, track.id, moveClipToSlot]
+    [isSlotTrack, track.id, moveClipToSlot] // clips removed from deps
   );
 
   const bgClass = isDragOver
