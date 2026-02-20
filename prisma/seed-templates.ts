@@ -11,6 +11,12 @@
  */
 
 import { PrismaClient } from '../lib/generated/prisma';
+import {
+  KANBAN_METADATA_DEFAULTS,
+  WALL_POST_METADATA_DEFAULTS,
+  SEXTING_SETS_METADATA_DEFAULTS,
+  OTP_PTR_METADATA_DEFAULTS,
+} from '../lib/spaces/template-metadata';
 
 const prisma = new PrismaClient();
 
@@ -197,46 +203,11 @@ export function getTemplateColumns(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Metadata examples per template (stored in BoardItem.metadata)      */
+/*  Metadata per template (imported from lib/spaces/template-metadata) */
 /*                                                                     */
-/*  These show the shape of what goes inside each item's JSON field.   */
-/*  Adjust these to add/remove fields per template.                    */
+/*  The defaults come from the shared lib. Sample items below override */
+/*  individual fields to create realistic seed data.                   */
 /* ------------------------------------------------------------------ */
-
-const KANBAN_ITEM_METADATA = {
-  tags: ['planning', 'sprint-1'],
-  storyPoints: 3,
-  labels: ['frontend', 'urgent'],
-};
-
-const WALL_POST_ITEM_METADATA = {
-  caption: 'Summer vibes content drop',
-  platform: 'onlyfans',
-  hashtags: ['summer', 'vibes', 'exclusive'],
-  scheduledDate: '2026-03-01T14:00:00Z',
-  model: 'Model A',
-  mediaCount: 3,
-};
-
-const SEXTING_SETS_ITEM_METADATA = {
-  category: 'bedroom',
-  setSize: 12,
-  model: 'Model B',
-  quality: 'HD',
-  watermarked: false,
-  tags: ['exclusive', 'new-model'],
-};
-
-const OTP_PTR_ITEM_METADATA = {
-  requestType: 'OTP',
-  price: 25.0,
-  buyer: '@username',
-  model: 'Model C',
-  deliverables: ['3 photos', '1 video'],
-  deadline: '2026-03-15',
-  isPaid: true,
-  fulfillmentNotes: 'Deliver via DM',
-};
 
 /* ------------------------------------------------------------------ */
 /*  Seed runner                                                        */
@@ -390,7 +361,7 @@ function getSampleItems(
           priority: 'HIGH',
           position: 0,
           dueDate: '2026-03-01',
-          metadata: { ...KANBAN_ITEM_METADATA, labels: ['setup', 'infra'] },
+          metadata: { ...KANBAN_METADATA_DEFAULTS, tags: ['setup', 'sprint-1'], storyPoints: 3, labels: ['setup', 'infra'] },
         },
         {
           columnId: columnIds['To Do'],
@@ -399,7 +370,7 @@ function getSampleItems(
           type: 'TASK',
           priority: 'MEDIUM',
           position: 1,
-          metadata: { ...KANBAN_ITEM_METADATA, storyPoints: 5, labels: ['design'] },
+          metadata: { ...KANBAN_METADATA_DEFAULTS, tags: ['design'], storyPoints: 5, labels: ['design'] },
         },
         {
           columnId: columnIds['In Progress'],
@@ -409,7 +380,7 @@ function getSampleItems(
           priority: 'URGENT',
           position: 0,
           dueDate: '2026-02-25',
-          metadata: { ...KANBAN_ITEM_METADATA, storyPoints: 8, labels: ['backend', 'auth'] },
+          metadata: { ...KANBAN_METADATA_DEFAULTS, tags: ['backend'], storyPoints: 8, labels: ['backend', 'auth'] },
         },
         {
           columnId: columnIds['Done'],
@@ -418,7 +389,7 @@ function getSampleItems(
           type: 'TASK',
           priority: 'LOW',
           position: 0,
-          metadata: { ...KANBAN_ITEM_METADATA, storyPoints: 2, labels: ['devops'] },
+          metadata: { ...KANBAN_METADATA_DEFAULTS, tags: ['devops'], storyPoints: 2, labels: ['devops'] },
         },
       ];
 
@@ -431,7 +402,7 @@ function getSampleItems(
           type: 'POST',
           priority: 'HIGH',
           position: 0,
-          metadata: { ...WALL_POST_ITEM_METADATA, caption: 'Beach day vibes ☀️', mediaCount: 5 },
+          metadata: { ...WALL_POST_METADATA_DEFAULTS, caption: 'Beach day vibes ☀️', mediaCount: 5 },
         },
         {
           columnId: columnIds['Review'],
@@ -440,7 +411,7 @@ function getSampleItems(
           type: 'POST',
           priority: 'MEDIUM',
           position: 0,
-          metadata: { ...WALL_POST_ITEM_METADATA, caption: 'Studio magic ✨', platform: 'onlyfans', mediaCount: 3 },
+          metadata: { ...WALL_POST_METADATA_DEFAULTS, caption: 'Studio magic ✨', platform: 'onlyfans', mediaCount: 3 },
         },
         {
           columnId: columnIds['Approved'],
@@ -449,7 +420,7 @@ function getSampleItems(
           type: 'POST',
           priority: 'MEDIUM',
           position: 0,
-          metadata: { ...WALL_POST_ITEM_METADATA, caption: 'New fit just dropped 🔥', hashtags: ['ootd', 'fashion'] },
+          metadata: { ...WALL_POST_METADATA_DEFAULTS, caption: 'New fit just dropped 🔥', hashtags: ['ootd', 'fashion'] },
         },
         {
           columnId: columnIds['Scheduled'],
@@ -459,7 +430,7 @@ function getSampleItems(
           priority: 'HIGH',
           position: 0,
           dueDate: '2026-02-14',
-          metadata: { ...WALL_POST_ITEM_METADATA, scheduledDate: '2026-02-14T10:00:00Z' },
+          metadata: { ...WALL_POST_METADATA_DEFAULTS, scheduledDate: '2026-02-14T10:00:00Z' },
         },
       ];
 
@@ -472,7 +443,7 @@ function getSampleItems(
           type: 'SET',
           priority: 'HIGH',
           position: 0,
-          metadata: { ...SEXTING_SETS_ITEM_METADATA, category: 'bedroom', setSize: 12 },
+          metadata: { ...SEXTING_SETS_METADATA_DEFAULTS, category: 'bedroom', setSize: 12 },
         },
         {
           columnId: columnIds['Shooting'],
@@ -481,7 +452,7 @@ function getSampleItems(
           type: 'SET',
           priority: 'MEDIUM',
           position: 0,
-          metadata: { ...SEXTING_SETS_ITEM_METADATA, category: 'outdoor', setSize: 10, quality: '4K' },
+          metadata: { ...SEXTING_SETS_METADATA_DEFAULTS, category: 'outdoor', setSize: 10, quality: '4K' },
         },
         {
           columnId: columnIds['Ready'],
@@ -490,7 +461,7 @@ function getSampleItems(
           type: 'SET',
           priority: 'LOW',
           position: 0,
-          metadata: { ...SEXTING_SETS_ITEM_METADATA, category: 'selfie', setSize: 6, watermarked: true },
+          metadata: { ...SEXTING_SETS_METADATA_DEFAULTS, category: 'selfie', setSize: 6, watermarked: true },
         },
       ];
 
@@ -504,7 +475,7 @@ function getSampleItems(
           priority: 'HIGH',
           position: 0,
           dueDate: '2026-03-05',
-          metadata: { ...OTP_PTR_ITEM_METADATA, buyer: '@fan123', price: 50.0, deliverables: ['1 custom video (2 min)'] },
+          metadata: { ...OTP_PTR_METADATA_DEFAULTS, buyer: '@fan123', price: 50.0, deliverables: ['1 custom video (2 min)'] },
         },
         {
           columnId: columnIds['In Production'],
@@ -513,7 +484,7 @@ function getSampleItems(
           type: 'REQUEST',
           priority: 'MEDIUM',
           position: 0,
-          metadata: { ...OTP_PTR_ITEM_METADATA, buyer: '@vipuser', price: 35.0, deliverables: ['5 photos'], isPaid: true },
+          metadata: { ...OTP_PTR_METADATA_DEFAULTS, buyer: '@vipuser', price: 35.0, deliverables: ['5 photos'], isPaid: true },
         },
         {
           columnId: columnIds['Delivered'],
@@ -522,7 +493,7 @@ function getSampleItems(
           type: 'REQUEST',
           priority: 'LOW',
           position: 0,
-          metadata: { ...OTP_PTR_ITEM_METADATA, requestType: 'PTR', buyer: '@subscriber99', price: 15.0, isPaid: true },
+          metadata: { ...OTP_PTR_METADATA_DEFAULTS, requestType: 'PTR', buyer: '@subscriber99', price: 15.0, isPaid: true },
         },
         {
           columnId: columnIds['Completed'],
@@ -531,7 +502,7 @@ function getSampleItems(
           type: 'REQUEST',
           priority: 'MEDIUM',
           position: 0,
-          metadata: { ...OTP_PTR_ITEM_METADATA, requestType: 'OTP', buyer: '@loyalfan', price: 75.0, isPaid: true },
+          metadata: { ...OTP_PTR_METADATA_DEFAULTS, requestType: 'OTP', buyer: '@loyalfan', price: 75.0, isPaid: true },
         },
       ];
 
