@@ -43,7 +43,9 @@ model User {
   influencers              InfluencerLoRA[]
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
+  model_onboarding_drafts  model_onboarding_drafts[]
   notifications            Notification[]
+  onboarding_invitations   onboarding_invitations[]
   productionEntries        ProductionEntry[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
@@ -1389,12 +1391,19 @@ model Workspace {
   isActive       Boolean           @default(true)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @default(now()) @updatedAt
+  access         SpaceAccess       @default(OPEN)
+  config         Json?
+  key            String?
+  templateType   SpaceTemplateType @default(KANBAN)
+  boards         Board[]
   members        WorkspaceMember[]
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
+  @@unique([organizationId, key])
   @@index([organizationId])
   @@index([isActive])
+  @@index([templateType])
   @@map("workspaces")
 }
 
@@ -1413,6 +1422,93 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@map("workspace_members")
+}
+
+model Board {
+  id          String        @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  position    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  columns     BoardColumn[]
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, position])
+  @@map("boards")
+}
+
+model BoardColumn {
+  id        String      @id @default(cuid())
+  boardId   String
+  name      String
+  color     String?
+  position  Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  items     BoardItem[]
+
+  @@index([boardId])
+  @@index([boardId, position])
+  @@map("board_columns")
+}
+
+model BoardItem {
+  id          String             @id @default(cuid())
+  columnId    String
+  title       String
+  description String?
+  type        BoardItemType      @default(TASK)
+  priority    BoardItemPriority  @default(MEDIUM)
+  assigneeId  String?
+  dueDate     DateTime?
+  position    Int                @default(0)
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdBy   String?
+  comments    BoardItemComment[]
+  media       BoardItemMedia[]
+  column      BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@index([columnId])
+  @@index([columnId, position])
+  @@index([assigneeId])
+  @@index([createdBy])
+  @@index([dueDate])
+  @@map("board_items")
+}
+
+model BoardItemComment {
+  id        String    @id @default(cuid())
+  itemId    String
+  content   String
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([createdBy])
+  @@index([itemId, createdAt])
+  @@map("board_item_comments")
+}
+
+model BoardItemMedia {
+  id        String    @id @default(cuid())
+  itemId    String
+  url       String
+  type      String
+  name      String?
+  size      Int?
+  createdAt DateTime  @default(now())
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("board_item_media")
 }
 
 model CreditUsageLog {
@@ -1994,6 +2090,93 @@ model ContentTypePricingHistory {
 
   @@index([contentTypeOptionId])
   @@index([createdAt])
+}
+
+model model_onboarding_drafts {
+  id                     String                  @id
+  clerkId                String?
+  createdByClerkId       String
+  organizationId         String?
+  status                 OnboardingStatus        @default(DRAFT)
+  currentStep            Int                     @default(1)
+  completionPercentage   Int                     @default(0)
+  name                   String?
+  description            String?
+  instagramUsername      String?
+  profileImageUrl        String?
+  type                   String?                 @default("real")
+  age                    String?
+  birthday               String?
+  location               String?
+  nationality            String?
+  ethnicity              String?
+  occupation             String?
+  relationshipStatus     String?
+  backstory              String?
+  interests              String[]                @default([])
+  selectedContentTypes   String[]                @default([])
+  customContentTypes     String[]                @default([])
+  primaryNiche           String?
+  feedAesthetic          String?
+  commonThemes           String?
+  uniqueHook             String?
+  platformPricing        Json?
+  platforms              Json?
+  socials                Json?
+  modelBible             Json?
+  restrictions           Json?
+  schedule               Json?
+  internalNotes          String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime
+  submittedAt            DateTime?
+  completedAt            DateTime?
+  lastAutoSaveAt         DateTime?
+  invitationId           String?
+  isPublicSubmission     Boolean                 @default(false)
+  submitterIp            String?
+  createdProfileId       String?
+  rejectionReason        String?
+  reviewStatus           ReviewStatus?           @default(PENDING)
+  reviewedAt             DateTime?
+  reviewedBy             String?
+  users                  User?                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  onboarding_invitations onboarding_invitations? @relation(fields: [invitationId], references: [id])
+
+  @@index([clerkId])
+  @@index([clerkId, status])
+  @@index([createdByClerkId])
+  @@index([invitationId])
+  @@index([isPublicSubmission])
+  @@index([organizationId])
+  @@index([reviewStatus])
+  @@index([status])
+  @@index([status, reviewStatus])
+}
+
+model onboarding_invitations {
+  id                      String                    @id
+  token                   String                    @unique
+  email                   String?
+  modelName               String?
+  notes                   String?
+  createdByClerkId        String
+  organizationId          String?
+  expiresAt               DateTime?
+  maxUses                 Int                       @default(1)
+  usedCount               Int                       @default(0)
+  isActive                Boolean                   @default(true)
+  createdAt               DateTime                  @default(now())
+  lastUsedAt              DateTime?
+  ipAddresses             String[]                  @default([])
+  model_onboarding_drafts model_onboarding_drafts[]
+  users                   User                      @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+
+  @@index([createdByClerkId])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@index([organizationId])
+  @@index([token])
 }
 
 enum SyncStatus {
