@@ -43,9 +43,9 @@ model User {
   influencers              InfluencerLoRA[]
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
-  model_onboarding_drafts  model_onboarding_drafts[]
+  modelOnboardingDrafts    ModelOnboardingDraft[]
   notifications            Notification[]
-  onboarding_invitations   onboarding_invitations[]
+  onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
@@ -53,8 +53,6 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
-  modelOnboardingDrafts    ModelOnboardingDraft[]
-  onboardingInvitations    OnboardingInvitation[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -2092,91 +2090,34 @@ model ContentTypePricingHistory {
   @@index([createdAt])
 }
 
-model model_onboarding_drafts {
-  id                     String                  @id
-  clerkId                String?
-  createdByClerkId       String
-  organizationId         String?
-  status                 OnboardingStatus        @default(DRAFT)
-  currentStep            Int                     @default(1)
-  completionPercentage   Int                     @default(0)
-  name                   String?
-  description            String?
-  instagramUsername      String?
-  profileImageUrl        String?
-  type                   String?                 @default("real")
-  age                    String?
-  birthday               String?
-  location               String?
-  nationality            String?
-  ethnicity              String?
-  occupation             String?
-  relationshipStatus     String?
-  backstory              String?
-  interests              String[]                @default([])
-  selectedContentTypes   String[]                @default([])
-  customContentTypes     String[]                @default([])
-  primaryNiche           String?
-  feedAesthetic          String?
-  commonThemes           String?
-  uniqueHook             String?
-  platformPricing        Json?
-  platforms              Json?
-  socials                Json?
-  modelBible             Json?
-  restrictions           Json?
-  schedule               Json?
-  internalNotes          String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime
-  submittedAt            DateTime?
-  completedAt            DateTime?
-  lastAutoSaveAt         DateTime?
-  invitationId           String?
-  isPublicSubmission     Boolean                 @default(false)
-  submitterIp            String?
-  createdProfileId       String?
-  rejectionReason        String?
-  reviewStatus           ReviewStatus?           @default(PENDING)
-  reviewedAt             DateTime?
-  reviewedBy             String?
-  users                  User?                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  onboarding_invitations onboarding_invitations? @relation(fields: [invitationId], references: [id])
-
-  @@index([clerkId])
-  @@index([clerkId, status])
-  @@index([createdByClerkId])
-  @@index([invitationId])
-  @@index([isPublicSubmission])
-  @@index([organizationId])
-  @@index([reviewStatus])
-  @@index([status])
-  @@index([status, reviewStatus])
+enum SpaceAccess {
+  OPEN
+  INVITE_ONLY
+  PRIVATE
 }
 
-model onboarding_invitations {
-  id                      String                    @id
-  token                   String                    @unique
-  email                   String?
-  modelName               String?
-  notes                   String?
-  createdByClerkId        String
-  organizationId          String?
-  expiresAt               DateTime?
-  maxUses                 Int                       @default(1)
-  usedCount               Int                       @default(0)
-  isActive                Boolean                   @default(true)
-  createdAt               DateTime                  @default(now())
-  lastUsedAt              DateTime?
-  ipAddresses             String[]                  @default([])
-  model_onboarding_drafts model_onboarding_drafts[]
-  users                   User                      @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+enum SpaceTemplateType {
+  KANBAN
+  CALENDAR
+  TABLE
+  TIMELINE
+  BOARD
+}
 
-  @@index([createdByClerkId])
-  @@index([expiresAt])
-  @@index([isActive])
-  @@index([organizationId])
-  @@index([token])
+enum BoardItemType {
+  TASK
+  BUG
+  FEATURE
+  STORY
+  EPIC
+}
+
+enum BoardItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
 }
 
 enum SyncStatus {
