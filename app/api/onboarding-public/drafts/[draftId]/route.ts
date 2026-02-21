@@ -96,12 +96,15 @@ export async function PATCH(
     if (backstory) completionPercentage += 10;
     if (platformPricing) completionPercentage += 10;
 
+    // Filter out contactEmail and other unknown fields (contactEmail should be in modelBible.preferredEmail)
+    const { contactEmail, ...validUpdateData } = body;
+
     const draft = await prisma.modelOnboardingDraft.update({
       where: {
         id: draftId,
       },
       data: {
-        ...body,
+        ...validUpdateData,
         completionPercentage,
         lastAutoSaveAt: body.lastAutoSaveAt ? new Date(body.lastAutoSaveAt) : undefined,
       },

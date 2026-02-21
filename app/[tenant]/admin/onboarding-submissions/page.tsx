@@ -26,6 +26,19 @@ import {
   FileText,
   Users,
   TrendingUp,
+  Heart,
+  Ruler,
+  Weight,
+  Shirt,
+  Shield,
+  Gift,
+  ShoppingBag,
+  Video,
+  MessageSquare,
+  Smile,
+  Palette,
+  Type,
+  StickyNote,
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -836,7 +849,7 @@ export default function OnboardingSubmissionsPage() {
                   selectedSubmission.selectedContentTypes.length > 0 && (
                     <div className="mb-8">
                       <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4">
-                        Content Type
+                        Content Types
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {selectedSubmission.selectedContentTypes.map(
@@ -852,6 +865,598 @@ export default function OnboardingSubmissionsPage() {
                       </div>
                     </div>
                   )}
+
+                {/* Contact & Identity */}
+                {selectedSubmission.modelBible && (
+                  <>
+                    {(selectedSubmission.modelBible.fullName ||
+                      selectedSubmission.modelBible.contactEmail ||
+                      selectedSubmission.modelBible.preferredEmail ||
+                      selectedSubmission.modelBible.birthplace) && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-brand-mid-pink" />
+                          Contact & Identity
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {selectedSubmission.modelBible.fullName && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Full Name
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.fullName}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.contactEmail && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Contact Email
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.contactEmail}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.preferredEmail && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Preferred Email
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.preferredEmail}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.birthplace && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Birthplace
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.birthplace}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Physical Details */}
+                    {(selectedSubmission.modelBible.height ||
+                      selectedSubmission.modelBible.weight ||
+                      selectedSubmission.modelBible.timezone ||
+                      selectedSubmission.modelBible.clothingSizes) && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Ruler className="w-4 h-4 text-brand-mid-pink" />
+                          Physical Details
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          {selectedSubmission.modelBible.height && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Height
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.height}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.weight && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Weight
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.weight}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.timezone && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Timezone
+                              </p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedSubmission.modelBible.timezone}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {selectedSubmission.modelBible.clothingSizes && (
+                          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
+                              <Shirt className="w-3 h-3" />
+                              Clothing Sizes
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {selectedSubmission.modelBible.clothingSizes.bra && (
+                                <div>
+                                  <p className="text-xs text-gray-400 mb-0.5">
+                                    Bra
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {selectedSubmission.modelBible.clothingSizes.bra}
+                                  </p>
+                                </div>
+                              )}
+                              {selectedSubmission.modelBible.clothingSizes.top && (
+                                <div>
+                                  <p className="text-xs text-gray-400 mb-0.5">
+                                    Top
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {selectedSubmission.modelBible.clothingSizes.top}
+                                  </p>
+                                </div>
+                              )}
+                              {selectedSubmission.modelBible.clothingSizes.bottom && (
+                                <div>
+                                  <p className="text-xs text-gray-400 mb-0.5">
+                                    Bottom
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {selectedSubmission.modelBible.clothingSizes.bottom}
+                                  </p>
+                                </div>
+                              )}
+                              {selectedSubmission.modelBible.clothingSizes.shoes && (
+                                <div>
+                                  <p className="text-xs text-gray-400 mb-0.5">
+                                    Shoes
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {selectedSubmission.modelBible.clothingSizes.shoes}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Personality & Preferences */}
+                    {(selectedSubmission.modelBible.personalityInsight ||
+                      selectedSubmission.modelBible.personalityDescription ||
+                      selectedSubmission.modelBible.explicitContentOk !== undefined ||
+                      (selectedSubmission.modelBible.interests?.length > 0) ||
+                      (selectedSubmission.modelBible.favoriteColors?.length > 0) ||
+                      (selectedSubmission.modelBible.lingoKeywords?.length > 0) ||
+                      (selectedSubmission.modelBible.preferredEmojis?.length > 0)) && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Heart className="w-4 h-4 text-brand-mid-pink" />
+                          Personality & Preferences
+                        </h4>
+                        <div className="space-y-4">
+                          {selectedSubmission.modelBible.personalityInsight && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Personality Type
+                              </p>
+                              <p className="text-sm font-semibold text-brand-mid-pink">
+                                {selectedSubmission.modelBible.personalityInsight}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.explicitContentOk !== undefined && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                Explicit Content
+                              </p>
+                              <p className={`text-sm font-semibold ${selectedSubmission.modelBible.explicitContentOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {selectedSubmission.modelBible.explicitContentOk ? '✓ OK' : '✗ Not OK'}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.personalityDescription && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Personality Description
+                              </p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {selectedSubmission.modelBible.personalityDescription}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.interests?.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Interests
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedSubmission.modelBible.interests.map((interest: string) => (
+                                  <span
+                                    key={interest}
+                                    className="px-3 py-1 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 text-brand-dark-pink dark:text-brand-light-pink rounded-lg text-xs font-medium"
+                                  >
+                                    {interest}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.favoriteColors?.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                                <Palette className="w-3 h-3" />
+                                Favorite Colors
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedSubmission.modelBible.favoriteColors.map((color: string) => (
+                                  <span
+                                    key={color}
+                                    className="px-3 py-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300"
+                                  >
+                                    {color}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.lingoKeywords?.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                                <Type className="w-3 h-3" />
+                                Lingo Keywords
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedSubmission.modelBible.lingoKeywords.map((keyword: string) => (
+                                  <span
+                                    key={keyword}
+                                    className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium"
+                                  >
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.preferredEmojis?.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                                <Smile className="w-3 h-3" />
+                                Preferred Emojis
+                              </p>
+                              <div className="flex flex-wrap gap-2 text-2xl">
+                                {selectedSubmission.modelBible.preferredEmojis.map((emoji: string, idx: number) => (
+                                  <span key={idx}>{emoji}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Platform Pricing */}
+                    {selectedSubmission.platformPricing && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-brand-mid-pink" />
+                          Platform Pricing
+                        </h4>
+                        <div className="space-y-4">
+                          {Object.entries(selectedSubmission.platformPricing).map(([key, pricing]: [string, any]) => {
+                            const platformNames: Record<string, string> = {
+                              of_free: 'OnlyFans Free',
+                              of_paid: 'OnlyFans Paid',
+                              oftv: 'OFTV',
+                              fansly: 'Fansly',
+                            };
+                            return (
+                              <div key={key} className="p-4 bg-gradient-to-br from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <h5 className="font-bold text-brand-mid-pink mb-3">
+                                  {platformNames[key] || key}
+                                </h5>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                  {pricing.massMessage && (
+                                    <div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">Mass Message</p>
+                                      <p className="font-semibold text-gray-900 dark:text-white">
+                                        ${pricing.massMessage.min || '—'} {pricing.massMessage.general && `(${pricing.massMessage.general})`}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {pricing.customVideo && (
+                                    <div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">Custom Video</p>
+                                      <p className="font-semibold text-gray-900 dark:text-white">
+                                        ${pricing.customVideo.perMin || '—'}/min (min: ${pricing.customVideo.minimum || '—'})
+                                      </p>
+                                    </div>
+                                  )}
+                                  {pricing.videoCall && (
+                                    <div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">Video Call</p>
+                                      <p className="font-semibold text-gray-900 dark:text-white">
+                                        ${pricing.videoCall.perMin || '—'}/min (min: ${pricing.videoCall.minimum || '—'})
+                                      </p>
+                                    </div>
+                                  )}
+                                  {pricing.privateLive && (
+                                    <div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">Private Live</p>
+                                      <p className="font-semibold text-gray-900 dark:text-white">
+                                        ${pricing.privateLive.perMin || '—'}/min (min: ${pricing.privateLive.minimum || '—'})
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                {pricing.contentMinimums && Object.keys(pricing.contentMinimums).length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Content Minimums</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {Object.entries(pricing.contentMinimums).map(([type, price]: [string, any]) => (
+                                        <span key={type} className="px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium">
+                                          {type}: ${price}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {pricing.notes && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Notes</p>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">{pricing.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social Accounts */}
+                    {selectedSubmission.socials && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-brand-mid-pink" />
+                          Social Accounts
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {Object.entries(selectedSubmission.socials).map(([platform, data]: [string, any]) => {
+                            if (platform === 'otherSocials') {
+                              return (
+                                <div key={platform} className="col-span-full p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Other Socials</p>
+                                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{data}</p>
+                                </div>
+                              );
+                            }
+                            if (typeof data === 'object' && data.handle) {
+                              return (
+                                <div key={platform} className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 capitalize">{platform}</p>
+                                  <p className="text-sm font-semibold text-gray-900 dark:text-white">@{data.handle}</p>
+                                  <div className="flex gap-2 mt-2 text-xs">
+                                    {data.managed && (
+                                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">Managed</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Revenue */}
+                    {(selectedSubmission.modelBible.amazonWishlist?.enabled ||
+                      selectedSubmission.modelBible.physicalItems?.enabled) && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Gift className="w-4 h-4 text-brand-mid-pink" />
+                          Additional Revenue
+                        </h4>
+                        <div className="space-y-4">
+                          {selectedSubmission.modelBible.amazonWishlist?.enabled && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                                ✓ Amazon Wishlist Enabled
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.physicalItems?.enabled && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <ShoppingBag className="w-4 h-4" />
+                                Physical Items
+                              </p>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                {selectedSubmission.modelBible.physicalItems.panties && (
+                                  <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Panties</p>
+                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                      ${selectedSubmission.modelBible.physicalItems.panties}
+                                    </p>
+                                  </div>
+                                )}
+                                {selectedSubmission.modelBible.physicalItems.bra && (
+                                  <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Bra</p>
+                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                      ${selectedSubmission.modelBible.physicalItems.bra}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {selectedSubmission.modelBible.physicalItems.otherItems &&
+                                Object.keys(selectedSubmission.modelBible.physicalItems.otherItems).length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Custom Items</p>
+                                    <div className="space-y-2">
+                                      {Object.entries(selectedSubmission.modelBible.physicalItems.otherItems).map(([item, price]: [string, any]) => (
+                                        <div key={item} className="flex justify-between items-center text-sm">
+                                          <span className="text-gray-700 dark:text-gray-300 capitalize">{item}</span>
+                                          <span className="font-semibold text-gray-900 dark:text-white">${price}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Restrictions & Limits */}
+                    {selectedSubmission.modelBible.restrictions && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-brand-mid-pink" />
+                          Restrictions & Limits
+                        </h4>
+                        <div className="space-y-4">
+                          {selectedSubmission.modelBible.restrictions.contentLimitations && (
+                            <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800/30">
+                              <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-1">Content Limitations</p>
+                              <p className="text-sm text-red-900 dark:text-red-200">
+                                {selectedSubmission.modelBible.restrictions.contentLimitations}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.restrictions.wallRestrictions && (
+                            <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800/30">
+                              <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1">Wall Restrictions</p>
+                              <p className="text-sm text-orange-900 dark:text-orange-200">
+                                {selectedSubmission.modelBible.restrictions.wallRestrictions}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.restrictions.mmExclusions && (
+                            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-200 dark:border-yellow-800/30">
+                              <p className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold mb-1">Mass Message Exclusions</p>
+                              <p className="text-sm text-yellow-900 dark:text-yellow-200">
+                                {selectedSubmission.modelBible.restrictions.mmExclusions}
+                              </p>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.restrictions.wordingToAvoid?.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Wording to Avoid</p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedSubmission.modelBible.restrictions.wordingToAvoid.map((word: string) => (
+                                  <span
+                                    key={word}
+                                    className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium"
+                                  >
+                                    {word}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.restrictions.customsToAvoid && (
+                            <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-200 dark:border-purple-800/30">
+                              <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold mb-1">Customs to Avoid</p>
+                              <p className="text-sm text-purple-900 dark:text-purple-200">
+                                {selectedSubmission.modelBible.restrictions.customsToAvoid}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Schedule & Availability */}
+                    {selectedSubmission.modelBible.schedule && (
+                      <div className="mb-8">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-brand-mid-pink" />
+                          Schedule & Availability
+                        </h4>
+                        <div className="space-y-4">
+                          {selectedSubmission.modelBible.schedule.livestreamDays?.length > 0 && (
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800/30">
+                              <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 flex items-center gap-2">
+                                <Video className="w-3 h-3" />
+                                Livestream Schedule (OnlyFans)
+                              </p>
+                              <div className="space-y-2">
+                                {selectedSubmission.modelBible.schedule.livestreamDays.map((day: string) => {
+                                  const dayTime = selectedSubmission.modelBible.schedule.livestreamTimes?.[day];
+                                  return (
+                                    <div key={day} className="flex items-center gap-3 text-sm">
+                                      <span className="font-medium text-blue-900 dark:text-blue-200 w-10">{day}:</span>
+                                      {dayTime ? (
+                                        <span className="text-blue-700 dark:text-blue-300">
+                                          {dayTime.from} — {dayTime.to}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">Not set</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.schedule.videoCallDays?.length > 0 && (
+                            <div className="p-4 bg-pink-50 dark:bg-pink-900/10 rounded-xl border border-pink-200 dark:border-pink-800/30">
+                              <p className="text-xs text-pink-600 dark:text-pink-400 font-semibold mb-2 flex items-center gap-2">
+                                <MessageSquare className="w-3 h-3" />
+                                Video Call Availability
+                              </p>
+                              {selectedSubmission.modelBible.schedule.videoCallPlatform && (
+                                <p className="text-sm mb-2">
+                                  <span className="text-gray-500 dark:text-gray-400">Platform: </span>
+                                  <span className="font-semibold text-pink-900 dark:text-pink-200">
+                                    {selectedSubmission.modelBible.schedule.videoCallPlatform}
+                                  </span>
+                                </p>
+                              )}
+                              <div className="space-y-2">
+                                {selectedSubmission.modelBible.schedule.videoCallDays.map((day: string) => {
+                                  const dayTime = selectedSubmission.modelBible.schedule.videoCallTimes?.[day];
+                                  return (
+                                    <div key={day} className="flex items-center gap-3 text-sm">
+                                      <span className="font-medium text-pink-900 dark:text-pink-200 w-10">{day}:</span>
+                                      {dayTime ? (
+                                        <span className="text-pink-700 dark:text-pink-300">
+                                          {dayTime.from} — {dayTime.to}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">Not set</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {selectedSubmission.modelBible.schedule.bundleClipsOk && (
+                            <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800/30">
+                              <p className="text-sm font-semibold text-green-900 dark:text-green-200">
+                                ✓ Bundle clips in unlocks OK
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Internal Notes */}
+                    {selectedSubmission.modelBible.internalNotes && (
+                      <div className="mb-8 p-4 bg-gray-100 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold mb-2 flex items-center gap-2">
+                          <StickyNote className="w-3 h-3" />
+                          Internal Notes
+                        </p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                          {selectedSubmission.modelBible.internalNotes}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Action Footer */}

@@ -46,6 +46,14 @@ export interface ModelOnboardingDraft {
   socials?: any;
   
   // Additional
+  // modelBible stores all personality/persona details including:
+  //   fullName, preferredEmail, birthplace (public form identity)
+  //   personalityInsight (Submissive/Dominant/Switch/Not sure)
+  //   explicitContentOk (boolean)
+  //   amazonWishlist { enabled, url }
+  //   physicalItems { enabled, panties, bra, other }
+  //   schedule.videoCallPlatform, .videoCallDays, .videoCallTime
+  //   schedule.livestreamDays, .livestreamTime
   modelBible?: any;
   restrictions?: any;
   schedule?: any;

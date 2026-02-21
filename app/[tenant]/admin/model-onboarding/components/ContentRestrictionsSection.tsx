@@ -17,7 +17,12 @@ interface RestrictionsData {
 
 interface ScheduleData {
   livestreamSchedule?: string;
+  livestreamDays?: string[];
+  livestreamTimes?: { [day: string]: { from: string; to: string } };
   videoCallSchedule?: string;
+  videoCallDays?: string[];
+  videoCallTimes?: { [day: string]: { from: string; to: string } };
+  videoCallPlatform?: string;
   bundleClipsOk?: boolean;
 }
 
@@ -210,64 +215,246 @@ export default function ContentRestrictionsSection({
       <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <Calendar className="w-5 h-5 text-brand-blue" />
-          Schedule & Availability
+          Schedule &amp; Availability
         </h3>
 
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Livestream Schedule */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Livestream Schedule
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Livestream Schedule (OnlyFans)
             </label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={schedule.livestreamSchedule || ""}
-                onChange={(e) =>
-                  updateSchedule({ livestreamSchedule: e.target.value })
-                }
-                placeholder="e.g., Fridays 8-10pm PST, Sundays 2-4pm PST"
-                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
-              />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              If open to livestreaming, select the best days and time range for your schedule.
+            </p>
+
+            {/* Day Selector */}
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Best Days</p>
+              <div className="flex flex-wrap gap-2">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                  const selected = (schedule.livestreamDays || []).includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const current = schedule.livestreamDays || [];
+                        const newDays = selected
+                          ? current.filter((d) => d !== day)
+                          : [...current, day];
+                        
+                        // Clean up times for removed days
+                        if (selected && schedule.livestreamTimes) {
+                          const newTimes = { ...schedule.livestreamTimes };
+                          delete newTimes[day];
+                          updateSchedule({
+                            livestreamDays: newDays,
+                            livestreamTimes: newTimes,
+                          });
+                        } else {
+                          updateSchedule({ livestreamDays: newDays });
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selected
+                          ? "bg-brand-blue text-white border-2 border-brand-blue"
+                          : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 hover:border-brand-blue/50"
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Time Range for each selected day */}
+            {(schedule.livestreamDays || []).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Time for each day</p>
+                {schedule.livestreamDays?.map((day) => {
+                  const dayTime = schedule.livestreamTimes?.[day] || { from: "", to: "" };
+                  return (
+                    <div key={day} className="grid grid-cols-[60px_1fr_1fr] gap-2 items-center">
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{day}</span>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="time"
+                          value={dayTime.from}
+                          onChange={(e) => {
+                            const newTimes = {
+                              ...(schedule.livestreamTimes || {}),
+                              [day]: { ...dayTime, from: e.target.value },
+                            };
+                            updateSchedule({ livestreamTimes: newTimes });
+                          }}
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="time"
+                          value={dayTime.to}
+                          onChange={(e) => {
+                            const newTimes = {
+                              ...(schedule.livestreamTimes || {}),
+                              [day]: { ...dayTime, to: e.target.value },
+                            };
+                            updateSchedule({ livestreamTimes: newTimes });
+                          }}
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Video Call Availability */}
+          {/* Video Call Schedule */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Video Call Availability
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Video Call Schedule
             </label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={schedule.videoCallSchedule || ""}
-                onChange={(e) =>
-                  updateSchedule({ videoCallSchedule: e.target.value })
-                }
-                placeholder="e.g., Wednesdays 6-9pm PST"
-                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white"
-              />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Specify one preferred day, time range, and which platform you prefer to video call on.
+            </p>
+
+            {/* Platform Preference */}
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preferred Platform</p>
+              <div className="flex flex-wrap gap-2">
+                {["Skype", "Zoom", "Snapchat", "Other"].map((platform) => {
+                  const selected = schedule.videoCallPlatform === platform;
+                  return (
+                    <button
+                      key={platform}
+                      type="button"
+                      onClick={() => updateSchedule({ videoCallPlatform: platform })}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selected
+                          ? "bg-brand-light-pink text-white border-2 border-brand-light-pink"
+                          : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 hover:border-brand-light-pink/50"
+                      }`}
+                    >
+                      {platform}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Day Selector */}
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Best Days</p>
+              <div className="flex flex-wrap gap-2">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                  const selected = (schedule.videoCallDays || []).includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const current = schedule.videoCallDays || [];
+                        const newDays = selected
+                          ? current.filter((d) => d !== day)
+                          : [...current, day];
+                        
+                        // Clean up times for removed days
+                        if (selected && schedule.videoCallTimes) {
+                          const newTimes = { ...schedule.videoCallTimes };
+                          delete newTimes[day];
+                          updateSchedule({
+                            videoCallDays: newDays,
+                            videoCallTimes: newTimes,
+                          });
+                        } else {
+                          updateSchedule({ videoCallDays: newDays });
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selected
+                          ? "bg-brand-mid-pink text-white border-2 border-brand-mid-pink"
+                          : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 hover:border-brand-mid-pink/50"
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time Range for each selected day */}
+            {(schedule.videoCallDays || []).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Time for each day</p>
+                {schedule.videoCallDays?.map((day) => {
+                  const dayTime = schedule.videoCallTimes?.[day] || { from: "", to: "" };
+                  return (
+                    <div key={day} className="grid grid-cols-[60px_1fr_1fr] gap-2 items-center">
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{day}</span>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="time"
+                          value={dayTime.from}
+                          onChange={(e) => {
+                            const newTimes = {
+                              ...(schedule.videoCallTimes || {}),
+                              [day]: { ...dayTime, from: e.target.value },
+                            };
+                            updateSchedule({ videoCallTimes: newTimes });
+                          }}
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="time"
+                          value={dayTime.to}
+                          onChange={(e) => {
+                            const newTimes = {
+                              ...(schedule.videoCallTimes || {}),
+                              [day]: { ...dayTime, to: e.target.value },
+                            };
+                            updateSchedule({ videoCallTimes: newTimes });
+                          }}
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Bundle Clips OK */}
           <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-700 rounded-lg">
-            <input
-              type="checkbox"
-              id="bundle-clips-ok"
-              checked={schedule.bundleClipsOk || false}
-              onChange={(e) =>
-                updateSchedule({ bundleClipsOk: e.target.checked })
-              }
-              className="w-4 h-4 text-brand-light-pink bg-gray-100 border-gray-300 rounded focus:ring-brand-light-pink"
-            />
-            <label
-              htmlFor="bundle-clips-ok"
-              className="text-sm font-medium text-gray-900 dark:text-white"
+            <button
+              type="button"
+              onClick={() => updateSchedule({ bundleClipsOk: !schedule.bundleClipsOk })}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                schedule.bundleClipsOk
+                  ? "bg-brand-light-pink"
+                  : "bg-gray-300 dark:bg-gray-600"
+              }`}
             >
-              Bundle clips in unlocks OK
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                  schedule.bundleClipsOk ? "translate-x-4.5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+            <label className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
+              onClick={() => updateSchedule({ bundleClipsOk: !schedule.bundleClipsOk })}>
+              Comfortable with short clips of long-form content in Bundle Unlocks
             </label>
           </div>
         </div>

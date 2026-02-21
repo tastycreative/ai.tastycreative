@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, X, Check, AlertCircle } from "lucide-react";
+import { Plus, X, Check, AlertCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { ModelOnboardingDraft } from "@/lib/hooks/useModelOnboarding.query";
 import { validateContentTypes } from "@/lib/validation/onboarding";
 
@@ -31,6 +31,13 @@ export default function ContentTypesSection({
 }: ContentTypesSectionProps) {
   const [customTypeInput, setCustomTypeInput] = useState("");
   const [touched, setTouched] = useState(false);
+
+  // modelBible helpers
+  const modelBible = (formData.modelBible as any) || {};
+  const explicitContentOk: boolean | undefined = modelBible.explicitContentOk;
+  const updateModelBible = (updates: any) => {
+    updateFormData({ modelBible: { ...modelBible, ...updates } });
+  };
 
   // Validate fields
   const validation = useMemo(() => validateContentTypes(formData), [formData]);
@@ -82,7 +89,105 @@ export default function ContentTypesSection({
 
   return (
     <div className="space-y-6">
+      {/* Explicit Content Comfort Toggle */}
+      <div>
+        <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+          Explicit Content Comfort <span className="text-red-500">*</span>
+        </label>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Are you comfortable creating explicit content for OnlyFans?
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              updateModelBible({ explicitContentOk: true });
+              setTouched(true);
+            }}
+            className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+              explicitContentOk === true
+                ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                : "border-gray-200 dark:border-gray-600 hover:border-green-400"
+            }`}
+          >
+            <ShieldCheck
+              className={`w-5 h-5 flex-shrink-0 ${
+                explicitContentOk === true
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-400"
+              }`}
+            />
+            <div className="text-left">
+              <div
+                className={`text-sm font-semibold ${
+                  explicitContentOk === true
+                    ? "text-green-800 dark:text-green-100"
+                    : "text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                Yes, I’m comfortable
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Show all explicit content types
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              updateModelBible({ explicitContentOk: false });
+              setTouched(true);
+              
+              // Auto-deselect default explicit content types when switching to SFW
+              const currentSelected = formData.selectedContentTypes || [];
+              const nonExplicitTypes = currentSelected.filter(
+                type => !DEFAULT_CONTENT_TYPES.includes(type)
+              );
+              updateFormData({ selectedContentTypes: nonExplicitTypes });
+            }}
+            className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+              explicitContentOk === false
+                ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20"
+                : "border-gray-200 dark:border-gray-600 hover:border-amber-400"
+            }`}
+          >
+            <ShieldAlert
+              className={`w-5 h-5 flex-shrink-0 ${
+                explicitContentOk === false
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-gray-400"
+              }`}
+            />
+            <div className="text-left">
+              <div
+                className={`text-sm font-semibold ${
+                  explicitContentOk === false
+                    ? "text-amber-800 dark:text-amber-100"
+                    : "text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                No, SFW only
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Lifestyle / non-explicit content
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {explicitContentOk === false && (
+          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              ⚠️ You’ve selected SFW only. You can still select lifestyle content types below. Explicit categories are hidden.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Content Types Selection */}
+      {explicitContentOk !== false && (
+      <>
       <div>
         <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
           Content Types Offered <span className="text-red-500">*</span>
@@ -168,6 +273,81 @@ export default function ContentTypesSection({
           Add any specialized content types not listed above
         </p>
       </div>
+      </> )} {/* end explicitContentOk !== false */}
+
+      {/* SFW Only - Custom Content Types */}
+      {explicitContentOk === false && (
+        <div>
+          <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+            SFW / Lifestyle Content Types
+          </label>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            Add custom content types (e.g., fitness, lifestyle, travel, cooking, fashion, etc.)
+          </p>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customTypeInput}
+                onChange={(e) => setCustomTypeInput(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && addCustomType()}
+                placeholder="e.g., Fitness & Wellness, Travel Vlogs, Fashion..."
+                className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+              />
+              <button
+                type="button"
+                onClick={addCustomType}
+                className="px-4 py-3 bg-brand-light-pink text-white rounded-lg hover:bg-brand-mid-pink transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Custom Type Tags */}
+            {formData.customContentTypes &&
+              formData.customContentTypes.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.customContentTypes.map((type) => {
+                    const isSelected = selectedTypes.includes(type);
+                    return (
+                      <div
+                        key={type}
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-brand-light-pink/20 text-brand-light-pink border-2 border-brand-light-pink"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent"
+                        }`}
+                      >
+                        <span 
+                          onClick={() => toggleContentType(type)}
+                          className="inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {isSelected && <Check className="w-3 h-3" />}
+                          {type}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeCustomType(type);
+                          }}
+                          className="hover:text-red-500 transition-colors"
+                          aria-label={`Remove ${type}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Click on a type to select/deselect it. Custom types are automatically selected when added.
+          </p>
+        </div>
+      )}
 
       {/* Summary Box */}
       <div

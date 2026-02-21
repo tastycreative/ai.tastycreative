@@ -23,6 +23,35 @@ export default function ReviewSubmitSection({
   const backgroundValidation = validateBackground(formData);
   const contentValidation = validateContentTypes(formData);
 
+  const modelBible = (formData.modelBible as any) || {};
+  const restrictions = modelBible.restrictions || {};
+  const schedule = modelBible.schedule || {};
+
+  // Check pricing per platform
+  const platformPricing = (formData.platformPricing as any) || {};
+  const platforms = (formData.platforms as any) || {};
+  const socials = (formData.socials as any) || {};
+
+  const hasPlatformAccount = (platformId: string) => {
+    // Check if they have this platform account
+    return !!(platforms[platformId] || socials[platformId]);
+  };
+
+  const hasPlatformPricing = (platformId: string) => {
+    const pricing = platformPricing[platformId];
+    if (!pricing) return false;
+    // Check if any pricing data exists
+    return !!(
+      pricing.massMessage?.min ||
+      pricing.massMessage?.general ||
+      pricing.customVideo?.perMin ||
+      pricing.videoCall?.perMin ||
+      pricing.privateLive?.perMin ||
+      Object.keys(pricing.contentMinimums || {}).length > 0 ||
+      Object.keys(pricing.otherServices || {}).length > 0
+    );
+  };
+
   // Validation checks
   const checks = {
     basicInfo: {
@@ -33,7 +62,7 @@ export default function ReviewSubmitSection({
     },
     background: {
       hasBackstory: !!formData.backstory?.trim(),
-      hasInterests: (formData.interests?.length || 0) > 0,
+      hasInterests: (modelBible.interests?.length || 0) > 0,
       backstoryValid: backgroundValidation.backstory.isValid,
     },
     content: {
@@ -41,7 +70,26 @@ export default function ReviewSubmitSection({
       hasNiche: !!formData.primaryNiche?.trim(),
     },
     pricing: {
-      hasPricing: !!formData.platformPricing,
+      of_free: hasPlatformPricing('of_free'),
+      of_paid: hasPlatformPricing('of_paid'),
+      oftv: hasPlatformPricing('oftv'),
+      fansly: hasPlatformPricing('fansly'),
+    },
+    contentRestrictions: {
+      hasRestrictions: !!(
+        restrictions.contentLimitations ||
+        restrictions.wallRestrictions ||
+        restrictions.mmExclusions ||
+        (restrictions.wordingToAvoid?.length || 0) > 0 ||
+        restrictions.customsToAvoid
+      ),
+      hasSchedule: !!(
+        (schedule.livestreamDays?.length || 0) > 0 ||
+        (schedule.videoCallDays?.length || 0) > 0 ||
+        schedule.videoCallPlatform ||
+        schedule.bundleClipsOk
+      ),
+      hasInternalNotes: !!(modelBible.internalNotes?.trim()),
     },
     socials: {
       hasPlatforms: !!formData.platforms || !!formData.socials,
@@ -203,7 +251,7 @@ export default function ReviewSubmitSection({
               }`}
             >
               {checks.background.hasInterests ? "✓" : "○"} Interests (
-              {formData.interests?.length || 0})
+              {modelBible.interests?.length || 0})
             </li>
           </ul>
         </div>
@@ -254,10 +302,12 @@ export default function ReviewSubmitSection({
           <div className="flex items-center gap-3 mb-3">
             <div
               className={`flex items-center justify-center w-6 h-6 rounded-full ${
-                checks.pricing.hasPricing ? "bg-green-500" : "bg-yellow-500"
+                Object.values(checks.pricing).some((v) => v)
+                  ? "bg-green-500"
+                  : "bg-yellow-500"
               }`}
             >
-              {checks.pricing.hasPricing && (
+              {Object.values(checks.pricing).some((v) => v) && (
                 <CheckCircle2 className="w-4 h-4 text-white" />
               )}
             </div>
@@ -265,26 +315,120 @@ export default function ReviewSubmitSection({
               4. Pricing (Optional)
             </h4>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 ml-9">
-            {checks.pricing.hasPricing
-              ? "✓ Platform pricing configured"
-              : "○ No pricing configured yet"}
-          </p>
+          <ul className="space-y-1 ml-9">
+            <li
+              className={`text-sm ${
+                checks.pricing.of_free
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.pricing.of_free ? "✓" : "○"} OnlyFans Free
+              {!hasPlatformAccount('of_free') && (
+                <span className="text-xs text-gray-400 ml-1">
+                  (no account linked)
+                </span>
+              )}
+            </li>
+            <li
+              className={`text-sm ${
+                checks.pricing.of_paid
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.pricing.of_paid ? "✓" : "○"} OnlyFans Paid
+              {!hasPlatformAccount('of_paid') && (
+                <span className="text-xs text-gray-400 ml-1">
+                  (no account linked)
+                </span>
+              )}
+            </li>
+            <li
+              className={`text-sm ${
+                checks.pricing.oftv
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.pricing.oftv ? "✓" : "○"} OFTV
+              {!hasPlatformAccount('oftv') && (
+                <span className="text-xs text-gray-400 ml-1">
+                  (no account linked)
+                </span>
+              )}
+            </li>
+            <li
+              className={`text-sm ${
+                checks.pricing.fansly
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.pricing.fansly ? "✓" : "○"} Fansly
+              {!hasPlatformAccount('fansly') && (
+                <span className="text-xs text-gray-400 ml-1">
+                  (no account linked)
+                </span>
+              )}
+            </li>
+          </ul>
         </div>
 
         {/* Content & Restrictions */}
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-3">
             <div
-              className={`flex items-center justify-center w-6 h-6 rounded-full bg-yellow-500`}
-            ></div>
+              className={`flex items-center justify-center w-6 h-6 rounded-full ${
+                checks.contentRestrictions.hasRestrictions ||
+                checks.contentRestrictions.hasSchedule ||
+                checks.contentRestrictions.hasInternalNotes
+                  ? "bg-green-500"
+                  : "bg-yellow-500"
+              }`}
+            >
+              {(checks.contentRestrictions.hasRestrictions ||
+                checks.contentRestrictions.hasSchedule ||
+                checks.contentRestrictions.hasInternalNotes) && (
+                <CheckCircle2 className="w-4 h-4 text-white" />
+              )}
+            </div>
             <h4 className="font-semibold text-gray-900 dark:text-white">
               5. Content & Restrictions (Optional)
             </h4>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 ml-9">
-            ○ Restrictions and schedule (optional)
-          </p>
+          <ul className="space-y-1 ml-9">
+            <li
+              className={`text-sm ${
+                checks.contentRestrictions.hasRestrictions
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.contentRestrictions.hasRestrictions ? "✓" : "○"}{" "}
+              Restrictions & Limits
+            </li>
+            <li
+              className={`text-sm ${
+                checks.contentRestrictions.hasSchedule
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.contentRestrictions.hasSchedule ? "✓" : "○"} Schedule &
+              Availability
+            </li>
+            <li
+              className={`text-sm ${
+                checks.contentRestrictions.hasInternalNotes
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-500"
+              }`}
+            >
+              {checks.contentRestrictions.hasInternalNotes ? "✓" : "○"}{" "}
+              Internal Notes
+            </li>
+          </ul>
         </div>
 
         {/* Social Accounts */}

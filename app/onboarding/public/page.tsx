@@ -492,6 +492,7 @@ function PublicOnboardingContent() {
               formData={formData}
               updateFormData={updateFormData}
               invitationToken={token || undefined}
+              isPublic={true}
             />
           )}
           {currentStep === 2 && (

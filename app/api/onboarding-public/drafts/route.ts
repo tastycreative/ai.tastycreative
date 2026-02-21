@@ -57,10 +57,13 @@ export async function POST(request: Request) {
                headersList.get('x-real-ip') || 
                'unknown';
 
+    // Filter out contactEmail and other unknown fields (contactEmail should be in modelBible.preferredEmail)
+    const { contactEmail, ...validDraftData } = draftData;
+
     // Create the draft
     const draft = await prisma.modelOnboardingDraft.create({
       data: {
-        ...draftData,
+        ...validDraftData,
         createdByClerkId: invitation.createdByClerkId,
         invitationId: invitation.id,
         isPublicSubmission: true,

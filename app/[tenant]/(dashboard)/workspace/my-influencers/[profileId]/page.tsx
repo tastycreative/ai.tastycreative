@@ -133,7 +133,23 @@ interface ModelBible {
     onlyFansPaid?: string;
     oftv?: string;
     oftvInterest?: string;
+    oftvIdeas?: string;
     fansly?: string;
+  };  fullName?: string;
+  contactEmail?: string;
+  preferredEmail?: string;
+  birthplace?: string;
+  personalityInsight?: string;
+  explicitContentOk?: boolean;
+  sfwContentDescription?: string;
+  amazonWishlist?: {
+    enabled?: boolean;
+  };
+  physicalItems?: {
+    enabled?: boolean;
+    panties?: string;
+    bra?: string;
+    otherItems?: { [key: string]: string };
   };
   platformPricing?: {
     of_free?: PlatformPricing;
@@ -141,12 +157,22 @@ interface ModelBible {
     oftv?: PlatformPricing;
     fansly?: PlatformPricing;
   };
+  schedule?: {
+    livestreamDays?: string[];
+    livestreamTimes?: { [day: string]: { from: string; to: string } };
+    videoCallPlatform?: string;
+    videoCallDays?: string[];
+    videoCallTimes?: { [day: string]: { from: string; to: string } };
+    bundleClipsOk?: boolean;
+  };
   socials?: {
     [key: string]: {
       handle: string;
       managed: boolean;
       contentLevel?: string[];
+      contentCategories?: string[];
     };
+    otherSocials?: any;
   };
   location?: string;
   nationality?: string;
@@ -220,11 +246,6 @@ interface ModelBible {
     mmExclusions?: string;
     wordingToAvoid?: string[];
     customsToAvoid?: string;
-  };
-  schedule?: {
-    livestreamSchedule?: string;
-    videoCallSchedule?: string;
-    bundleClipsOk?: boolean;
   };
 }
 
@@ -1141,6 +1162,13 @@ function PricingTab({
   profile,
   onSavePricingSection,
   savingPricing,
+  editingAdditionalRevenue,
+  setEditingAdditionalRevenue,
+  savingAdditionalRevenue,
+  additionalRevenueForm,
+  setAdditionalRevenueForm,
+  onSaveAdditionalRevenue,
+  onCancelAdditionalRevenue,
 }: {
   profile: InfluencerProfile;
   onSavePricingSection: (
@@ -1149,10 +1177,23 @@ function PricingTab({
     data: Partial<PlatformPricing>,
   ) => Promise<void>;
   savingPricing: boolean;
+  editingAdditionalRevenue: boolean;
+  setEditingAdditionalRevenue: (editing: boolean) => void;
+  savingAdditionalRevenue: boolean;
+  additionalRevenueForm: {
+    amazonWishlist: { enabled: boolean };
+    physicalItems: { enabled: boolean; panties: string; bra: string; otherItems: { [key: string]: string } };
+  };
+  setAdditionalRevenueForm: (form: any) => void;
+  onSaveAdditionalRevenue: () => void;
+  onCancelAdditionalRevenue: () => void;
 }) {
+  const bible = profile.modelBible;
   const [activePlatform, setActivePlatform] = useState("of_paid");
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [sectionForm, setSectionForm] = useState<any>({});
+  const [newCustomItemName, setNewCustomItemName] = useState("");
+  const [newCustomItemPrice, setNewCustomItemPrice] = useState("");
 
   const platforms = [
     { id: "of_free", label: "OF Free" },
@@ -2063,44 +2104,322 @@ function PricingTab({
               </div>
             )}
           </div>
+        </div>
+      </div>
 
-          {/* Copy from another platform */}
-          {!editingSection && (
-            <div className="lg:col-span-2 px-4 py-4 bg-[#18181b] border border-[#27272a] rounded-xl flex items-center justify-between">
-              <div className="text-[13px] text-[#71717a]">
-                Copy all pricing from another platform?
-              </div>
-              <div className="flex gap-2">
-                {platforms
-                  .filter((p) => {
-                    if (p.id === activePlatform) return false;
-                    const platformConfigured =
-                      profile?.modelBible?.platformPricing?.[
-                        p.id as keyof typeof profile.modelBible.platformPricing
-                      ] !== undefined;
-                    return platformConfigured;
-                  })
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={async () => {
-                        const sourcePricing = getPlatformPricing(p.id);
-                        await onSavePricingSection(
-                          activePlatform,
-                          "all",
-                          sourcePricing,
-                        );
-                      }}
-                      className="px-3.5 py-2 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors"
-                    >
-                      Copy from {p.label}
-                    </button>
-                  ))}
-              </div>
+      {/* Additional Revenue */}
+      <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a] mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold">Additional Revenue</h3>
+          {!editingAdditionalRevenue ? (
+            <button
+              onClick={() => setEditingAdditionalRevenue(true)}
+              className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
+            >
+              <Edit2 size={12} />
+              Edit
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onCancelAdditionalRevenue}
+                disabled={savingAdditionalRevenue}
+                className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onSaveAdditionalRevenue}
+                disabled={savingAdditionalRevenue}
+                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-[11px] font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {savingAdditionalRevenue ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save size={12} />
+                    Save
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Amazon Wishlist */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[13px] font-medium flex items-center gap-2">
+                <span>🎁</span> Amazon Wishlist
+              </div>
+              {editingAdditionalRevenue && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAdditionalRevenueForm({
+                      ...additionalRevenueForm,
+                      amazonWishlist: {
+                        ...additionalRevenueForm.amazonWishlist,
+                        enabled: !additionalRevenueForm.amazonWishlist.enabled,
+                      },
+                    })
+                  }
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    additionalRevenueForm.amazonWishlist.enabled
+                      ? "bg-brand-light-pink"
+                      : "bg-[#27272a]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                      additionalRevenueForm.amazonWishlist.enabled ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
+            {editingAdditionalRevenue ? (
+              <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px]">
+                {additionalRevenueForm.amazonWishlist.enabled ? (
+                  <span className="text-emerald-400">✓ Yes</span>
+                ) : (
+                  <span className="text-[#52525b]">No</span>
+                )}
+              </div>
+            ) : bible?.amazonWishlist?.enabled ? (
+              <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px] text-emerald-400">
+                ✓ Yes
+              </div>
+            ) : (
+              <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px] text-[#52525b]">No</div>
+            )}
+          </div>
+
+          {/* Physical Items */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[13px] font-medium flex items-center gap-2">
+                <span>👙</span> Physical Items
+              </div>
+              {editingAdditionalRevenue && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAdditionalRevenueForm({
+                      ...additionalRevenueForm,
+                      physicalItems: {
+                        ...additionalRevenueForm.physicalItems,
+                        enabled: !additionalRevenueForm.physicalItems.enabled,
+                      },
+                    })
+                  }
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    additionalRevenueForm.physicalItems.enabled
+                      ? "bg-brand-light-pink"
+                      : "bg-[#27272a]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                      additionalRevenueForm.physicalItems.enabled ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
+            {editingAdditionalRevenue ? (
+              additionalRevenueForm.physicalItems.enabled && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-1">Panties ($)</div>
+                      <input
+                        type="text"
+                        value={additionalRevenueForm.physicalItems.panties}
+                        onChange={(e) =>
+                          setAdditionalRevenueForm({
+                            ...additionalRevenueForm,
+                            physicalItems: {
+                              ...additionalRevenueForm.physicalItems,
+                              panties: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="50"
+                        className="w-full px-2 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-1">Bra ($)</div>
+                      <input
+                        type="text"
+                        value={additionalRevenueForm.physicalItems.bra}
+                        onChange={(e) =>
+                          setAdditionalRevenueForm({
+                            ...additionalRevenueForm,
+                            physicalItems: {
+                              ...additionalRevenueForm.physicalItems,
+                              bra: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="75"
+                        className="w-full px-2 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Custom Other Items */}
+                  <div>
+                    <div className="text-[10px] text-[#71717a] mb-1.5">Other Custom Items</div>
+                    
+                    {/* Existing Custom Items */}
+                    {Object.keys(additionalRevenueForm.physicalItems.otherItems || {}).length > 0 && (
+                      <div className="space-y-1.5 mb-2">
+                        {Object.entries(additionalRevenueForm.physicalItems.otherItems || {}).map(([name, price]) => (
+                          <div key={name} className="flex items-center gap-2 p-1.5 bg-[#18181b] rounded border border-[#27272a]">
+                            <span className="flex-1 text-[11px] text-[#e4e4e7]">{name}</span>
+                            <span className="text-[11px] text-[#a1a1aa]">${price}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newOtherItems = { ...(additionalRevenueForm.physicalItems.otherItems || {}) };
+                                delete newOtherItems[name];
+                                setAdditionalRevenueForm({
+                                  ...additionalRevenueForm,
+                                  physicalItems: {
+                                    ...additionalRevenueForm.physicalItems,
+                                    otherItems: newOtherItems,
+                                  },
+                                });
+                              }}
+                              className="text-red-400 hover:text-red-300 p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Add New Custom Item */}
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newCustomItemName}
+                        onChange={(e) => setNewCustomItemName(e.target.value)}
+                        placeholder="Item name"
+                        className="flex-1 px-2 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                      <input
+                        type="number"
+                        value={newCustomItemPrice}
+                        onChange={(e) => setNewCustomItemPrice(e.target.value)}
+                        placeholder="$"
+                        min="0"
+                        className="w-16 px-2 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newCustomItemName.trim() && newCustomItemPrice) {
+                            setAdditionalRevenueForm({
+                              ...additionalRevenueForm,
+                              physicalItems: {
+                                ...additionalRevenueForm.physicalItems,
+                                otherItems: {
+                                  ...(additionalRevenueForm.physicalItems.otherItems || {}),
+                                  [newCustomItemName.trim()]: newCustomItemPrice,
+                                },
+                              },
+                            });
+                            setNewCustomItemName("");
+                            setNewCustomItemPrice("");
+                          }
+                        }}
+                        className="px-2 py-1.5 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded text-[11px] flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            ) : bible?.physicalItems?.enabled ? (
+              <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg">
+                <div className="text-[13px] text-emerald-400 mb-2">✓ Enabled</div>
+                <div className="space-y-1 text-[12px]">
+                  {bible.physicalItems.panties && (
+                    <div>
+                      <span className="text-[#71717a]">Panties:</span>{" "}
+                      <span className="text-[#e4e4e7]">${bible.physicalItems.panties}</span>
+                    </div>
+                  )}
+                  {bible.physicalItems.bra && (
+                    <div>
+                      <span className="text-[#71717a]">Bra:</span>{" "}
+                      <span className="text-[#e4e4e7]">${bible.physicalItems.bra}</span>
+                    </div>
+                  )}
+                  {bible.physicalItems.otherItems && Object.keys(bible.physicalItems.otherItems).length > 0 && (
+                    <>
+                      {Object.entries(bible.physicalItems.otherItems).map(([name, price]) => (
+                        <div key={name}>
+                          <span className="text-[#71717a]">{name}:</span>{" "}
+                          <span className="text-[#e4e4e7]">${price}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px] text-[#52525b]">Not enabled</div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Copy from another platform */}
+      {!editingSection && (
+        <div className="px-4 py-4 bg-[#18181b] border border-[#27272a] rounded-xl flex items-center justify-between mt-6">
+          <div className="text-[13px] text-[#71717a]">
+            Copy all pricing from another platform?
+          </div>
+          <div className="flex gap-2">
+            {platforms
+              .filter((p) => {
+                if (p.id === activePlatform) return false;
+                const platformConfigured =
+                  profile?.modelBible?.platformPricing?.[
+                    p.id as keyof typeof profile.modelBible.platformPricing
+                  ] !== undefined;
+                return platformConfigured;
+              })
+              .map((p) => (
+                <button
+                  key={p.id}
+                  onClick={async () => {
+                    const sourcePricing = getPlatformPricing(p.id);
+                    await onSavePricingSection(
+                      activePlatform,
+                      "all",
+                      sourcePricing,
+                    );
+                  }}
+                  className="px-3.5 py-2 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors"
+                >
+                  Copy from {p.label}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2158,14 +2477,20 @@ function ContentTab({
   savingRestrictions: boolean;
   editingSchedule: boolean;
   scheduleForm: {
-    livestreamSchedule: string;
-    videoCallSchedule: string;
+    livestreamDays: string[];
+    livestreamTimes: { [day: string]: { from: string; to: string } };
+    videoCallPlatform: string;
+    videoCallDays: string[];
+    videoCallTimes: { [day: string]: { from: string; to: string } };
     bundleClipsOk: boolean;
   };
   setScheduleForm: React.Dispatch<
     React.SetStateAction<{
-      livestreamSchedule: string;
-      videoCallSchedule: string;
+      livestreamDays: string[];
+      livestreamTimes: { [day: string]: { from: string; to: string } };
+      videoCallPlatform: string;
+      videoCallDays: string[];
+      videoCallTimes: { [day: string]: { from: string; to: string } };
       bundleClipsOk: boolean;
     }>
   >;
@@ -2425,25 +2750,130 @@ function ContentTab({
           {/* Livestream Schedule */}
           <div>
             <div className="text-[11px] text-[#71717a] mb-2">
-              Livestream Schedule
+              Livestream Schedule (OnlyFans)
             </div>
             {editingSchedule ? (
-              <input
-                type="text"
-                value={scheduleForm.livestreamSchedule}
-                onChange={(e) =>
-                  setScheduleForm({
-                    ...scheduleForm,
-                    livestreamSchedule: e.target.value,
-                  })
-                }
-                placeholder="e.g., Fridays 8-10pm PST, Sundays 2-4pm PST"
-                className="w-full px-3 py-2 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
+              <div className="space-y-3">
+                {/* Day Selector */}
+                <div>
+                  <div className="text-[10px] text-[#71717a] mb-1.5">Best Days</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                      const selected = scheduleForm.livestreamDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const newDays = selected
+                              ? scheduleForm.livestreamDays.filter((d) => d !== day)
+                              : [...scheduleForm.livestreamDays, day];
+                            
+                            // Clean up time data when day is deselected
+                            if (selected && scheduleForm.livestreamTimes) {
+                              const newTimes = { ...scheduleForm.livestreamTimes };
+                              delete newTimes[day];
+                              setScheduleForm({
+                                ...scheduleForm,
+                                livestreamDays: newDays,
+                                livestreamTimes: newTimes,
+                              });
+                            } else {
+                              setScheduleForm({
+                                ...scheduleForm,
+                                livestreamDays: newDays,
+                              });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
+                            selected
+                              ? "bg-brand-blue text-white border border-brand-blue"
+                              : "bg-[#0c0c0f] text-[#71717a] border border-[#27272a] hover:border-brand-blue/50"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Time Range for each selected day */}
+                {scheduleForm.livestreamDays.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-[#71717a]">Time for each day</div>
+                    {scheduleForm.livestreamDays.map((day) => {
+                      const dayTime = scheduleForm.livestreamTimes[day] || { from: "", to: "" };
+                      return (
+                        <div key={day} className="grid grid-cols-[60px_1fr_1fr] gap-2">
+                          <span className="text-[11px] text-[#a1a1aa] flex items-center">{day}</span>
+                          <div className="relative">
+                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717a]" />
+                            <input
+                              type="time"
+                              value={dayTime.from}
+                              onChange={(e) =>
+                                setScheduleForm({
+                                  ...scheduleForm,
+                                  livestreamTimes: {
+                                    ...scheduleForm.livestreamTimes,
+                                    [day]: { ...dayTime, from: e.target.value },
+                                  },
+                                })
+                              }
+                              className="w-full pl-8 pr-3 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-brand-blue/50"
+                            />
+                          </div>
+                          <div className="relative">
+                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717a]" />
+                            <input
+                              type="time"
+                              value={dayTime.to}
+                              onChange={(e) =>
+                                setScheduleForm({
+                                  ...scheduleForm,
+                                  livestreamTimes: {
+                                    ...scheduleForm.livestreamTimes,
+                                    [day]: { ...dayTime, to: e.target.value },
+                                  },
+                                })
+                              }
+                              className="w-full pl-8 pr-3 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-brand-blue/50"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px] flex items-center gap-2">
-                <Calendar size={14} className="text-[#71717a]" />
-                {schedule?.livestreamSchedule || "Not set"}
+              <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px]">
+                {schedule?.livestreamDays &&
+                schedule.livestreamDays.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {schedule.livestreamTimes &&
+                      Object.keys(schedule.livestreamTimes).length > 0 && (
+                        <div className="space-y-1">
+                          {schedule.livestreamDays.map((day) => {
+                            const dayTime = schedule.livestreamTimes?.[day];
+                            if (!dayTime?.from && !dayTime?.to) return null;
+                            return (
+                              <div key={day} className="flex items-center gap-1.5 text-[#71717a] text-[11px]">
+                                <span className="w-10 text-[#a1a1aa]">{day}:</span>
+                                <Clock size={11} />
+                                <span>
+                                  {dayTime.from || "--"} — {dayTime.to || "--"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                  </div>
+                ) : (
+                  <span className="text-[#52525b]">Not set</span>
+                )}
               </div>
             )}
           </div>
@@ -2454,22 +2884,165 @@ function ContentTab({
               Video Call Availability
             </div>
             {editingSchedule ? (
-              <input
-                type="text"
-                value={scheduleForm.videoCallSchedule}
-                onChange={(e) =>
-                  setScheduleForm({
-                    ...scheduleForm,
-                    videoCallSchedule: e.target.value,
-                  })
-                }
-                placeholder="e.g., Wednesdays 6-9pm PST"
-                className="w-full px-3 py-2 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
+              <div className="space-y-3">
+                {/* Platform Preference */}
+                <div>
+                  <div className="text-[10px] text-[#71717a] mb-1.5">Preferred Platform</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Skype", "Zoom", "Snapchat", "Other"].map((platform) => {
+                      const selected = scheduleForm.videoCallPlatform === platform;
+                      return (
+                        <button
+                          key={platform}
+                          type="button"
+                          onClick={() =>
+                            setScheduleForm({
+                              ...scheduleForm,
+                              videoCallPlatform: platform,
+                            })
+                          }
+                          className={`px-3 py-1 rounded text-[11px] font-medium transition-all ${
+                            selected
+                              ? "bg-brand-light-pink text-white border border-brand-light-pink"
+                              : "bg-[#0c0c0f] text-[#71717a] border border-[#27272a] hover:border-brand-light-pink/50"
+                          }`}
+                        >
+                          {platform}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Day Selector */}
+                <div>
+                  <div className="text-[10px] text-[#71717a] mb-1.5">Best Days</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                      const selected = scheduleForm.videoCallDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const newDays = selected
+                              ? scheduleForm.videoCallDays.filter((d) => d !== day)
+                              : [...scheduleForm.videoCallDays, day];
+                            
+                            // Clean up time data when day is deselected
+                            if (selected && scheduleForm.videoCallTimes) {
+                              const newTimes = { ...scheduleForm.videoCallTimes };
+                              delete newTimes[day];
+                              setScheduleForm({
+                                ...scheduleForm,
+                                videoCallDays: newDays,
+                                videoCallTimes: newTimes,
+                              });
+                            } else {
+                              setScheduleForm({
+                                ...scheduleForm,
+                                videoCallDays: newDays,
+                              });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
+                            selected
+                              ? "bg-brand-mid-pink text-white border border-brand-mid-pink"
+                              : "bg-[#0c0c0f] text-[#71717a] border border-[#27272a] hover:border-brand-mid-pink/50"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Time Range for each selected day */}
+                {scheduleForm.videoCallDays.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-[#71717a]">Time for each day</div>
+                    {scheduleForm.videoCallDays.map((day) => {
+                      const dayTime = scheduleForm.videoCallTimes[day] || { from: "", to: "" };
+                      return (
+                        <div key={day} className="grid grid-cols-[60px_1fr_1fr] gap-2">
+                          <span className="text-[11px] text-[#a1a1aa] flex items-center">{day}</span>
+                          <div className="relative">
+                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717a]" />
+                            <input
+                              type="time"
+                              value={dayTime.from}
+                              onChange={(e) =>
+                                setScheduleForm({
+                                  ...scheduleForm,
+                                  videoCallTimes: {
+                                    ...scheduleForm.videoCallTimes,
+                                    [day]: { ...dayTime, from: e.target.value },
+                                  },
+                                })
+                              }
+                              className="w-full pl-8 pr-3 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-brand-mid-pink/50"
+                            />
+                          </div>
+                          <div className="relative">
+                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717a]" />
+                            <input
+                              type="time"
+                              value={dayTime.to}
+                              onChange={(e) =>
+                                setScheduleForm({
+                                  ...scheduleForm,
+                                  videoCallTimes: {
+                                    ...scheduleForm.videoCallTimes,
+                                    [day]: { ...dayTime, to: e.target.value },
+                                  },
+                                })
+                              }
+                              className="w-full pl-8 pr-3 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-brand-mid-pink/50"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px] flex items-center gap-2">
-                <Clock size={14} className="text-[#71717a]" />
-                {schedule?.videoCallSchedule || "Not set"}
+              <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px]">
+                {schedule?.videoCallDays &&
+                schedule.videoCallDays.length > 0 ? (
+                  <div className="space-y-2">
+                    {schedule.videoCallPlatform && (
+                      <div>
+                        <div className="text-[10px] text-[#71717a] mb-1">Preferred Platform</div>
+                        <span className="inline-block px-2 py-0.5 bg-brand-blue/15 text-brand-blue rounded text-[11px] font-medium capitalize">
+                          {schedule.videoCallPlatform}
+                        </span>
+                        <div className="border-b border-[#27272a] mt-2"></div>
+                      </div>
+                    )}
+                    {schedule.videoCallTimes &&
+                      Object.keys(schedule.videoCallTimes).length > 0 && (
+                        <div className="space-y-1">
+                          {schedule.videoCallDays.map((day) => {
+                            const dayTime = schedule.videoCallTimes?.[day];
+                            if (!dayTime?.from && !dayTime?.to) return null;
+                            return (
+                              <div key={day} className="flex items-center gap-1.5 text-[#71717a] text-[11px]">
+                                <span className="w-10 text-[#a1a1aa]">{day}:</span>
+                                <Clock size={11} />
+                                <span>
+                                  {dayTime.from || "--"} — {dayTime.to || "--"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                  </div>
+                ) : (
+                  <span className="text-[#52525b]">Not set</span>
+                )}
               </div>
             )}
           </div>
@@ -2601,6 +3174,11 @@ export default function ModelProfilePage() {
   const [editingContentType, setEditingContentType] = useState<string | null>(
     null,
   );
+  const [editingContentTypes, setEditingContentTypes] = useState(false);
+  const [savingContentTypes, setSavingContentTypes] = useState(false);
+  const [contentTypesForm, setContentTypesForm] = useState({
+    explicitContentOk: true,
+  });
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
@@ -2625,6 +3203,14 @@ export default function ModelProfilePage() {
       bottom: "",
       shoes: "",
     },
+  });
+  const [editingContactIdentity, setEditingContactIdentity] = useState(false);
+  const [savingContactIdentity, setSavingContactIdentity] = useState(false);
+  const [contactIdentityForm, setContactIdentityForm] = useState({
+    fullName: "",
+    preferredEmail: "",
+    birthplace: "",
+    contactEmail: "",
   });
   const [editingPersona, setEditingPersona] = useState(false);
   const [savingPersona, setSavingPersona] = useState(false);
@@ -2651,13 +3237,14 @@ export default function ModelProfilePage() {
   });
   const [editingSocials, setEditingSocials] = useState(false);
   const [savingSocials, setSavingSocials] = useState(false);
-  const [socialsForm, setSocialsForm] = useState<{
-    [key: string]: {
-      handle: string;
-      managed: boolean;
-      contentLevel: string;
-    };
-  }>({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [socialsForm, setSocialsForm] = useState<any>({});
+  const [editingAdditionalRevenue, setEditingAdditionalRevenue] = useState(false);
+  const [savingAdditionalRevenue, setSavingAdditionalRevenue] = useState(false);
+  const [additionalRevenueForm, setAdditionalRevenueForm] = useState({
+    amazonWishlist: { enabled: false },
+    physicalItems: { enabled: false, panties: "", bra: "", otherItems: {} },
+  });
   const [savingPricing, setSavingPricing] = useState(false);
 
   // Content & Restrictions editing
@@ -2675,8 +3262,11 @@ export default function ModelProfilePage() {
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({
-    livestreamSchedule: "",
-    videoCallSchedule: "",
+    livestreamDays: [] as string[],
+    livestreamTimes: {} as { [day: string]: { from: string; to: string } },
+    videoCallPlatform: "",
+    videoCallDays: [] as string[],
+    videoCallTimes: {} as { [day: string]: { from: string; to: string } },
     bundleClipsOk: false,
   });
 
@@ -2724,6 +3314,12 @@ export default function ModelProfilePage() {
     if (profile?.customContentTypes) {
       setCustomContentTypes(profile.customContentTypes);
     }
+    // Initialize content types form from profile
+    if (profile?.modelBible) {
+      setContentTypesForm({
+        explicitContentOk: profile.modelBible.explicitContentOk ?? false,
+      });
+    }
     // Initialize basic info form from profile
     if (profile?.modelBible) {
       setBasicInfoForm({
@@ -2739,6 +3335,15 @@ export default function ModelProfilePage() {
           bottom: profile.modelBible.clothingSizes?.bottom || "",
           shoes: profile.modelBible.clothingSizes?.shoes || "",
         },
+      });
+    }
+    // Initialize contact & identity form from profile
+    if (profile) {
+      setContactIdentityForm({
+        fullName: profile.modelBible?.fullName || "",
+        preferredEmail: profile.modelBible?.preferredEmail || "",
+        birthplace: profile.modelBible?.birthplace || "",
+        contactEmail: profile.modelBible?.contactEmail || "",
       });
     }
     // Initialize persona form from profile
@@ -2776,7 +3381,24 @@ export default function ModelProfilePage() {
         contentLevel: data?.contentLevel?.join(", ") || "",
       };
     });
+    // Add OFTV Ideas and Other Social Media
+    formattedSocials.oftvIdeas = profile?.modelBible?.platforms?.oftvIdeas || "";
+    formattedSocials.otherSocials = (profile?.modelBible?.socials as any)?.otherSocials || "";
     setSocialsForm(formattedSocials);
+    // Initialize additional revenue form from profile
+    if (profile?.modelBible) {
+      setAdditionalRevenueForm({
+        amazonWishlist: {
+          enabled: profile.modelBible.amazonWishlist?.enabled || false,
+        },
+        physicalItems: {
+          enabled: profile.modelBible.physicalItems?.enabled || false,
+          panties: profile.modelBible.physicalItems?.panties || "",
+          bra: profile.modelBible.physicalItems?.bra || "",
+          otherItems: profile.modelBible.physicalItems?.otherItems || {},
+        },
+      });
+    }
     // Initialize pricing form from profile
     if (profile?.modelBible?.platformPricing) {
       // Pricing will be loaded when editing a specific platform
@@ -2797,8 +3419,11 @@ export default function ModelProfilePage() {
     if (profile?.modelBible?.schedule) {
       const schedule = profile.modelBible.schedule;
       setScheduleForm({
-        livestreamSchedule: schedule.livestreamSchedule || "",
-        videoCallSchedule: schedule.videoCallSchedule || "",
+        livestreamDays: schedule.livestreamDays || [],
+        livestreamTimes: schedule.livestreamTimes || {},
+        videoCallPlatform: schedule.videoCallPlatform || "",
+        videoCallDays: schedule.videoCallDays || [],
+        videoCallTimes: schedule.videoCallTimes || {},
         bundleClipsOk: schedule.bundleClipsOk || false,
       });
     }
@@ -2974,6 +3599,86 @@ export default function ModelProfilePage() {
     setShowContentTypeModal(true);
   };
 
+  const handleEditContentTypes = () => {
+    if (profile?.modelBible) {
+      setContentTypesForm({
+        explicitContentOk: profile.modelBible.explicitContentOk ?? true,
+      });
+    }
+    setEditingContentTypes(true);
+  };
+
+  const handleSaveContentTypes = async () => {
+    if (!apiClient || !profile) return;
+
+    setSavingContentTypes(true);
+
+    try {
+      // If switching to SFW Only, remove any default explicit content types from selection
+      let updatedSelectedTypes = selectedContentTypes;
+      if (!contentTypesForm.explicitContentOk) {
+        const defaultContentTypes = [
+          "Fully Nude",
+          "Dick Rating",
+          "JOI",
+          "Solo",
+          "Squirting",
+          "Anal",
+          "Cream Pie",
+          "BG",
+          "BGG",
+          "GG",
+          "GGG",
+          "BBG",
+          "Orgy",
+          "Livestream",
+        ];
+        // Keep only custom content types (remove default ones)
+        updatedSelectedTypes = selectedContentTypes.filter(
+          (type) => !defaultContentTypes.includes(type)
+        );
+      }
+
+      const updatedBible = {
+        ...profile.modelBible,
+        explicitContentOk: contentTypesForm.explicitContentOk,
+      };
+
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          modelBible: updatedBible,
+          selectedContentTypes: updatedSelectedTypes,
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to save content types");
+
+      setProfile({ 
+        ...profile, 
+        modelBible: updatedBible,
+        selectedContentTypes: updatedSelectedTypes,
+      });
+      setSelectedContentTypes(updatedSelectedTypes);
+      toast.success("Content types updated!");
+      setEditingContentTypes(false);
+    } catch (error) {
+      console.error("Error saving content types:", error);
+      toast.error("Failed to save content types");
+    } finally {
+      setSavingContentTypes(false);
+    }
+  };
+
+  const handleCancelContentTypes = () => {
+    if (profile?.modelBible) {
+      setContentTypesForm({
+        explicitContentOk: profile.modelBible.explicitContentOk ?? true,
+      });
+    }
+    setEditingContentTypes(false);
+  };
+
   const handleSaveBasicInfo = async () => {
     if (!apiClient || !profile) return;
 
@@ -3030,6 +3735,52 @@ export default function ModelProfilePage() {
       });
     }
     setEditingBasicInfo(false);
+  };
+
+  const handleSaveContactIdentity = async () => {
+    if (!apiClient || !profile) return;
+
+    setSavingContactIdentity(true);
+
+    try {
+      const updatedBible = {
+        ...profile.modelBible,
+        fullName: contactIdentityForm.fullName,
+        preferredEmail: contactIdentityForm.preferredEmail,
+        birthplace: contactIdentityForm.birthplace,
+        contactEmail: contactIdentityForm.contactEmail,
+      };
+
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          modelBible: updatedBible,
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to save contact & identity");
+
+      setProfile({ ...profile, modelBible: updatedBible });
+      setEditingContactIdentity(false);
+      toast.success("Contact & identity updated!");
+    } catch (error) {
+      console.error("Error saving contact & identity:", error);
+      toast.error("Failed to save contact & identity");
+    } finally {
+      setSavingContactIdentity(false);
+    }
+  };
+
+  const handleCancelContactIdentity = () => {
+    if (profile) {
+      setContactIdentityForm({
+        fullName: profile.modelBible?.fullName || "",
+        preferredEmail: profile.modelBible?.preferredEmail || "",
+        birthplace: profile.modelBible?.birthplace || "",
+        contactEmail: profile.modelBible?.contactEmail || "",
+      });
+    }
+    setEditingContactIdentity(false);
   };
 
   const handleSavePersona = async () => {
@@ -3153,20 +3904,31 @@ export default function ModelProfilePage() {
 
     try {
       const formattedSocials: any = {};
-      Object.entries(socialsForm).forEach(([platform, data]) => {
+      const { oftvIdeas, otherSocials, ...platforms } = socialsForm;
+      
+      Object.entries(platforms).forEach(([platform, data]: [string, any]) => {
         formattedSocials[platform] = {
           handle: data.handle,
           managed: data.managed,
           contentLevel: data.contentLevel
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean),
         };
       });
+      
+      // Add otherSocials to socials object
+      if (otherSocials !== undefined) {
+        formattedSocials.otherSocials = otherSocials;
+      }
 
       const updatedBible = {
         ...profile.modelBible,
         socials: formattedSocials,
+        platforms: {
+          ...profile.modelBible?.platforms,
+          oftvIdeas: oftvIdeas || "",
+        },
       };
 
       const response = await apiClient.patch(
@@ -3201,8 +3963,60 @@ export default function ModelProfilePage() {
         contentLevel: data?.contentLevel?.join(", ") || "",
       };
     });
+    // Reset OFTV Ideas and Other Social Media
+    formattedSocials.oftvIdeas = profile?.modelBible?.platforms?.oftvIdeas || "";
+    formattedSocials.otherSocials = (profile?.modelBible?.socials as any)?.otherSocials || "";
     setSocialsForm(formattedSocials);
     setEditingSocials(false);
+  };
+
+  const handleSaveAdditionalRevenue = async () => {
+    if (!apiClient || !profile) return;
+
+    setSavingAdditionalRevenue(true);
+
+    try {
+      const updatedBible = {
+        ...profile.modelBible,
+        amazonWishlist: additionalRevenueForm.amazonWishlist,
+        physicalItems: additionalRevenueForm.physicalItems,
+      };
+
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          modelBible: updatedBible,
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to save additional revenue");
+
+      setProfile({ ...profile, modelBible: updatedBible });
+      setEditingAdditionalRevenue(false);
+      toast.success("Additional revenue updated!");
+    } catch (error) {
+      console.error("Error saving additional revenue:", error);
+      toast.error("Failed to save additional revenue");
+    } finally {
+      setSavingAdditionalRevenue(false);
+    }
+  };
+
+  const handleCancelAdditionalRevenue = () => {
+    if (profile?.modelBible) {
+      setAdditionalRevenueForm({
+        amazonWishlist: {
+          enabled: profile.modelBible.amazonWishlist?.enabled || false,
+        },
+        physicalItems: {
+          enabled: profile.modelBible.physicalItems?.enabled || false,
+          panties: profile.modelBible.physicalItems?.panties || "",
+          bra: profile.modelBible.physicalItems?.bra || "",
+          otherItems: profile.modelBible.physicalItems?.otherItems || {},
+        },
+      });
+    }
+    setEditingAdditionalRevenue(false);
   };
 
   const handleStatusChange = async (
@@ -3357,8 +4171,11 @@ export default function ModelProfilePage() {
     if (profile?.modelBible?.schedule) {
       const schedule = profile.modelBible.schedule;
       setScheduleForm({
-        livestreamSchedule: schedule.livestreamSchedule || "",
-        videoCallSchedule: schedule.videoCallSchedule || "",
+        livestreamDays: schedule.livestreamDays || [],
+        livestreamTimes: schedule.livestreamTimes || {},
+        videoCallPlatform: schedule.videoCallPlatform || "",
+        videoCallDays: schedule.videoCallDays || [],
+        videoCallTimes: schedule.videoCallTimes || {},
         bundleClipsOk: schedule.bundleClipsOk || false,
       });
     }
@@ -3373,7 +4190,14 @@ export default function ModelProfilePage() {
     try {
       const updatedBible = {
         ...profile.modelBible,
-        schedule: scheduleForm,
+        schedule: {
+          livestreamDays: scheduleForm.livestreamDays,
+          livestreamTimes: scheduleForm.livestreamTimes,
+          videoCallPlatform: scheduleForm.videoCallPlatform,
+          videoCallDays: scheduleForm.videoCallDays,
+          videoCallTimes: scheduleForm.videoCallTimes,
+          bundleClipsOk: scheduleForm.bundleClipsOk,
+        },
       };
 
       const response = await apiClient.patch(
@@ -3400,8 +4224,11 @@ export default function ModelProfilePage() {
     if (profile?.modelBible?.schedule) {
       const schedule = profile.modelBible.schedule;
       setScheduleForm({
-        livestreamSchedule: schedule.livestreamSchedule || "",
-        videoCallSchedule: schedule.videoCallSchedule || "",
+        livestreamDays: schedule.livestreamDays || [],
+        livestreamTimes: schedule.livestreamTimes || {},
+        videoCallPlatform: schedule.videoCallPlatform || "",
+        videoCallDays: schedule.videoCallDays || [],
+        videoCallTimes: schedule.videoCallTimes || {},
         bundleClipsOk: schedule.bundleClipsOk || false,
       });
     }
@@ -4161,74 +4988,238 @@ export default function ModelProfilePage() {
 
               {/* Content Types */}
               <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
+                {(() => {
+                  // Define content type constants
+                  const defaultContentTypes = [
+                    "Fully Nude", "Dick Rating", "JOI", "Solo", "Squirting",
+                    "Anal", "Cream Pie", "BG", "BGG", "GG", "GGG", "BBG",
+                    "Orgy", "Livestream"
+                  ];
+                  const allContentTypes = [...defaultContentTypes, ...customContentTypes];
+                  
+                  // Count only selected types that actually exist in displayable lists
+                  const activeCount = selectedContentTypes.filter(type => 
+                    allContentTypes.includes(type)
+                  ).length;
+
+                  return (
+                    <>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold">Content Types</h3>
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setShowContentTypeModal(true)}
-                      className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
-                    >
-                      <Plus size={12} />
-                      Add Type
-                    </button>
-                    <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded text-[11px] font-medium">
-                      {selectedContentTypes.length} active
-                    </span>
+                    {!editingContentTypes ? (
+                      <>
+                        <button
+                          onClick={() => setShowContentTypeModal(true)}
+                          className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
+                        >
+                          <Plus size={12} />
+                          Add Type
+                        </button>
+                        <button
+                          onClick={handleEditContentTypes}
+                          className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
+                        >
+                          <Edit2 size={12} />
+                          Edit
+                        </button>
+                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded text-[11px] font-medium">
+                          {activeCount} active
+                        </span>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCancelContentTypes}
+                          disabled={savingContentTypes}
+                          className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveContentTypes}
+                          disabled={savingContentTypes}
+                          className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {savingContentTypes ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={12} />
+                              Save
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {allContentTypes.map((type) => {
-                    const isSelected = selectedContentTypes.includes(type);
-                    const isCustom = !defaultContentTypes.includes(type);
-                    return (
-                      <div
-                        key={type}
-                        onClick={() => handleToggleContentType(type)}
-                        className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer relative group ${
-                          isSelected
-                            ? "bg-emerald-500/15 border border-emerald-500 text-emerald-400"
-                            : "bg-[#0c0c0f] border border-[#27272a] text-[#52525b] hover:border-[#3f3f46]"
+                {/* Explicit Content Status */}
+                <div className="mb-4 pb-4 border-b border-[#27272a]">
+                  <div className="text-[11px] text-[#71717a] mb-2">
+                    Explicit Content
+                  </div>
+                  {editingContentTypes ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() =>
+                          setContentTypesForm({
+                            explicitContentOk: true,
+                          })
+                        }
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                          contentTypesForm.explicitContentOk
+                            ? "bg-emerald-500/15 text-emerald-400 border-2 border-emerald-500"
+                            : "bg-[#0c0c0f] text-[#71717a] border-2 border-[#27272a] hover:border-[#3f3f46]"
                         }`}
                       >
-                        {isSelected && <Check size={12} />}
-                        {type}
-                        {isCustom && (
-                          <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditContentType(type);
-                              }}
-                              className="p-1 bg-[#18181b] hover:bg-blue-500/20 rounded-md transition-colors border border-[#27272a]"
-                              title="Edit type"
-                            >
-                              <Edit2 size={10} className="text-blue-400" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteContentType(type);
-                              }}
-                              className="p-1 bg-[#18181b] hover:bg-red-500/20 rounded-md transition-colors border border-[#27272a]"
-                              title="Delete type"
-                            >
-                              <Trash2 size={10} className="text-red-400" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        ✓ Yes - Explicit OK
+                      </button>
+                      <button
+                        onClick={() =>
+                          setContentTypesForm({
+                            explicitContentOk: false,
+                          })
+                        }
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                          !contentTypesForm.explicitContentOk
+                            ? "bg-amber-500/15 text-amber-400 border-2 border-amber-500"
+                            : "bg-[#0c0c0f] text-[#71717a] border-2 border-[#27272a] hover:border-[#3f3f46]"
+                        }`}
+                      >
+                        ⚠ No - SFW Only
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        contentTypesForm.explicitContentOk
+                          ? "bg-emerald-500/15 text-emerald-400"
+                          : "bg-amber-500/15 text-amber-400"
+                      }`}
+                    >
+                      {contentTypesForm.explicitContentOk
+                        ? "✓ Explicit OK"
+                        : "⚠ SFW Only"}
+                    </span>
+                  )}
                 </div>
 
-                <div className="mt-4 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400 flex items-start gap-2">
-                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>
-                    These content types filter which captions appear for this
-                    model and how gallery content is tagged.
-                  </span>
-                </div>
+                {/* Content Type Tags - Only show if explicit content is OK */}
+                {contentTypesForm.explicitContentOk ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {allContentTypes.map((type) => {
+                        const isSelected = selectedContentTypes.includes(type);
+                        const isCustom = !defaultContentTypes.includes(type);
+                        return (
+                          <div
+                            key={type}
+                            onClick={() => handleToggleContentType(type)}
+                            className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer relative group ${
+                              isSelected
+                                ? "bg-emerald-500/15 border border-emerald-500 text-emerald-400"
+                                : "bg-[#0c0c0f] border border-[#27272a] text-[#52525b] hover:border-[#3f3f46]"
+                            }`}
+                          >
+                            {isSelected && <Check size={12} />}
+                            {type}
+                            {isCustom && (
+                              <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditContentType(type);
+                                  }}
+                                  className="p-1 bg-[#18181b] hover:bg-blue-500/20 rounded-md transition-colors border border-[#27272a]"
+                                  title="Edit type"
+                                >
+                                  <Edit2 size={10} className="text-blue-400" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteContentType(type);
+                                  }}
+                                  className="p-1 bg-[#18181b] hover:bg-red-500/20 rounded-md transition-colors border border-[#27272a]"
+                                  title="Delete type"
+                                >
+                                  <Trash2 size={10} className="text-red-400" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400 flex items-start gap-2">
+                      <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                      <span>
+                        These content types filter which captions appear for this
+                        model and how gallery content is tagged.
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    {customContentTypes.length > 0 && (
+                      <>
+                        <div className="px-3 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-400">
+                          Since this profile is SFW only, explicit content types are hidden. You can still add custom types below.
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {customContentTypes.map((type) => {
+                            const isSelected = selectedContentTypes.includes(type);
+                            return (
+                              <div
+                                key={type}
+                                onClick={() => handleToggleContentType(type)}
+                                className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer relative group ${
+                                  isSelected
+                                    ? "bg-emerald-500/15 border border-emerald-500 text-emerald-400"
+                                    : "bg-[#0c0c0f] border border-[#27272a] text-[#52525b] hover:border-[#3f3f46]"
+                                }`}
+                              >
+                                {isSelected && <Check size={12} />}
+                                {type}
+                                <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditContentType(type);
+                                    }}
+                                    className="p-1 bg-[#18181b] hover:bg-blue-500/20 rounded-md transition-colors border border-[#27272a]"
+                                    title="Edit type"
+                                  >
+                                    <Edit2 size={10} className="text-blue-400" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteContentType(type);
+                                    }}
+                                    className="p-1 bg-[#18181b] hover:bg-red-500/20 rounded-md transition-colors border border-[#27272a]"
+                                    title="Delete type"
+                                  >
+                                    <Trash2 size={10} className="text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Basic Info */}
@@ -4450,6 +5441,127 @@ export default function ModelProfilePage() {
                     </div>
                   )}
                 </div>
+
+                {/* Onboarding Identity Fields */}
+                <div className="mt-4 pt-4 border-t border-[#27272a]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[11px] text-[#71717a] tracking-wide uppercase">Contact & Identity</div>
+                    {!editingContactIdentity ? (
+                      <button
+                        onClick={() => setEditingContactIdentity(true)}
+                        className="px-2 py-1 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded text-[10px] font-medium transition-colors flex items-center gap-1"
+                      >
+                        <Edit2 size={10} />
+                        Edit
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={handleCancelContactIdentity}
+                          disabled={savingContactIdentity}
+                          className="px-2 py-1 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded text-[10px] font-medium transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveContactIdentity}
+                          disabled={savingContactIdentity}
+                          className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {savingContactIdentity ? (
+                            <>
+                              <Loader2 size={10} className="animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={10} />
+                              Save
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-0.5">Full Legal Name</div>
+                      {editingContactIdentity ? (
+                        <input
+                          type="text"
+                          value={contactIdentityForm.fullName}
+                          onChange={(e) =>
+                            setContactIdentityForm({
+                              ...contactIdentityForm,
+                              fullName: e.target.value,
+                            })
+                          }
+                          placeholder="Enter full legal name"
+                          className="w-full px-2 py-1 bg-[#0c0c0f] border border-[#27272a] rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      ) : (
+                        <div className="text-[13px]">{bible?.fullName || <span className="text-[#52525b]">Not set</span>}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-0.5">Email</div>
+                      {editingContactIdentity ? (
+                        <input
+                          type="email"
+                          value={contactIdentityForm.contactEmail}
+                          onChange={(e) =>
+                            setContactIdentityForm({
+                              ...contactIdentityForm,
+                              contactEmail: e.target.value,
+                            })
+                          }
+                          placeholder="Enter email"
+                          className="w-full px-2 py-1 bg-[#0c0c0f] border border-[#27272a] rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      ) : (
+                        <div className="text-[13px] truncate">{profile.modelBible?.contactEmail || <span className="text-[#52525b]">Not set</span>}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-0.5">Preferred Email</div>
+                      {editingContactIdentity ? (
+                        <input
+                          type="email"
+                          value={contactIdentityForm.preferredEmail}
+                          onChange={(e) =>
+                            setContactIdentityForm({
+                              ...contactIdentityForm,
+                              preferredEmail: e.target.value,
+                            })
+                          }
+                          placeholder="Enter preferred email"
+                          className="w-full px-2 py-1 bg-[#0c0c0f] border border-[#27272a] rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      ) : (
+                        <div className="text-[13px] truncate">{bible?.preferredEmail || <span className="text-[#52525b]">Not set</span>}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-[#71717a] mb-0.5">Birthplace</div>
+                      {editingContactIdentity ? (
+                        <input
+                          type="text"
+                          value={contactIdentityForm.birthplace}
+                          onChange={(e) =>
+                            setContactIdentityForm({
+                              ...contactIdentityForm,
+                              birthplace: e.target.value,
+                            })
+                          }
+                          placeholder="Enter birthplace"
+                          className="w-full px-2 py-1 bg-[#0c0c0f] border border-[#27272a] rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      ) : (
+                        <div className="text-[13px]">{bible?.birthplace || <span className="text-[#52525b]">Not set</span>}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Persona */}
@@ -4569,8 +5681,13 @@ export default function ModelProfilePage() {
                         className="w-full px-2.5 py-1.5 bg-[#0c0c0f] border border-[#27272a] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     ) : (
-                      <div className="text-[13px] capitalize">
-                        {bible?.personalityDescription || "Not set"}
+                      <div className="text-[13px] capitalize space-y-1.5">
+                        <div>{bible?.personalityDescription || "Not set"}</div>
+                        {bible?.personalityInsight && (
+                          <span className="inline-block px-2 py-0.5 bg-brand-light-pink/15 text-brand-light-pink text-[11px] rounded-full capitalize">
+                            {bible.personalityInsight}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4804,9 +5921,26 @@ export default function ModelProfilePage() {
                 </div>
 
                 <div className="flex flex-col gap-2.5">
-                  {["instagram", "twitter", "tiktok", "reddit"].map(
-                    (platform) => {
-                      const data = bible?.socials?.[platform] || {
+                  {(() => {
+                    // Build a deduplicated list of platforms: default 6 + any extras in the bible
+                    const defaultPlatformsView = ["instagram", "twitter", "tiktok", "reddit", "snapchat", "facebook"];
+                    const extraPlatforms = Object.keys(bible?.socials || {}).filter(
+                      (k) => k !== "otherSocials" && !defaultPlatformsView.includes(k)
+                    );
+                    const allSocialPlatforms = [...defaultPlatformsView, ...extraPlatforms];
+
+                    const getPlatformIcon = (p: string) => {
+                      if (p === "instagram") return <Instagram size={14} />;
+                      if (p === "twitter") return <Twitter size={14} />;
+                      if (p === "tiktok") return <span className="text-xs font-semibold">TT</span>;
+                      if (p === "reddit") return <span className="text-xs font-semibold">R</span>;
+                      if (p === "snapchat") return <span className="text-xs font-semibold">👻</span>;
+                      if (p === "facebook") return <span className="text-xs font-semibold">f</span>;
+                      return <span className="text-xs font-semibold">{p[0].toUpperCase()}</span>;
+                    };
+
+                    return allSocialPlatforms.map((platform) => {
+                      const data = (bible?.socials as any)?.[platform] || {
                         handle: "",
                         managed: false,
                         contentLevel: [],
@@ -4818,18 +5952,7 @@ export default function ModelProfilePage() {
                         >
                           <div className="flex items-center gap-2.5 mb-2">
                             <div className="w-7 h-7 rounded-md bg-[#27272a] flex items-center justify-center flex-shrink-0">
-                              {platform === "instagram" && (
-                                <Instagram size={14} />
-                              )}
-                              {platform === "twitter" && <Twitter size={14} />}
-                              {platform === "tiktok" && (
-                                <span className="text-xs font-semibold">
-                                  TT
-                                </span>
-                              )}
-                              {platform === "reddit" && (
-                                <span className="text-xs font-semibold">R</span>
-                              )}
+                              {getPlatformIcon(platform)}
                             </div>
                             <div className="capitalize text-[11px] text-[#71717a] font-medium">
                               {platform}
@@ -4838,9 +5961,7 @@ export default function ModelProfilePage() {
 
                           <div className="space-y-2">
                             <div>
-                              <div className="text-[10px] text-[#71717a] mb-1">
-                                Handle
-                              </div>
+                              <div className="text-[10px] text-[#71717a] mb-1">Handle</div>
                               <input
                                 type="text"
                                 value={socialsForm[platform]?.handle || ""}
@@ -4858,14 +5979,10 @@ export default function ModelProfilePage() {
                               />
                             </div>
                             <div>
-                              <div className="text-[10px] text-[#71717a] mb-1">
-                                Content Level
-                              </div>
+                              <div className="text-[10px] text-[#71717a] mb-1">Content Level</div>
                               <input
                                 type="text"
-                                value={
-                                  socialsForm[platform]?.contentLevel || ""
-                                }
+                                value={socialsForm[platform]?.contentLevel || ""}
                                 onChange={(e) =>
                                   setSocialsForm({
                                     ...socialsForm,
@@ -4882,9 +5999,7 @@ export default function ModelProfilePage() {
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={
-                                  socialsForm[platform]?.managed || false
-                                }
+                                checked={socialsForm[platform]?.managed || false}
                                 onChange={(e) =>
                                   setSocialsForm({
                                     ...socialsForm,
@@ -4896,56 +6011,102 @@ export default function ModelProfilePage() {
                                 }
                                 className="w-4 h-4 rounded"
                               />
-                              <span className="text-[11px] text-[#e4e4e7]">
-                                Managed by team
-                              </span>
+                              <span className="text-[11px] text-[#e4e4e7]">Managed by team</span>
                             </label>
                           </div>
                         </div>
                       ) : (
-                        <div
-                          key={platform}
-                          className="flex items-center justify-between px-3 py-2.5 bg-[#0c0c0f] rounded-lg"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-md bg-[#27272a] flex items-center justify-center">
-                              {platform === "instagram" && (
-                                <Instagram size={14} />
-                              )}
-                              {platform === "twitter" && <Twitter size={14} />}
-                              {platform === "tiktok" && (
-                                <span className="text-xs font-semibold">
-                                  TT
-                                </span>
-                              )}
-                              {platform === "reddit" && (
-                                <span className="text-xs font-semibold">R</span>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-[13px]">
-                                {data.handle || "Not set"}
+                        <div key={platform} className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-md bg-[#27272a] flex items-center justify-center">
+                                {getPlatformIcon(platform)}
                               </div>
-                              {data.contentLevel &&
-                                data.contentLevel.length > 0 && (
+                              <div>
+                                <div className="text-[13px]">
+                                  {data.handle ? `@${data.handle.replace(/^@/, "")}` : (
+                                    <span className="text-[#52525b]">Not set</span>
+                                  )}
+                                </div>
+                                {data.contentLevel && data.contentLevel.length > 0 && (
                                   <div className="text-[11px] text-[#71717a]">
                                     {data.contentLevel.join(", ")}
                                   </div>
                                 )}
+                              </div>
                             </div>
+                            <span
+                              className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                                data.managed
+                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  : "bg-amber-500/15 text-amber-400"
+                              }`}
+                            >
+                              {data.managed ? "MANAGED" : "NOT MANAGED"}
+                            </span>
                           </div>
-                          <span
-                            className={`px-2 py-1 rounded text-[10px] font-semibold ${
-                              data.managed
-                                ? "bg-emerald-500/15 text-emerald-400"
-                                : "bg-amber-500/15 text-amber-400"
-                            }`}
-                          >
-                            {data.managed ? "MANAGED" : "NOT MANAGED"}
-                          </span>
+                          {/* Twitter content categories */}
+                          {platform === "twitter" && data.contentCategories && data.contentCategories.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-[#27272a]">
+                              <div className="text-[10px] text-[#71717a] mb-1.5">Content Categories</div>
+                              <div className="flex flex-wrap gap-1">
+                                {(data.contentCategories as string[]).map((cat: string) => (
+                                  <span key={cat} className="px-2 py-0.5 bg-brand-dark-pink/15 text-brand-light-pink rounded text-[10px]">
+                                    {cat}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
-                    },
+                    });
+                  })()}
+                </div>
+
+                {/* OFTV Ideas */}
+                <div className="mt-3 pt-3 border-t border-[#27272a]">
+                  <div className="text-[11px] text-[#71717a] mb-1.5">📺 OFTV Ideas</div>
+                  {editingSocials ? (
+                    <textarea
+                      value={socialsForm.oftvIdeas || ""}
+                      onChange={(e) =>
+                        setSocialsForm({
+                          ...socialsForm,
+                          oftvIdeas: e.target.value,
+                        })
+                      }
+                      placeholder="Enter OFTV content ideas..."
+                      rows={3}
+                      className="w-full px-3 py-2.5 bg-[#18181b] border border-[#27272a] rounded-lg text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                    />
+                  ) : (
+                    <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px] leading-relaxed">
+                      {bible?.platforms?.oftvIdeas || <span className="text-[#52525b]">Not set</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Other Social Media */}
+                <div className="mt-3 pt-3 border-t border-[#27272a]">
+                  <div className="text-[11px] text-[#71717a] mb-1.5">🌐 Other Social Media</div>
+                  {editingSocials ? (
+                    <textarea
+                      value={socialsForm.otherSocials || ""}
+                      onChange={(e) =>
+                        setSocialsForm({
+                          ...socialsForm,
+                          otherSocials: e.target.value,
+                        })
+                      }
+                      placeholder="Enter other social media details..."
+                      rows={3}
+                      className="w-full px-3 py-2.5 bg-[#18181b] border border-[#27272a] rounded-lg text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                    />
+                  ) : (
+                    <div className="px-3 py-2.5 bg-[#0c0c0f] rounded-lg text-[13px] leading-relaxed whitespace-pre-line">
+                      {(bible?.socials as any)?.otherSocials || <span className="text-[#52525b]">Not set</span>}
+                    </div>
                   )}
                 </div>
               </div>
@@ -4957,6 +6118,13 @@ export default function ModelProfilePage() {
               profile={profile}
               onSavePricingSection={handleSavePricingSection}
               savingPricing={savingPricing}
+              editingAdditionalRevenue={editingAdditionalRevenue}
+              setEditingAdditionalRevenue={setEditingAdditionalRevenue}
+              savingAdditionalRevenue={savingAdditionalRevenue}
+              additionalRevenueForm={additionalRevenueForm}
+              setAdditionalRevenueForm={setAdditionalRevenueForm}
+              onSaveAdditionalRevenue={handleSaveAdditionalRevenue}
+              onCancelAdditionalRevenue={handleCancelAdditionalRevenue}
             />
           )}
 

@@ -227,6 +227,43 @@ export default function BackgroundPersonaSection({
         </p>
       </div>
 
+      {/* Personality Insight: Dom/Sub */}
+      <div>
+        <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+          Personality Insight
+        </label>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Would you describe yourself as more submissive or dominant?
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { value: "Submissive", label: "Submissive", emoji: "🩷" },
+            { value: "Dominant", label: "Dominant", emoji: "👑" },
+            { value: "Switch", label: "Switch", emoji: "⚡" },
+            { value: "Not sure", label: "Not sure", emoji: "🤔" },
+          ].map((option) => {
+            const isSelected = modelBible.personalityInsight === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() =>
+                  updateModelBible({ personalityInsight: option.value })
+                }
+                className={`p-3 rounded-lg border-2 text-center transition-all ${
+                  isSelected
+                    ? "border-brand-light-pink bg-brand-light-pink/10 text-brand-dark-pink dark:text-brand-light-pink"
+                    : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-light-pink/50 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+              >
+                <div className="text-lg mb-0.5">{option.emoji}</div>
+                <div className="text-sm font-medium">{option.label}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Favorite Colors */}
       <div>
         <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">

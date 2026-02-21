@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DollarSign, Plus, X } from "lucide-react";
+import { DollarSign, Plus, X, Gift, ShoppingBag, Link } from "lucide-react";
 import { ModelOnboardingDraft } from "@/lib/hooks/useModelOnboarding.query";
 
 interface PricingSectionProps {
@@ -34,6 +34,8 @@ export default function PricingSection({
   const [newContentPrice, setNewContentPrice] = useState("");
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState("");
+  const [newCustomItemName, setNewCustomItemName] = useState("");
+  const [newCustomItemPrice, setNewCustomItemPrice] = useState("");
 
   const getPlatformPricing = (platformId: string): PlatformPricing => {
     const allPricing = (formData.platformPricing as any) || {};
@@ -119,6 +121,19 @@ export default function PricingSection({
 
   const currentPricing = getPlatformPricing(activePlatform);
   const currentPlatform = PLATFORMS.find((p) => p.id === activePlatform);
+
+  // modelBible helpers for non-platform pricing fields
+  const modelBible = (formData.modelBible as any) || {};
+  const amazonWishlist = modelBible.amazonWishlist || { enabled: false };
+  const physicalItems = modelBible.physicalItems || {
+    enabled: false,
+    panties: "",
+    bra: "",
+    otherItems: {},
+  };
+  const updateModelBible = (updates: any) => {
+    updateFormData({ modelBible: { ...modelBible, ...updates } });
+  };
 
   return (
     <div className="space-y-6">
@@ -575,6 +590,201 @@ export default function PricingSection({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Amazon Wishlist */}
+      <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Gift className="w-5 h-5 text-brand-blue" />
+          Amazon Wishlist
+        </h3>
+
+        {/* Toggle */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              updateModelBible({
+                amazonWishlist: { enabled: !amazonWishlist.enabled },
+              })
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              amazonWishlist.enabled
+                ? "bg-brand-light-pink"
+                : "bg-gray-300 dark:bg-gray-600"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                amazonWishlist.enabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <label className="text-sm font-medium text-gray-900 dark:text-white">
+            Do you offer an Amazon Wishlist?
+          </label>
+        </div>
+      </div>
+
+      {/* Physical Items */}
+      <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <ShoppingBag className="w-5 h-5 text-brand-mid-pink" />
+          Physical Items
+        </h3>
+
+        {/* Toggle */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() =>
+              updateModelBible({
+                physicalItems: { ...physicalItems, enabled: !physicalItems.enabled },
+              })
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              physicalItems.enabled
+                ? "bg-brand-light-pink"
+                : "bg-gray-300 dark:bg-gray-600"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                physicalItems.enabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <label className="text-sm font-medium text-gray-900 dark:text-white">
+            Do you sell panties, bras, or other personal clothing items?
+          </label>
+        </div>
+
+        {/* Conditional pricing fields */}
+        {physicalItems.enabled && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Set your prices for physical items. Leave blank if not offered.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  Panties ($)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={physicalItems.panties || ""}
+                    onChange={(e) =>
+                      updateModelBible({
+                        physicalItems: { ...physicalItems, panties: e.target.value },
+                      })
+                    }
+                    placeholder="e.g., 50"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  Bra ($)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={physicalItems.bra || ""}
+                    onChange={(e) =>
+                      updateModelBible({
+                        physicalItems: { ...physicalItems, bra: e.target.value },
+                      })
+                    }
+                    placeholder="e.g., 75"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Other Items */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Other Custom Items
+              </label>
+              
+              {/* Existing Custom Items */}
+              {Object.keys(physicalItems.otherItems || {}).length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {Object.entries(physicalItems.otherItems || {}).map(([name, price]) => (
+                    <div key={name} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                      <span className="flex-1 text-sm text-gray-900 dark:text-white">{name}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">${String(price)}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOtherItems = { ...(physicalItems.otherItems || {}) };
+                          delete newOtherItems[name];
+                          updateModelBible({
+                            physicalItems: { ...physicalItems, otherItems: newOtherItems },
+                          });
+                        }}
+                        className="text-red-500 hover:text-red-400 p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add New Custom Item */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCustomItemName}
+                  onChange={(e) => setNewCustomItemName(e.target.value)}
+                  placeholder="Item name (e.g., Socks)"
+                  className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                />
+                <div className="relative w-32">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={newCustomItemPrice}
+                    onChange={(e) => setNewCustomItemPrice(e.target.value)}
+                    placeholder="25"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newCustomItemName.trim() && newCustomItemPrice) {
+                      updateModelBible({
+                        physicalItems: {
+                          ...physicalItems,
+                          otherItems: {
+                            ...(physicalItems.otherItems || {}),
+                            [newCustomItemName.trim()]: newCustomItemPrice,
+                          },
+                        },
+                      });
+                      setNewCustomItemName("");
+                      setNewCustomItemPrice("");
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Info Box */}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { sendOnboardingInvitationEmail } from '@/lib/onboarding-email';
 
 /**
  * Create a new onboarding invitation link
@@ -42,6 +43,23 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const invitationUrl = `${baseUrl}/onboarding/public?token=${invitation.token}`;
 
+    // 🚀 Automatically send email if email address is provided
+    let emailResult = null;
+    if (email) {
+      emailResult = await sendOnboardingInvitationEmail({
+        invitationId: invitation.id,
+        email,
+        modelName: modelName || undefined,
+        invitationUrl,
+        expiresAt,
+        notes: notes || undefined,
+      });
+
+      if (!emailResult.success) {
+        console.warn(`⚠️ Email failed to send: ${emailResult.error}`);
+      }
+    }
+
     return NextResponse.json({
       invitation: {
         id: invitation.id,
@@ -54,6 +72,8 @@ export async function POST(request: Request) {
         usedCount: invitation.usedCount,
         isActive: invitation.isActive,
         createdAt: invitation.createdAt,
+        emailSent: emailResult?.success || false,
+        emailError: emailResult?.error || null,
       },
     });
   } catch (error) {

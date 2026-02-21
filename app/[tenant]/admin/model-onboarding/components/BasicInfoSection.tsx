@@ -7,13 +7,15 @@ import {
   AlertCircle,
   Loader2,
   Check,
+  Mail,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   ModelOnboardingDraft,
   useCheckDuplicate,
 } from "@/lib/hooks/useModelOnboarding.query";
-import { validateBasicInfo } from "@/lib/validation/onboarding";
+import { validateBasicInfo, validateEmail } from "@/lib/validation/onboarding";
 
 // Constants for dropdowns
 const TOP_SIZES = [
@@ -73,12 +75,14 @@ interface BasicInfoSectionProps {
   formData: Partial<ModelOnboardingDraft>;
   updateFormData: (updates: Partial<ModelOnboardingDraft>) => void;
   invitationToken?: string; // Optional token for public uploads
+  isPublic?: boolean; // When true, shows additional identity fields (email, full name, etc.)
 }
 
 export default function BasicInfoSection({
   formData,
   updateFormData,
   invitationToken,
+  isPublic = false,
 }: BasicInfoSectionProps) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [usernameDebounced, setUsernameDebounced] = useState(
@@ -97,6 +101,10 @@ export default function BasicInfoSection({
     weight: false,
     ethnicity: false,
     timezone: false,
+    contactEmail: false,
+    fullName: false,
+    preferredEmail: false,
+    birthplace: false,
   });
 
   // Helper to get modelBible data
@@ -201,8 +209,153 @@ export default function BasicInfoSection({
     }
   };
 
+  // Public-form identity helpers (stored in modelBible)
+  const contactEmail = modelBible.contactEmail || "";
+  const publicFullName = modelBible.fullName || "";
+  const preferredEmail = modelBible.preferredEmail || "";
+  const birthplace = modelBible.birthplace || "";
+
+  const emailValidation = validateEmail(contactEmail);
+  const preferredEmailValidation = validateEmail(preferredEmail);
+
   return (
     <div className="space-y-6">
+      {/* ── PUBLIC FORM ONLY: Identity Fields ── */}
+      {isPublic && (
+        <div className="p-5 bg-brand-light-pink/5 border border-brand-light-pink/20 rounded-xl space-y-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Mail className="w-4 h-4 text-brand-light-pink" />
+            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wide">
+              Your Identity
+            </h3>
+          </div>
+
+          {/* Full Legal Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Full Legal Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={publicFullName}
+              onChange={(e) => {
+                updateModelBible({ fullName: e.target.value });
+                markTouched("fullName");
+              }}
+              onBlur={() => markTouched("fullName")}
+              placeholder="e.g., Jessica Marie Smith"
+              className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Your legal name — kept private and used for verification only
+            </p>
+          </div>
+
+          {/* Email Address */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="email"
+                value={contactEmail}
+                onChange={(e) => {
+                  updateModelBible({ contactEmail: e.target.value });
+                  markTouched("contactEmail");
+                }}
+                onBlur={() => markTouched("contactEmail")}
+                placeholder="you@example.com"
+                className={`w-full pl-10 pr-12 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                  touched.contactEmail && !emailValidation.isValid
+                    ? "border-red-500 focus:ring-red-500"
+                    : touched.contactEmail && emailValidation.isValid && contactEmail
+                      ? "border-green-500 focus:ring-green-500"
+                      : "border-gray-300 dark:border-gray-600 focus:ring-brand-light-pink"
+                }`}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {touched.contactEmail && contactEmail && emailValidation.isValid && (
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                )}
+                {touched.contactEmail && !emailValidation.isValid && (
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                )}
+              </div>
+            </div>
+            {touched.contactEmail && !emailValidation.isValid && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">{emailValidation.error}</p>
+            )}
+          </div>
+
+          {/* Preferred Contact Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Preferred Contact Email
+              <span className="ml-2 text-xs text-gray-500 font-normal">(if different from above)</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="email"
+                value={preferredEmail}
+                onChange={(e) => {
+                  updateModelBible({ preferredEmail: e.target.value });
+                  markTouched("preferredEmail");
+                }}
+                onBlur={() => markTouched("preferredEmail")}
+                placeholder="preferred@example.com"
+                className={`w-full pl-10 pr-12 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                  touched.preferredEmail && preferredEmail && !preferredEmailValidation.isValid
+                    ? "border-red-500 focus:ring-red-500"
+                    : touched.preferredEmail && preferredEmail && preferredEmailValidation.isValid
+                      ? "border-green-500 focus:ring-green-500"
+                      : "border-gray-300 dark:border-gray-600 focus:ring-brand-light-pink"
+                }`}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {touched.preferredEmail && preferredEmail && preferredEmailValidation.isValid && (
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                )}
+                {touched.preferredEmail && preferredEmail && !preferredEmailValidation.isValid && (
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                )}
+              </div>
+            </div>
+            {touched.preferredEmail && preferredEmail && !preferredEmailValidation.isValid && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">{preferredEmailValidation.error}</p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              The email address you actively monitor day-to-day
+            </p>
+          </div>
+
+          {/* Birthplace */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Birthplace
+            </label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={birthplace}
+                onChange={(e) => {
+                  updateModelBible({ birthplace: e.target.value });
+                  markTouched("birthplace");
+                }}
+                placeholder="e.g., Miami, FL / Bogotá, Colombia"
+                className="w-full pl-10 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+              />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              City and country where you were born
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Profile Image */}
       <div>
         <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">

@@ -43,7 +43,9 @@ model User {
   influencers              InfluencerLoRA[]
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
+  modelOnboardingDrafts    ModelOnboardingDraft[]
   notifications            Notification[]
+  onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
@@ -51,8 +53,6 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
-  modelOnboardingDrafts    ModelOnboardingDraft[]
-  onboardingInvitations    OnboardingInvitation[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -541,31 +541,29 @@ model InstagramProfile {
 }
 
 model OnboardingInvitation {
-  id               String                   @id @default(cuid())
-  token            String                   @unique @default(cuid())
-  
-  // Optional pre-fill data
+  id               String                 @id @default(cuid())
+  token            String                 @unique @default(cuid())
   email            String?
   modelName        String?
   notes            String?
-  
-  // Security & Usage
   createdByClerkId String
   organizationId   String?
   expiresAt        DateTime?
-  maxUses          Int                      @default(1)
-  usedCount        Int                      @default(0)
-  isActive         Boolean                  @default(true)
-  
-  // Tracking
-  createdAt        DateTime                 @default(now())
-  lastUsedAt       DateTime?
-  ipAddresses      String[]                 @default([])
-  
-  // Relations
-  createdBy        User                     @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
-  drafts           ModelOnboardingDraft[]
-  
+  maxUses          Int                    @default(1)
+  usedCount        Int                    @default(0)
+  isActive         Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  lastUsedAt         DateTime?
+  ipAddresses        String[]               @default([])
+  emailSent          Boolean                @default(false)
+  emailSentAt        DateTime?
+  lastEmailSentAt    DateTime?
+  emailError         String?
+  resendEmailId      String?
+  emailResendCount   Int                    @default(0)
+  drafts             ModelOnboardingDraft[]
+  createdBy          User                   @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+
   @@index([token])
   @@index([createdByClerkId])
   @@index([organizationId])
@@ -576,26 +574,17 @@ model OnboardingInvitation {
 
 model ModelOnboardingDraft {
   id                   String                @id @default(cuid())
-  clerkId              String?               // Now optional for public submissions
+  clerkId              String?
   createdByClerkId     String
   organizationId       String?
   status               OnboardingStatus      @default(DRAFT)
   currentStep          Int                   @default(1)
   completionPercentage Int                   @default(0)
-  
-  // Public Submission Tracking
-  invitationId         String?               // Link to invitation if public
-  isPublicSubmission   Boolean               @default(false)
-  submitterIp          String?
-  
-  // Basic Info (Step 1)
   name                 String?
   description          String?
   instagramUsername    String?
   profileImageUrl      String?
   type                 String?               @default("real")
-  
-  // Background/Persona (Step 2)
   age                  String?
   birthday             String?
   location             String?
@@ -605,45 +594,34 @@ model ModelOnboardingDraft {
   relationshipStatus   String?
   backstory            String?
   interests            String[]              @default([])
-  
-  // Content & Content Types (Step 3)
   selectedContentTypes String[]              @default([])
   customContentTypes   String[]              @default([])
   primaryNiche         String?
   feedAesthetic        String?
   commonThemes         String?
   uniqueHook           String?
-  
-  // Pricing (Step 4)
   platformPricing      Json?
-  
-  // Social Accounts (Step 5)
   platforms            Json?
   socials              Json?
-  
-  // Additional Data (Step 6)
   modelBible           Json?
   restrictions         Json?
   schedule             Json?
   internalNotes        String?
-  
-  // Metadata
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   submittedAt          DateTime?
   completedAt          DateTime?
   lastAutoSaveAt       DateTime?
-  
-  // Review & Approval
-  reviewStatus         ReviewStatus?         @default(PENDING)
-  reviewedBy           String?               // Clerk ID of reviewer
-  reviewedAt           DateTime?
+  invitationId         String?
+  isPublicSubmission   Boolean               @default(false)
+  submitterIp          String?
+  createdProfileId     String?
   rejectionReason      String?
-  createdProfileId     String?               // Link to created InstagramProfile after approval
-  
-  // Relations
+  reviewStatus         ReviewStatus?         @default(PENDING)
+  reviewedAt           DateTime?
+  reviewedBy           String?
   user                 User?                 @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  invitation           OnboardingInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  invitation           OnboardingInvitation? @relation(fields: [invitationId], references: [id])
 
   @@index([clerkId])
   @@index([createdByClerkId])
@@ -1389,12 +1367,19 @@ model Workspace {
   isActive       Boolean           @default(true)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @default(now()) @updatedAt
+  access         SpaceAccess       @default(OPEN)
+  config         Json?
+  key            String?
+  templateType   SpaceTemplateType @default(KANBAN)
+  boards         boards[]
   members        WorkspaceMember[]
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
+  @@unique([organizationId, key])
   @@index([organizationId])
   @@index([isActive])
+  @@index([templateType])
   @@map("workspaces")
 }
 
@@ -1996,6 +1981,88 @@ model ContentTypePricingHistory {
   @@index([createdAt])
 }
 
+model board_columns {
+  id          String        @id
+  boardId     String
+  name        String
+  color       String?
+  position    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  boards      boards        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board_items board_items[]
+
+  @@index([boardId])
+  @@index([boardId, position])
+}
+
+model board_item_comments {
+  id          String      @id
+  itemId      String
+  content     String
+  createdBy   String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  board_items board_items @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([createdBy])
+  @@index([itemId, createdAt])
+  @@index([itemId])
+}
+
+model board_item_media {
+  id          String      @id
+  itemId      String
+  url         String
+  type        String
+  name        String?
+  size        Int?
+  createdAt   DateTime    @default(now())
+  board_items board_items @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+}
+
+model board_items {
+  id                  String                @id
+  columnId            String
+  title               String
+  description         String?
+  type                BoardItemType         @default(TASK)
+  priority            BoardItemPriority     @default(MEDIUM)
+  assigneeId          String?
+  dueDate             DateTime?
+  position            Int                   @default(0)
+  metadata            Json?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  createdBy           String?
+  board_item_comments board_item_comments[]
+  board_item_media    board_item_media[]
+  board_columns       board_columns         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@index([assigneeId])
+  @@index([columnId])
+  @@index([columnId, position])
+  @@index([createdBy])
+  @@index([dueDate])
+}
+
+model boards {
+  id            String          @id
+  workspaceId   String
+  name          String
+  description   String?
+  position      Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  board_columns board_columns[]
+  workspaces    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, position])
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -2308,4 +2375,31 @@ enum ReviewStatus {
   APPROVED
   REJECTED
   CHANGES_REQUESTED
+}
+
+enum BoardItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum BoardItemType {
+  TASK
+  POST
+  REQUEST
+  SET
+  NOTE
+}
+
+enum SpaceAccess {
+  OPEN
+  PRIVATE
+}
+
+enum SpaceTemplateType {
+  KANBAN
+  WALL_POST
+  SEXTING_SETS
+  OTP_PTR
 }

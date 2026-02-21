@@ -25,6 +25,10 @@ import {
   RefreshCw,
   CheckSquare,
   Square,
+  Mail,
+  MailCheck,
+  MailX,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -191,6 +195,27 @@ export default function OnboardingInvitationsPage() {
       queryClient.invalidateQueries({ queryKey: ["onboarding-invitations"] });
       setSelectedIds(new Set());
       toast.success(`${invitationIds.length} invitation(s) revoked`);
+    },
+  });
+
+  // Resend email mutation
+  const resendEmail = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const response = await fetch(
+        `/api/onboarding-invitations/${invitationId}/resend-email`,
+        {
+          method: "POST",
+        },
+      );
+      if (!response.ok) throw new Error("Failed to resend email");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["onboarding-invitations"] });
+      toast.success("Email resent successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to resend email");
     },
   });
 
@@ -712,10 +737,32 @@ export default function OnboardingInvitationsPage() {
                           )}
                         </div>
                         {invitation.email && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                            <span className="text-brand-blue">✉</span>
-                            {invitation.email}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                              <span className="text-brand-blue">✉</span>
+                              {invitation.email}
+                            </p>
+                            {/* Email Status Indicator */}
+                            {invitation.emailSent ? (
+                              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <MailCheck className="w-3 h-3" />
+                                Sent
+                                {invitation.emailResendCount > 0 && (
+                                  <span className="ml-0.5">({invitation.emailResendCount}x)</span>
+                                )}
+                              </span>
+                            ) : invitation.emailError ? (
+                              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={invitation.emailError}>
+                                <MailX className="w-3 h-3" />
+                                Failed
+                              </span>
+                            ) : invitation.email ? (
+                              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                <Mail className="w-3 h-3" />
+                                Not Sent
+                              </span>
+                            ) : null}
+                          </div>
                         )}
                       </div>
 
@@ -751,7 +798,18 @@ export default function OnboardingInvitationsPage() {
                             <MoreVertical className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                           </button>
                           {/* Dropdown Menu */}
-                          <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all duration-200 z-10">
+                          <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all duration-200 z-10">
+                            {/* Resend Email Option (if email exists) */}
+                            {invitation.email && (
+                              <button
+                                onClick={() => resendEmail.mutate(invitation.id)}
+                                disabled={resendEmail.isPending}
+                                className="w-full px-4 py-3 text-left text-sm text-brand-blue dark:text-brand-blue hover:bg-brand-blue/10 dark:hover:bg-brand-blue/5 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Send className="w-4 h-4" />
+                                {resendEmail.isPending ? "Sending..." : "Resend Email"}
+                              </button>
+                            )}
                             {status === "active" && (
                               <>
                                 <button
@@ -761,7 +819,7 @@ export default function OnboardingInvitationsPage() {
                                       days: 7,
                                     })
                                   }
-                                  className="w-full px-4 py-3 text-left text-sm text-brand-mid-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/5 transition-colors flex items-center gap-2"
+                                  className="w-full px-4 py-3 text-left text-sm text-brand-mid-pink dark:text-brand-light-pink hover:bg-brand-light-pink/10 dark:hover:bg-brand-light-pink/5 transition-colors flex items-center gap-2 border-t border-gray-200 dark:border-gray-700"
                                 >
                                   <RefreshCw className="w-4 h-4" />
                                   Extend 7 Days

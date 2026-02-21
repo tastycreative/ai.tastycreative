@@ -26,6 +26,24 @@ const SOCIAL_PLATFORMS = [
   { id: "twitter", label: "Twitter/X", icon: "🐦" },
   { id: "tiktok", label: "TikTok", icon: "🎵" },
   { id: "reddit", label: "Reddit", icon: "🤖" },
+  { id: "snapchat", label: "Snapchat", icon: "👻" },
+  { id: "facebook", label: "Facebook", icon: "📘" },
+];
+
+const TWITTER_CONTENT_CATEGORIES = [
+  "Fully Nude",
+  "Dick Rating",
+  "JOI",
+  "Solo",
+  "Squirting",
+  "Anal",
+  "BG",
+  "BGG",
+  "GG",
+  "Oral",
+  "Lifestyle",
+  "Fitness",
+  "SFW Only",
 ];
 
 const ONLYFANS_PLATFORMS = [
@@ -233,6 +251,26 @@ export default function SocialAccountsSection({
             </div>
           </div>
         )}
+
+        {/* OFTV Ideas */}
+        {(oftvInterest === "need_info" || platforms.oftvIdeas) && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              📺 What OFTV ideas would you be interested in filming?
+            </label>
+            <textarea
+              value={platforms.oftvIdeas || ""}
+              onChange={(e) =>
+                updateFormData({
+                  platforms: { ...platforms, oftvIdeas: e.target.value },
+                })
+              }
+              placeholder="Describe the type of content or ideas you'd like to create for OFTV..."
+              rows={3}
+              className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink resize-none"
+            />
+          </div>
+        )}
       </div>
 
       {/* Social Media Accounts */}
@@ -378,10 +416,74 @@ export default function SocialAccountsSection({
                       </div>
                     </div>
                   )}
+
+                  {/* Twitter Content Categories (only for Twitter when handle is present) */}
+                  {platform.id === "twitter" && social.handle && (
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Twitter Content Categories{" "}
+                        <span className="text-gray-400">(select all that apply)</span>
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {TWITTER_CONTENT_CATEGORIES.map((category) => {
+                          const currentCategories: string[] =
+                            social.contentCategories || [];
+                          const isSelected = currentCategories.includes(category);
+                          return (
+                            <button
+                              key={category}
+                              type="button"
+                              onClick={() => {
+                                const updated = isSelected
+                                  ? currentCategories.filter(
+                                      (c: string) => c !== category,
+                                    )
+                                  : [...currentCategories, category];
+                                updateSocial(
+                                  platform.id,
+                                  "contentCategories",
+                                  updated,
+                                );
+                              }}
+                              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                                isSelected
+                                  ? "bg-brand-dark-pink text-white"
+                                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+
+        {/* Other Social Media */}
+        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            🌐 Other Social Media Accounts
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Any other platforms not listed above (e.g. Pinterest, YouTube,
+            Twitch, etc.)
+          </p>
+          <textarea
+            value={socials.otherSocials || ""}
+            onChange={(e) =>
+              updateFormData({
+                socials: { ...socials, otherSocials: e.target.value },
+              })
+            }
+            placeholder="List any other social media accounts (platform + handle, one per line)..."
+            rows={3}
+            className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue resize-none"
+          />
         </div>
       </div>
 
