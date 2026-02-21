@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
           templateType: templateType as any,
           key,
           access: access as any,
-          config: config ?? undefined,
+          config: config ? JSON.parse(JSON.stringify(config)) : undefined,
           color: 'brand-light-pink',
           icon: templateType,
         },

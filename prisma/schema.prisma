@@ -558,13 +558,21 @@ model OnboardingInvitation {
   isActive         Boolean                  @default(true)
   
   // Tracking
-  createdAt        DateTime                 @default(now())
-  lastUsedAt       DateTime?
-  ipAddresses      String[]                 @default([])
+  createdAt          DateTime                 @default(now())
+  lastUsedAt         DateTime?
+  ipAddresses        String[]                 @default([])
+  
+  // Email tracking
+  emailSent          Boolean                  @default(false)
+  emailSentAt        DateTime?
+  lastEmailSentAt    DateTime?
+  emailError         String?
+  resendEmailId      String?
+  emailResendCount   Int                      @default(0)
   
   // Relations
-  createdBy        User                     @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
-  drafts           ModelOnboardingDraft[]
+  createdBy          User                     @relation(fields: [createdByClerkId], references: [clerkId], onDelete: Cascade)
+  drafts             ModelOnboardingDraft[]
   
   @@index([token])
   @@index([createdByClerkId])
