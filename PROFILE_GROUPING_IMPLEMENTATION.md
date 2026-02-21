@@ -1,3 +1,343 @@
+# Profile Grouping System - Implementation Guide
+
+## 🎯 Overview
+
+This guide provides a complete implementation for organizing Instagram profiles into custom groups with favorites/pinning support.
+
+---
+
+## 📊 Database Schema
+
+### 1. Prisma Schema Updates
+
+Add these models to your `schema.prisma`:
+
+```prisma
+// Profile Groups - Organizations can create custom groups
+model ProfileGroup {
+  id             String                  @id @default(cuid())
+  organizationId String
+  name           String                  // e.g., "Daily Models", "VIP", "High Priority"
+  color          String?                 // Optional color for visual distinction (hex)
+  icon           String?                 // Optional emoji or icon name
+  order          Int                     @default(0) // For custom sorting
+  isCollapsed    Boolean                 @default(false) // Remember collapsed state per user
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        ProfileGroupMember[]
+  
+  @@unique([organizationId, name]) // Prevent duplicate group names within org
+  @@index([organizationId])
+  @@index([organizationId, order])
+  @@map("profile_groups")
+}
+
+// Many-to-Many relationship: Profiles can belong to multiple groups
+model ProfileGroupMember {
+  id             String           @id @default(cuid())
+  profileGroupId String
+  profileId      String
+  order          Int              @default(0) // Custom order within the group
+  addedAt        DateTime         @default(now())
+  
+  group          ProfileGroup     @relation(fields: [profileGroupId], references: [id], onDelete: Cascade)
+  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  @@unique([profileGroupId, profileId]) // A profile can only be in a group once
+  @@index([profileGroupId])
+  @@index([profileId])
+  @@map("profile_group_members")
+}
+
+// User-specific pinned/favorite profiles (per user, not org-wide)
+model ProfilePin {
+  id        String           @id @default(cuid())
+  userId    String           // Clerk user ID
+  profileId String
+  order     Int              @default(0) // For custom sorting
+  pinnedAt  DateTime         @default(now())
+  
+  user      User             @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
+  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, profileId]) // A user can only pin a profile once
+  @@index([userId])
+  @@index([profileId])
+  @@map("profile_pins")
+}
+```
+
+### 2. Update Existing Models
+
+Add these relations to existing models:
+
+```prisma
+model InstagramProfile {
+  // ... existing fields ...
+  
+  // Add these relations
+  groupMemberships ProfileGroupMember[]
+  pinnedBy         ProfilePin[]
+}
+
+model Organization {
+  // ... existing fields ...
+  
+  // Add this relation
+  profileGroups    ProfileGroup[]
+}
+
+model User {
+  // ... existing fields ...
+  
+  // Add this relation
+  pinnedProfiles   ProfilePin[]
+}
+```
+
+---
+
+## 🔧 Backend API Endpoints
+
+Create the following API routes:
+
+### 1. `/api/profile-groups`
+
+```typescript
+// GET /api/profile-groups - List all groups for organization
+// POST /api/profile-groups - Create new group
+// PATCH /api/profile-groups/[id] - Update group (rename, reorder, etc.)
+// DELETE /api/profile-groups/[id] - Delete group
+```
+
+### 2. `/api/profile-groups/[id]/members`
+
+```typescript
+// POST - Add profiles to group
+// DELETE /api/profile-groups/[id]/members/[profileId] - Remove profile from group
+// PATCH - Reorder profiles within group
+```
+
+### 3. `/api/profiles/pins`
+
+```typescript
+// GET /api/profiles/pins - Get user's pinned profiles
+// POST /api/profiles/pins - Pin a profile
+// DELETE /api/profiles/pins/[profileId] - Unpin a profile
+// PATCH /api/profiles/pins/reorder - Reorder pinned profiles
+```
+
+---
+
+## 🎨 Frontend Implementation
+
+### 1. TanStack Query Hooks
+
+Create `lib/hooks/useProfileGroups.query.ts`:
+
+```typescript
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
+import { useOrganization } from '@/hooks/useOrganization';
+
+export interface ProfileGroup {
+  id: string;
+  name: string;
+  color?: string;
+  icon?: string;
+  order: number;
+  isCollapsed: boolean;
+  memberCount: number;
+  members: {
+    id: string;
+    profileId: string;
+    order: number;
+    profile: {
+      id: string;
+      name: string;
+      profileImageUrl?: string;
+      instagramUsername?: string;
+    };
+  }[];
+}
+
+// Fetch all groups with members
+async function fetchProfileGroups(organizationId: string): Promise<ProfileGroup[]> {
+  const response = await fetch(`/api/profile-groups?organizationId=${organizationId}`);
+  if (!response.ok) throw new Error('Failed to fetch groups');
+  return response.json();
+}
+
+export function useProfileGroups() {
+  const { user } = useUser();
+  const { currentOrganization } = useOrganization();
+  
+  return useQuery({
+    queryKey: ['profile-groups', currentOrganization?.id],
+    queryFn: () => fetchProfileGroups(currentOrganization!.id),
+    enabled: !!user && !!currentOrganization,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+// Create group
+export function useCreateProfileGroup() {
+  const queryClient = useQueryClient();
+  const { currentOrganization } = useOrganization();
+  
+  return useMutation({
+    mutationFn: async (data: { name: string; color?: string; icon?: string }) => {
+      const response = await fetch('/api/profile-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, organizationId: currentOrganization?.id }),
+      });
+      if (!response.ok) throw new Error('Failed to create group');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-groups'] });
+    },
+  });
+}
+
+// Add profiles to group
+export function useAddProfilesToGroup() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ groupId, profileIds }: { groupId: string; profileIds: string[] }) => {
+      const response = await fetch(`/api/profile-groups/${groupId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileIds }),
+      });
+      if (!response.ok) throw new Error('Failed to add profiles');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-groups'] });
+    },
+  });
+}
+
+// Remove profile from group
+export function useRemoveProfileFromGroup() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ groupId, profileId }: { groupId: string; profileId: string }) => {
+      const response = await fetch(`/api/profile-groups/${groupId}/members/${profileId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to remove profile');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-groups'] });
+    },
+  });
+}
+
+// Delete group
+export function useDeleteProfileGroup() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const response = await fetch(`/api/profile-groups/${groupId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete group');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-groups'] });
+    },
+  });
+}
+```
+
+Create `lib/hooks/useProfilePins.query.ts`:
+
+```typescript
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
+
+export interface ProfilePin {
+  id: string;
+  userId: string;
+  profileId: string;
+  order: number;
+  profile: {
+    id: string;
+    name: string;
+    profileImageUrl?: string;
+    instagramUsername?: string;
+  };
+}
+
+// Fetch pinned profiles
+async function fetchProfilePins(userId: string): Promise<ProfilePin[]> {
+  const response = await fetch(`/api/profiles/pins?userId=${userId}`);
+  if (!response.ok) throw new Error('Failed to fetch pins');
+  return response.json();
+}
+
+export function useProfilePins() {
+  const { user } = useUser();
+  
+  return useQuery({
+    queryKey: ['profile-pins', user?.id],
+    queryFn: () => fetchProfilePins(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// Toggle pin (pin or unpin)
+export function useToggleProfilePin() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+  
+  return useMutation({
+    mutationFn: async ({ profileId, isPinned }: { profileId: string; isPinned: boolean }) => {
+      if (isPinned) {
+        // Unpin
+        const response = await fetch(`/api/profiles/pins/${profileId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to unpin');
+        return response.json();
+      } else {
+        // Pin
+        const response = await fetch('/api/profiles/pins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileId }),
+        });
+        if (!response.ok) throw new Error('Failed to pin');
+        return response.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-pins', user?.id] });
+    },
+  });
+}
+```
+
+### 2. Updated GlobalProfileSelector Component
+
+Replace `components/GlobalProfileSelector.tsx` with a grouped version:
+
+```typescript
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
@@ -5,16 +345,14 @@ import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { useInstagramProfile, Profile, ALL_PROFILES_OPTION } from '@/hooks/useInstagramProfile';
-import { useProfileGroups, useAddProfilesToGroup, useRemoveProfileFromGroup } from '@/lib/hooks/useProfileGroups.query';
-import { useProfilePins, useToggleProfilePin, useReorderProfilePins } from '@/lib/hooks/useProfilePins.query';
+import { useProfileGroups } from '@/lib/hooks/useProfileGroups.query';
+import { useProfilePins } from '@/lib/hooks/useProfilePins.query';
 import { 
   ChevronDown, User, Check, Plus, Instagram, Loader2, 
   Sparkles, Star, Users, ChevronUp, Building2, FolderOpen, 
-  Share2, Pin, ChevronRight, Settings2, Folder, ExternalLink,
-  FolderPlus, PinOff, MoreVertical
+  Share2, Pin, ChevronRight, Settings2, Folder 
 } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 
 export function GlobalProfileSelector() {
   const params = useParams();
@@ -33,26 +371,12 @@ export function GlobalProfileSelector() {
   const { data: groups = [], isLoading: loadingGroups } = useProfileGroups();
   const { data: pinnedProfiles = [], isLoading: loadingPins } = useProfilePins();
   
-  // Mutations
-  const togglePin = useToggleProfilePin();
-  const reorderPins = useReorderProfilePins();
-  const addProfilesToGroup = useAddProfilesToGroup();
-  const removeProfileFromGroup = useRemoveProfileFromGroup();
-  
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    profile: Profile;
-    groupId?: string;
-  } | null>(null);
 
   // Helper to check if a profile is pinned
   const isPinned = (profileId: string) => {
@@ -62,18 +386,6 @@ export function GlobalProfileSelector() {
   // Helper to check if a profile is owned by the current user
   const isOwnProfile = (profile: Profile) => {
     return profile.clerkId === clerkUser?.id || profile.user?.clerkId === clerkUser?.id;
-  };
-
-  // Helper to get owner display name for shared profiles
-  const getOwnerDisplayName = (profile: Profile) => {
-    if (!profile.user) return null;
-    if (profile.user.firstName && profile.user.lastName) {
-      return `${profile.user.firstName} ${profile.user.lastName}`;
-    }
-    if (profile.user.firstName) return profile.user.firstName;
-    if (profile.user.name) return profile.user.name;
-    if (profile.user.email) return profile.user.email.split('@')[0];
-    return null;
   };
 
   // Get profiles that are not in any group (ungrouped)
@@ -96,78 +408,64 @@ export function GlobalProfileSelector() {
       return next;
     });
   };
-  
-  // Context menu handlers
-  const handleContextMenu = (e: React.MouseEvent, profile: Profile, groupId?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      profile,
-      groupId,
-    });
-  };
-  
-  const closeContextMenu = () => {
-    setContextMenu(null);
-  };
-  
-  const handlePinToggle = async (profile: Profile) => {
-    closeContextMenu();
-    await togglePin.mutateAsync(profile.id);
-    const pinned = isPinned(profile.id);
-    toast.success(pinned ? `Unpinned ${profile.name}` : `Pinned ${profile.name}`);
-  };
-  
-  const handleAddToGroup = async (profile: Profile, groupId: string) => {
-    closeContextMenu();
-    try {
-      await addProfilesToGroup.mutateAsync({
-        groupId,
-        profileIds: [profile.id],
-      });
-      
-      const group = groups.find(g => g.id === groupId);
-      toast.success(`Added ${profile.name} to ${group?.name || 'group'}`);
-    } catch (error) {
-      toast.error('Profile already in this group');
-    }
-  };
-  
-  const handleRemoveFromGroup = async (profile: Profile, groupId: string) => {
-    closeContextMenu();
-    await removeProfileFromGroup.mutateAsync({
-      groupId,
-      profileId: profile.id,
-    });
-    
-    const group = groups.find(g => g.id === groupId);
-    toast.success(`Removed ${profile.name} from ${group?.name || 'group'}`);
-  };
 
-  // Sort profiles: owned first, then shared (each group sorted by name)
-  const sortedProfiles = useMemo(() => {
-    return [...profiles].sort((a, b) => {
-      const aIsOwn = isOwnProfile(a);
-      const bIsOwn = isOwnProfile(b);
+  // Mount state for portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const dropdownElement = document.querySelector('[data-profile-dropdown]');
       
-      // Own profiles come first
-      if (aIsOwn && !bIsOwn) return -1;
-      if (!aIsOwn && bIsOwn) return 1;
-      
-      // Within same category, default profiles come first
-      if (a.isDefault && !b.isDefault) return -1;
-      if (!a.isDefault && b.isDefault) return 1;
-      
-      // Then sort by name
-      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
-    });
-  }, [profiles, clerkUser?.id]);
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(target) &&
+        (!dropdownElement || !dropdownElement.contains(target))
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown on escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  const handleProfileSelect = (profile: Profile | typeof ALL_PROFILES_OPTION) => {
+    setProfileId(profile.id);
+    setIsOpen(false);
+    
+    window.dispatchEvent(new CustomEvent('profileChanged', { detail: { profileId: profile.id } }));
+  };
 
   // Render a single profile item
-  const renderProfileItem = (profile: Profile, isPinnedItem = false, groupId?: string) => {
+  const renderProfileItem = (profile: Profile, isPinnedItem = false) => {
     const isSelected = profile.id === profileId;
     const pinned = isPinned(profile.id);
     
@@ -175,7 +473,6 @@ export function GlobalProfileSelector() {
       <button
         key={profile.id}
         onClick={() => handleProfileSelect(profile)}
-        onContextMenu={(e) => handleContextMenu(e, profile, groupId)}
         className={`
           w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1
           ${isSelected
@@ -183,7 +480,6 @@ export function GlobalProfileSelector() {
             : 'hover:bg-sidebar-accent border-2 border-transparent hover:border-[#EC67A1]/20'
           }
         `}
-        title="Right-click for quick actions"
       >
         {/* Profile Image */}
         <div className="relative flex-shrink-0">
@@ -229,87 +525,14 @@ export function GlobalProfileSelector() {
           )}
         </div>
         
-        {/* Selected Check / More Icon */}
-        {isSelected ? (
+        {/* Selected Check */}
+        {isSelected && (
           <div className="w-5 h-5 rounded-full bg-[#EC67A1] flex items-center justify-center flex-shrink-0">
             <Check className="w-3 h-3 text-white" />
           </div>
-        ) : (
-          <MoreVertical className="w-4 h-4 text-sidebar-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
         )}
       </button>
     );
-  };
-
-  // Mount state for portal
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Update dropdown position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  }, [isOpen]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const dropdownElement = document.querySelector('[data-profile-dropdown]');
-      const contextMenuElement = document.querySelector('[data-context-menu]');
-      
-      if (
-        dropdownRef.current && 
-        !dropdownRef.current.contains(target) &&
-        (!dropdownElement || !dropdownElement.contains(target)) &&
-        (!contextMenuElement || !contextMenuElement.contains(target))
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Close dropdown on escape key
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-        closeContextMenu();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
-  
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClick = () => {
-      closeContextMenu();
-    };
-
-    if (contextMenu) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu]);
-
-  const handleProfileSelect = (profile: Profile | typeof ALL_PROFILES_OPTION) => {
-    setProfileId(profile.id);
-    setIsOpen(false);
-    
-    // Also dispatch a custom event for components that listen to profile changes
-    window.dispatchEvent(new CustomEvent('profileChanged', { detail: { profileId: profile.id } }));
   };
 
   if (loadingProfiles) {
@@ -347,7 +570,7 @@ export function GlobalProfileSelector() {
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
-      {/* Main Trigger Button - Full Width Card Style */}
+      {/* Main Trigger Button */}
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
@@ -382,18 +605,11 @@ export function GlobalProfileSelector() {
               </div>
             )}
           </div>
-          {/* Indicator - show pin for pinned, share icon for shared profiles, green dot for own */}
-          {!isAllProfiles && selectedProfile && isPinned(selectedProfile.id) ? (
+          {!isAllProfiles && selectedProfile && isPinned(selectedProfile.id) && (
             <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-400 rounded-full border-2 border-sidebar flex items-center justify-center">
               <Pin className="w-2 h-2 text-white fill-white" />
             </div>
-          ) : !isAllProfiles && selectedProfile && !isOwnProfile(selectedProfile) ? (
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#5DC3F8] rounded-full border-2 border-sidebar flex items-center justify-center">
-              <Share2 className="w-2 h-2 text-white" />
-            </div>
-          ) : !isAllProfiles ? (
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-sidebar" />
-          ) : null}
+          )}
         </div>
         
         {/* Profile Info */}
@@ -402,22 +618,13 @@ export function GlobalProfileSelector() {
             <p className="text-sm font-semibold text-sidebar-foreground truncate">
               {selectedProfile?.name || 'Select Profile'}
             </p>
-            {selectedProfile && !isAllProfiles && !isOwnProfile(selectedProfile) ? (
-              <Share2 className="w-3 h-3 text-[#5DC3F8] flex-shrink-0" />
-            ) : selectedProfile?.organization ? (
-              <Building2 className="w-3 h-3 text-[#5DC3F8] flex-shrink-0" />
-            ) : !isAllProfiles ? (
-              <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
-            ) : null}
           </div>
           <p className="text-[11px] text-sidebar-foreground/50 truncate">
             {isAllProfiles 
               ? `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`
-              : selectedProfile && !isOwnProfile(selectedProfile)
-                ? `Shared by ${getOwnerDisplayName(selectedProfile) || 'someone'}`
-                : selectedProfile?.instagramUsername
-                  ? `@${selectedProfile.instagramUsername}`
-                  : 'Active Creator'}
+              : selectedProfile?.instagramUsername
+                ? `@${selectedProfile.instagramUsername}`
+                : 'Active Creator'}
           </p>
         </div>
         
@@ -477,7 +684,6 @@ export function GlobalProfileSelector() {
                 }
               `}
             >
-              {/* All Profiles Icon */}
               <div className="relative flex-shrink-0">
                 <div className={`
                   w-10 h-10 rounded-xl overflow-hidden
@@ -493,7 +699,6 @@ export function GlobalProfileSelector() {
                 </div>
               </div>
               
-              {/* All Profiles Info */}
               <div className="flex-1 text-left min-w-0">
                 <div className="flex items-center gap-2">
                   <p className={`font-medium text-sm truncate ${
@@ -510,7 +715,6 @@ export function GlobalProfileSelector() {
                 </p>
               </div>
               
-              {/* Selected Check */}
               {isAllProfiles && (
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <Check className="w-3 h-3 text-white" />
@@ -563,7 +767,7 @@ export function GlobalProfileSelector() {
                   <div className="ml-3 mt-1">
                     {group.members.map(member => {
                       const profile = profiles.find(p => p.id === member.profileId);
-                      return profile ? renderProfileItem(profile, false, group.id) : null;
+                      return profile ? renderProfileItem(profile) : null;
                     })}
                   </div>
                 )}
@@ -602,102 +806,121 @@ export function GlobalProfileSelector() {
         </div>,
         document.body
       )}
-      
-      {/* Context Menu */}
-      {mounted && contextMenu && createPortal(
-        <div
-          data-context-menu
-          className="fixed bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 py-1 min-w-[180px] z-[200] animate-in fade-in zoom-in-95 duration-100"
-          style={{
-            top: `${contextMenu.y}px`,
-            left: `${contextMenu.x}px`,
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Go to Profile */}
-          <Link
-            href={`/${tenant}/workspace/my-influencers/${contextMenu.profile.id}`}
-            onClick={() => {
-              setIsOpen(false);
-              closeContextMenu();
-            }}
-            className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>Go to Profile</span>
-          </Link>
-          
-          <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
-          
-          {/* Pin/Unpin */}
-          <button
-            onClick={() => handlePinToggle(contextMenu.profile)}
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            {isPinned(contextMenu.profile.id) ? (
-              <>
-                <PinOff className="w-4 h-4" />
-                <span>Unpin from Top</span>
-              </>
-            ) : (
-              <>
-                <Pin className="w-4 h-4" />
-                <span>Pin to Top</span>
-              </>
-            )}
-          </button>
-          
-          {/* Remove from Group (if in a group) */}
-          {contextMenu.groupId && (
-            <button
-              onClick={() => handleRemoveFromGroup(contextMenu.profile, contextMenu.groupId!)}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <Folder className="w-4 h-4" />
-              <span>Remove from Group</span>
-            </button>
-          )}
-          
-          {/* Add to Group submenu */}
-          {groups.length > 0 && (
-            <>
-              <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
-              <div className="px-4 py-1.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide">
-                  <FolderPlus className="w-3 h-3" />
-                  Add to Group
-                </div>
-              </div>
-              {groups.map(group => {
-                const alreadyInGroup = group.members.some(m => m.profileId === contextMenu.profile.id);
-                return (
-                  <button
-                    key={group.id}
-                    onClick={() => !alreadyInGroup && handleAddToGroup(contextMenu.profile, group.id)}
-                    disabled={alreadyInGroup}
-                    className={`w-full flex items-center gap-3 px-6 py-2 text-sm transition-colors ${
-                      alreadyInGroup
-                        ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: group.color || '#EC67A1' }}
-                    />
-                    <span className="flex-1 text-left truncate">{group.name}</span>
-                    {alreadyInGroup && (
-                      <Check className="w-3 h-3 text-gray-400" />
-                    )}
-                  </button>
-                );
-              })}
-            </>
-          )}
-        </div>,
-        document.body
-      )}
     </div>
   );
 }
+```
+
+---
+
+## 🎯 Implementation Steps
+
+### Phase 1: Database Setup
+1. Add new models to `schema.prisma`
+2. Run `npx prisma migrate dev --name add_profile_grouping`
+3. Run `npx prisma generate`
+
+### Phase 2: Backend API
+1. Create `/api/profile-groups/route.ts` (GET, POST)
+2. Create `/api/profile-groups/[id]/route.ts` (PATCH, DELETE)
+3. Create `/api/profile-groups/[id]/members/route.ts` (POST, DELETE)
+4. Create `/api/profiles/pins/route.ts` (GET, POST)
+5. Create `/api/profiles/pins/[profileId]/route.ts` (DELETE)
+
+### Phase 3: Frontend Hooks
+1. Create `lib/hooks/useProfileGroups.query.ts`
+2. Create `lib/hooks/useProfilePins.query.ts`
+
+### Phase 4: UI Components
+1. Update `components/GlobalProfileSelector.tsx` with grouping
+2. Create `components/ManageGroupsModal.tsx` for group management
+3. Add context menu/actions for quick pin/unpin
+
+### Phase 5: Management UI
+1. Create `/workspace/my-influencers/manage-groups` page
+2. Add drag-and-drop reordering (optional)
+3. Add group color picker
+
+---
+
+## 🚀 Performance Optimizations
+
+1. **React.memo** for profile items to prevent unnecessary re-renders
+2. **Virtual scrolling** for 100+ profiles (use `@tanstack/react-virtual`)
+3. **Optimistic updates** in mutations for instant UI feedback
+4. **Debounced search** for filtering profiles
+5. **Indexed queries** in Prisma (already included in schema)
+
+---
+
+## 📊 Database Indexes
+
+The schema includes these indexes for optimal performance:
+
+```prisma
+@@index([organizationId])
+@@index([organizationId, order])
+@@index([profileGroupId])
+@@index([profileId])
+@@index([userId])
+```
+
+---
+
+## 🎨 UX Best Practices
+
+1. **Always show pinned profiles first** - Quick access to favorites
+2. **Collapsible groups** - Reduce visual clutter
+3. **Group count badges** - Quick overview of group size
+4. **Color coding** - Visual distinction between groups
+5. **"Ungrouped" section** - Catch-all for unorganized profiles
+6. **Search/filter** - For power users with many profiles
+7. **Drag-and-drop** (Phase 2) - Intuitive reordering
+
+---
+
+## 🔄 Migration Strategy
+
+For existing users with many profiles:
+
+1. All existing profiles start in "Ungrouped"
+2. Provide a "Quick Setup" wizard to create initial groups
+3. Suggest common groups: "Daily", "VIP", "Archive"
+4. Allow bulk assignment to groups
+
+---
+
+## 🧪 Testing Checklist
+
+- [ ] Create group
+- [ ] Rename group
+- [ ] Delete group (with and without members)
+- [ ] Add profile to group
+- [ ] Remove profile from group
+- [ ] Add profile to multiple groups
+- [ ] Pin/unpin profile
+- [ ] Collapse/expand groups (persists across sessions)
+- [ ] Search profiles across groups
+- [ ] Performance with 100+ profiles
+- [ ] Mobile responsive design
+
+---
+
+## 📱 Mobile Considerations
+
+- Touch-friendly targets (min 44x44px)
+- Swipe actions for quick pin/unpin
+- Bottom sheet for group selection
+- Simplified group management UI
+
+---
+
+## 🎯 Future Enhancements
+
+1. **Smart Groups** - Auto-group by criteria (e.g., "Active this week")
+2. **Group Templates** - Pre-defined group structures
+3. **Bulk Actions** - Select multiple profiles to move
+4. **Group Sharing** - Share group structure with team
+5. **Analytics** - Track most-used profiles/groups
+6. **Search** - Global search across all profiles
+

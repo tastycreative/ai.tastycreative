@@ -88,13 +88,21 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
             <span className="truncate">Spaces</span>
           </span>
           <div className="flex items-center gap-1">
-            <button
+            <div
               onClick={handleCreateClick}
-              className="p-1 rounded-lg hover:bg-sidebar-accent/50 transition-colors"
+              className="p-1 rounded-lg hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
               title="Create Space"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCreateClick(e as any);
+                }
+              }}
             >
               <Plus className="h-3.5 w-3.5 text-brand-blue hover:text-brand-mid-pink" />
-            </button>
+            </div>
             {isOpen ? (
               <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-brand-mid-pink transition-transform duration-300" />
             ) : (

@@ -50,6 +50,8 @@ import {
   Mic,
   Library,
   Building2,
+  Search,
+  X,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressDropdown } from "@/components/GlobalProgressDropdown";
@@ -98,6 +100,8 @@ export default function DashboardLayout({
   const [flyoutPosition, setFlyoutPosition] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const flyoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownButtonRef = useRef<HTMLButtonElement>(null);
@@ -723,6 +727,15 @@ export default function DashboardLayout({
     }
   }, [userDropdownOpen]);
 
+  // Debounce search query for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const isNavItemActive = (href: string) => {
     if (href === `//dashboard`) {
       return pathname === `//dashboard`;
@@ -730,7 +743,93 @@ export default function DashboardLayout({
     return pathname.startsWith(href);
   };
 
+  // Filter navigation based on search query
+  const filterNavigation = (
+    items: (NavItem | NavSection)[],
+    query: string,
+  ): (NavItem | NavSection)[] => {
+    if (!query.trim()) return items;
+
+    const lowerQuery = query.toLowerCase();
+
+    return items
+      .map((item) => {
+        // If it's a NavItem
+        if ("href" in item && !("items" in item)) {
+          // Filter out special items (dividers, group labels)
+          if (
+            item.name.startsWith("DIVIDER") ||
+            item.name.endsWith("_GROUP_LABEL")
+          ) {
+            return null;
+          }
+          // Match by name
+          return item.name.toLowerCase().includes(lowerQuery) ? item : null;
+        }
+
+        // If it's a NavSection
+        if ("items" in item) {
+          // TypeScript type guard to ensure items is an array
+          const sectionItems = item.items;
+          if (!Array.isArray(sectionItems)) {
+            return null;
+          }
+
+          const filteredItems = sectionItems.filter(
+            (subItem) => {
+              // Skip if not a valid NavItem
+              if (!subItem || typeof subItem !== "object" || !("name" in subItem)) {
+                return false;
+              }
+              // Filter out special items (dividers, group labels)
+              if (
+                subItem.name.startsWith("DIVIDER") ||
+                subItem.name.endsWith("_GROUP_LABEL")
+              ) {
+                return false;
+              }
+              // Match by name
+              return subItem.name.toLowerCase().includes(lowerQuery);
+            },
+          );
+
+          if (filteredItems.length > 0) {
+            return { ...item, items: filteredItems };
+          }
+
+          // Also match section name itself
+          if (item.name.toLowerCase().includes(lowerQuery)) {
+            // Return section with all valid items (excluding special items)
+            const allValidItems = sectionItems.filter(
+              (subItem) =>
+                subItem &&
+                typeof subItem === "object" &&
+                "name" in subItem &&
+                !subItem.name.startsWith("DIVIDER") &&
+                !subItem.name.endsWith("_GROUP_LABEL"),
+            );
+            if (allValidItems.length > 0) {
+              return { ...item, items: allValidItems };
+            }
+          }
+
+          return null;
+        }
+
+        return null;
+      })
+      .filter((item): item is NavItem | NavSection => item !== null);
+  };
+
+  // Get filtered navigation
+  const filteredNavigation = filterNavigation(navigation, debouncedSearchQuery);
+
   const renderNavItem = (item: NavItem, isInSection = false) => {
+    // Don't render group labels and dividers during search
+    if (debouncedSearchQuery && (item.name.endsWith("_GROUP_LABEL") || item.name.startsWith("DIVIDER"))) {
+      return null;
+    }
+
     // Handle Flux group label
     if (item.name === "FLUX_GROUP_LABEL") {
       return sidebarOpen ? (
@@ -1040,7 +1139,8 @@ export default function DashboardLayout({
     };
 
     // Don't render item if it's in a collapsed group and sidebar is open
-    if (sidebarOpen && isItemInCollapsedGroup()) {
+    // BUT: Always show items when searching (ignore group collapsed state during search)
+    if (sidebarOpen && !debouncedSearchQuery && isItemInCollapsedGroup()) {
       return null;
     }
 
@@ -1052,6 +1152,8 @@ export default function DashboardLayout({
       if (isMobile) {
         setSidebarOpen(false);
       }
+      // Clear search after navigation for better UX
+      setSearchQuery("");
     };
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -1112,23 +1214,26 @@ export default function DashboardLayout({
     const isCaptionBanksSection = section.name === "Caption Banks";
 
     // Determine if section is expanded
-    let isExpanded = true;
-    if (isContentOpsSection) {
-      isExpanded = contentOpsOpen;
-    } else if (isWorkspaceSection) {
-      isExpanded = workspaceOpen;
-    } else if (isSocialMediaSection) {
-      isExpanded = socialMediaOpen;
-    } else if (isContentStudioSection) {
-      isExpanded = contentStudioOpen;
-    } else if (isGenerateContentSection) {
-      isExpanded = generateContentOpen;
-    } else if (isAiToolsSection) {
-      isExpanded = aiToolsOpen;
-    } else if (isTrainModelsSection) {
-      isExpanded = trainModelsOpen;
-    } else if (isCaptionBanksSection) {
-      isExpanded = captionBanksOpen;
+    // Auto-expand all sections when searching
+    let isExpanded = debouncedSearchQuery ? true : true;
+    if (!debouncedSearchQuery) {
+      if (isContentOpsSection) {
+        isExpanded = contentOpsOpen;
+      } else if (isWorkspaceSection) {
+        isExpanded = workspaceOpen;
+      } else if (isSocialMediaSection) {
+        isExpanded = socialMediaOpen;
+      } else if (isContentStudioSection) {
+        isExpanded = contentStudioOpen;
+      } else if (isGenerateContentSection) {
+        isExpanded = generateContentOpen;
+      } else if (isAiToolsSection) {
+        isExpanded = aiToolsOpen;
+      } else if (isTrainModelsSection) {
+        isExpanded = trainModelsOpen;
+      } else if (isCaptionBanksSection) {
+        isExpanded = captionBanksOpen;
+      }
     }
 
     // Get the appropriate icon for the section
@@ -1415,9 +1520,29 @@ export default function DashboardLayout({
               </button>
             )}
 
+            {/* Search button for collapsed sidebar */}
+            {!sidebarOpen && (
+              <button
+                onClick={() => {
+                  setSidebarOpen(true);
+                  // Focus search input after sidebar opens
+                  setTimeout(() => {
+                    const searchInput = document.querySelector<HTMLInputElement>(
+                      'input[placeholder="Search navigation..."]'
+                    );
+                    searchInput?.focus();
+                  }, 350);
+                }}
+                className="w-full mt-3 p-2.5 rounded-xl text-[#5DC3F8] hover:text-[#EC67A1] hover:bg-sidebar-accent transition-all duration-200 flex items-center justify-center border-2 border-transparent hover:border-[#EC67A1]/20"
+                title="Search navigation"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            )}
+
             {/* Profile Selector Section */}
             {sidebarOpen && (
-              <div className="w-full mt-4">
+              <div className="w-full mt-4 space-y-3">
                 {permissionsLoading ? (
                   <div className="animate-pulse">
                     <div className="h-12 bg-sidebar-accent rounded-lg" />
@@ -1433,6 +1558,28 @@ export default function DashboardLayout({
                     </div>
                   </>
                 )}
+
+                {/* Search Bar */}
+                <div className="w-full">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#5DC3F8] pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search navigation..."
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-sidebar-accent border-2 border-transparent text-sidebar-foreground placeholder:text-sidebar-foreground/40 text-sm focus:outline-none focus:border-[#EC67A1]/30 focus:bg-sidebar-accent/80 hover:border-[#EC67A1]/20 transition-all duration-200"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1449,9 +1596,20 @@ export default function DashboardLayout({
                   />
                 ))}
               </div>
+            ) : filteredNavigation.length === 0 && debouncedSearchQuery ? (
+              // No results found
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Search className="h-12 w-12 text-sidebar-foreground/20 mb-3" />
+                <p className="text-sm font-medium text-sidebar-foreground/60 mb-1">
+                  No results found
+                </p>
+                <p className="text-xs text-sidebar-foreground/40">
+                  Try searching with different keywords
+                </p>
+              </div>
             ) : (
               <>
-                {navigation.map((item) => {
+                {filteredNavigation.map((item) => {
                   const rendered = "items" in item
                     ? renderNavSection(item)
                     : renderNavItem(item);
@@ -1556,6 +1714,28 @@ export default function DashboardLayout({
                     </div>
                     <GlobalProfileSelector />
                   </div>
+
+                  {/* Search Bar */}
+                  <div className="w-full">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#5DC3F8] pointer-events-none" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search navigation..."
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-sidebar-accent border-2 border-transparent text-sidebar-foreground placeholder:text-sidebar-foreground/40 text-sm focus:outline-none focus:border-[#EC67A1]/30 focus:bg-sidebar-accent/80 hover:border-[#EC67A1]/20 transition-all duration-200"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -1570,9 +1750,20 @@ export default function DashboardLayout({
                   <div key={i} className="h-10 bg-sidebar-accent rounded-xl" />
                 ))}
               </div>
+            ) : filteredNavigation.length === 0 && debouncedSearchQuery ? (
+              // No results found
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Search className="h-12 w-12 text-sidebar-foreground/20 mb-3" />
+                <p className="text-sm font-medium text-sidebar-foreground/60 mb-1">
+                  No results found
+                </p>
+                <p className="text-xs text-sidebar-foreground/40">
+                  Try searching with different keywords
+                </p>
+              </div>
             ) : (
               <>
-                {navigation.map((item) => {
+                {filteredNavigation.map((item) => {
                   const rendered = "items" in item
                     ? renderNavSection(item)
                     : renderNavItem(item);

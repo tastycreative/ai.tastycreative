@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Plus, X, Check, AlertCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { ModelOnboardingDraft } from "@/lib/hooks/useModelOnboarding.query";
 import { validateContentTypes } from "@/lib/validation/onboarding";
@@ -38,6 +38,13 @@ export default function ContentTypesSection({
   const updateModelBible = (updates: any) => {
     updateFormData({ modelBible: { ...modelBible, ...updates } });
   };
+
+  // Set default value to true if undefined (on first load)
+  useEffect(() => {
+    if (explicitContentOk === undefined) {
+      updateModelBible({ explicitContentOk: true });
+    }
+  }, []);
 
   // Validate fields
   const validation = useMemo(() => validateContentTypes(formData), [formData]);

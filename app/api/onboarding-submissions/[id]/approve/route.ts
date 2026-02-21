@@ -76,9 +76,16 @@ export async function POST(
     if (draft.schedule) modelBible.schedule = draft.schedule;
     if (draft.internalNotes) modelBible.internalNotes = draft.internalNotes;
 
+    // Merge in the entire modelBible JSON object from draft (includes explicitContentOk and other fields)
     if (draft.modelBible) {
-      Object.assign(modelBible, draft.modelBible);
+      const draftModelBible = typeof draft.modelBible === 'string' 
+        ? JSON.parse(draft.modelBible) 
+        : draft.modelBible;
+      Object.assign(modelBible, draftModelBible);
     }
+
+    console.log('Draft modelBible:', draft.modelBible);
+    console.log('Final modelBible being saved:', modelBible);
 
     // Create the InstagramProfile
     const profile = await prisma.instagramProfile.create({

@@ -3317,7 +3317,7 @@ export default function ModelProfilePage() {
     // Initialize content types form from profile
     if (profile?.modelBible) {
       setContentTypesForm({
-        explicitContentOk: profile.modelBible.explicitContentOk ?? false,
+        explicitContentOk: profile.modelBible.explicitContentOk ?? true,
       });
     }
     // Initialize basic info form from profile
