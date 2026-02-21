@@ -26,13 +26,16 @@ export function framesToSeconds(frames: number, fps: number): number {
 }
 
 /**
- * Get the trimmed duration of a clip in frames
+ * Get the effective (speed-adjusted) trimmed duration of a clip in frames.
+ * speed > 1 → shorter timeline duration (plays faster)
+ * speed < 1 → longer timeline duration (plays slower)
  */
 export function getClipTrimmedDuration(clip: Clip): number {
+  const speed = clip.speed ?? 1;
   if (clip.type === "image") {
-    return clip.displayDurationInFrames;
+    return Math.max(1, Math.round(clip.displayDurationInFrames / speed));
   }
-  return clip.trimEndFrame - clip.trimStartFrame;
+  return Math.max(1, Math.round((clip.trimEndFrame - clip.trimStartFrame) / speed));
 }
 
 /**

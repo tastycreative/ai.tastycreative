@@ -221,6 +221,12 @@ export interface ClipEffects {
   vignette?: number; // 0-100, default 0
 }
 
+export interface ClipZoom {
+  scale: number; // 1.0 to 3.0
+  x: number; // -50 to 50 pan offset %
+  y: number; // -50 to 50 pan offset %
+}
+
 export interface VideoClip {
   type: "video";
   id: string;
@@ -233,6 +239,8 @@ export interface VideoClip {
   volume: number; // 0-1
   slotIndex?: number; // which collage slot (0-based). undefined = slot 0
   effects?: ClipEffects; // visual effects
+  speed?: number; // 0.25 to 2.0, default 1.0
+  zoom?: ClipZoom; // crop/zoom, default none
 }
 
 export interface ImageClip {
@@ -245,6 +253,8 @@ export interface ImageClip {
   objectFit: "contain" | "cover";
   slotIndex?: number; // which collage slot (0-based). undefined = slot 0
   effects?: ClipEffects; // visual effects
+  speed?: number; // 0.25 to 2.0, default 1.0
+  zoom?: ClipZoom; // crop/zoom, default none
 }
 
 export type Clip = VideoClip | ImageClip;
@@ -277,6 +287,13 @@ export type TextAnimation =
 
 export type StickerAnimation = "none" | "bounce" | "spin" | "pulse" | "wobble" | "float";
 
+export interface OverlayKeyframe {
+  frame: number; // absolute timeline frame
+  x: number; // 0-100%
+  y: number; // 0-100%
+  opacity?: number; // 0-1
+}
+
 export interface OverlayBase {
   id: string;
   type: OverlayType;
@@ -287,6 +304,7 @@ export interface OverlayBase {
   width: number; // 0-100 percentage
   height: number; // 0-100 percentage
   trackId: string;
+  keyframes?: OverlayKeyframe[]; // position/opacity animation keyframes
 }
 
 export interface TextOverlay extends OverlayBase {
@@ -373,6 +391,7 @@ export interface EditorSettings {
   snapEnabled: boolean;
   snapThresholdFrames: number;
   activeCollageLayout: CollageLayout | null; // null = no layout (single full-screen)
+  loopMode?: "forward" | "reverse" | "ping-pong"; // GIF loop mode, default "forward"
 }
 
 export interface ExportState {

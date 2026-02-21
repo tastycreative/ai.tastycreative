@@ -7,6 +7,7 @@ import { BlurOverlayProperties } from "./BlurOverlayProperties";
 import { StickerOverlayProperties } from "./StickerOverlayProperties";
 import { ShapeOverlayProperties } from "./ShapeOverlayProperties";
 import { Settings2, MousePointerClick } from "lucide-react";
+import { KeyframePanel } from "./KeyframePanel";
 
 export function PropertiesPanel() {
   // Derive selected items directly in selectors — only re-renders when the
@@ -33,8 +34,11 @@ export function PropertiesPanel() {
             <ClipProperties clip={selectedClip} />
           </div>
         ) : selectedOverlay ? (
-          <div className="p-4">
+          <div className="p-4 space-y-4">
             <OverlayPropertiesSwitch overlay={selectedOverlay} />
+            <div className="border-t border-[#2d3142] pt-4">
+              <KeyframePanel overlay={selectedOverlay} />
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 py-16 px-6">

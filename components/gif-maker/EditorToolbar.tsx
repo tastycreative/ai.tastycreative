@@ -12,12 +12,10 @@ import {
   capturePlayerFrames,
   renderFramesToGif,
   downloadBlob,
-  exportCanvasAsPng,
   type BlurRegionDef,
 } from "@/lib/gif-maker/gif-renderer";
 import type { PreviewPlayerRef } from "./PreviewPlayer";
 import {
-  Camera,
   Download,
   Loader2,
   Magnet,
@@ -27,6 +25,7 @@ import {
   Redo2,
   Wand2,
 } from "lucide-react";
+import { ExportImageButton } from "./ExportImageButton";
 
 interface EditorToolbarProps {
   playerRef: RefObject<PreviewPlayerRef | null>;
@@ -44,6 +43,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   const setSnapEnabled = useVideoEditorStore((s) => s.setSnapEnabled);
   const exportState = useVideoEditorStore((s) => s.exportState);
   const setExportState = useVideoEditorStore((s) => s.setExportState);
+  const loopMode = useVideoEditorStore((s) => s.settings.loopMode ?? "forward");
+  const updateSettings = useVideoEditorStore((s) => s.updateSettings);
 
   // History management
   const { undo, redo, canUndo, canRedo, manualSave, lastSaveTime } = useEditorHistory();
@@ -54,48 +55,6 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   const hasImageClips = clips.some((c) => c.type === "image");
   const hasCollage = activeCollageLayout !== null;
   const needsCanvasExport = hasImageClips || hasCollage;
-
-  const handleCaptureFrame = useCallback(async () => {
-    if (!playerRef.current) return;
-    const player = playerRef.current;
-    player.pause();
-
-    // Wait a moment for the frame to render
-    await new Promise((r) => setTimeout(r, 100));
-
-    const canvas = player.getCanvas();
-    if (!canvas) {
-      setExportState({
-        isExporting: false,
-        progress: 0,
-        phase: "error",
-        message: "Could not capture frame — no canvas found",
-      });
-      return;
-    }
-
-    // Create output canvas at full resolution
-    const outCanvas = document.createElement("canvas");
-    outCanvas.width = settings.width;
-    outCanvas.height = settings.height;
-    const ctx = outCanvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(canvas, 0, 0, settings.width, settings.height);
-    }
-
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")
-      .slice(0, 19);
-    exportCanvasAsPng(outCanvas, `frame-${timestamp}.png`);
-
-    setExportState({
-      isExporting: false,
-      progress: 100,
-      phase: "done",
-      message: "Frame captured!",
-    });
-  }, [playerRef, settings, setExportState]);
 
   const handleExportGif = useCallback(async () => {
     if (!playerRef.current || clips.length === 0) return;
@@ -200,6 +159,16 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
 
       if (frames.length === 0) throw new Error("No frames captured");
 
+      // Apply loop mode
+      let processedFrames: HTMLCanvasElement[];
+      if (loopMode === "reverse") {
+        processedFrames = [...frames].reverse();
+      } else if (loopMode === "ping-pong") {
+        processedFrames = [...frames, ...[...frames].reverse()];
+      } else {
+        processedFrames = frames;
+      }
+
       setExportState({
         progress: 50,
         phase: "encoding",
@@ -207,7 +176,7 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       });
 
       const gifBlob = await renderFramesToGif(
-        frames,
+        processedFrames,
         {
           width: settings.width,
           height: settings.height,
@@ -246,7 +215,7 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           error instanceof Error ? error.message : "Export failed",
       });
     }
-  }, [playerRef, clips, overlays, totalDurationInFrames, settings, setExportState, needsCanvasExport]);
+  }, [playerRef, clips, overlays, totalDurationInFrames, settings, setExportState, needsCanvasExport, loopMode]);
 
   return (
     <div className="flex items-center gap-2 px-3 h-14 bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-800/50 flex-shrink-0">
@@ -397,22 +366,34 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         </span>
       )}
 
-      {/* Capture Frame Button */}
-      <button
-        onClick={handleCaptureFrame}
-        disabled={clips.length === 0 || exportState.isExporting}
-        className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-all duration-150 ${
-          clips.length === 0 || exportState.isExporting
-            ? "bg-zinc-800/30 text-zinc-500 cursor-not-allowed"
-            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 border border-zinc-700/50"
-        }`}
-        title="Capture current frame as PNG"
-      >
-        <Camera className="h-4 w-4" />
-        Frame
-      </button>
+      {/* Export Image Button */}
+      <ExportImageButton playerRef={playerRef} />
 
-      {/* Export Button */}
+      {/* Loop Mode Toggle */}
+      <div className="flex items-center bg-zinc-800/50 rounded-lg overflow-hidden border border-zinc-700/50">
+        {(
+          [
+            { mode: "forward" as const, icon: "→", title: "Forward (normal)" },
+            { mode: "reverse" as const, icon: "←", title: "Reverse" },
+            { mode: "ping-pong" as const, icon: "↔", title: "Ping-Pong (forward+reverse)" },
+          ] as const
+        ).map(({ mode, icon, title }) => (
+          <button
+            key={mode}
+            onClick={() => updateSettings({ loopMode: mode })}
+            className={`h-8 px-2.5 text-sm flex items-center justify-center transition-colors duration-150 ${
+              loopMode === mode
+                ? "bg-brand-light-pink/20 text-brand-light-pink"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50"
+            }`}
+            title={title}
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
+
+      {/* Export GIF Button */}
       <button
         onClick={handleExportGif}
         disabled={clips.length === 0 || exportState.isExporting}
