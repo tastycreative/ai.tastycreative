@@ -1,11 +1,18 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 
 export interface BoardTab {
   id: string;
   label: string;
+}
+
+export interface BoardFilters {
+  searchQuery: string;
+  statusFilter: string | null;
+  assigneeFilter: string | null;
+  priorityFilter: string | null;
 }
 
 interface BoardLayoutProps {
@@ -14,7 +21,9 @@ interface BoardLayoutProps {
   tabs: BoardTab[];
   defaultTab?: string;
   onTabChange?: (tabId: string) => void;
-  children: (activeTab: string, searchQuery: string) => ReactNode;
+  columns?: { id: string; name: string }[];
+  assignees?: string[];
+  children: (activeTab: string, filters: BoardFilters) => ReactNode;
 }
 
 export function BoardLayout({
@@ -23,15 +32,39 @@ export function BoardLayout({
   tabs,
   defaultTab,
   onTabChange,
+  columns = [],
+  assignees = [],
   children,
 }: BoardLayoutProps) {
   const [activeTab, setActiveTab] = useState(defaultTab ?? tabs[0]?.id ?? '');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
     onTabChange?.(tabId);
+  };
+
+  const clearFilters = () => {
+    setStatusFilter(null);
+    setAssigneeFilter(null);
+    setPriorityFilter(null);
+    setFiltersOpen(false);
+  };
+
+  const hasActiveFilters = statusFilter || assigneeFilter || priorityFilter;
+
+  const filters: BoardFilters = {
+    searchQuery,
+    statusFilter,
+    assigneeFilter,
+    priorityFilter,
   };
 
   return (
@@ -69,7 +102,7 @@ export function BoardLayout({
             >
               {tab.label}
               {isActive && (
-                <span className="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue rounded-full" />
+                <span className="absolute inset-x-0 bottom-0 h-[2px] bg-linear-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue rounded-full" />
               )}
             </button>
           );
@@ -104,30 +137,160 @@ export function BoardLayout({
             onClick={() => setFiltersOpen(!filtersOpen)}
             className={[
               'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-              filtersOpen
+              filtersOpen || hasActiveFilters
                 ? 'border-brand-light-pink/40 bg-brand-light-pink/10 text-brand-light-pink'
                 : 'border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 text-gray-600 dark:text-gray-300 hover:border-brand-light-pink/40',
             ].join(' ')}
           >
             <SlidersHorizontal className="h-3 w-3" />
             Filters
+            {hasActiveFilters && (
+              <span className="ml-0.5 h-4 w-4 rounded-full bg-brand-light-pink text-white text-[9px] flex items-center justify-center">
+                {[statusFilter, assigneeFilter, priorityFilter].filter(Boolean).length}
+              </span>
+            )}
           </button>
 
           {filtersOpen && (
             <>
-              <span className="inline-flex items-center rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                Status: All
-              </span>
-              <span className="inline-flex items-center rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                Assignee: Any
-              </span>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="text-[11px] font-medium text-gray-400 hover:text-brand-light-pink transition-colors"
-              >
-                Clear
-              </button>
+              {/* Status Filter */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStatusDropdown(!showStatusDropdown);
+                    setShowAssigneeDropdown(false);
+                    setShowPriorityDropdown(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:border-brand-light-pink/40 transition-colors"
+                >
+                  Status: {statusFilter ? columns.find((c) => c.id === statusFilter)?.name : 'All'}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showStatusDropdown && (
+                  <div className="absolute top-full mt-1 z-10 min-w-[160px] rounded-lg border border-gray-200 dark:border-brand-mid-pink/30 bg-white dark:bg-gray-800 shadow-lg py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(null);
+                        setShowStatusDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      All
+                    </button>
+                    {columns.map((col) => (
+                      <button
+                        key={col.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(col.id);
+                          setShowStatusDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {col.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Assignee Filter */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAssigneeDropdown(!showAssigneeDropdown);
+                    setShowStatusDropdown(false);
+                    setShowPriorityDropdown(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:border-brand-light-pink/40 transition-colors"
+                >
+                  Assignee: {assigneeFilter || 'Any'}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showAssigneeDropdown && (
+                  <div className="absolute top-full mt-1 z-10 min-w-[160px] rounded-lg border border-gray-200 dark:border-brand-mid-pink/30 bg-white dark:bg-gray-800 shadow-lg py-1 max-h-[200px] overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssigneeFilter(null);
+                        setShowAssigneeDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Any
+                    </button>
+                    {assignees.map((assignee) => (
+                      <button
+                        key={assignee}
+                        type="button"
+                        onClick={() => {
+                          setAssigneeFilter(assignee);
+                          setShowAssigneeDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {assignee}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Priority Filter */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPriorityDropdown(!showPriorityDropdown);
+                    setShowStatusDropdown(false);
+                    setShowAssigneeDropdown(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:border-brand-light-pink/40 transition-colors"
+                >
+                  Priority: {priorityFilter || 'All'}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showPriorityDropdown && (
+                  <div className="absolute top-full mt-1 z-10 min-w-[140px] rounded-lg border border-gray-200 dark:border-brand-mid-pink/30 bg-white dark:bg-gray-800 shadow-lg py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPriorityFilter(null);
+                        setShowPriorityDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      All
+                    </button>
+                    {['Low', 'Medium', 'High'].map((priority) => (
+                      <button
+                        key={priority}
+                        type="button"
+                        onClick={() => {
+                          setPriorityFilter(priority);
+                          setShowPriorityDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {priority}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-[11px] font-medium text-gray-400 hover:text-brand-light-pink transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
             </>
           )}
         </div>
@@ -135,7 +298,7 @@ export function BoardLayout({
 
       {/* ── Content area (rendered by consumer) ───────────────── */}
       <div className="flex-1 min-h-0">
-        {children(activeTab, searchQuery)}
+        {children(activeTab, filters)}
       </div>
     </div>
   );

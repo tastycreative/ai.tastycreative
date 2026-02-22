@@ -81,8 +81,8 @@ export function BoardColumn({
   };
 
   return (
-    <div className="w-[280px] shrink-0 flex flex-col max-h-full">
-      <div className="rounded-2xl bg-gray-50/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-brand-mid-pink/20 shadow-sm flex flex-col overflow-hidden">
+    <div className="w-[280px] shrink-0 flex flex-col">
+      <div className="rounded-2xl bg-gray-50/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-brand-mid-pink/20 shadow-sm flex flex-col overflow-hidden h-full">
         {/* Column header */}
         <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-brand-mid-pink/15 bg-white/60 dark:bg-gray-900/50">
           <div className="flex items-center gap-2 min-w-0 flex-1">
