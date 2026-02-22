@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
 import type { BoardTask, BoardColumnData } from '../board';
 import {
   useBoardItems,
   useCreateBoardItem,
   useUpdateBoardItem,
+  useCreateColumn,
   type BoardItem,
 } from '@/lib/hooks/useBoardItems.query';
 import type { SpaceWithBoards } from '@/lib/hooks/useSpaces.query';
@@ -32,7 +34,7 @@ export const defaultItemToTask: ItemToTaskFn = (item, spaceKey) => {
   return {
     id: item.id,
     taskKey: spaceKey
-      ? `${spaceKey}-${item.position + 1}`
+      ? `${spaceKey}-${item.itemNo}`
       : item.id.slice(-6).toUpperCase(),
     title: item.title,
     description: (item.description as string) ?? undefined,
@@ -57,6 +59,8 @@ interface UseSpaceBoardOptions {
 
 export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpaceBoardOptions) {
   const defaultBoard = space?.boards?.[0];
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const {
     data: boardData,
@@ -68,6 +72,10 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     defaultBoard?.id ?? '',
   );
   const updateItemMutation = useUpdateBoardItem(
+    space?.id ?? '',
+    defaultBoard?.id ?? '',
+  );
+  const createColumnMutation = useCreateColumn(
     space?.id ?? '',
     defaultBoard?.id ?? '',
   );
@@ -185,17 +193,47 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
 
   const handleAddTask = useCallback(
     (columnId: string, title: string) => {
+      // Create optimistic task immediately
+      const tempId = `temp-${Date.now()}`;
+      const optimisticTask: BoardTask = {
+        id: tempId,
+        taskKey: 'CREATING...',
+        title,
+        priority: 'Medium',
+      };
+
+      // Add to local state immediately
+      const newTasks = { ...(localTasks ?? tasksMap), [tempId]: optimisticTask };
+      const newColumns = { ...(localColumns ?? columnsMap) };
+      const targetColumn = newColumns[columnId];
+      if (targetColumn) {
+        newColumns[columnId] = {
+          ...targetColumn,
+          taskIds: [tempId, ...targetColumn.taskIds],
+        };
+      }
+
+      setLocalTasks(newTasks);
+      setLocalColumns(newColumns);
+
+      // Perform actual mutation in background
       createItemMutation.mutate(
         { title, columnId },
         {
           onSuccess: () => {
+            // Clear local state to show real data from server
+            setLocalColumns(null);
+            setLocalTasks(null);
+          },
+          onError: () => {
+            // Revert optimistic update on error
             setLocalColumns(null);
             setLocalTasks(null);
           },
         },
       );
     },
-    [createItemMutation],
+    [createItemMutation, localTasks, tasksMap, localColumns, columnsMap],
   );
 
   const handleTaskClick = useCallback(
@@ -203,8 +241,13 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
       const col = findColumnForTask(task.id);
       setSelectedTask(task);
       setSelectedColumnTitle(col?.title ?? '');
+      
+      // Update URL with task query param
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('task', task.taskKey.toLowerCase());
+      router.replace(`?${params.toString()}`, { scroll: false });
     },
-    [findColumnForTask],
+    [findColumnForTask, searchParams, router],
   );
 
   const handleTaskUpdate = useCallback(
@@ -240,7 +283,47 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     [effectiveTasks, updateItemMutation],
   );
 
-  const closeTaskModal = useCallback(() => setSelectedTask(null), []);
+  const handleAddColumn = useCallback(
+    (name: string, color: string) => {
+      createColumnMutation.mutate({ name, color });
+    },
+    [createColumnMutation],
+  );
+
+  const closeTaskModal = useCallback(() => {
+    setSelectedTask(null);
+    
+    // Remove task query param from URL
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('task');
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [searchParams, router]);
+
+  // Check for task query param on mount/data change and open modal if present
+  useEffect(() => {
+    const taskParam = searchParams.get('task');
+    if (!taskParam || !tasksMap) return;
+
+    // Find task by taskKey (e.g., "kb-1")
+    const task = Object.values(tasksMap).find(
+      (t) => t.taskKey.toLowerCase() === taskParam.toLowerCase(),
+    );
+    
+    if (task && (!selectedTask || selectedTask.id !== task.id)) {
+      const col = findColumnForTask(task.id);
+      setSelectedTask(task);
+      setSelectedColumnTitle(col?.title ?? '');
+    }
+    
+    // If taskParam exists but no matching task found, and modal is closed, clear the param
+    if (!task && !selectedTask) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('task');
+      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [searchParams, tasksMap, findColumnForTask, router]);
 
   return {
     boardData,
@@ -252,6 +335,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     selectedColumnTitle,
     handleDragEnd,
     handleAddTask,
+    handleAddColumn,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,

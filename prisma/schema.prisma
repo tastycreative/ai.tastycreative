@@ -1297,6 +1297,7 @@ model Organization {
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
+  boardItems                    BoardItem[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -1437,28 +1438,33 @@ model BoardColumn {
 }
 
 model BoardItem {
-  id          String             @id @default(cuid())
-  columnId    String
-  title       String
-  description String?
-  type        BoardItemType      @default(TASK)
-  priority    BoardItemPriority  @default(MEDIUM)
-  assigneeId  String?
-  dueDate     DateTime?
-  position    Int                @default(0)
-  metadata    Json?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  createdBy   String?
-  comments    BoardItemComment[]
-  media       BoardItemMedia[]
-  column      BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  id             String             @id @default(cuid())
+  organizationId String?
+  itemNo         Int?
+  columnId       String
+  title          String
+  description    String?
+  type           BoardItemType      @default(TASK)
+  priority       BoardItemPriority  @default(MEDIUM)
+  assigneeId     String?
+  dueDate        DateTime?
+  position       Int                @default(0)
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdBy      String?
+  comments       BoardItemComment[]
+  media          BoardItemMedia[]
+  column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, itemNo])
   @@index([columnId])
   @@index([columnId, position])
   @@index([assigneeId])
   @@index([createdBy])
   @@index([dueDate])
+  @@index([organizationId])
   @@map("board_items")
 }
 

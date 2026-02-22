@@ -4,6 +4,7 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import {
   BoardLayout,
   BoardColumn,
+  AddColumnButton,
   type BoardTab,
 } from '../../board';
 import { useSpaceBoard, defaultItemToTask } from '../useSpaceBoard';
@@ -27,6 +28,7 @@ export function KanbanTemplate({ space }: TemplateProps) {
     selectedColumnTitle,
     handleDragEnd,
     handleAddTask,
+    handleAddColumn,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
@@ -109,6 +111,8 @@ export function KanbanTemplate({ space }: TemplateProps) {
                       />
                     );
                   })}
+                  
+                  <AddColumnButton onAddColumn={handleAddColumn} />
                 </div>
               </DragDropContext>
             </div>

@@ -45,6 +45,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       })),
       items: items.map((item) => ({
         id: item.id,
+        organizationId: item.organizationId,
+        itemNo: item.itemNo,
         columnId: item.columnId,
         title: item.title,
         description: item.description,
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    await params; // ensure params are resolved
+    const { spaceId, boardId } = await params;
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body.title !== 'string' || !body.title.trim()) {
@@ -86,8 +88,29 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'columnId is required.' }, { status: 400 });
     }
 
+    // Get the workspace to retrieve organizationId
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: spaceId },
+      select: { organizationId: true },
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+    }
+
+    // Get the next itemNo for this organization
+    const maxItem = await prisma.boardItem.findFirst({
+      where: { organizationId: workspace.organizationId },
+      orderBy: { itemNo: 'desc' },
+      select: { itemNo: true },
+    });
+
+    const nextItemNo = (maxItem?.itemNo ?? 0) + 1;
+
     const item = await prisma.boardItem.create({
       data: {
+        organizationId: workspace.organizationId,
+        itemNo: nextItemNo,
         columnId: body.columnId,
         title: body.title.trim(),
         description: body.description?.trim() ?? null,
@@ -104,6 +127,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(
       {
         id: item.id,
+        organizationId: item.organizationId,
+        itemNo: item.itemNo,
         columnId: item.columnId,
         title: item.title,
         description: item.description,

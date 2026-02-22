@@ -30,6 +30,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     return NextResponse.json({
       id: item.id,
+      organizationId: item.organizationId,
+      itemNo: item.itemNo,
       columnId: item.columnId,
       column: item.column,
       title: item.title,
@@ -94,6 +96,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({
       id: updated.id,
+      organizationId: updated.organizationId,
+      itemNo: updated.itemNo,
       columnId: updated.columnId,
       title: updated.title,
       description: updated.description,

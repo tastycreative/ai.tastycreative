@@ -4,6 +4,7 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import {
   BoardLayout,
   BoardColumn,
+  AddColumnButton,
   type BoardTask,
   type BoardTab,
 } from '../../board';
@@ -24,7 +25,7 @@ function sextingSetsItemToTask(item: BoardItem, spaceKey: string): BoardTask {
   return {
     id: item.id,
     taskKey: spaceKey
-      ? `${spaceKey}-${item.position + 1}`
+      ? `${spaceKey}-${item.itemNo}`
       : item.id.slice(-6).toUpperCase(),
     title: item.title,
     description: (item.description as string) ?? undefined,
@@ -52,6 +53,7 @@ export function SextingSetsTemplate({ space }: TemplateProps) {
     selectedColumnTitle,
     handleDragEnd,
     handleAddTask,
+    handleAddColumn,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
@@ -138,6 +140,8 @@ export function SextingSetsTemplate({ space }: TemplateProps) {
                       />
                     );
                   })}
+                  
+                  <AddColumnButton onAddColumn={handleAddColumn} />
                 </div>
               </DragDropContext>
             </div>

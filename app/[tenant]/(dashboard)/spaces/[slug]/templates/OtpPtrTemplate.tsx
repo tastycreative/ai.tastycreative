@@ -4,6 +4,7 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import {
   BoardLayout,
   BoardColumn,
+  AddColumnButton,
   type BoardTask,
   type BoardTab,
 } from '../../board';
@@ -25,7 +26,7 @@ function otpPtrItemToTask(item: BoardItem, spaceKey: string): BoardTask {
   return {
     id: item.id,
     taskKey: spaceKey
-      ? `${spaceKey}-${item.position + 1}`
+      ? `${spaceKey}-${item.itemNo}`
       : item.id.slice(-6).toUpperCase(),
     title: item.title,
     description: (item.description as string) ?? undefined,
@@ -53,6 +54,7 @@ export function OtpPtrTemplate({ space }: TemplateProps) {
     selectedColumnTitle,
     handleDragEnd,
     handleAddTask,
+    handleAddColumn,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
@@ -139,6 +141,8 @@ export function OtpPtrTemplate({ space }: TemplateProps) {
                       />
                     );
                   })}
+                  
+                  <AddColumnButton onAddColumn={handleAddColumn} />
                 </div>
               </DragDropContext>
             </div>

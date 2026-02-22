@@ -6,3 +6,4 @@ export { EditableField } from './EditableField';
 export { SelectField } from './SelectField';
 export { ActivityFeed, type TaskComment, type TaskHistoryEntry } from './ActivityFeed';
 export { TaskSidebar } from './TaskSidebar';
+export { AddColumnButton } from './AddColumnButton';

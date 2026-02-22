@@ -23,6 +23,8 @@ export interface BoardItemMedia {
 
 export interface BoardItem {
   id: string;
+  organizationId: string;
+  itemNo: number;
   columnId: string;
   title: string;
   description?: string | null;
@@ -316,6 +318,45 @@ export function useAddComment(
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: boardItemKeys.comments(itemId),
+      });
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Column Creation                                                    */
+/* ------------------------------------------------------------------ */
+
+interface CreateColumnInput {
+  name: string;
+  color?: string;
+}
+
+async function createColumn(
+  spaceId: string,
+  boardId: string,
+  input: CreateColumnInput,
+) {
+  const response = await fetch(
+    `/api/spaces/${spaceId}/boards/${boardId}/columns`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error('Failed to create column');
+  return response.json();
+}
+
+export function useCreateColumn(spaceId: string, boardId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateColumnInput) =>
+      createColumn(spaceId, boardId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: boardItemKeys.list(boardId),
       });
     },
   });

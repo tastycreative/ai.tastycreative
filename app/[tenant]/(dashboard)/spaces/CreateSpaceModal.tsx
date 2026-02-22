@@ -34,6 +34,7 @@ import {
 import {
   useCreateSpace,
   type SpaceTemplateType,
+  type SpaceAccess,
 } from '@/lib/hooks/useSpaces.query';
 
 /* ------------------------------------------------------------------ */
@@ -385,9 +386,14 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !key.trim()) return;
     try {
-      await createSpace({ name: name.trim(), templateType: selectedTemplateId });
+      await createSpace({
+        name: name.trim(),
+        templateType: selectedTemplateId,
+        key: key.trim(),
+        access: access.toUpperCase() as SpaceAccess,
+      });
       handleClose();
     } catch (err) {
       console.error('Failed to create space', err);
@@ -430,7 +436,7 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
   return createPortal(
     <>
       <div
-        className={`fixed inset-0 z-[9999] bg-black/60 backdrop-blur-md transition-opacity duration-500 ${
+        className={`fixed inset-0 z-9999 bg-black/60 backdrop-blur-md transition-opacity duration-500 ${
           isOpen && isAnimating ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleClose}
@@ -906,7 +912,7 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
       {/* Add Work Type Modal */}
       {showAddWTModal && (
         <div
-          className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-10000 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setShowAddWTModal(false)}
         >
           <div

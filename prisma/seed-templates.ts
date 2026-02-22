@@ -292,9 +292,19 @@ async function main() {
     // Pick sample items based on template
     const sampleItems = getSampleItems(tpl.templateType, columnIds);
 
+    // Get the next itemNo for this organization
+    const maxItem = await prisma.boardItem.findFirst({
+      where: { organizationId: ORGANIZATION_ID },
+      orderBy: { itemNo: 'desc' },
+      select: { itemNo: true },
+    });
+    let nextItemNo = (maxItem?.itemNo ?? 0) + 1;
+
     for (const item of sampleItems) {
       const created = await prisma.boardItem.create({
         data: {
+          organizationId: ORGANIZATION_ID,
+          itemNo: nextItemNo++,
           columnId: item.columnId,
           title: item.title,
           description: item.description ?? null,
@@ -317,9 +327,9 @@ async function main() {
             createdBy: 'system-seed',
           },
         });
-        console.log(`  ✓ Item + comment: "${created.title}"`);
+        console.log(`  ✓ Item + comment: "${created.title}" (${tpl.key}-${created.itemNo})`);
       } else {
-        console.log(`  ✓ Item: "${created.title}"`);
+        console.log(`  ✓ Item: "${created.title}" (${tpl.key}-${created.itemNo})`);
       }
     }
 
