@@ -16,6 +16,7 @@ export interface BoardTask {
   tags?: string[];
   startDate?: string;
   dueDate?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface BoardTaskCardProps {
