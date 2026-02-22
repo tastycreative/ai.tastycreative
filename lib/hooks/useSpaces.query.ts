@@ -22,13 +22,23 @@ export interface Space {
   createdAt: string;
 }
 
+export interface SpaceBoardColumn {
+  id: string;
+  name: string;
+  color?: string | null;
+  position: number;
+}
+
+export interface SpaceBoard {
+  id: string;
+  name: string;
+  description?: string | null;
+  position: number;
+  columns: SpaceBoardColumn[];
+}
+
 export interface SpaceWithBoards extends Space {
-  boards: {
-    id: string;
-    name: string;
-    isDefault: boolean;
-    order: number;
-  }[];
+  boards: SpaceBoard[];
 }
 
 interface SpacesResponse {
@@ -53,6 +63,7 @@ export const spaceKeys = {
   list: (orgId: string | undefined) => [...spaceKeys.lists(), orgId] as const,
   details: () => [...spaceKeys.all, 'detail'] as const,
   detail: (spaceId: string) => [...spaceKeys.details(), spaceId] as const,
+  bySlug: (slug: string) => [...spaceKeys.all, 'slug', slug] as const,
 };
 
 /* ------------------------------------------------------------------ */
@@ -67,6 +78,12 @@ async function fetchSpaces(): Promise<SpacesResponse> {
 
 async function fetchSpace(spaceId: string): Promise<SpaceWithBoards> {
   const res = await fetch(`/api/spaces/${spaceId}`);
+  if (!res.ok) throw new Error('Failed to fetch space');
+  return res.json();
+}
+
+async function fetchSpaceBySlug(slug: string): Promise<SpaceWithBoards> {
+  const res = await fetch(`/api/spaces/by-slug/${slug}`);
   if (!res.ok) throw new Error('Failed to fetch space');
   return res.json();
 }
@@ -105,6 +122,16 @@ export function useSpace(spaceId: string | undefined) {
     queryKey: spaceKeys.detail(spaceId!),
     queryFn: () => fetchSpace(spaceId!),
     enabled: !!spaceId,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSpaceBySlug(slug: string | undefined) {
+  return useQuery({
+    queryKey: spaceKeys.bySlug(slug!),
+    queryFn: () => fetchSpaceBySlug(slug!),
+    enabled: !!slug,
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false,
   });
