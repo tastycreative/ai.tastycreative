@@ -118,21 +118,19 @@ export function BoardTaskCard({ task, index, onClick, onTitleUpdate }: BoardTask
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 group/title">
-                <p className="flex-1 min-w-0 text-[13px] font-medium leading-snug text-gray-800 dark:text-brand-off-white">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing(true);
+                }}
+                className="w-full text-left group/title"
+              >
+                <p className="text-[13px] font-medium leading-snug text-gray-800 dark:text-brand-off-white wrap-break-word">
                   {task.title}
+                  <Pencil className="inline-block ml-1 h-3 w-3 text-gray-400 opacity-0 group-hover/card:opacity-100 transition-opacity align-middle" />
                 </p>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(true);
-                  }}
-                  className="shrink-0 hidden group-hover/card:inline-flex h-5 w-5 items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-brand-light-pink hover:bg-brand-light-pink/10 transition-colors"
-                >
-                  <Pencil className="h-2.5 w-2.5" />
-                </button>
-              </div>
+              </button>
             )}
 
             {(task.tags?.length || task.assignee) && (
