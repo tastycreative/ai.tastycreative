@@ -47,13 +47,13 @@ model User {
   notifications            Notification[]
   onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
+  pinnedProfiles           ProfilePin[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
   teamMemberships          TeamMember[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
-  pinnedProfiles           ProfilePin[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -497,7 +497,7 @@ model LoRAShare {
 }
 
 model InstagramProfile {
-  id                     String                @id @default(cuid())
+  id                     String                  @id @default(cuid())
   clerkId                String
   name                   String
   description            String?
@@ -505,35 +505,35 @@ model InstagramProfile {
   instagramAccountId     String?
   instagramAccessToken   String?
   instagramTokenExpiry   DateTime?
-  isDefault              Boolean               @default(false)
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
+  isDefault              Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
   profileImageUrl        String?
   organizationId         String?
   modelBible             Json?
-  isFavorite             Boolean               @default(false)
-  tags                   String[]              @default([])
+  isFavorite             Boolean                 @default(false)
+  tags                   String[]                @default([])
   pageStrategy           String?
   customStrategies       Json?
-  customContentTypes     String[]              @default([])
-  selectedContentTypes   String[]              @default([])
-  status                 String                @default("active")
-  type                   String                @default("real")
+  customContentTypes     String[]                @default([])
+  selectedContentTypes   String[]                @default([])
+  status                 String                  @default("active")
+  type                   String                  @default("real")
   metadata               Json?
   captions               Caption[]
-  bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
-  commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
-  comments               FeedPostComment[]     @relation("ProfileComments")
-  postLikes              FeedPostLike[]        @relation("ProfilePostLikes")
+  bookmarks              FeedPostBookmark[]      @relation("ProfileBookmarks")
+  commentLikes           FeedPostCommentLike[]   @relation("ProfileCommentLikes")
+  comments               FeedPostComment[]       @relation("ProfileComments")
+  postLikes              FeedPostLike[]          @relation("ProfilePostLikes")
   feedPosts              FeedPost[]
-  receivedFriendRequests Friendship[]          @relation("ReceivedFriendRequests")
-  sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[]            @relation("ReceivedFriendRequests")
+  sentFriendRequests     Friendship[]            @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
+  user                   User                    @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  organization           Organization?           @relation(fields: [organizationId], references: [id])
   groupMemberships       ProfileGroupMember[]
-  pinnedBy               ProfilePin[]
-  user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  organization           Organization?         @relation(fields: [organizationId], references: [id])
+  profilePins            ProfilePin[]
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -541,55 +541,6 @@ model InstagramProfile {
   @@index([isFavorite])
   @@index([tags])
   @@map("instagram_profiles")
-}
-
-model ProfileGroup {
-  id             String               @id @default(cuid())
-  organizationId String
-  name           String
-  color          String?
-  icon           String?
-  order          Int                  @default(0)
-  isCollapsed    Boolean              @default(false)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  members        ProfileGroupMember[]
-
-  @@unique([organizationId, name])
-  @@index([organizationId])
-  @@index([organizationId, order])
-  @@map("profile_groups")
-}
-
-model ProfileGroupMember {
-  id             String           @id @default(cuid())
-  profileGroupId String
-  profileId      String
-  order          Int              @default(0)
-  addedAt        DateTime         @default(now())
-  group          ProfileGroup     @relation(fields: [profileGroupId], references: [id], onDelete: Cascade)
-  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([profileGroupId, profileId])
-  @@index([profileGroupId])
-  @@index([profileId])
-  @@map("profile_group_members")
-}
-
-model ProfilePin {
-  id        String           @id @default(cuid())
-  userId    String
-  profileId String
-  order     Int              @default(0)
-  pinnedAt  DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
-  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, profileId])
-  @@index([userId])
-  @@index([profileId])
-  @@map("profile_pins")
 }
 
 model OnboardingInvitation {
@@ -1342,10 +1293,10 @@ model Organization {
   marketplaceModels             MarketplaceModel[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
+  profileGroups                 ProfileGroup[]
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
-  profileGroups                 ProfileGroup[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -2121,31 +2072,53 @@ model ContentTypePricingHistory {
   @@index([createdAt])
 }
 
-enum SpaceAccess {
-  OPEN
-  PRIVATE
+model ProfileGroupMember {
+  id             String           @id @default(cuid())
+  profileGroupId String
+  profileId      String
+  order          Int              @default(0)
+  addedAt        DateTime         @default(now())
+  profileGroup   ProfileGroup     @relation(fields: [profileGroupId], references: [id], onDelete: Cascade)
+  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileGroupId, profileId])
+  @@index([profileGroupId])
+  @@index([profileId])
+  @@map("profile_group_members")
 }
 
-enum SpaceTemplateType {
-  KANBAN
-  WALL_POST
-  SEXTING_SETS
-  OTP_PTR
+model ProfileGroup {
+  id                  String               @id @default(cuid())
+  organizationId      String
+  name                String
+  color               String?
+  icon                String?
+  order               Int                  @default(0)
+  isCollapsed         Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  members             ProfileGroupMember[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([organizationId, order])
+  @@map("profile_groups")
 }
 
-enum BoardItemType {
-  TASK
-  POST
-  REQUEST
-  SET
-  NOTE
-}
+model ProfilePin {
+  id             String           @id @default(cuid())
+  userId         String
+  profileId      String
+  order          Int              @default(0)
+  pinnedAt       DateTime         @default(now())
+  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
 
-enum BoardItemPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
+  @@unique([userId, profileId])
+  @@index([profileId])
+  @@index([userId])
+  @@map("profile_pins")
 }
 
 enum SyncStatus {
@@ -2460,4 +2433,31 @@ enum ReviewStatus {
   APPROVED
   REJECTED
   CHANGES_REQUESTED
+}
+
+enum SpaceAccess {
+  OPEN
+  PRIVATE
+}
+
+enum SpaceTemplateType {
+  KANBAN
+  WALL_POST
+  SEXTING_SETS
+  OTP_PTR
+}
+
+enum BoardItemType {
+  TASK
+  POST
+  REQUEST
+  SET
+  NOTE
+}
+
+enum BoardItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }

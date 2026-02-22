@@ -27,8 +27,12 @@ export async function renderFramesToGif(
   onProgress?: (progress: GifRenderProgress) => void
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    const workerCount = Math.min(
+      4,
+      typeof navigator !== "undefined" ? (navigator.hardwareConcurrency || 2) : 2
+    );
     const gif = new GIF({
-      workers: 2,
+      workers: workerCount,
       quality: options.quality || 10,
       width: options.width,
       height: options.height,
@@ -36,6 +40,7 @@ export async function renderFramesToGif(
     });
 
     const frameDelay = Math.round(1000 / options.fps);
+    const PROGRESS_BATCH = 5;
 
     // Add frames
     frames.forEach((frame, index) => {
@@ -53,12 +58,15 @@ export async function renderFramesToGif(
         }
       }
 
-      onProgress?.({
-        phase: "capturing",
-        progress: Math.round(((index + 1) / frames.length) * 50),
-        currentFrame: index + 1,
-        totalFrames: frames.length,
-      });
+      const isLastFrame = index === frames.length - 1;
+      if (onProgress && (index % PROGRESS_BATCH === 0 || isLastFrame)) {
+        onProgress({
+          phase: "capturing",
+          progress: Math.round(((index + 1) / frames.length) * 50),
+          currentFrame: index + 1,
+          totalFrames: frames.length,
+        });
+      }
     });
 
     gif.on("progress", (p: number) => {
@@ -820,4 +828,19 @@ export function exportCanvasAsJpg(
       downloadBlob(blob, filename);
     }
   }, "image/jpeg", quality);
+}
+
+/**
+ * Export canvas as WebP
+ */
+export function exportCanvasAsWebP(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  quality: number = 0.92
+): void {
+  canvas.toBlob((blob) => {
+    if (blob) {
+      downloadBlob(blob, filename);
+    }
+  }, "image/webp", quality);
 }

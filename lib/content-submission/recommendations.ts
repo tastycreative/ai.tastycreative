@@ -1,51 +1,40 @@
 import type { ComponentModule } from '../validations/content-submission';
 
+type SubmissionType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
+
 /**
- * Get smart component recommendations based on submission type and content style
+ * Get smart component recommendations based on submission type.
+ * Kept for ClassicSubmissionForm backward compatibility.
  */
 export function getRecommendations(
-  submissionType: 'otp' | 'ptr',
-  contentStyle: 'normal' | 'poll' | 'game' | 'ppv' | 'bundle'
+  submissionType: SubmissionType,
+  contentStyle?: string
 ): ComponentModule[] {
   const recommendations: ComponentModule[] = [];
 
-  // PTR always needs release schedule
-  if (submissionType === 'ptr') {
-    recommendations.push('release');
-  }
-
-  // Content style specific recommendations
-  switch (contentStyle) {
-    case 'game':
-    case 'ppv':
-    case 'bundle':
-      // Monetized content needs pricing and upload
+  switch (submissionType) {
+    case 'OTP_PTR':
       recommendations.push('pricing', 'upload');
       break;
-
-    case 'poll':
-    case 'normal':
-      // Standard content just needs upload
+    case 'WALL_POST':
+      recommendations.push('upload');
+      break;
+    case 'SEXTING_SETS':
       recommendations.push('upload');
       break;
   }
 
-  // Remove duplicates and return
   return Array.from(new Set(recommendations));
 }
 
 /**
- * Check if a component is forced (cannot be disabled)
+ * Check if a component is forced (cannot be disabled).
+ * Kept for ClassicSubmissionForm backward compatibility.
  */
 export function isComponentForced(
   component: ComponentModule,
-  submissionType: 'otp' | 'ptr'
+  submissionType: SubmissionType
 ): boolean {
-  // PTR submissions must have release component
-  if (submissionType === 'ptr' && component === 'release') {
-    return true;
-  }
-
   return false;
 }
 

@@ -1,10 +1,7 @@
 import { z } from 'zod';
 
-// Submission type enum
-export const submissionTypeSchema = z.enum(['otp', 'ptr']);
-
-// Content style enum
-export const contentStyleSchema = z.enum(['normal', 'poll', 'game', 'ppv', 'bundle']);
+// Submission type — aligns with SpaceTemplateType
+export const submissionTypeSchema = z.enum(['OTP_PTR', 'WALL_POST', 'SEXTING_SETS']);
 
 // Priority enum
 export const prioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
@@ -12,7 +9,7 @@ export const prioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 // Content type - accepts any string value (dynamic from ContentTypeOption database)
 export const contentTypeSchema = z.string();
 
-// Component module enum
+// Component module enum (kept for ClassicSubmissionForm backward compat)
 export const componentModuleSchema = z.enum(['pricing', 'release', 'upload']);
 export type ComponentModule = z.infer<typeof componentModuleSchema>;
 
@@ -31,12 +28,11 @@ export const pricingCategorySchema = z.enum([
 export const createSubmissionInputSchema = z.object({
   // Required fields
   submissionType: submissionTypeSchema,
-  contentStyle: contentStyleSchema,
 
-  // Platform selection (multi-select)
-  platform: z.array(platformSchema).min(1, 'Select at least one platform').default(['onlyfans']),
+  // Platform selection (optional — captured in metadata for WALL_POST)
+  platform: z.array(platformSchema).optional().default(['onlyfans']),
 
-  // Component modules selection
+  // Component modules selection (optional — kept for ClassicSubmissionForm)
   selectedComponents: z.array(componentModuleSchema).default([]),
 
   // Optional content details
@@ -60,14 +56,14 @@ export const createSubmissionInputSchema = z.object({
   // Pricing category
   pricingCategory: pricingCategorySchema.default('PORN_ACCURATE'),
 
-  // Metadata
+  // Metadata — stores template-specific fields from template-metadata.ts
   notes: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 });
 
 export type CreateSubmissionInput = z.infer<typeof createSubmissionInputSchema>;
 
-// Release schedule (for PTR submissions)
+// Release schedule
 export const releaseScheduleInputSchema = z.object({
   releaseDate: z.date().or(z.string().pipe(z.coerce.date())),
   releaseTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(), // HH:MM format
@@ -85,7 +81,7 @@ export const createSubmissionWithScheduleSchema = createSubmissionInputSchema.ex
 // Pricing type enum
 export const pricingTypeSchema = z.enum(['fixed', 'range', 'negotiable']);
 
-// Pricing input (for PTR/PPV submissions)
+// Pricing input
 export const pricingInputSchema = z.object({
   minimumPrice: z.number().positive().optional(),
   suggestedPrice: z.number().positive().optional(),
@@ -104,38 +100,8 @@ export const createSubmissionWithPricingSchema = createSubmissionWithScheduleSch
   pricing: pricingInputSchema.optional(),
 });
 
-// Complete submission with component validation
-export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema
-  .refine(
-    (data) => {
-      // PTR submissions must have release component
-      if (data.submissionType === 'ptr' && !data.selectedComponents.includes('release')) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'PTR submissions require Release Schedule component',
-      path: ['selectedComponents'],
-    }
-  )
-  .refine(
-    (data) => {
-      // If release component is selected for PTR, must have release date
-      if (
-        data.selectedComponents.includes('release') &&
-        data.submissionType === 'ptr' &&
-        !data.releaseSchedule?.releaseDate
-      ) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'Release date required when Release component is enabled for PTR',
-      path: ['releaseSchedule', 'releaseDate'],
-    }
-  );
+// Complete submission schema (no PTR-specific validation needed)
+export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema;
 
 export type CreateSubmissionWithComponents = z.infer<typeof createSubmissionWithComponentsSchema>;
 
@@ -185,7 +151,6 @@ export const listSubmissionsInputSchema = z.object({
   organizationId: z.string().optional(),
   status: z.string().optional(),
   submissionType: submissionTypeSchema.optional(),
-  contentStyle: contentStyleSchema.optional(),
   limit: z.number().int().positive().default(50),
   cursor: z.string().optional(), // For pagination
 });

@@ -47,6 +47,11 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
 
   if (clip.type === "image") {
     const durationSec = framesToSeconds(clip.displayDurationInFrames, fps);
+    const imageSpeed = clip.speed ?? 1;
+    const effectiveImageDurationSec = framesToSeconds(
+      Math.max(1, Math.round(clip.displayDurationInFrames / imageSpeed)),
+      fps
+    );
 
     return (
       <div className="space-y-4">
@@ -72,6 +77,37 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
           />
         </PropertySection>
 
+        {/* Speed */}
+        <PropertySection label={`Speed: ${imageSpeed.toFixed(2)}×`}>
+          <div className="flex items-center gap-1 mb-1.5">
+            {([0.25, 0.5, 1, 1.5, 2] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => updateClip(clip.id, { speed: s })}
+                className={`flex-1 h-6 rounded text-[10px] font-medium transition-colors ${
+                  imageSpeed === s
+                    ? "bg-indigo-500 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-slate-100"
+                }`}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
+          <input
+            type="range"
+            min={0.25}
+            max={2}
+            step={0.25}
+            value={imageSpeed}
+            onChange={(e) => updateClip(clip.id, { speed: Number(e.target.value) })}
+            className="w-full pro-slider"
+          />
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {effectiveImageDurationSec.toFixed(1)}s at {imageSpeed}×
+          </p>
+        </PropertySection>
+
         {/* Object Fit */}
         <PropertySection label="Object Fit">
           <select
@@ -84,6 +120,68 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
             <option value="contain">Contain (fit inside)</option>
             <option value="cover">Cover (fill frame)</option>
           </select>
+        </PropertySection>
+
+        {/* Crop & Zoom */}
+        <PropertySection label={`Zoom: ${(clip.zoom?.scale ?? 1).toFixed(1)}×`}>
+          <input
+            type="range"
+            min={1}
+            max={3}
+            step={0.1}
+            value={clip.zoom?.scale ?? 1}
+            onChange={(e) => {
+              const scale = Number(e.target.value);
+              updateClip(clip.id, {
+                zoom: { scale, x: clip.zoom?.x ?? 0, y: clip.zoom?.y ?? 0 },
+              });
+            }}
+            className="w-full pro-slider"
+          />
+          {(clip.zoom?.scale ?? 1) > 1 && (
+            <>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[10px] text-slate-500 w-4">X</span>
+                <input
+                  type="range"
+                  min={-50}
+                  max={50}
+                  step={1}
+                  value={clip.zoom?.x ?? 0}
+                  onChange={(e) =>
+                    updateClip(clip.id, {
+                      zoom: { scale: clip.zoom?.scale ?? 1, x: Number(e.target.value), y: clip.zoom?.y ?? 0 },
+                    })
+                  }
+                  className="flex-1 pro-slider"
+                />
+                <span className="text-[10px] text-slate-400 w-8 text-right">{clip.zoom?.x ?? 0}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-500 w-4">Y</span>
+                <input
+                  type="range"
+                  min={-50}
+                  max={50}
+                  step={1}
+                  value={clip.zoom?.y ?? 0}
+                  onChange={(e) =>
+                    updateClip(clip.id, {
+                      zoom: { scale: clip.zoom?.scale ?? 1, x: clip.zoom?.x ?? 0, y: Number(e.target.value) },
+                    })
+                  }
+                  className="flex-1 pro-slider"
+                />
+                <span className="text-[10px] text-slate-400 w-8 text-right">{clip.zoom?.y ?? 0}%</span>
+              </div>
+              <button
+                onClick={() => updateClip(clip.id, { zoom: { scale: 1, x: 0, y: 0 } })}
+                className="text-[10px] text-slate-500 hover:text-slate-300 mt-1 transition-colors"
+              >
+                Reset zoom
+              </button>
+            </>
+          )}
         </PropertySection>
 
         {slotControls}
@@ -103,6 +201,12 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
   const trimStartSec = framesToSeconds(clip.trimStartFrame, fps);
   const trimEndSec = framesToSeconds(clip.trimEndFrame, fps);
   const totalSec = framesToSeconds(clip.durationInFrames, fps);
+  const videoSpeed = clip.speed ?? 1;
+  const rawTrimDuration = clip.trimEndFrame - clip.trimStartFrame;
+  const effectiveVideoDurationSec = framesToSeconds(
+    Math.max(1, Math.round(rawTrimDuration / videoSpeed)),
+    fps
+  );
 
   return (
     <div className="space-y-4">
@@ -155,6 +259,99 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
           }
           className="w-full h-1.5 pro-slider"
         />
+      </PropertySection>
+
+      {/* Speed */}
+      <PropertySection label={`Speed: ${videoSpeed.toFixed(2)}×`}>
+        <div className="flex items-center gap-1 mb-1.5">
+          {([0.25, 0.5, 1, 1.5, 2] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => updateClip(clip.id, { speed: s })}
+              className={`flex-1 h-6 rounded text-[10px] font-medium transition-colors ${
+                videoSpeed === s
+                  ? "bg-indigo-500 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-slate-100"
+              }`}
+            >
+              {s}×
+            </button>
+          ))}
+        </div>
+        <input
+          type="range"
+          min={0.25}
+          max={2}
+          step={0.25}
+          value={videoSpeed}
+          onChange={(e) => updateClip(clip.id, { speed: Number(e.target.value) })}
+          className="w-full pro-slider"
+        />
+        <p className="text-[10px] text-slate-500 mt-0.5">
+          {effectiveVideoDurationSec.toFixed(1)}s at {videoSpeed}×
+        </p>
+      </PropertySection>
+
+      {/* Crop & Zoom */}
+      <PropertySection label={`Zoom: ${(clip.zoom?.scale ?? 1).toFixed(1)}×`}>
+        <input
+          type="range"
+          min={1}
+          max={3}
+          step={0.1}
+          value={clip.zoom?.scale ?? 1}
+          onChange={(e) => {
+            const scale = Number(e.target.value);
+            updateClip(clip.id, {
+              zoom: { scale, x: clip.zoom?.x ?? 0, y: clip.zoom?.y ?? 0 },
+            });
+          }}
+          className="w-full pro-slider"
+        />
+        {(clip.zoom?.scale ?? 1) > 1 && (
+          <>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] text-slate-500 w-4">X</span>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={clip.zoom?.x ?? 0}
+                onChange={(e) =>
+                  updateClip(clip.id, {
+                    zoom: { scale: clip.zoom?.scale ?? 1, x: Number(e.target.value), y: clip.zoom?.y ?? 0 },
+                  })
+                }
+                className="flex-1 pro-slider"
+              />
+              <span className="text-[10px] text-slate-400 w-8 text-right">{clip.zoom?.x ?? 0}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-4">Y</span>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={clip.zoom?.y ?? 0}
+                onChange={(e) =>
+                  updateClip(clip.id, {
+                    zoom: { scale: clip.zoom?.scale ?? 1, x: clip.zoom?.x ?? 0, y: Number(e.target.value) },
+                  })
+                }
+                className="flex-1 pro-slider"
+              />
+              <span className="text-[10px] text-slate-400 w-8 text-right">{clip.zoom?.y ?? 0}%</span>
+            </div>
+            <button
+              onClick={() => updateClip(clip.id, { zoom: { scale: 1, x: 0, y: 0 } })}
+              className="text-[10px] text-slate-500 hover:text-slate-300 mt-1 transition-colors"
+            >
+              Reset zoom
+            </button>
+          </>
+        )}
       </PropertySection>
 
       {slotControls}

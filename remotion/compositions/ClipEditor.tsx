@@ -22,6 +22,7 @@ import type {
   Transition,
   Overlay,
   TransitionType,
+  OverlayKeyframe,
 } from "@/lib/gif-maker/types";
 import { COLLAGE_PRESETS } from "@/lib/gif-maker/types";
 
@@ -34,6 +35,12 @@ const CollageLayoutSchema = z.enum([
   "pip-top-left", "pip-top-right", "pip-bottom-left", "pip-bottom-right",
 ]).nullable().optional();
 
+const ClipZoomSchema = z.object({
+  scale: z.number(),
+  x: z.number(),
+  y: z.number(),
+});
+
 const VideoClipSchema = z.object({
   type: z.literal("video"),
   id: z.string(),
@@ -45,6 +52,8 @@ const VideoClipSchema = z.object({
   startFrame: z.number(),
   volume: z.number(),
   slotIndex: z.number().optional(),
+  speed: z.number().optional(),
+  zoom: ClipZoomSchema.optional(),
 });
 
 const ImageClipSchema = z.object({
@@ -56,6 +65,8 @@ const ImageClipSchema = z.object({
   startFrame: z.number(),
   objectFit: z.enum(["contain", "cover"]),
   slotIndex: z.number().optional(),
+  speed: z.number().optional(),
+  zoom: ClipZoomSchema.optional(),
 });
 
 const ClipSchema = z.discriminatedUnion("type", [VideoClipSchema, ImageClipSchema]);
@@ -68,6 +79,13 @@ const TransitionSchema = z.object({
   clipBId: z.string(),
 });
 
+const OverlayKeyframeSchema = z.object({
+  frame: z.number(),
+  x: z.number(),
+  y: z.number(),
+  opacity: z.number().optional(),
+});
+
 const OverlayBaseSchema = z.object({
   id: z.string(),
   type: z.enum(["text", "blur", "sticker", "shape"]),
@@ -78,6 +96,7 @@ const OverlayBaseSchema = z.object({
   width: z.number(),
   height: z.number(),
   trackId: z.string(),
+  keyframes: z.array(OverlayKeyframeSchema).optional(),
 });
 
 const OverlaySchema = z.union([
@@ -190,6 +209,53 @@ function getTransitionStyle(
   return {};
 }
 
+// ─── Keyframe Interpolation ──────────────────────────
+
+function interpolateKeyframes(
+  overlay: Overlay,
+  absoluteFrame: number
+): { x: number; y: number; opacity: number } {
+  const keyframes = overlay.keyframes as OverlayKeyframe[] | undefined;
+  const baseOpacity = (overlay as { opacity?: number }).opacity ?? 1;
+
+  if (!keyframes || keyframes.length === 0) {
+    return { x: overlay.x, y: overlay.y, opacity: baseOpacity };
+  }
+
+  const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
+
+  if (absoluteFrame <= sorted[0].frame) {
+    const kf = sorted[0];
+    return { x: kf.x, y: kf.y, opacity: kf.opacity ?? baseOpacity };
+  }
+
+  if (absoluteFrame >= sorted[sorted.length - 1].frame) {
+    const kf = sorted[sorted.length - 1];
+    return { x: kf.x, y: kf.y, opacity: kf.opacity ?? baseOpacity };
+  }
+
+  let prevKf = sorted[0];
+  let nextKf = sorted[1];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].frame <= absoluteFrame && absoluteFrame <= sorted[i + 1].frame) {
+      prevKf = sorted[i];
+      nextKf = sorted[i + 1];
+      break;
+    }
+  }
+
+  const t = (absoluteFrame - prevKf.frame) / (nextKf.frame - prevKf.frame);
+  return {
+    x: interpolate(t, [0, 1], [prevKf.x, nextKf.x]),
+    y: interpolate(t, [0, 1], [prevKf.y, nextKf.y]),
+    opacity: interpolate(
+      t,
+      [0, 1],
+      [prevKf.opacity ?? baseOpacity, nextKf.opacity ?? baseOpacity]
+    ),
+  };
+}
+
 // ─── Clip Renderer ───────────────────────────────────
 
 const ClipWithTransition: React.FC<{
@@ -199,9 +265,12 @@ const ClipWithTransition: React.FC<{
   inSlot?: boolean;
 }> = ({ clip, transitionIn, transitionOut, inSlot }) => {
   const frame = useCurrentFrame();
-  const clipDuration = clip.type === "image"
-    ? clip.displayDurationInFrames
-    : clip.trimEndFrame - clip.trimStartFrame;
+  const speed = clip.speed ?? 1;
+  const rawDuration =
+    clip.type === "image"
+      ? clip.displayDurationInFrames
+      : clip.trimEndFrame - clip.trimStartFrame;
+  const clipDuration = Math.max(1, Math.round(rawDuration / speed));
 
   // Calculate transition progress for incoming transition
   let inStyle: React.CSSProperties = {};
@@ -227,6 +296,18 @@ const ClipWithTransition: React.FC<{
   // Use "cover" when in a collage slot so it fills the area
   const fitMode = inSlot ? "cover" : "contain";
 
+  // Zoom/pan transform
+  const zoom = clip.zoom;
+  const zoomStyle: React.CSSProperties =
+    zoom && zoom.scale > 1
+      ? {
+          transform: `scale(${zoom.scale}) translate(${zoom.x}%, ${zoom.y}%)`,
+          transformOrigin: "center center",
+          width: "100%",
+          height: "100%",
+        }
+      : { width: "100%", height: "100%" };
+
   const renderClipContent = () => {
     if (!clip.src) {
       return (
@@ -246,29 +327,32 @@ const ClipWithTransition: React.FC<{
 
     if (clip.type === "image") {
       return (
-        <Img
-          src={clip.src}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: clip.objectFit,
-          }}
-        />
+        <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+          <Img
+            src={clip.src}
+            style={{
+              objectFit: clip.objectFit,
+              ...zoomStyle,
+            }}
+          />
+        </div>
       );
     }
 
     return (
-      <Video
-        src={clip.src}
-        startFrom={clip.trimStartFrame}
-        volume={clip.volume}
-        crossOrigin="anonymous"
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: fitMode,
-        }}
-      />
+      <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+        <Video
+          src={clip.src}
+          startFrom={clip.trimStartFrame}
+          volume={clip.volume}
+          playbackRate={speed}
+          crossOrigin="anonymous"
+          style={{
+            objectFit: fitMode,
+            ...zoomStyle,
+          }}
+        />
+      </div>
     );
   };
 
@@ -329,15 +413,24 @@ const OverlayRenderer: React.FC<{
   overlay: Overlay;
   clips: Clip[];
 }> = ({ overlay, clips }) => {
-  switch (overlay.type) {
+  const localFrame = useCurrentFrame();
+  const absoluteFrame = overlay.startFrame + localFrame;
+  const hasKeyframes = overlay.keyframes && overlay.keyframes.length > 0;
+
+  // Apply keyframe interpolation if keyframes are defined
+  const effectiveOverlay = hasKeyframes
+    ? { ...overlay, ...interpolateKeyframes(overlay, absoluteFrame) }
+    : overlay;
+
+  switch (effectiveOverlay.type) {
     case "text":
-      return <TextOverlayRenderer overlay={overlay} />;
+      return <TextOverlayRenderer overlay={effectiveOverlay as import("@/lib/gif-maker/types").TextOverlay} />;
     case "blur":
-      return <BlurOverlayRenderer overlay={overlay} clips={clips} />;
+      return <BlurOverlayRenderer overlay={effectiveOverlay as import("@/lib/gif-maker/types").BlurOverlay} clips={clips} />;
     case "sticker":
-      return <StickerOverlayRenderer overlay={overlay} />;
+      return <StickerOverlayRenderer overlay={effectiveOverlay as import("@/lib/gif-maker/types").StickerOverlay} />;
     case "shape":
-      return <ShapeOverlayRenderer overlay={overlay} />;
+      return <ShapeOverlayRenderer overlay={effectiveOverlay as import("@/lib/gif-maker/types").ShapeOverlay} />;
     default:
       return null;
   }
@@ -412,9 +505,12 @@ export const ClipEditor: React.FC<ClipEditorProps> = ({
   }
 
   const renderClipSequence = (clip: Clip, inSlot?: boolean) => {
-    const clipDuration = clip.type === "image"
-      ? clip.displayDurationInFrames
-      : clip.trimEndFrame - clip.trimStartFrame;
+    const speed = clip.speed ?? 1;
+    const rawDuration =
+      clip.type === "image"
+        ? clip.displayDurationInFrames
+        : clip.trimEndFrame - clip.trimStartFrame;
+    const clipDuration = Math.max(1, Math.round(rawDuration / speed));
     const transitionIn = transitions.find((t) => t.clipBId === clip.id);
     const transitionOut = transitions.find((t) => t.clipAId === clip.id);
 
