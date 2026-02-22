@@ -5,35 +5,18 @@ import { Plus, Layers, ChevronUp, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CreateSpaceModal } from './CreateSpaceModal';
+import { useSpaces } from '@/lib/hooks/useSpaces.query';
 
 interface SpacesDropdownProps {
   tenant: string;
   sidebarOpen: boolean;
 }
 
-// Static placeholder spaces for the dropdown
-const STATIC_SPACES = [
-  {
-    id: 'space-1',
-    name: 'Content Production',
-    href: '/spaces/content-production',
-  },
-  {
-    id: 'space-2',
-    name: 'Influencer Ops',
-    href: '/spaces/influencer-ops',
-  },
-  {
-    id: 'space-3',
-    name: 'Campaign Planning',
-    href: '/spaces/campaign-planning',
-  },
-];
-
 export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const pathname = usePathname();
+  const { data, isLoading } = useSpaces();
 
   const handleCreateClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -41,6 +24,7 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
     setIsCreateModalOpen(true);
   };
 
+  const spaces = data?.spaces ?? [];
   const isActive = pathname?.startsWith(`/${tenant}/spaces`);
 
   if (!sidebarOpen) {
@@ -113,32 +97,42 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
 
         {isOpen && (
           <div className="space-y-1 animate-fadeIn pl-6 xs:pl-7 sm:pl-8">
-            {STATIC_SPACES.map((space) => {
-              const spaceHref = `/${tenant}${space.href}`;
-              const isSpaceActive = pathname === spaceHref;
+            {isLoading ? (
+              <div className="px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm text-gray-500 dark:text-gray-400">
+                Loading spaces...
+              </div>
+            ) : spaces.length === 0 ? (
+              <div className="px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm text-gray-500 dark:text-gray-400">
+                No spaces yet. Create one!
+              </div>
+            ) : (
+              spaces.map((space) => {
+                const spaceHref = `/${tenant}/spaces/${space.slug}`;
+                const isSpaceActive = pathname === spaceHref;
 
-              return (
-                <Link
-                  key={space.id}
-                  href={spaceHref}
-                  className={`group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 active:scale-95 ${
-                    isSpaceActive
-                      ? 'bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white shadow-lg shadow-brand-mid-pink/25 scale-[1.02] border-2 border-brand-mid-pink/30'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md hover:border-brand-mid-pink/20 border-2 border-transparent'
-                  }`}
-                >
-                  <Layers
-                    className={`h-4 w-4 shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-all duration-300 ${
+                return (
+                  <Link
+                    key={space.id}
+                    href={spaceHref}
+                    className={`group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-xl transition-all duration-300 active:scale-95 ${
                       isSpaceActive
-                        ? 'text-white'
-                        : 'text-brand-blue group-hover:text-brand-mid-pink'
-                    } ${isSpaceActive ? 'scale-110' : 'group-hover:scale-110'}`}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{space.name}</span>
-                </Link>
-              );
-            })}
+                        ? 'bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white shadow-lg shadow-brand-mid-pink/25 scale-[1.02] border-2 border-brand-mid-pink/30'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-[1.02] hover:shadow-md hover:border-brand-mid-pink/20 border-2 border-transparent'
+                    }`}
+                  >
+                    <Layers
+                      className={`h-4 w-4 shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-all duration-300 ${
+                        isSpaceActive
+                          ? 'text-white'
+                          : 'text-brand-blue group-hover:text-brand-mid-pink'
+                      } ${isSpaceActive ? 'scale-110' : 'group-hover:scale-110'}`}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{space.name}</span>
+                  </Link>
+                );
+              })
+            )}
           </div>
         )}
       </div>

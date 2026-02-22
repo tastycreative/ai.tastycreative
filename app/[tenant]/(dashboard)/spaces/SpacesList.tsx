@@ -6,18 +6,16 @@ import { SpaceCard } from './SpaceCard';
 interface SpacesListProps {
   spaces: Space[];
   isLoading?: boolean;
-  onSelectSpace?: (space: Space) => void;
 }
 
-export function SpacesList({ spaces, isLoading, onSelectSpace }: SpacesListProps) {
+export function SpacesList({ spaces, isLoading }: SpacesListProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, index) => (
           <div
-            // eslint-disable-next-line react/no-array-index-key
             key={index}
-            className="h-24 rounded-2xl bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-brand-mid-pink/10 animate-pulse"
+            className="h-28 rounded-2xl bg-gray-100/70 dark:bg-gray-900/60 border border-gray-200/80 dark:border-brand-mid-pink/10 animate-pulse"
           />
         ))}
       </div>
@@ -37,13 +35,8 @@ export function SpacesList({ spaces, isLoading, onSelectSpace }: SpacesListProps
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {spaces.map((space) => (
-        <SpaceCard
-          key={space.id}
-          space={space}
-          onClick={onSelectSpace ? () => onSelectSpace(space) : undefined}
-        />
+        <SpaceCard key={space.id} space={space} />
       ))}
     </div>
   );
 }
-
