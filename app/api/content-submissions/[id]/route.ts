@@ -75,7 +75,6 @@ export async function PATCH(
     // Build update data for main submission
     const updateData: any = {};
     if (data.submissionType !== undefined) updateData.submissionType = data.submissionType;
-    if (data.contentStyle !== undefined) updateData.contentStyle = data.contentStyle;
     if (data.platform !== undefined) updateData.platform = data.platform.join(',');
     if (data.modelId !== undefined) updateData.modelId = data.modelId ?? null;
     if (data.modelName !== undefined) updateData.modelName = data.modelName ?? null;

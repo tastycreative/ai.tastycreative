@@ -1,4 +1,3 @@
-import type { ComponentModule } from '../validations/content-submission';
 import type { FieldErrors } from 'react-hook-form';
 
 export interface WizardStep {
@@ -7,22 +6,15 @@ export interface WizardStep {
 }
 
 /**
- * Generate dynamic wizard steps based on selections
+ * Fixed 3-step wizard for content submissions.
+ * Template type is selected inside the Content Details step.
  */
-export function generateSteps(
-  submissionType: 'otp' | 'ptr',
-  contentStyle: 'normal' | 'poll' | 'game' | 'ppv' | 'bundle',
-  selectedComponents: ComponentModule[]
-): WizardStep[] {
-  const steps: WizardStep[] = [
-    { id: 'platform-type', title: 'Select Platform' },
-    { id: 'style-components', title: 'Style & Components' },
+export function generateSteps(): WizardStep[] {
+  return [
     { id: 'details', title: 'Content Details' },
     { id: 'files', title: 'File Uploads' },
     { id: 'review', title: 'Review & Submit' },
   ];
-
-  return steps;
 }
 
 /**
@@ -30,9 +22,8 @@ export function generateSteps(
  */
 export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
   const fieldMap: Record<string, string[]> = {
-    'platform-type': ['platform'],
-    'style-components': ['contentStyle', 'selectedComponents'],
     details: [
+      'submissionType',
       'modelName',
       'modelId',
       'priority',
@@ -45,16 +36,14 @@ export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
       'internalModelTags',
       'pricingCategory',
       'releaseSchedule',
+      'metadata',
     ],
-    schedule: ['releaseSchedule'],
-    pricing: ['pricing'],
     files: ['files'],
     review: [],
   };
 
   const fieldsToCheck = fieldMap[stepId] || [];
   return fieldsToCheck.some((field) => {
-    // Handle nested fields like 'releaseSchedule.releaseDate'
     const parts = field.split('.');
     let current: any = errors;
 
@@ -75,7 +64,6 @@ export function ensureValidStep(
   steps: WizardStep[]
 ): number {
   if (currentStep >= steps.length) {
-    // If current step is beyond new length, go to last step
     return steps.length - 1;
   }
   return currentStep;

@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         organizationId: user.currentOrganizationId,
         clerkId: userId,
         submissionType: data.submissionType,
-        contentStyle: data.contentStyle,
+        contentStyle: data.submissionType,
         status: data.metadata?.submitStatus === 'SUBMITTED' ? 'SUBMITTED' : 'DRAFT',
         platform: data.platform.join(','),
         modelId: data.modelId ?? null,
@@ -130,7 +130,6 @@ export async function GET(req: NextRequest) {
       organizationId: searchParams.get('organizationId') ?? undefined,
       status: searchParams.get('status') ?? undefined,
       submissionType: searchParams.get('submissionType') ?? undefined,
-      contentStyle: searchParams.get('contentStyle') ?? undefined,
       limit: searchParams.get('limit') ? Number(searchParams.get('limit')) : undefined,
       cursor: searchParams.get('cursor') ?? undefined,
     });
@@ -142,13 +141,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { organizationId, status, submissionType, contentStyle, limit, cursor } = params.data;
+    const { organizationId, status, submissionType, limit, cursor } = params.data;
 
     const where: any = { clerkId: userId };
     if (organizationId) where.organizationId = organizationId;
     if (status) where.status = status;
     if (submissionType) where.submissionType = submissionType;
-    if (contentStyle) where.contentStyle = contentStyle;
     if (cursor) where.id = { lt: cursor };
 
     const submissions = await prisma.content_submissions.findMany({

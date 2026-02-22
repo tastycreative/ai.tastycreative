@@ -44,8 +44,7 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
   } = useForm<FormData>({
     resolver: zodResolver(createSubmissionWithComponentsSchema),
     defaultValues: initialData || {
-      submissionType: 'otp',
-      contentStyle: 'normal',
+      submissionType: 'OTP_PTR',
       priority: 'normal',
       platform: ['onlyfans'],
       selectedComponents: [],
@@ -62,14 +61,13 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
   const updateSubmission = useUpdateSubmission();
 
   const submissionType = watch('submissionType');
-  const contentStyle = watch('contentStyle');
   const platform = watch('platform');
   const selectedComponents = watch('selectedComponents') || [];
 
   // Get smart recommendations
   const recommendations = useMemo(
-    () => getRecommendations(submissionType, contentStyle),
-    [submissionType, contentStyle]
+    () => getRecommendations(submissionType),
+    [submissionType]
   );
 
   // Get forced components
@@ -140,31 +138,12 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Platform & Type Section */}
-          <Section title="Platform & Submission Type">
-            <div className="space-y-6">
-              <PlatformSelector
-                value={platform}
-                onChange={(value) => setValue('platform', value)}
-              />
-
-              <div className="border-t border-zinc-700/50 pt-6">
-                <h4 className="text-lg font-semibold text-white mb-4">Submission Type</h4>
-                <SubmissionTypeSelector
-                  value={submissionType}
-                  onChange={(value) => setValue('submissionType', value)}
-                />
-              </div>
-
-              <div className="border-t border-zinc-700/50 pt-6">
-                <h4 className="text-lg font-semibold text-white mb-4">Content Style</h4>
-                <ContentStyleSelector
-                  value={contentStyle}
-                  onChange={(value) => setValue('contentStyle', value as any)}
-                  submissionType={submissionType}
-                />
-              </div>
-            </div>
+          {/* Platform Section */}
+          <Section title="Platform">
+            <PlatformSelector
+              value={platform}
+              onChange={(value) => setValue('platform', value)}
+            />
           </Section>
 
           {/* Component Modules Section */}

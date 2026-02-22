@@ -1,44 +1,31 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
-import type {
-  CreateSubmissionWithComponents,
-  ComponentModule,
-} from '@/lib/validations/content-submission';
-import {
-  useCreateSubmission,
-  useUpdateSubmission,
-} from '@/lib/hooks/useContentSubmission.query';
+import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
+import { useCreateBoardItem } from '@/lib/hooks/useBoardItems.query';
+import { useSubmissionTarget } from '@/lib/hooks/useSubmissionTarget.query';
+import type { SubmissionTemplateType } from '@/lib/hooks/useSubmissionTarget.query';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
-import { getRecommendations, isComponentForced } from '@/lib/content-submission/recommendations';
 import { ProgressIndicator } from './ProgressIndicator';
-import { AutoSaveIndicator } from './AutoSaveIndicator';
-import { useAutoSave } from '@/lib/hooks/useAutoSave';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
-import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon } from 'lucide-react';
 
 // Lazy load heavy components
 import dynamic from 'next/dynamic';
 
-const ContentStyleSelector = dynamic(() =>
-  import('./ContentStyleSelector').then((mod) => mod.ContentStyleSelector)
-);
-const PlatformSelector = dynamic(() =>
-  import('./PlatformSelector').then((mod) => mod.PlatformSelector)
-);
-const ComponentSelector = dynamic(() =>
-  import('./ComponentSelector').then((mod) => mod.ComponentSelector)
-);
 const ContentDetailsFields = dynamic(() =>
   import('./ContentDetailsFields').then((mod) => mod.ContentDetailsFields)
 );
-const FileUploadZone = dynamic(() =>
-  import('./FileUploadZone').then((mod) => mod.FileUploadZone)
-);
+
+const TEMPLATE_LABELS: Record<string, string> = {
+  OTP_PTR: 'OTP / PTR',
+  WALL_POST: 'Wall Post',
+  SEXTING_SETS: 'Sexting Sets',
+};
 
 type FormData = CreateSubmissionWithComponents;
 
@@ -57,7 +44,9 @@ export const SubmissionForm = memo(function SubmissionForm({
 }: SubmissionFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
-  const isEditMode = !!submissionId;
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileUploadStep, setFileUploadStep] = useState<{ current: number; total: number } | null>(null);
 
   const {
     register,
@@ -65,14 +54,12 @@ export const SubmissionForm = memo(function SubmissionForm({
     watch,
     setValue,
     reset,
-    formState: { errors, isSubmitting, dirtyFields },
+    formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(createSubmissionWithComponentsSchema),
     defaultValues: initialData || {
-      submissionType: 'otp',
-      contentStyle: 'normal',
+      submissionType: 'OTP_PTR',
       priority: 'normal',
-      platform: ['onlyfans'],
       selectedComponents: [],
       contentTags: [],
       internalModelTags: [],
@@ -80,60 +67,16 @@ export const SubmissionForm = memo(function SubmissionForm({
       contentLength: '',
       contentCount: '',
       externalCreatorTags: '',
+      metadata: {},
     },
   });
 
-  const createSubmission = useCreateSubmission();
-  const updateSubmission = useUpdateSubmission();
+  const steps = useMemo(() => generateSteps(), []);
 
-  // Watch form values
-  const submissionType = watch('submissionType');
-  const contentStyle = watch('contentStyle');
-  const platforms = watch('platform');
-  const selectedComponents = watch('selectedComponents') || [];
-
-  // Memoized computations
-  const steps = useMemo(
-    () => generateSteps(submissionType, contentStyle, selectedComponents),
-    [submissionType, contentStyle, selectedComponents]
-  );
-
-  const recommendations = useMemo(
-    () => getRecommendations(submissionType, contentStyle),
-    [submissionType, contentStyle]
-  );
-
-  const forcedComponents = useMemo(
-    () => recommendations.filter((comp) => isComponentForced(comp, submissionType)),
-    [recommendations, submissionType]
-  );
-
-  // Auto-save functionality
-  const formData = watch();
-  const { isSaving, lastSaved, error: saveError } = useAutoSave({
-    data: formData,
-    onSave: async (data) => {
-      if (!submissionId) return;
-      await updateSubmission.mutateAsync({ id: submissionId, ...data });
-    },
-    delay: 3000,
-    enabled: isEditMode && Object.keys(dirtyFields).length > 0,
-  });
-
-  // Auto-apply recommendations
-  useEffect(() => {
-    const currentComponents = selectedComponents;
-    const needsUpdate = recommendations.some(
-      (rec) => !currentComponents.includes(rec)
-    );
-
-    if (needsUpdate && recommendations.length > 0) {
-      const updated = Array.from(
-        new Set([...currentComponents, ...recommendations])
-      );
-      setValue('selectedComponents', updated);
-    }
-  }, [recommendations, selectedComponents, setValue]);
+  const submissionType = watch('submissionType') as SubmissionTemplateType;
+  const { spaceId, boardId, columnId, isLoading: targetLoading, hasTarget, spaceMissing } =
+    useSubmissionTarget(submissionType);
+  const createItem = useCreateBoardItem(spaceId ?? '', boardId ?? '');
 
   // Ensure valid step
   useEffect(() => {
@@ -146,12 +89,14 @@ export const SubmissionForm = memo(function SubmissionForm({
   // Keyboard navigation
   const handleNext = useCallback(() => {
     if (currentStep < steps.length - 1) {
+      setSubmitError(null);
       setCurrentStep((prev) => prev + 1);
     }
   }, [currentStep, steps.length]);
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
+      setSubmitError(null);
       setCurrentStep((prev) => prev - 1);
     }
   }, [currentStep]);
@@ -168,32 +113,103 @@ export const SubmissionForm = memo(function SubmissionForm({
     currentStep > 0
   );
 
-  const onSubmit = async (data: FormData) => {
-    try {
-      // Mark as SUBMITTED when submitting from the review step
-      const submissionData = {
-        ...data,
-        metadata: { ...data.metadata, submitStatus: 'SUBMITTED' },
-      };
+  const PRIORITY_MAP: Record<string, string> = {
+    low: 'LOW',
+    normal: 'MEDIUM',
+    high: 'HIGH',
+    urgent: 'URGENT',
+  };
 
-      if (isEditMode) {
-        await updateSubmission.mutateAsync({
-          id: submissionId,
-          ...submissionData,
-          status: 'SUBMITTED',
-        });
-      } else {
-        const result = await createSubmission.mutateAsync(submissionData as FormData);
-        console.log('Submission created:', result);
+  const TYPE_MAP: Record<string, string> = {
+    OTP_PTR: 'REQUEST',
+    WALL_POST: 'POST',
+    SEXTING_SETS: 'SET',
+  };
+
+  const onSubmit = async (data: FormData) => {
+    setSubmitError(null);
+
+    if (!hasTarget || !columnId) {
+      setSubmitError('No matching space/board found. Please create the space first.');
+      return;
+    }
+
+    try {
+      const meta = (data.metadata ?? {}) as Record<string, unknown>;
+
+      // Title: use model/buyer from metadata, fall back to template label
+      const title =
+        (meta.model as string)?.trim() ||
+        (meta.buyer as string)?.trim() ||
+        TEMPLATE_LABELS[data.submissionType] ||
+        data.submissionType;
+
+      // Due date: pull from template metadata date fields
+      const rawDue =
+        (meta.scheduledDate as string) ||
+        (meta.deadline as string) ||
+        null;
+
+      const result = await createItem.mutateAsync({
+        title,
+        columnId,
+        type: TYPE_MAP[data.submissionType] ?? 'TASK',
+        priority: PRIORITY_MAP[data.priority ?? 'normal'] ?? 'MEDIUM',
+        dueDate: rawDue ? new Date(rawDue).toISOString() : undefined,
+        metadata: {
+          submissionType: data.submissionType,
+          ...meta,
+        },
+      });
+
+      // Upload any pending files to the board item's media
+      if (pendingFiles.length > 0 && spaceId && boardId) {
+        const mediaBase = `/api/spaces/${spaceId}/boards/${boardId}/items/${result.id}/media`;
+        for (let i = 0; i < pendingFiles.length; i++) {
+          const file = pendingFiles[i];
+          setFileUploadStep({ current: i + 1, total: pendingFiles.length });
+          try {
+            // 1. Get presigned URL
+            const presignRes = await fetch(mediaBase, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'presign', fileName: file.name, fileType: file.type }),
+            });
+            if (!presignRes.ok) throw new Error('Failed to get upload URL');
+            const presigned = await presignRes.json();
+
+            // 2. Upload directly to S3
+            await fetch(presigned.uploadUrl, {
+              method: 'PUT',
+              body: file,
+              headers: { 'Content-Type': file.type },
+            });
+
+            // 3. Create media record
+            await fetch(mediaBase, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'record',
+                url: presigned.fileUrl,
+                type: file.type,
+                name: file.name,
+                size: file.size,
+              }),
+            });
+          } catch (err) {
+            console.error('File upload failed:', file.name, err);
+            // Continue with remaining files rather than blocking submission
+          }
+        }
+        setFileUploadStep(null);
       }
 
-      // Show success animation
       setShowSuccess(true);
 
-      // Navigate after celebration
       setTimeout(() => {
         if (onSuccess) {
-          onSuccess(submissionId || 'new');
+          onSuccess(result.id);
         } else {
           setShowSuccess(false);
           setCurrentStep(0);
@@ -201,6 +217,8 @@ export const SubmissionForm = memo(function SubmissionForm({
         }
       }, 2000);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Submission failed. Please try again.';
+      setSubmitError(message);
       console.error('Submission failed:', error);
     }
   };
@@ -288,21 +306,6 @@ export const SubmissionForm = memo(function SubmissionForm({
       </AnimatePresence>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Auto-save Indicator */}
-        {isEditMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-end mb-4"
-          >
-            <AutoSaveIndicator
-              isSaving={isSaving}
-              lastSaved={lastSaved}
-              error={saveError}
-            />
-          </motion.div>
-        )}
-
         {/* Progress Indicator */}
         <ProgressIndicator
           steps={steps}
@@ -334,37 +337,7 @@ export const SubmissionForm = memo(function SubmissionForm({
               <div className="absolute bottom-8 left-8 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-3xl" />
 
               <div className="relative">
-                {/* Render step content based on currentStepInfo.id */}
-                {currentStepInfo?.id === 'platform-type' && (
-                  <StepContent title="Select Platform">
-                    <PlatformSelector
-                      value={platforms || ['onlyfans']}
-                      onChange={(value) => setValue('platform', value)}
-                    />
-                  </StepContent>
-                )}
-
-                {currentStepInfo?.id === 'style-components' && (
-                  <StepContent title="Content Style & Components">
-                    <div className="space-y-8">
-                      <ContentStyleSelector
-                        value={contentStyle}
-                        onChange={(value) => setValue('contentStyle', value as any)}
-                        submissionType={submissionType}
-                      />
-                      <Divider />
-                      <ComponentSelector
-                        selected={selectedComponents}
-                        onChange={(components) =>
-                          setValue('selectedComponents', components)
-                        }
-                        recommendations={recommendations}
-                        disabled={forcedComponents}
-                      />
-                    </div>
-                  </StepContent>
-                )}
-
+                {/* Content Details Step */}
                 {currentStepInfo?.id === 'details' && (
                   <StepContent title="Content Details">
                     <ContentDetailsFields
@@ -378,16 +351,8 @@ export const SubmissionForm = memo(function SubmissionForm({
 
                 {/* File Upload Step */}
                 {currentStepInfo?.id === 'files' && (
-                  <StepContent title="Upload Files" subtitle="Upload images, videos, or other files for this submission">
-                    {submissionId ? (
-                      <FileUploadZone submissionId={submissionId} />
-                    ) : (
-                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-                        <p className="text-sm text-amber-200/80 font-light">
-                          Save the submission first to upload files
-                        </p>
-                      </div>
-                    )}
+                  <StepContent title="Upload Files" subtitle="Add images or videos — they'll be attached when you submit">
+                    <LocalFilePicker files={pendingFiles} onChange={setPendingFiles} />
                   </StepContent>
                 )}
 
@@ -399,66 +364,81 @@ export const SubmissionForm = memo(function SubmissionForm({
                         <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-xs text-zinc-500 mb-1">Platform(s)</p>
-                            <p className="text-white font-medium capitalize">{(platforms || []).join(', ')}</p>
+                            <p className="text-xs text-zinc-500 mb-1">Submission Type</p>
+                            <p className="text-white font-medium">
+                              {TEMPLATE_LABELS[submissionType] ?? submissionType}
+                            </p>
                           </div>
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Content Style</p>
-                            <p className="text-white font-medium capitalize">{contentStyle}</p>
-                          </div>
-                          {watch('modelName') && (
+                          {watch('priority') && (
                             <div>
-                              <p className="text-xs text-zinc-500 mb-1">Model</p>
-                              <p className="text-white font-medium">{watch('modelName')}</p>
+                              <p className="text-xs text-zinc-500 mb-1">Priority</p>
+                              <p className="text-white font-medium capitalize">{watch('priority')}</p>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {watch('caption') && (
-                        <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                          <h3 className="text-sm font-medium text-zinc-400 mb-3">Caption</h3>
-                          <p className="text-white text-sm line-clamp-3">{watch('caption')}</p>
-                        </div>
-                      )}
-
-                      {watch('releaseSchedule.releaseDate') && (
-                        <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                          <h3 className="text-sm font-medium text-zinc-400 mb-3">Release Schedule</h3>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-xs text-zinc-500 mb-1">Release Date</p>
-                              <p className="text-white">{watch('releaseSchedule.releaseDate')?.toString()}</p>
+                      {/* Template metadata summary */}
+                      {(() => {
+                        const meta = watch('metadata') || {};
+                        const entries = Object.entries(meta).filter(
+                          ([, v]) => v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
+                        );
+                        if (entries.length === 0) return null;
+                        return (
+                          <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+                            <h3 className="text-sm font-medium text-zinc-400 mb-3">
+                              {TEMPLATE_LABELS[submissionType]} Details
+                            </h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              {entries.map(([key, val]) => (
+                                <div key={key}>
+                                  <p className="text-xs text-zinc-500 mb-0.5 capitalize">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                                  </p>
+                                  <p className="text-white text-sm truncate">
+                                    {Array.isArray(val) ? val.join(', ') : String(val)}
+                                  </p>
+                                </div>
+                              ))}
                             </div>
-                            {watch('releaseSchedule.releaseTime') && (
-                              <div>
-                                <p className="text-xs text-zinc-500 mb-1">Release Time</p>
-                                <p className="text-white">{watch('releaseSchedule.releaseTime')?.toString()}</p>
-                              </div>
-                            )}
-                            {watch('releaseSchedule.timezone') && (
-                              <div>
-                                <p className="text-xs text-zinc-500 mb-1">Timezone</p>
-                                <p className="text-white">{watch('releaseSchedule.timezone')?.toString()}</p>
-                              </div>
-                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {spaceMissing ? (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-amber-200 font-medium mb-1">No matching space found</p>
+                            <p className="text-sm text-amber-200/70">
+                              Create a &quot;{TEMPLATE_LABELS[submissionType]}&quot; space in the Spaces section before submitting.
+                            </p>
                           </div>
                         </div>
+                      ) : (
+                        <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
+                          <p className="text-white font-medium mb-1">Ready to submit?</p>
+                          <p className="text-sm text-zinc-400">
+                            Click Submit below to add this to your{' '}
+                            <span className="text-brand-light-pink">{TEMPLATE_LABELS[submissionType]}</span> board.
+                          </p>
+                        </div>
                       )}
-
-                      <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
-                        <p className="text-white font-medium mb-1">Ready to submit?</p>
-                        <p className="text-sm text-zinc-400">
-                          Click Submit below to create your content submission.
-                          {!submissionId && ' Files can be uploaded after creation.'}
-                        </p>
-                      </div>
                     </div>
                   </StepContent>
                 )}
               </div>
             </motion.div>
           </AnimatePresence>
+
+          {/* Submit error */}
+          {submitError && (
+            <div className="mb-4 flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-4">
+              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-300">{submitError}</p>
+            </div>
+          )}
 
           {/* Navigation Buttons */}
           <div className="flex items-center justify-between">
@@ -506,24 +486,151 @@ export const SubmissionForm = memo(function SubmissionForm({
               ) : (
                 <motion.button
                   type="submit"
-                  disabled={isSubmitting}
-                  whileHover={{ scale: isSubmitting ? 1 : 1.05 }}
-                  whileTap={{ scale: isSubmitting ? 1 : 0.95 }}
+                  disabled={isSubmitting || targetLoading || !hasTarget}
+                  whileHover={{ scale: (isSubmitting || targetLoading || !hasTarget) ? 1 : 1.05 }}
+                  whileTap={{ scale: (isSubmitting || targetLoading || !hasTarget) ? 1 : 0.95 }}
                   className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting && (
+                  {(isSubmitting || targetLoading) && (
                     <Loader2 className="relative w-4 h-4 animate-spin" />
                   )}
                   <span className="relative">
-                    {isEditMode ? 'Update' : 'Submit'}
+                    {fileUploadStep
+                      ? `Uploading ${fileUploadStep.current}/${fileUploadStep.total}...`
+                      : 'Submit'}
                   </span>
-                  <Sparkles className="relative w-4 h-4" />
+                  {!fileUploadStep && <Sparkles className="relative w-4 h-4" />}
                 </motion.button>
               )}
             </div>
           </div>
         </form>
       </div>
+    </div>
+  );
+});
+
+// ─── Local File Picker ────────────────────────────────────────────────────────
+
+const LocalFilePicker = memo(function LocalFilePicker({
+  files,
+  onChange,
+  maxFiles = 10,
+  maxFileSizeMB = 100,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  maxFiles?: number;
+  maxFileSizeMB?: number;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = useCallback(
+    (incoming: File[]) => {
+      const maxBytes = maxFileSizeMB * 1024 * 1024;
+      const valid = incoming.filter((f) => f.size <= maxBytes);
+      if (valid.length < incoming.length) {
+        alert(`Some files exceed the ${maxFileSizeMB} MB limit and were skipped.`);
+      }
+      onChange([...files, ...valid].slice(0, maxFiles));
+    },
+    [files, onChange, maxFiles, maxFileSizeMB],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragActive(false);
+      addFiles(Array.from(e.dataTransfer.files));
+    },
+    [addFiles],
+  );
+
+  const removeFile = (index: number) => onChange(files.filter((_, i) => i !== index));
+
+  const formatSize = (bytes: number) => {
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  };
+
+  const getIcon = (type: string) => {
+    if (type.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
+    if (type.startsWith('video/')) return <VideoIcon className="w-4 h-4" />;
+    return <FileIcon className="w-4 h-4" />;
+  };
+
+  const isFull = files.length >= maxFiles;
+
+  return (
+    <div className="space-y-4">
+      {/* Drop zone */}
+      <div
+        onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+        onDrop={handleDrop}
+        onClick={() => !isFull && inputRef.current?.click()}
+        style={dragActive ? { borderColor: '#F774B9', background: 'rgba(247,116,185,0.06)' } : undefined}
+        className={`relative flex flex-col items-center justify-center gap-4 border-2 border-dashed rounded-2xl p-10 transition-all duration-200 cursor-pointer ${
+          isFull
+            ? 'opacity-40 pointer-events-none border-zinc-800'
+            : 'border-zinc-700/60 hover:border-zinc-500 hover:bg-zinc-800/20'
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => e.target.files && addFiles(Array.from(e.target.files))}
+        />
+        <div
+          style={dragActive ? { background: 'rgba(247,116,185,0.15)', borderColor: 'rgba(247,116,185,0.4)' } : undefined}
+          className="w-14 h-14 rounded-2xl bg-zinc-800/60 border border-zinc-700/40 flex items-center justify-center transition-all duration-200"
+        >
+          <Upload className={`w-6 h-6 transition-colors ${dragActive ? 'text-brand-light-pink' : 'text-zinc-500'}`} />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-zinc-300">
+            {dragActive ? 'Drop files here' : 'Drop files or click to browse'}
+          </p>
+          <p className="text-xs text-zinc-600 mt-1">
+            Images & videos · Max {maxFileSizeMB} MB each · {files.length}/{maxFiles} files
+          </p>
+        </div>
+      </div>
+
+      {/* Queued file list */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest px-1">
+            {files.length} file{files.length !== 1 ? 's' : ''} queued
+          </p>
+          {files.map((file, i) => (
+            <div
+              key={`${file.name}-${i}`}
+              className="flex items-center gap-3 px-4 py-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-zinc-400">
+                {getIcon(file.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white truncate">{file.name}</p>
+                <p className="text-xs text-zinc-600">{formatSize(file.size)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeFile(i)}
+                className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light-pink hover:bg-brand-light-pink/10 transition-all opacity-0 group-hover:opacity-100"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -549,19 +656,6 @@ const StepContent = memo(function StepContent({
         )}
       </div>
       {children}
-    </div>
-  );
-});
-
-const Divider = memo(function Divider() {
-  return (
-    <div className="relative">
-      <div className="absolute inset-0 flex items-center">
-        <div className="w-full border-t border-zinc-800/50"></div>
-      </div>
-      <div className="relative flex justify-center text-sm">
-        <span className="px-4 bg-zinc-900/40 text-zinc-500">and</span>
-      </div>
     </div>
   );
 });
