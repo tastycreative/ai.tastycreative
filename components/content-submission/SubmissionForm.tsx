@@ -524,6 +524,7 @@ const LocalFilePicker = memo(function LocalFilePicker({
   maxFileSizeMB?: number;
 }) {
   const [dragActive, setDragActive] = useState(false);
+  const [sizeError, setSizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = useCallback(
@@ -531,7 +532,8 @@ const LocalFilePicker = memo(function LocalFilePicker({
       const maxBytes = maxFileSizeMB * 1024 * 1024;
       const valid = incoming.filter((f) => f.size <= maxBytes);
       if (valid.length < incoming.length) {
-        alert(`Some files exceed the ${maxFileSizeMB} MB limit and were skipped.`);
+        setSizeError(`${incoming.length - valid.length} file(s) exceeded the ${maxFileSizeMB} MB limit and were skipped.`);
+        setTimeout(() => setSizeError(null), 4000);
       }
       onChange([...files, ...valid].slice(0, maxFiles));
     },
@@ -601,6 +603,14 @@ const LocalFilePicker = memo(function LocalFilePicker({
           </p>
         </div>
       </div>
+
+      {/* Size error */}
+      {sizeError && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-300">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {sizeError}
+        </div>
+      )}
 
       {/* Queued file list */}
       {files.length > 0 && (

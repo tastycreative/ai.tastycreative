@@ -85,21 +85,21 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
           id: submissionId,
           ...data,
         });
+        if (onSuccess) onSuccess(submissionId);
       } else {
-        await createSubmission.mutateAsync(data);
+        const result = await createSubmission.mutateAsync(data);
+        setShowSuccess(true);
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess(result.id ?? '');
+          } else {
+            setShowSuccess(false);
+            reset();
+          }
+        }, 2000);
       }
-
-      // Show success message
-      setShowSuccess(true);
-
-      // Reset form after delay
-      setTimeout(() => {
-        setShowSuccess(false);
-        reset();
-      }, 3000);
     } catch (error) {
       console.error('Submission failed:', error);
-      alert('Failed to save submission');
     }
   };
 
@@ -120,12 +120,9 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
               </div>
               <h2 className="text-3xl font-bold text-white mb-2">Submission Created!</h2>
               <p className="text-zinc-400">
-                Your content submission has been logged to the console. Check DevTools to see the data.
+                Your content has been successfully submitted and added to the board.
               </p>
             </div>
-            <p className="text-sm text-zinc-500">
-              This is design-only mode. No data was saved to a backend.
-            </p>
           </div>
         </div>
       )}
