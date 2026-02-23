@@ -143,9 +143,17 @@ export const SEXTING_SETS_METADATA_FIELDS: MetadataFieldDescriptor[] = [
 export interface OtpPtrItemMetadata {
   requestType: 'OTP' | 'PTR' | 'CUSTOM';
   price: number;
-  buyer: string;
   model: string;
+  pricingTier: string;
+  pageType: string;
+  driveLink: string;
+  contentType: string;
+  contentLength: string;
+  contentCount: string;
   deliverables: string[];
+  externalCreatorTags: string[];
+  internalModelTags: string[];
+  contentTags: string[];
   deadline: string;
   isPaid: boolean;
   fulfillmentNotes: string;
@@ -154,9 +162,17 @@ export interface OtpPtrItemMetadata {
 export const OTP_PTR_METADATA_DEFAULTS: OtpPtrItemMetadata = {
   requestType: 'OTP',
   price: 0,
-  buyer: '',
   model: '',
+  pricingTier: '',
+  pageType: '',
+  driveLink: '',
+  contentType: '',
+  contentLength: '',
+  contentCount: '',
   deliverables: [],
+  externalCreatorTags: [],
+  internalModelTags: [],
+  contentTags: [],
   deadline: '',
   isPaid: false,
   fulfillmentNotes: '',
@@ -171,9 +187,32 @@ export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
     options: ['OTP', 'PTR', 'CUSTOM'],
   },
   { key: 'price', label: 'Price ($)', type: 'number', required: true, placeholder: '0.00' },
-  { key: 'buyer', label: 'Buyer', type: 'text', required: true, placeholder: '@username' },
   { key: 'model', label: 'Model', type: 'text', placeholder: 'Model name' },
+  {
+    key: 'pricingTier',
+    label: 'Pricing Tier',
+    type: 'select',
+    options: ['Porn Accurate', 'Porn Scam', 'GF Accurate', 'GF Scam'],
+  },
+  {
+    key: 'pageType',
+    label: 'Page Type',
+    type: 'select',
+    options: ['All Pages', 'Free', 'Paid', 'VIP'],
+  },
+  { key: 'driveLink', label: 'Drive Link', type: 'text', placeholder: 'https://drive.google.com/...' },
+  {
+    key: 'contentType',
+    label: 'Content Type',
+    type: 'select',
+    options: ['Photo', 'Video', 'Photo Set', 'Video Set', 'Mixed (Photos + Videos)', 'GIF', 'Livestream', 'Audio', 'Text Only'],
+  },
+  { key: 'contentLength', label: 'Content Length', type: 'text', placeholder: 'e.g. 8:43 or 8 mins 43 secs' },
+  { key: 'contentCount', label: 'Content Count', type: 'text', placeholder: 'e.g. 1 Video, 3 Photos' },
   { key: 'deliverables', label: 'Deliverables', type: 'tags', placeholder: 'e.g. 3 photos, 1 video' },
+  { key: 'externalCreatorTags', label: 'Tags — External Creators', type: 'tags', placeholder: '@johndoe @janedoe' },
+  { key: 'internalModelTags', label: 'Tags — Internal Models', type: 'tags', placeholder: '@modelname' },
+  { key: 'contentTags', label: 'Content Tags', type: 'tags', placeholder: 'e.g. exclusive, solo, custom' },
   { key: 'deadline', label: 'Deadline', type: 'date' },
   { key: 'isPaid', label: 'Paid', type: 'boolean' },
   { key: 'fulfillmentNotes', label: 'Fulfillment Notes', type: 'textarea', placeholder: 'Delivery instructions...' },
