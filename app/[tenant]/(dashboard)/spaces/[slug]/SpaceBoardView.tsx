@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { Loader2 } from 'lucide-react';
@@ -7,6 +8,7 @@ import {
   BoardLayout,
   BoardColumn,
   AddColumnButton,
+  BoardScrollIndicator,
   type BoardFilters,
 } from '../board';
 import { useSpaceBoard } from './useSpaceBoard';
@@ -63,6 +65,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const { data: space } = useSpaceBySlug(slug);
   const config = TEMPLATE_CONFIG[space!.templateType];
   const { DetailModal } = config;
+  const boardContainerRef = useRef<HTMLDivElement>(null);
 
   const {
     boardData,
@@ -127,7 +130,10 @@ function TemplateBoardView({ slug }: { slug: string }) {
           const query = filters.searchQuery.toLowerCase();
 
           return (
-            <div className="rounded-2xl border border-gray-200 dark:border-brand-mid-pink/15 bg-gray-100/50 dark:bg-gray-950/40 p-3 sm:p-4 overflow-x-auto">
+            <div
+              ref={boardContainerRef}
+              className="rounded-2xl border border-gray-200 dark:border-brand-mid-pink/15 bg-gray-100/50 dark:bg-gray-950/40 p-3 sm:p-4 overflow-x-auto"
+            >
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className="flex gap-3 sm:gap-4 min-w-max items-stretch">
                   {effectiveColumnOrder.map((colId) => {
@@ -186,6 +192,11 @@ function TemplateBoardView({ slug }: { slug: string }) {
           );
         }}
       </BoardLayout>
+
+      <BoardScrollIndicator
+        totalColumns={effectiveColumnOrder.length}
+        containerRef={boardContainerRef}
+      />
 
       {selectedTask && (
         <DetailModal
