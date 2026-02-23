@@ -10,7 +10,7 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
-import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
+import VaultFolderDropdownEnhanced, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
@@ -2176,7 +2176,7 @@ export default function SeeDreamImageToImage() {
                 </div>
                 
                 <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
-                <VaultFolderDropdown
+                <VaultFolderDropdownEnhanced
                   targetFolder={targetFolder}
                   setTargetFolder={setTargetFolder}
                   folderDropdownOpen={folderDropdownOpen}

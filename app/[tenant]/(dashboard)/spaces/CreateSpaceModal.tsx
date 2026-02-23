@@ -141,6 +141,25 @@ const DEFAULT_STATUSES: StatusItem[] = [
   { id: 'done', name: 'Done', color: 'green' },
 ];
 
+const SEXTING_SETS_STATUSES: StatusItem[] = [
+  { id: 'submissions', name: 'Submissions', color: 'blue' },
+  { id: 'count-confirmed', name: 'Count Confirmed', color: 'cyan' },
+  { id: 'editing-scripting', name: 'Editing and Scripting', color: 'purple' },
+  { id: 'review', name: 'Review', color: 'amber' },
+  { id: 'revision', name: 'Revision', color: 'orange' },
+  { id: 'ready-vault', name: 'Ready for Vault Upload', color: 'pink' },
+  { id: 'completed', name: 'Completed', color: 'green' },
+];
+
+function getDefaultStatusesForTemplate(templateType: SpaceTemplateType): StatusItem[] {
+  switch (templateType) {
+    case 'SEXTING_SETS':
+      return SEXTING_SETS_STATUSES;
+    default:
+      return DEFAULT_STATUSES;
+  }
+}
+
 const STATUS_COLORS = [
   { id: 'blue', label: 'Blue', class: 'bg-brand-blue' },
   { id: 'amber', label: 'Amber', class: 'bg-amber-500' },
@@ -337,7 +356,7 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
   const [key, setKey] = useState('');
   const [keyManual, setKeyManual] = useState(false);
   const [workTypes, setWorkTypes] = useState<WorkType[]>(DEFAULT_WORK_TYPES);
-  const [statuses, setStatuses] = useState<StatusItem[]>(DEFAULT_STATUSES);
+  const [statuses, setStatuses] = useState<StatusItem[]>(getDefaultStatusesForTemplate('KANBAN'));
   const [previewMode, setPreviewMode] = useState<'board' | 'list'>('board');
   const [showAddWTModal, setShowAddWTModal] = useState(false);
   const [newWT, setNewWT] = useState({ name: '', description: '', iconId: 'target' });
@@ -365,6 +384,10 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
     }
   }, [name, keyManual]);
 
+  useEffect(() => {
+    setStatuses(getDefaultStatusesForTemplate(selectedTemplateId));
+  }, [selectedTemplateId]);
+
   if (!mounted || (!isOpen && !isAnimating)) return null;
 
   /* ---- handlers ---- */
@@ -379,7 +402,7 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
       setKey('');
       setKeyManual(false);
       setWorkTypes(DEFAULT_WORK_TYPES);
-      setStatuses(DEFAULT_STATUSES);
+      setStatuses(getDefaultStatusesForTemplate('KANBAN'));
       setPreviewMode('board');
       setShowAddWTModal(false);
     }, 300);

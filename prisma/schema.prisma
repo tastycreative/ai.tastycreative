@@ -497,7 +497,7 @@ model LoRAShare {
 }
 
 model InstagramProfile {
-  id                     String                  @id @default(cuid())
+  id                     String                @id @default(cuid())
   clerkId                String
   name                   String
   description            String?
@@ -505,33 +505,33 @@ model InstagramProfile {
   instagramAccountId     String?
   instagramAccessToken   String?
   instagramTokenExpiry   DateTime?
-  isDefault              Boolean                 @default(false)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  isDefault              Boolean               @default(false)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
   organizationId         String?
   modelBible             Json?
-  isFavorite             Boolean                 @default(false)
-  tags                   String[]                @default([])
+  isFavorite             Boolean               @default(false)
+  tags                   String[]              @default([])
   pageStrategy           String?
   customStrategies       Json?
-  customContentTypes     String[]                @default([])
-  selectedContentTypes   String[]                @default([])
-  status                 String                  @default("active")
-  type                   String                  @default("real")
+  customContentTypes     String[]              @default([])
+  selectedContentTypes   String[]              @default([])
+  status                 String                @default("active")
+  type                   String                @default("real")
   metadata               Json?
   captions               Caption[]
-  bookmarks              FeedPostBookmark[]      @relation("ProfileBookmarks")
-  commentLikes           FeedPostCommentLike[]   @relation("ProfileCommentLikes")
-  comments               FeedPostComment[]       @relation("ProfileComments")
-  postLikes              FeedPostLike[]          @relation("ProfilePostLikes")
+  bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
+  commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
+  comments               FeedPostComment[]     @relation("ProfileComments")
+  postLikes              FeedPostLike[]        @relation("ProfilePostLikes")
   feedPosts              FeedPost[]
-  receivedFriendRequests Friendship[]            @relation("ReceivedFriendRequests")
-  sentFriendRequests     Friendship[]            @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[]          @relation("ReceivedFriendRequests")
+  sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
-  user                   User                    @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  organization           Organization?           @relation(fields: [organizationId], references: [id])
+  user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  organization           Organization?         @relation(fields: [organizationId], references: [id])
   groupMemberships       ProfileGroupMember[]
   profilePins            ProfilePin[]
 
@@ -1285,6 +1285,7 @@ model Organization {
   additionalStorageGB           Int                           @default(0)
   storageSlotPrice              Float?
   transactions                  BillingTransaction[]
+  boardItems                    BoardItem[]
   content_submissions           content_submissions[]
   creditUsageLogs               CreditUsageLog[]
   customPermissions             CustomOrganizationPermission?
@@ -1297,7 +1298,6 @@ model Organization {
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
-  boardItems                    BoardItem[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -1439,8 +1439,6 @@ model BoardColumn {
 
 model BoardItem {
   id             String             @id @default(cuid())
-  organizationId String?
-  itemNo         Int?
   columnId       String
   title          String
   description    String?
@@ -1453,10 +1451,12 @@ model BoardItem {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   createdBy      String?
+  itemNo         Int?
+  organizationId String?
   comments       BoardItemComment[]
   media          BoardItemMedia[]
   column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, itemNo])
   @@index([columnId])
@@ -2094,17 +2094,17 @@ model ProfileGroupMember {
 }
 
 model ProfileGroup {
-  id                  String               @id @default(cuid())
-  organizationId      String
-  name                String
-  color               String?
-  icon                String?
-  order               Int                  @default(0)
-  isCollapsed         Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  members             ProfileGroupMember[]
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String               @id @default(cuid())
+  organizationId String
+  name           String
+  color          String?
+  icon           String?
+  order          Int                  @default(0)
+  isCollapsed    Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  members        ProfileGroupMember[]
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -2113,13 +2113,13 @@ model ProfileGroup {
 }
 
 model ProfilePin {
-  id             String           @id @default(cuid())
-  userId         String
-  profileId      String
-  order          Int              @default(0)
-  pinnedAt       DateTime         @default(now())
-  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  user           User             @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  userId    String
+  profileId String
+  order     Int              @default(0)
+  pinnedAt  DateTime         @default(now())
+  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
 
   @@unique([userId, profileId])
   @@index([profileId])

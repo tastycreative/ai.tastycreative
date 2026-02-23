@@ -130,11 +130,13 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     description: 'Organize and track sexting set production workflows.',
     config: {
       defaultColumns: [
-        { name: 'Concept', color: 'purple', position: 0 },
-        { name: 'Shooting', color: 'amber', position: 1 },
-        { name: 'Editing', color: 'blue', position: 2 },
-        { name: 'Ready', color: 'green', position: 3 },
-        { name: 'Distributed', color: 'pink', position: 4 },
+        { name: 'Submissions', color: 'blue', position: 0 },
+        { name: 'Count Confirmed', color: 'cyan', position: 1 },
+        { name: 'Editing and Scripting', color: 'purple', position: 2 },
+        { name: 'Review', color: 'amber', position: 3 },
+        { name: 'Revision', color: 'orange', position: 4 },
+        { name: 'Ready for Vault Upload', color: 'pink', position: 5 },
+        { name: 'Completed', color: 'green', position: 6 },
       ],
       workTypes: [
         { name: 'Photo Set', icon: 'image', description: 'Photo-based sexting sets' },

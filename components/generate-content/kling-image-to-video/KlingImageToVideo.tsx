@@ -12,6 +12,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import VaultFolderDropdownEnhanced from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
@@ -314,7 +315,6 @@ export default function KlingImageToVideo() {
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
 
   // Vault folder state - only for the selected profile
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -542,17 +542,6 @@ export default function KlingImageToVideo() {
       }
     }
   }, [mounted, getCompletedJobsForType, activeJobs, isGenerating]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
-        setFolderDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Check model feature support
   const currentModel = MODEL_OPTIONS.find(m => m.value === model);
@@ -816,46 +805,6 @@ export default function KlingImageToVideo() {
     
     return parts.join(' / ');
   }, [vaultFolders]);
-
-  // Helper: Get folder depth for indentation
-  const getFolderDepth = useCallback((folderId: string): number => {
-    let depth = 0;
-    let currentId: string | null = folderId;
-    
-    while (currentId) {
-      const folder = vaultFolders.find(f => f.id === currentId);
-      if (!folder || !folder.parentId) break;
-      depth++;
-      currentId = folder.parentId;
-    }
-    
-    return depth;
-  }, [vaultFolders]);
-
-  // Helper: Sort folders by hierarchy (parent before children)
-  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
-    const result: VaultFolder[] = [];
-    const addedIds = new Set<string>();
-    
-    const addFolderAndChildren = (folderId: string) => {
-      if (addedIds.has(folderId)) return;
-      const folder = folders.find(f => f.id === folderId);
-      if (!folder) return;
-      
-      result.push(folder);
-      addedIds.add(folderId);
-      
-      // Add children
-      const children = folders.filter(f => f.parentId === folderId);
-      children.forEach(child => addFolderAndChildren(child.id));
-    };
-    
-    // First add all root folders (no parent)
-    const rootFolders = folders.filter(f => !f.parentId);
-    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
-    
-    return result;
-  }, []);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
@@ -1960,198 +1909,17 @@ export default function KlingImageToVideo() {
                   )}
                 </div>
                 
-                {/* Modern Custom Dropdown */}
-                <div ref={folderDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => !(!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
-                    disabled={!mounted || hasActiveGeneration || isLoadingVaultData || !globalProfileId}
-                    className={`
-                      w-full flex items-center justify-between gap-3 px-4 py-3.5
-                      rounded-2xl border transition-all duration-200
-                      ${folderDropdownOpen 
-                        ? 'border-[#EC67A1] bg-[#EC67A1]/10 ring-2 ring-[#EC67A1]/30' 
-                        : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 hover:border-[#EC67A1]/50 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                    `}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`
-                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-                        ${targetFolder 
-                          ? 'bg-gradient-to-br from-[#EC67A1]/20 to-[#F774B9]/20 border border-[#EC67A1]/30' 
-                          : 'bg-zinc-100 dark:bg-zinc-700/50 border border-zinc-200/50 dark:border-white/5'
-                        }
-                      `}>
-                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                      </div>
-                      <div className="text-left min-w-0">
-                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-sidebar-foreground' : 'text-zinc-400 dark:text-zinc-500'}`}>
-                          {targetFolder 
-                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
-                            : 'Select a folder...'
-                          }
-                        </p>
-                        {targetFolder && (
-                          <p className="text-[11px] text-[#EC67A1]/70 truncate">
-                            {isAllProfiles 
-                              ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
-                              : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
-                            }
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown className={`w-5 h-5 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {folderDropdownOpen && mounted && (
-                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
-                      {/* Clear Selection Option */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetFolder('');
-                          setFolderDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-700/50 flex items-center justify-center">
-                          <X className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
-                        </div>
-                        <span className="text-sm text-zinc-400 dark:text-zinc-500">No folder selected</span>
-                        {!targetFolder && <Check className="w-4 h-4 text-[#EC67A1] ml-auto" />}
-                      </button>
-
-                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
-                        <div className="my-2 mx-3 h-px bg-zinc-200 dark:bg-zinc-700" />
-                      )}
-
-                      {/* Folder Options - Grouped by profile when viewing all profiles */}
-                      <div className="max-h-[200px] overflow-y-auto">
-                        {isAllProfiles ? (
-                          // Group folders by profile
-                          Object.entries(
-                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
-                              const profileKey = folder.profileName || 'Unknown Profile';
-                              if (!acc[profileKey]) acc[profileKey] = [];
-                              acc[profileKey].push(folder);
-                              return acc;
-                            }, {} as Record<string, VaultFolder[]>)
-                          ).map(([profileName, folders]) => (
-                            <div key={profileName}>
-                              <div className="px-4 py-2 text-xs font-semibold text-[#EC67A1] uppercase tracking-wider bg-[#EC67A1]/10 sticky top-0">
-                                {profileName}
-                              </div>
-                              {sortFoldersHierarchically(folders).map((folder) => {
-                                const depth = getFolderDepth(folder.id);
-                                const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
-                                return (
-                                  <button
-                                    key={folder.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setTargetFolder(folder.id);
-                                      setFolderDropdownOpen(false);
-                                    }}
-                                    className={`
-                                      w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
-                                      ${targetFolder === folder.id 
-                                        ? 'bg-[#EC67A1]/15' 
-                                        : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
-                                      }
-                                    `}
-                                    style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
-                                  >
-                                    <div className={`
-                                      w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
-                                      ${targetFolder === folder.id 
-                                        ? 'bg-gradient-to-br from-[#EC67A1]/30 to-[#F774B9]/30 border border-[#EC67A1]/40' 
-                                        : 'bg-zinc-100 dark:bg-zinc-700/50 border border-zinc-200/50 dark:border-white/5'
-                                      }
-                                    `}>
-                                      {hasChildren ? (
-                                        <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                                      ) : (
-                                        <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                                      )}
-                                    </div>
-                                    <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
-                                      {folder.name}
-                                    </span>
-                                    {depth > 0 && (
-                                      <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
-                                    )}
-                                    {targetFolder === folder.id && (
-                                      <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ))
-                        ) : (
-                          // Single profile view - hierarchical list
-                          sortFoldersHierarchically(vaultFolders.filter(f => !f.isDefault)).map((folder) => {
-                            const depth = getFolderDepth(folder.id);
-                            const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
-                            return (
-                              <button
-                                key={folder.id}
-                                type="button"
-                                onClick={() => {
-                                  setTargetFolder(folder.id);
-                                  setFolderDropdownOpen(false);
-                                }}
-                                className={`
-                                  w-full flex items-center gap-3 py-2.5 text-left transition-all duration-150
-                                  ${targetFolder === folder.id 
-                                    ? 'bg-[#EC67A1]/15' 
-                                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
-                                  }
-                                `}
-                                style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
-                              >
-                                <div className={`
-                                  w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0
-                                  ${targetFolder === folder.id 
-                                    ? 'bg-gradient-to-br from-[#EC67A1]/30 to-[#F774B9]/30 border border-[#EC67A1]/40' 
-                                    : 'bg-zinc-100 dark:bg-zinc-700/50 border border-zinc-200/50 dark:border-white/5'
-                                  }
-                                `}>
-                                  {hasChildren ? (
-                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                                  ) : (
-                                    <Folder className={`w-4 h-4 ${targetFolder === folder.id ? 'text-[#EC67A1]' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                                  )}
-                                </div>
-                                <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-sidebar-foreground font-medium' : 'text-sidebar-foreground'}`}>
-                                  {folder.name}
-                                </span>
-                                {depth > 0 && (
-                                  <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
-                                )}
-                                {targetFolder === folder.id && (
-                                  <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                )}
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
-                        <div className="px-4 py-6 text-center">
-                          <FolderOpen className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
-                          <p className="text-sm text-zinc-400 dark:text-zinc-500">No folders available</p>
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Create folders in the Vault tab</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* Folder Dropdown */}
+                <VaultFolderDropdownEnhanced
+                  targetFolder={targetFolder}
+                  setTargetFolder={setTargetFolder}
+                  folderDropdownOpen={folderDropdownOpen}
+                  setFolderDropdownOpen={setFolderDropdownOpen}
+                  vaultFolders={vaultFolders}
+                  isAllProfiles={isAllProfiles}
+                  selectedProfile={selectedProfile}
+                  mounted={mounted}
+                />
 
                 {/* Status Indicator */}
                 {targetFolder && (

@@ -6,7 +6,7 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
-import VaultFolderDropdown from "@/components/generate-content/shared/VaultFolderDropdown";
+import VaultFolderDropdownEnhanced from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
@@ -785,7 +785,7 @@ export default function FPSBoostPage() {
                 </label>
                 
                 {/* Vault Folder Dropdown */}
-                <VaultFolderDropdown
+                <VaultFolderDropdownEnhanced
                   targetFolder={params.targetFolder}
                   setTargetFolder={(folder: string) => setParams(prev => ({ ...prev, targetFolder: folder }))}
                   folderDropdownOpen={folderDropdownOpen}

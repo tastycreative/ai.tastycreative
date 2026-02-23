@@ -11,7 +11,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
-import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
+import VaultFolderDropdownEnhanced, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
@@ -1594,7 +1594,7 @@ export default function SeeDreamImageToVideo() {
                   )}
                 </div>
                 
-                <VaultFolderDropdown
+                <VaultFolderDropdownEnhanced
                   targetFolder={targetFolder}
                   setTargetFolder={setTargetFolder}
                   folderDropdownOpen={folderDropdownOpen}

@@ -33,7 +33,7 @@ import {
   FolderOpen,
   Check,
 } from "lucide-react";
-import VaultFolderDropdown from "@/components/generate-content/shared/VaultFolderDropdown";
+import VaultFolderDropdownEnhanced from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 
 // Types
 interface FaceSwapParams {
@@ -2117,7 +2117,7 @@ export default function FaceSwappingPage() {
               </div>
 
               {/* Vault Folder Dropdown */}
-              <VaultFolderDropdown
+              <VaultFolderDropdownEnhanced
                 targetFolder={targetFolder}
                 setTargetFolder={setTargetFolder}
                 folderDropdownOpen={folderDropdownOpen}

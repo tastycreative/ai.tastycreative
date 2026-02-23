@@ -12,6 +12,7 @@ import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { useParams } from "next/navigation";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import VaultFolderDropdownEnhanced from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   AlertCircle,
@@ -254,7 +255,6 @@ export default function KlingMotionControl() {
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  const folderDropdownRef = useRef<HTMLDivElement>(null);
 
   // Vault folder state
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -330,46 +330,6 @@ export default function KlingMotionControl() {
     
     return parts.join(' / ');
   }, [vaultFolders]);
-
-  // Helper: Get folder depth for indentation
-  const getFolderDepth = useCallback((folderId: string): number => {
-    let depth = 0;
-    let currentId: string | null = folderId;
-    
-    while (currentId) {
-      const folder = vaultFolders.find(f => f.id === currentId);
-      if (!folder || !folder.parentId) break;
-      depth++;
-      currentId = folder.parentId;
-    }
-    
-    return depth;
-  }, [vaultFolders]);
-
-  // Helper: Sort folders by hierarchy (parent before children)
-  const sortFoldersHierarchically = useCallback((folders: VaultFolder[]): VaultFolder[] => {
-    const result: VaultFolder[] = [];
-    const addedIds = new Set<string>();
-    
-    const addFolderAndChildren = (folderId: string) => {
-      if (addedIds.has(folderId)) return;
-      const folder = folders.find(f => f.id === folderId);
-      if (!folder) return;
-      
-      result.push(folder);
-      addedIds.add(folderId);
-      
-      // Add children
-      const children = folders.filter(f => f.parentId === folderId);
-      children.forEach(child => addFolderAndChildren(child.id));
-    };
-    
-    // First add all root folders (no parent)
-    const rootFolders = folders.filter(f => !f.parentId);
-    rootFolders.forEach(folder => addFolderAndChildren(folder.id));
-    
-    return result;
-  }, []);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
@@ -648,17 +608,6 @@ export default function KlingMotionControl() {
       loadGenerationHistory();
     }
   }, [globalProfileId, loadGenerationHistory, user, apiClient]);
-
-  // Click outside handler for folder dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
-        setFolderDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Handle image file selection with automatic compression
   const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1906,127 +1855,16 @@ export default function KlingMotionControl() {
                   )}
                 </div>
                 {mounted && (
-                  <div ref={folderDropdownRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
-                      disabled={isLoadingVaultData || hasActiveGeneration || !globalProfileId}
-                      className="w-full flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50 px-4 py-3 text-sm text-sidebar-foreground transition hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#EC67A1]/50 disabled:opacity-50"
-                    >
-                      <span className="flex items-center gap-2">
-                        <FolderOpen className="w-4 h-4 text-[#EC67A1]" />
-                        <div className="text-left">
-                          <span>{targetFolder
-                            ? vaultFolders.find((f) => f.id === targetFolder)?.name || "Select folder..."
-                            : "Select a vault folder..."}</span>
-                          {targetFolder && (
-                            <span className="block text-[11px] text-[#EC67A1]/70">
-                              {isAllProfiles 
-                                ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
-                                : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-zinc-400 dark:text-zinc-500 transition-transform ${folderDropdownOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {folderDropdownOpen && (
-                      <div className="absolute z-50 bottom-full mb-2 w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-xl overflow-hidden">
-                        <div className="max-h-60 overflow-y-auto py-1">
-                          {vaultFolders.filter((f) => !f.isDefault).length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500">
-                              No folders available for this profile
-                            </div>
-                          ) : isAllProfiles ? (
-                            // Group folders by profile
-                            Object.entries(
-                              vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
-                                const profileKey = folder.profileName || 'Unknown Profile';
-                                if (!acc[profileKey]) acc[profileKey] = [];
-                                acc[profileKey].push(folder);
-                                return acc;
-                              }, {} as Record<string, VaultFolder[]>)
-                            ).map(([profileName, folders]) => (
-                              <div key={profileName}>
-                                <div className="px-4 py-2 text-xs font-semibold text-[#EC67A1] uppercase tracking-wider bg-[#EC67A1]/10 sticky top-0">
-                                  {profileName}
-                                </div>
-                                {sortFoldersHierarchically(folders).map((folder) => {
-                                  const depth = getFolderDepth(folder.id);
-                                  const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
-                                  return (
-                                    <button
-                                      key={folder.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setTargetFolder(folder.id);
-                                        setFolderDropdownOpen(false);
-                                      }}
-                                      className={`w-full flex items-center gap-3 py-2.5 text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800/50 ${
-                                        targetFolder === folder.id
-                                          ? "bg-[#EC67A1]/20 text-[#EC67A1]"
-                                          : "text-sidebar-foreground"
-                                      }`}
-                                      style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
-                                    >
-                                      {hasChildren ? (
-                                        <FolderOpen className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                      ) : (
-                                        <Folder className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                      )}
-                                      <span className="flex-1 text-left truncate">{folder.name}</span>
-                                      {depth > 0 && (
-                                        <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
-                                      )}
-                                      {targetFolder === folder.id && (
-                                        <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ))
-                          ) : (
-                            // Single profile view - hierarchical list
-                            sortFoldersHierarchically(vaultFolders.filter((f) => !f.isDefault)).map((folder) => {
-                              const depth = getFolderDepth(folder.id);
-                              const hasChildren = vaultFolders.some(f => f.parentId === folder.id);
-                              return (
-                                <button
-                                  key={folder.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetFolder(folder.id);
-                                    setFolderDropdownOpen(false);
-                                  }}
-                                  className={`w-full flex items-center gap-3 py-2.5 text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800/50 ${
-                                    targetFolder === folder.id
-                                      ? "bg-[#EC67A1]/20 text-[#EC67A1]"
-                                      : "text-sidebar-foreground"
-                                  }`}
-                                  style={{ paddingLeft: `${16 + depth * 16}px`, paddingRight: '16px' }}
-                                >
-                                  {hasChildren ? (
-                                    <FolderOpen className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                  ) : (
-                                    <Folder className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                  )}
-                                  <span className="flex-1 text-left truncate">{folder.name}</span>
-                                  {depth > 0 && (
-                                    <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">L{depth + 1}</span>
-                                  )}
-                                  {targetFolder === folder.id && (
-                                    <Check className="w-4 h-4 text-[#EC67A1] flex-shrink-0" />
-                                  )}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <VaultFolderDropdownEnhanced
+                    targetFolder={targetFolder}
+                    setTargetFolder={setTargetFolder}
+                    folderDropdownOpen={folderDropdownOpen}
+                    setFolderDropdownOpen={setFolderDropdownOpen}
+                    vaultFolders={vaultFolders}
+                    isAllProfiles={isAllProfiles}
+                    selectedProfile={selectedProfile}
+                    mounted={mounted}
+                  />
                 )}
                 <p className="text-xs text-zinc-400 dark:text-zinc-500">
                   {getSelectedFolderDisplay()}

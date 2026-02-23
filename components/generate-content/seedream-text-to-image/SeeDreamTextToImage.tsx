@@ -9,7 +9,7 @@ import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
-import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
+import VaultFolderDropdownEnhanced, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdownEnhanced";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
 import {
   ImageIcon,
@@ -1139,7 +1139,7 @@ export default function SeeDreamTextToImage() {
                 </button>
                 
                 <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
-                <VaultFolderDropdown
+                <VaultFolderDropdownEnhanced
                   targetFolder={targetFolder}
                   setTargetFolder={setTargetFolder}
                   folderDropdownOpen={folderDropdownOpen}

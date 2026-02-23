@@ -25,7 +25,7 @@ import {
 import Image from 'next/image';
 import { useApiClient } from '@/lib/apiClient';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
-import VaultFolderDropdown from '@/components/generate-content/shared/VaultFolderDropdown';
+import VaultFolderDropdownEnhanced from '@/components/generate-content/shared/VaultFolderDropdownEnhanced';
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from '@/components/credits/CreditCalculator';
 import { StorageFullBanner, useCanGenerate } from '@/components/generate-content/shared/StorageFullBanner';
@@ -1367,7 +1367,7 @@ export default function ImageToImageSkinEnhancerPage() {
               </p>
               
               {/* Vault Folder Dropdown */}
-              <VaultFolderDropdown
+              <VaultFolderDropdownEnhanced
                 targetFolder={targetFolder}
                 setTargetFolder={setTargetFolder}
                 folderDropdownOpen={folderDropdownOpen}
