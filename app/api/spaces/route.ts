@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { getTemplateConfig } from '@/prisma/seed-templates';
 
 function slugify(name: string): string {
   return name
@@ -23,7 +22,7 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { currentOrganizationId: true },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!user?.currentOrganizationId) {
@@ -35,6 +34,10 @@ export async function GET() {
       orderBy: { createdAt: 'asc' },
       include: {
         _count: { select: { boards: true, members: true } },
+        members: {
+          where: { userId: user.id },
+          select: { role: true },
+        },
       },
     });
 
@@ -49,6 +52,7 @@ export async function GET() {
       config: ws.config,
       createdAt: ws.createdAt.toISOString(),
       _count: ws._count,
+      currentUserRole: ws.members[0]?.role || null,
     }));
 
     return NextResponse.json({ spaces });
@@ -104,22 +108,18 @@ export async function POST(req: NextRequest) {
       slug = `${baseSlug}-${suffix++}`;
     }
 
-    // Resolve template config
-    let config: Record<string, unknown> | null = null;
-    try {
-      config = getTemplateConfig(templateType) as unknown as Record<string, unknown>;
-    } catch {
-      /* unknown template — leave config null */
-    }
+    // Build config from user-provided data
+    const config: Record<string, unknown> = {
+      ...(body.statuses ? { defaultColumns: body.statuses } : {}),
+      ...(body.workTypes ? { workTypes: body.workTypes } : {}),
+    };
 
-    // Override config with user-provided statuses / work types if present
-    if (body.statuses || body.workTypes) {
-      config = {
-        ...(config ?? {}),
-        ...(body.statuses ? { defaultColumns: body.statuses } : {}),
-        ...(body.workTypes ? { workTypes: body.workTypes } : {}),
-      };
-    }
+    // Resolve columns from user input or fallback defaults
+    const columns = body.statuses ?? [
+      { name: 'To Do', color: 'blue', position: 0 },
+      { name: 'In Progress', color: 'amber', position: 1 },
+      { name: 'Done', color: 'green', position: 2 },
+    ];
 
     // Create space + default board + columns in a transaction
     const workspace = await prisma.$transaction(async (tx) => {
@@ -132,20 +132,11 @@ export async function POST(req: NextRequest) {
           templateType: templateType as any,
           key,
           access: access as any,
-          config: (config ?? undefined) as any,
+          config: Object.keys(config).length > 0 ? (config as any) : undefined,
           color: 'brand-light-pink',
           icon: templateType,
         },
       });
-
-      // Resolve columns from config or fallback defaults
-      const columns =
-        (config as any)?.defaultColumns ??
-        [
-          { name: 'To Do', color: 'blue', position: 0 },
-          { name: 'In Progress', color: 'amber', position: 1 },
-          { name: 'Done', color: 'green', position: 2 },
-        ];
 
       await tx.board.create({
         data: {
@@ -161,6 +152,15 @@ export async function POST(req: NextRequest) {
               }),
             ),
           },
+        },
+      });
+
+      // Add the creator as OWNER of the workspace
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: ws.id,
+          userId: user.id,
+          role: 'OWNER',
         },
       });
 

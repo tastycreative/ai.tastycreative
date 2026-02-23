@@ -10,6 +10,8 @@ import { useUser } from '@clerk/nextjs';
 export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR';
 export type SpaceAccess = 'OPEN' | 'PRIVATE';
 
+export type SpaceRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER';
+
 export interface Space {
   id: string;
   name: string;
@@ -20,6 +22,7 @@ export interface Space {
   access: SpaceAccess;
   config?: Record<string, unknown> | null;
   createdAt: string;
+  currentUserRole?: SpaceRole | null;
 }
 
 export interface SpaceBoardColumn {
@@ -51,6 +54,8 @@ export interface CreateSpaceInput {
   templateType: SpaceTemplateType;
   key?: string;
   access?: SpaceAccess;
+  statuses?: Array<{ name: string; color: string; position: number }>;
+  workTypes?: Array<{ name: string; description: string; iconId: string }>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,6 +146,46 @@ export function useCreateSpace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createSpace,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.lists() });
+    },
+  });
+}
+
+export function useArchiveSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (spaceId: string) => {
+      const res = await fetch(`/api/spaces/${spaceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: false }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to archive space');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.lists() });
+    },
+  });
+}
+
+export function useDeleteSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (spaceId: string) => {
+      const res = await fetch(`/api/spaces/${spaceId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to delete space');
+      }
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: spaceKeys.lists() });
     },

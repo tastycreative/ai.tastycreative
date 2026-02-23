@@ -64,8 +64,8 @@ export function BoardScrollIndicator({
 
   return createPortal(
     <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999 }}>
-      <div className="rounded-lg bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-brand-mid-pink/30 shadow-lg p-2.5 backdrop-blur-sm">
-        <div className="relative w-32 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+      <div className="rounded-lg bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-brand-mid-pink/30 shadow-lg p-1 backdrop-blur-sm">
+        <div className="relative w-32 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
           {/* Column segments */}
           <div className="absolute inset-0 flex gap-px">
             {Array.from({ length: totalColumns }).map((_, i) => (

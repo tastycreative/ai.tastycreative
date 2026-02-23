@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { Loader2 } from 'lucide-react';
@@ -19,7 +20,16 @@ interface SpaceBoardViewProps {
 }
 
 export function SpaceBoardView({ slug }: SpaceBoardViewProps) {
-  const { data: space, isLoading } = useSpaceBySlug(slug);
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
+  const { data: space, isLoading, error } = useSpaceBySlug(slug);
+
+  // Redirect to spaces list if space not found (including archived spaces)
+  useEffect(() => {
+    if (!isLoading && !space) {
+      router.push(`/${params.tenant}/spaces`);
+    }
+  }, [isLoading, space, router, params.tenant]);
 
   if (isLoading) {
     return (
@@ -34,10 +44,11 @@ export function SpaceBoardView({ slug }: SpaceBoardViewProps) {
 
   if (!space) {
     return (
-      <div className="rounded-2xl border border-dashed border-gray-300 dark:border-brand-mid-pink/30 bg-gray-50/70 dark:bg-gray-900/50 px-4 py-12 text-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Space not found.
-        </p>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-brand-light-pink" />
+        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+          Redirecting...
+        </span>
       </div>
     );
   }

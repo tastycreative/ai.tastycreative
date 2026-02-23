@@ -411,11 +411,19 @@ export function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalProps) {
   const handleCreate = async () => {
     if (!name.trim() || !key.trim()) return;
     try {
+      // Format statuses with position for the API
+      const formattedStatuses = statuses.map((s, index) => ({
+        name: s.name,
+        color: s.color,
+        position: index,
+      }));
+
       await createSpace({
         name: name.trim(),
         templateType: selectedTemplateId,
         key: key.trim(),
         access: access.toUpperCase() as SpaceAccess,
+        statuses: formattedStatuses,
       });
       handleClose();
     } catch (err) {

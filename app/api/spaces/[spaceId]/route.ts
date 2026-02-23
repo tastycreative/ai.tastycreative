@@ -72,6 +72,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { spaceId } = await params;
+
+    // Check if user has permission to update this space
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const membership = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: spaceId,
+        userId: user.id,
+        role: { in: ['OWNER', 'ADMIN'] },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: 'You do not have permission to update this space' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
@@ -80,6 +106,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.description === 'string') data.description = body.description.trim() || null;
     if (body.access === 'OPEN' || body.access === 'PRIVATE') data.access = body.access;
     if (body.config !== undefined) data.config = body.config;
+    if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
 
     const updated = await prisma.workspace.update({
       where: { id: spaceId },
@@ -95,10 +122,60 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       key: updated.key,
       access: updated.access,
       config: updated.config,
+      isActive: updated.isActive,
       createdAt: updated.createdAt.toISOString(),
     });
   } catch (error) {
     console.error('Error updating space:', error);
     return NextResponse.json({ error: 'Failed to update space' }, { status: 500 });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  DELETE /api/spaces/:spaceId — soft delete space                   */
+/* ------------------------------------------------------------------ */
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { spaceId } = await params;
+
+    // Check if user is OWNER of this space
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const membership = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: spaceId,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: 'Only the owner can delete this space' },
+        { status: 403 }
+      );
+    }
+
+    // Soft delete by setting isActive to false
+    await prisma.workspace.update({
+      where: { id: spaceId },
+      data: { isActive: false },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting space:', error);
+    return NextResponse.json({ error: 'Failed to delete space' }, { status: 500 });
   }
 }
