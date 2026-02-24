@@ -3,6 +3,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { sseBroadcaster } from "@/lib/sse-broadcaster";
 
+// Vercel has a 60s timeout for Hobby, 300s for Pro with streaming
+// Close gracefully at 50s to avoid timeout errors
+const SSE_TIMEOUT_MS = 50000;
+const HEARTBEAT_INTERVAL_MS = 15000; // More frequent heartbeats
+
 /**
  * GET /api/active-generations/stream
  * Server-Sent Events (SSE) endpoint for real-time generation updates
@@ -11,6 +16,7 @@ import { sseBroadcaster } from "@/lib/sse-broadcaster";
  * - Client connects once via EventSource
  * - Server pushes updates only when jobs change
  * - Automatic reconnection on disconnect
+ * - Gracefully closes before Vercel timeout (50s) to avoid errors
  * 
  * Query params:
  * - type: Optional generation type filter
@@ -28,32 +34,64 @@ export async function GET(request: NextRequest) {
 
     console.log(`📡 SSE stream requested by ${userId}${generationType ? ` for ${generationType}` : ''}`);
 
+    const encoder = new TextEncoder();
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+    let isClosed = false;
+
     // Create SSE stream
     const stream = new ReadableStream({
       start: async (controller) => {
+        const cleanup = () => {
+          if (isClosed) return;
+          isClosed = true;
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          sseBroadcaster.removeClient(userId, controller);
+        };
+
         // Register client with broadcaster
         sseBroadcaster.addClient(userId, controller, generationType);
 
         // Send initial connection message
-        const encoder = new TextEncoder();
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`)
-        );
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`)
+          );
+        } catch (e) {
+          cleanup();
+          return;
+        }
 
-        // Send heartbeat every 30 seconds to keep connection alive
-        const heartbeatInterval = setInterval(() => {
+        // Send heartbeat every 15 seconds to keep connection alive
+        heartbeatInterval = setInterval(() => {
+          if (isClosed) return;
           try {
-            controller.enqueue(
-              encoder.encode(`: heartbeat\n\n`)
-            );
+            controller.enqueue(encoder.encode(`: heartbeat\n\n`));
           } catch (e) {
-            clearInterval(heartbeatInterval);
+            cleanup();
           }
-        }, 30000);
+        }, HEARTBEAT_INTERVAL_MS);
+
+        // Set timeout to gracefully close before Vercel's limit
+        timeoutTimer = setTimeout(() => {
+          if (isClosed) return;
+          try {
+            // Send reconnect event so client knows to reconnect
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: 'reconnect', message: 'Connection timeout, please reconnect' })}\n\n`)
+            );
+            controller.close();
+          } catch (e) {
+            // Already closed
+          }
+          cleanup();
+          console.log(`📡 SSE timeout reached, gracefully closing for ${userId}`);
+        }, SSE_TIMEOUT_MS);
 
         // Send initial job state immediately
         try {
-          const where: any = { clerkId: userId };
+          const where: Record<string, unknown> = { clerkId: userId };
           if (generationType) {
             where.generationType = generationType;
           }
@@ -79,11 +117,12 @@ export async function GET(request: NextRequest) {
           });
 
           // Send initial state
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ type: 'initial', jobs })}\n\n`)
-          );
-
-          console.log(`📡 Sent initial state to ${userId}: ${jobs.length} jobs`);
+          if (!isClosed) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: 'initial', jobs })}\n\n`)
+            );
+            console.log(`📡 Sent initial state to ${userId}: ${jobs.length} jobs`);
+          }
         } catch (error) {
           console.error("Failed to fetch initial jobs for SSE:", error);
         }
@@ -91,8 +130,7 @@ export async function GET(request: NextRequest) {
         // Handle client disconnect
         request.signal.addEventListener('abort', () => {
           console.log(`📡 SSE client disconnected (abort): ${userId}`);
-          clearInterval(heartbeatInterval);
-          sseBroadcaster.removeClient(userId, controller);
+          cleanup();
           try {
             controller.close();
           } catch (e) {
@@ -100,9 +138,11 @@ export async function GET(request: NextRequest) {
           }
         });
       },
-      cancel: (controller) => {
+      cancel: () => {
         console.log(`📡 SSE stream cancelled: ${userId}`);
-        sseBroadcaster.removeClient(userId, controller);
+        isClosed = true;
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
       },
     });
 
@@ -116,7 +156,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("SSE stream error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to establish SSE connection" }),

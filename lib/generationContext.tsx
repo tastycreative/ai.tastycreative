@@ -246,6 +246,16 @@ export function GenerationProvider({
                   console.log(`📡 Cleared ${data.count} completed jobs`);
                 }
                 break;
+
+              case "reconnect":
+                // Server is closing connection (Vercel timeout approaching)
+                // Immediately reconnect without waiting for error backoff
+                console.log("📡 SSE server requested reconnect, reconnecting immediately...");
+                eventSource?.close();
+                // Reconnect immediately (reset attempts for instant reconnect)
+                reconnectAttempts = 0;
+                setTimeout(connect, 100); // Small delay to ensure clean close
+                break;
             }
           } catch (error) {
             console.error("Failed to parse SSE message:", error);
