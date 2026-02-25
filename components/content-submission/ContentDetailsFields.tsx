@@ -87,12 +87,14 @@ interface ContentDetailsFieldsProps {
   setValue: UseFormSetValue<CreateSubmissionWithComponents>;
   watch: UseFormWatch<CreateSubmissionWithComponents>;
   errors: FieldErrors<CreateSubmissionWithComponents>;
+  readOnlyType?: SubmissionTemplateType;
 }
 
 export function ContentDetailsFields({
   setValue,
   watch,
   errors,
+  readOnlyType,
 }: ContentDetailsFieldsProps) {
   const submissionType = (watch('submissionType') ?? 'OTP_PTR') as SubmissionTemplateType;
   const metadata = watch('metadata') || {};
@@ -123,48 +125,68 @@ export function ContentDetailsFields({
         <label className="block text-sm font-medium text-zinc-300 mb-3">
           Submission Type <span className="text-brand-light-pink">*</span>
         </label>
-        <div className="grid grid-cols-3 gap-3">
-          {TEMPLATE_OPTIONS.map(({ value, label, description, icon: Icon }) => {
-            const isSelected = submissionType === value;
+        {readOnlyType ? (
+          /* Read-only display when type is auto-determined from space */
+          (() => {
+            const opt = TEMPLATE_OPTIONS.find((t) => t.value === readOnlyType);
+            if (!opt) return null;
+            const Icon = opt.icon;
             return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => handleTemplateChange(value)}
-                className={`relative flex flex-col items-start gap-3 p-5 rounded-xl border transition-all duration-200 text-left ${
-                  isSelected
-                    ? 'bg-gradient-to-br from-brand-light-pink/15 via-brand-mid-pink/5 to-transparent border-brand-light-pink shadow-lg shadow-brand-light-pink/10'
-                    : 'border-zinc-700/50 bg-zinc-800/30 hover:bg-zinc-800/60 hover:border-zinc-600'
-                }`}
-              >
-                <div
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg ${
-                    isSelected
-                      ? 'bg-gradient-to-br from-brand-light-pink/30 to-brand-dark-pink/20'
-                      : 'bg-zinc-700/40'
-                  }`}
-                >
-                  <Icon
-                    className={`w-5 h-5 ${isSelected ? 'text-brand-light-pink' : 'text-zinc-400'}`}
-                  />
+              <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/40 border border-zinc-700/40 rounded-xl">
+                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand-light-pink/20">
+                  <Icon className="w-4 h-4 text-brand-light-pink" />
                 </div>
                 <div>
-                  <p
-                    className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-zinc-300'}`}
-                  >
-                    {label}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{description}</p>
+                  <p className="text-sm font-semibold text-white">{opt.label}</p>
+                  <p className="text-xs text-zinc-500">Auto-determined from selected space</p>
                 </div>
-                {isSelected && (
-                  <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-brand-light-pink flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                  </div>
-                )}
-              </button>
+              </div>
             );
-          })}
-        </div>
+          })()
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {TEMPLATE_OPTIONS.map(({ value, label, description, icon: Icon }) => {
+              const isSelected = submissionType === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleTemplateChange(value)}
+                  className={`relative flex flex-col items-start gap-3 p-5 rounded-xl border transition-all duration-200 text-left ${
+                    isSelected
+                      ? 'bg-gradient-to-br from-brand-light-pink/15 via-brand-mid-pink/5 to-transparent border-brand-light-pink shadow-lg shadow-brand-light-pink/10'
+                      : 'border-zinc-700/50 bg-zinc-800/30 hover:bg-zinc-800/60 hover:border-zinc-600'
+                  }`}
+                >
+                  <div
+                    className={`w-10 h-10 flex items-center justify-center rounded-lg ${
+                      isSelected
+                        ? 'bg-gradient-to-br from-brand-light-pink/30 to-brand-dark-pink/20'
+                        : 'bg-zinc-700/40'
+                    }`}
+                  >
+                    <Icon
+                      className={`w-5 h-5 ${isSelected ? 'text-brand-light-pink' : 'text-zinc-400'}`}
+                    />
+                  </div>
+                  <div>
+                    <p
+                      className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-zinc-300'}`}
+                    >
+                      {label}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{description}</p>
+                  </div>
+                  {isSelected && (
+                    <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-brand-light-pink flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {errors.submissionType && (
           <p className="text-sm text-red-400 mt-1">{errors.submissionType.message}</p>
         )}

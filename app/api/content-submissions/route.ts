@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         id: submissionId,
         organizationId: user.currentOrganizationId,
         clerkId: userId,
+        workspaceId: data.workspaceId ?? null,
         submissionType: data.submissionType,
         contentStyle: data.submissionType,
         status: data.metadata?.submitStatus === 'SUBMITTED' ? 'SUBMITTED' : 'DRAFT',

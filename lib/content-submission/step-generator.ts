@@ -6,11 +6,12 @@ export interface WizardStep {
 }
 
 /**
- * Fixed 3-step wizard for content submissions.
- * Template type is selected inside the Content Details step.
+ * Fixed 4-step wizard for content submissions.
+ * Space is selected first, which determines the submission type.
  */
 export function generateSteps(): WizardStep[] {
   return [
+    { id: 'space', title: 'Select Space' },
     { id: 'details', title: 'Content Details' },
     { id: 'files', title: 'File Uploads' },
     { id: 'review', title: 'Review & Submit' },
@@ -22,6 +23,7 @@ export function generateSteps(): WizardStep[] {
  */
 export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
   const fieldMap: Record<string, string[]> = {
+    space: ['workspaceId'],
     details: [
       'submissionType',
       'modelName',
