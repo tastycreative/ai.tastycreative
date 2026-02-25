@@ -7,8 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
 import { useCreateBoardItem } from '@/lib/hooks/useBoardItems.query';
-import { useSubmissionTarget } from '@/lib/hooks/useSubmissionTarget.query';
-import type { SubmissionTemplateType } from '@/lib/hooks/useSubmissionTarget.query';
+import { useBoards } from '@/lib/hooks/useBoards.query';
+import { useCreateSubmission } from '@/lib/hooks/useContentSubmission.query';
+import type { Space } from '@/lib/hooks/useSpaces.query';
+import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
@@ -19,6 +21,10 @@ import dynamic from 'next/dynamic';
 
 const ContentDetailsFields = dynamic(() =>
   import('./ContentDetailsFields').then((mod) => mod.ContentDetailsFields)
+);
+
+const SpacePicker = dynamic(() =>
+  import('./SpacePicker').then((mod) => mod.SpacePicker)
 );
 
 const TEMPLATE_LABELS: Record<string, string> = {
@@ -47,6 +53,7 @@ export const SubmissionForm = memo(function SubmissionForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileUploadStep, setFileUploadStep] = useState<{ current: number; total: number } | null>(null);
+  const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
 
   const {
     register,
@@ -73,10 +80,40 @@ export const SubmissionForm = memo(function SubmissionForm({
 
   const steps = useMemo(() => generateSteps(), []);
 
-  const submissionType = watch('submissionType') as SubmissionTemplateType;
-  const { spaceId, boardId, columnId, isLoading: targetLoading, hasTarget, spaceMissing } =
-    useSubmissionTarget(submissionType);
+  const submissionType = watch('submissionType') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
+
+  // Derive board/column from selected space
+  const { data: boardsData, isLoading: boardsLoading } = useBoards(selectedSpace?.id);
+  const board = boardsData?.boards?.[0];
+  const column = board?.columns?.[0];
+
+  const spaceId = selectedSpace?.id;
+  const boardId = board?.id;
+  const columnId = column?.id;
+  const hasTarget = !!(spaceId && boardId && columnId);
+  const targetLoading = !!spaceId && boardsLoading;
+
   const createItem = useCreateBoardItem(spaceId ?? '', boardId ?? '');
+  const createSubmission = useCreateSubmission();
+
+  const TEMPLATE_TO_SUBMISSION: Record<string, 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS'> = {
+    OTP_PTR: 'OTP_PTR',
+    WALL_POST: 'WALL_POST',
+    SEXTING_SETS: 'SEXTING_SETS',
+  };
+
+  const handleSpaceSelect = useCallback(
+    (space: Space) => {
+      setSelectedSpace(space);
+      const mappedType = TEMPLATE_TO_SUBMISSION[space.templateType];
+      if (mappedType) {
+        setValue('submissionType', mappedType);
+        const defaults = getMetadataDefaults(space.templateType as any);
+        setValue('metadata', defaults);
+      }
+    },
+    [setValue]
+  );
 
   // Ensure valid step
   useEffect(() => {
@@ -129,8 +166,8 @@ export const SubmissionForm = memo(function SubmissionForm({
   const onSubmit = async (data: FormData) => {
     setSubmitError(null);
 
-    if (!hasTarget || !columnId) {
-      setSubmitError('No matching space/board found. Please create the space first.');
+    if (!hasTarget || !columnId || !spaceId) {
+      setSubmitError('No matching space/board found. Please select a space first.');
       return;
     }
 
@@ -150,6 +187,7 @@ export const SubmissionForm = memo(function SubmissionForm({
         (meta.deadline as string) ||
         null;
 
+      // 1. Create BoardItem in the selected space
       const result = await createItem.mutateAsync({
         title,
         columnId,
@@ -162,14 +200,30 @@ export const SubmissionForm = memo(function SubmissionForm({
         },
       });
 
-      // Upload any pending files to the board item's media
-      if (pendingFiles.length > 0 && spaceId && boardId) {
+      // 2. Create content_submission record linked to the space
+      try {
+        await createSubmission.mutateAsync({
+          ...data,
+          workspaceId: spaceId,
+          metadata: {
+            ...meta,
+            boardItemId: result.id,
+            submitStatus: 'SUBMITTED',
+          },
+        });
+      } catch (err) {
+        console.error('Content submission record creation failed:', err);
+        // Board item was created successfully — don't block the flow
+      }
+
+      // 3. Upload any pending files to the board item's media
+      if (pendingFiles.length > 0 && boardId) {
         const mediaBase = `/api/spaces/${spaceId}/boards/${boardId}/items/${result.id}/media`;
         for (let i = 0; i < pendingFiles.length; i++) {
           const file = pendingFiles[i];
           setFileUploadStep({ current: i + 1, total: pendingFiles.length });
           try {
-            // 1. Get presigned URL
+            // Get presigned URL
             const presignRes = await fetch(mediaBase, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -178,14 +232,14 @@ export const SubmissionForm = memo(function SubmissionForm({
             if (!presignRes.ok) throw new Error('Failed to get upload URL');
             const presigned = await presignRes.json();
 
-            // 2. Upload directly to S3
+            // Upload directly to S3
             await fetch(presigned.uploadUrl, {
               method: 'PUT',
               body: file,
               headers: { 'Content-Type': file.type },
             });
 
-            // 3. Create media record
+            // Create media record
             await fetch(mediaBase, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -199,7 +253,6 @@ export const SubmissionForm = memo(function SubmissionForm({
             });
           } catch (err) {
             console.error('File upload failed:', file.name, err);
-            // Continue with remaining files rather than blocking submission
           }
         }
         setFileUploadStep(null);
@@ -213,6 +266,7 @@ export const SubmissionForm = memo(function SubmissionForm({
         } else {
           setShowSuccess(false);
           setCurrentStep(0);
+          setSelectedSpace(null);
           reset();
         }
       }, 2000);
@@ -337,6 +391,16 @@ export const SubmissionForm = memo(function SubmissionForm({
               <div className="absolute bottom-8 left-8 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-3xl" />
 
               <div className="relative">
+                {/* Select Space Step */}
+                {currentStepInfo?.id === 'space' && (
+                  <StepContent title="Select Space" subtitle="Choose which space this submission belongs to">
+                    <SpacePicker
+                      selectedSpaceId={selectedSpace?.id}
+                      onSelect={handleSpaceSelect}
+                    />
+                  </StepContent>
+                )}
+
                 {/* Content Details Step */}
                 {currentStepInfo?.id === 'details' && (
                   <StepContent title="Content Details">
@@ -345,6 +409,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                       setValue={setValue}
                       watch={watch}
                       errors={errors}
+                      readOnlyType={selectedSpace ? (TEMPLATE_TO_SUBMISSION[selectedSpace.templateType] as any) : undefined}
                     />
                   </StepContent>
                 )}
@@ -363,6 +428,12 @@ export const SubmissionForm = memo(function SubmissionForm({
                       <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
                         <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
                         <div className="grid grid-cols-2 gap-4">
+                          {selectedSpace && (
+                            <div>
+                              <p className="text-xs text-zinc-500 mb-1">Space</p>
+                              <p className="text-white font-medium">{selectedSpace.name}</p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-xs text-zinc-500 mb-1">Submission Type</p>
                             <p className="text-white font-medium">
@@ -382,7 +453,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                       {(() => {
                         const meta = watch('metadata') || {};
                         const entries = Object.entries(meta).filter(
-                          ([, v]) => v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
+                          ([key, v]) => key !== 'submitStatus' && key !== 'boardItemId' && v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
                         );
                         if (entries.length === 0) return null;
                         return (
@@ -406,13 +477,13 @@ export const SubmissionForm = memo(function SubmissionForm({
                         );
                       })()}
 
-                      {spaceMissing ? (
+                      {!hasTarget ? (
                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 flex items-start gap-3">
                           <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
                           <div>
-                            <p className="text-amber-200 font-medium mb-1">No matching space found</p>
+                            <p className="text-amber-200 font-medium mb-1">No space selected</p>
                             <p className="text-sm text-amber-200/70">
-                              Create a &quot;{TEMPLATE_LABELS[submissionType]}&quot; space in the Spaces section before submitting.
+                              Go back to Step 1 and select a space before submitting.
                             </p>
                           </div>
                         </div>
@@ -421,7 +492,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                           <p className="text-white font-medium mb-1">Ready to submit?</p>
                           <p className="text-sm text-zinc-400">
                             Click Submit below to add this to your{' '}
-                            <span className="text-brand-light-pink">{TEMPLATE_LABELS[submissionType]}</span> board.
+                            <span className="text-brand-light-pink">{selectedSpace?.name}</span> board.
                           </p>
                         </div>
                       )}
@@ -470,9 +541,10 @@ export const SubmissionForm = memo(function SubmissionForm({
                 <motion.button
                   type="button"
                   onClick={handleNext}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20"
+                  disabled={currentStepInfo?.id === 'space' && !selectedSpace}
+                  whileHover={{ scale: (currentStepInfo?.id === 'space' && !selectedSpace) ? 1 : 1.05 }}
+                  whileTap={{ scale: (currentStepInfo?.id === 'space' && !selectedSpace) ? 1 : 0.95 }}
+                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-brand-dark-pink to-brand-light-pink"

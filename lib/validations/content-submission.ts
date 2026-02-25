@@ -26,6 +26,9 @@ export const pricingCategorySchema = z.enum([
 
 // Base submission input
 export const createSubmissionInputSchema = z.object({
+  // Space link (optional for backward compat — required in wizard flow)
+  workspaceId: z.string().optional(),
+
   // Required fields
   submissionType: submissionTypeSchema,
 

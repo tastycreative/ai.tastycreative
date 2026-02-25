@@ -1376,9 +1376,10 @@ model Workspace {
   config         Json?
   key            String?
   templateType   SpaceTemplateType @default(KANBAN)
-  boards         Board[]
-  members        WorkspaceMember[]
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  boards              Board[]
+  members             WorkspaceMember[]
+  contentSubmissions  content_submissions[]
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
   @@unique([organizationId, key])
@@ -2005,12 +2006,14 @@ model content_submissions {
   updatedAt                            DateTime
   pricingCategory                      String?                               @default("PORN_ACCURATE")
   contentTypeOptionId                  String?
+  workspaceId                          String?
   content_submission_files             content_submission_files[]
   content_submission_pricing           content_submission_pricing?
   content_submission_release_schedules content_submission_release_schedules?
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace                            Workspace?                            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
   @@index([clerkId])
   @@index([contentStyle])
@@ -2021,6 +2024,7 @@ model content_submissions {
   @@index([pricingCategory])
   @@index([status])
   @@index([submissionType])
+  @@index([workspaceId])
 }
 
 model ContentTypeOption {

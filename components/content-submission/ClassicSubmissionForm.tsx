@@ -13,8 +13,11 @@ import { ContentStyleSelector } from './ContentStyleSelector';
 import { ComponentSelector } from './ComponentSelector';
 import { ContentDetailsFields } from './ContentDetailsFields';
 import { FileUploadZone } from './FileUploadZone';
+import { SpacePicker } from './SpacePicker';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import type { Space } from '@/lib/hooks/useSpaces.query';
+import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 
 type FormData = CreateSubmissionWithComponents;
 
@@ -57,12 +60,32 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
     },
   });
 
+  const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
+
   const createSubmission = useCreateSubmission();
   const updateSubmission = useUpdateSubmission();
 
   const submissionType = watch('submissionType');
   const platform = watch('platform');
   const selectedComponents = watch('selectedComponents') || [];
+
+  const handleSpaceSelect = useCallback(
+    (space: Space) => {
+      setSelectedSpace(space);
+      const typeMap: Record<string, 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS'> = {
+        OTP_PTR: 'OTP_PTR',
+        WALL_POST: 'WALL_POST',
+        SEXTING_SETS: 'SEXTING_SETS',
+      };
+      const mappedType = typeMap[space.templateType];
+      if (mappedType) {
+        setValue('submissionType', mappedType);
+        const defaults = getMetadataDefaults(space.templateType as any);
+        setValue('metadata', defaults);
+      }
+    },
+    [setValue]
+  );
 
   // Get smart recommendations
   const recommendations = useMemo(
@@ -80,20 +103,26 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
 
   const onSubmit = async (data: FormData) => {
     try {
+      const payload = {
+        ...data,
+        workspaceId: selectedSpace?.id,
+      };
+
       if (isEditMode) {
         await updateSubmission.mutateAsync({
           id: submissionId,
-          ...data,
+          ...payload,
         });
         if (onSuccess) onSuccess(submissionId);
       } else {
-        const result = await createSubmission.mutateAsync(data);
+        const result = await createSubmission.mutateAsync(payload);
         setShowSuccess(true);
         setTimeout(() => {
           if (onSuccess) {
             onSuccess(result.id ?? '');
           } else {
             setShowSuccess(false);
+            setSelectedSpace(null);
             reset();
           }
         }, 2000);
@@ -135,6 +164,14 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Space Selection */}
+          <Section title="Select Space">
+            <SpacePicker
+              selectedSpaceId={selectedSpace?.id}
+              onSelect={handleSpaceSelect}
+            />
+          </Section>
+
           {/* Platform Section */}
           <Section title="Platform">
             <PlatformSelector
