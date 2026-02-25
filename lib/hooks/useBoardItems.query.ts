@@ -296,11 +296,12 @@ export function useBoardItemComments(
   spaceId: string | undefined,
   boardId: string | undefined,
   itemId: string | undefined,
+  enabled: boolean = true,
 ) {
   return useQuery({
     queryKey: boardItemKeys.comments(itemId!),
     queryFn: () => fetchComments(spaceId!, boardId!, itemId!),
-    enabled: !!spaceId && !!boardId && !!itemId,
+    enabled: enabled && !!spaceId && !!boardId && !!itemId,
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
   });

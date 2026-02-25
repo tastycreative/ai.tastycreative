@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
 import type { BoardTask, BoardColumnData } from '../board';
@@ -82,6 +82,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
 
   const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
   const [selectedColumnTitle, setSelectedColumnTitle] = useState('');
+  const isClosingRef = useRef(false);
 
   // Build columns + tasks from real data
   const { columnsMap, columnOrder, tasksMap } = useMemo(() => {
@@ -291,39 +292,61 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
   );
 
   const closeTaskModal = useCallback(() => {
-    setSelectedTask(null);
-    
+    // Mark that we're intentionally closing
+    isClosingRef.current = true;
+
     // Remove task query param from URL
     const params = new URLSearchParams(searchParams.toString());
     params.delete('task');
     const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
     router.replace(newUrl, { scroll: false });
+
+    // Clear the selected task
+    setSelectedTask(null);
+
+    // Reset the closing flag after a small delay
+    setTimeout(() => {
+      isClosingRef.current = false;
+    }, 100);
   }, [searchParams, router]);
 
   // Check for task query param on mount/data change and open modal if present
   useEffect(() => {
+    // Don't do anything if we're in the process of closing
+    if (isClosingRef.current) return;
+
     const taskParam = searchParams.get('task');
-    if (!taskParam || !tasksMap) return;
+    if (!taskParam) {
+      // If there's no task param but we have a selected task, clear it
+      if (selectedTask) {
+        setSelectedTask(null);
+      }
+      return;
+    }
+
+    // Wait for tasks to load
+    if (!tasksMap || Object.keys(tasksMap).length === 0) return;
 
     // Find task by taskKey (e.g., "kb-1")
     const task = Object.values(tasksMap).find(
       (t) => t.taskKey.toLowerCase() === taskParam.toLowerCase(),
     );
-    
-    if (task && (!selectedTask || selectedTask.id !== task.id)) {
+
+    // Only open if we found a task and it's different from the currently selected one
+    if (task && selectedTask?.id !== task.id) {
       const col = findColumnForTask(task.id);
       setSelectedTask(task);
       setSelectedColumnTitle(col?.title ?? '');
     }
-    
-    // If taskParam exists but no matching task found, and modal is closed, clear the param
-    if (!task && !selectedTask) {
+
+    // If taskParam exists but no matching task found after tasks are loaded, clear the param
+    if (!task) {
       const params = new URLSearchParams(searchParams.toString());
       params.delete('task');
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
       router.replace(newUrl, { scroll: false });
     }
-  }, [searchParams, tasksMap, findColumnForTask, router]);
+  }, [searchParams, tasksMap, findColumnForTask, router, selectedTask]);
 
   return {
     boardData,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useUser } from '@clerk/nextjs';
 import { X, Pencil } from 'lucide-react';
 import type { BoardTask } from './BoardTaskCard';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from './ActivityFeed';
@@ -29,6 +30,7 @@ const INITIAL_COMMENTS: TaskComment[] = [
  * Template-specific modals live in [slug]/templates/ instead.
  */
 export function TaskDetailModal({ task, columnTitle, isOpen, onClose, onUpdate }: TaskDetailModalProps) {
+  const { user } = useUser();
   const [mounted, setMounted] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
@@ -97,7 +99,12 @@ export function TaskDetailModal({ task, columnTitle, isOpen, onClose, onUpdate }
                 )}
               </div>
             </div>
-            <ActivityFeed comments={comments} history={PLACEHOLDER_HISTORY} onAddComment={(c) => setComments((p) => [{ id: `c-${Date.now()}`, author: 'You', content: c, createdAt: new Date().toISOString() }, ...p])} />
+            <ActivityFeed
+              comments={comments}
+              history={PLACEHOLDER_HISTORY}
+              onAddComment={(c) => setComments((p) => [{ id: `c-${Date.now()}`, author: user?.firstName ?? user?.username ?? 'User', content: c, createdAt: new Date().toISOString() }, ...p])}
+              currentUserName={user?.firstName ?? user?.username ?? 'User'}
+            />
           </div>
           <div className="px-6 py-6 bg-gray-50/70 dark:bg-gray-950/60">
             <TaskSidebar task={task} columnTitle={columnTitle} onUpdate={onUpdate} />

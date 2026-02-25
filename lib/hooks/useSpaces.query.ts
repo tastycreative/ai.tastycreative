@@ -12,6 +12,13 @@ export type SpaceAccess = 'OPEN' | 'PRIVATE';
 
 export type SpaceRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER';
 
+export interface SpaceOwner {
+  id: string;
+  clerkId: string;
+  name: string | null;
+  email: string;
+}
+
 export interface Space {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export interface Space {
   config?: Record<string, unknown> | null;
   createdAt: string;
   currentUserRole?: SpaceRole | null;
+  owner?: SpaceOwner | null;
 }
 
 export interface SpaceBoardColumn {

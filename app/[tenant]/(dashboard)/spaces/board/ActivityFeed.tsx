@@ -25,6 +25,8 @@ interface ActivityFeedProps {
   comments: TaskComment[];
   history: TaskHistoryEntry[];
   onAddComment: (content: string) => void;
+  currentUserName?: string;
+  isLoading?: boolean;
 }
 
 function formatDate(iso: string) {
@@ -36,7 +38,7 @@ function formatDate(iso: string) {
   });
 }
 
-export function ActivityFeed({ comments, history, onAddComment }: ActivityFeedProps) {
+export function ActivityFeed({ comments, history, onAddComment, currentUserName, isLoading = false }: ActivityFeedProps) {
   const [tab, setTab] = useState<ActivityTab>('all');
   const [newComment, setNewComment] = useState('');
 
@@ -45,6 +47,9 @@ export function ActivityFeed({ comments, history, onAddComment }: ActivityFeedPr
     onAddComment(newComment.trim());
     setNewComment('');
   };
+
+  // Get the first letter of the current user's name for the avatar
+  const userInitial = currentUserName?.charAt(0).toUpperCase() || 'U';
 
   const allItems = tab === 'comments'
     ? comments.map((c) => ({ ...c, _type: 'comment' as const }))
@@ -96,7 +101,7 @@ export function ActivityFeed({ comments, history, onAddComment }: ActivityFeedPr
       {(tab === 'all' || tab === 'comments') && (
         <div className="flex items-start gap-2.5 mb-4">
           <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/15 text-brand-blue text-[10px] font-bold mt-0.5">
-            Y
+            {userInitial}
           </span>
           <div className="flex-1">
             <textarea
@@ -123,54 +128,75 @@ export function ActivityFeed({ comments, history, onAddComment }: ActivityFeedPr
       )}
 
       <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-        {allItems.map((item) => {
-          if (item._type === 'comment') {
-            const c = item as TaskComment & { _type: 'comment' };
-            return (
-              <div key={c.id} className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/15 text-brand-blue text-[10px] font-bold">
-                  {c.author.charAt(0)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-semibold text-gray-800 dark:text-brand-off-white">
-                      {c.author}
-                    </span>
-                    <span className="text-[10px] text-gray-400">{formatDate(c.createdAt)}</span>
+        {isLoading ? (
+          // Skeleton loader
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-start gap-2.5 animate-pulse">
+                <div className="shrink-0 h-7 w-7 rounded-full bg-gray-200 dark:bg-gray-800" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+                    <div className="h-2 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
                   </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">{c.content}</p>
+                  <div className="h-3 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-800 rounded" />
                 </div>
               </div>
-            );
-          }
+            ))}
+          </>
+        ) : (
+          <>
+            {allItems.map((item) => {
+              if (item._type === 'comment') {
+                const c = item as TaskComment & { _type: 'comment' };
+                return (
+                  <div key={c.id} className="flex items-start gap-2.5">
+                    <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/15 text-brand-blue text-[10px] font-bold">
+                      {c.author.charAt(0)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-semibold text-gray-800 dark:text-brand-off-white">
+                          {c.author}
+                        </span>
+                        <span className="text-[10px] text-gray-400">{formatDate(c.createdAt)}</span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">{c.content}</p>
+                    </div>
+                  </div>
+                );
+              }
 
-          const h = item as TaskHistoryEntry & { _type: 'history' };
-          return (
-            <div key={h.id} className="flex items-start gap-2.5">
-              <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold">
-                <History className="h-3 w-3" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-600 dark:text-gray-300">
-                  <span className="font-semibold text-gray-800 dark:text-brand-off-white">{h.changedBy}</span>{' '}
-                  changed <span className="font-medium">{h.field}</span>{' '}
-                  {h.oldValue && (
-                    <>
-                      from <span className="line-through text-gray-400">{h.oldValue}</span>{' '}
-                    </>
-                  )}
-                  to <span className="font-medium text-brand-light-pink">{h.newValue}</span>
-                </p>
-                <span className="text-[10px] text-gray-400">{formatDate(h.changedAt)}</span>
-              </div>
-            </div>
-          );
-        })}
+              const h = item as TaskHistoryEntry & { _type: 'history' };
+              return (
+                <div key={h.id} className="flex items-start gap-2.5">
+                  <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold">
+                    <History className="h-3 w-3" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold text-gray-800 dark:text-brand-off-white">{h.changedBy}</span>{' '}
+                      changed <span className="font-medium">{h.field}</span>{' '}
+                      {h.oldValue && (
+                        <>
+                          from <span className="line-through text-gray-400">{h.oldValue}</span>{' '}
+                        </>
+                      )}
+                      to <span className="font-medium text-brand-light-pink">{h.newValue}</span>
+                    </p>
+                    <span className="text-[10px] text-gray-400">{formatDate(h.changedAt)}</span>
+                  </div>
+                </div>
+              );
+            })}
 
-        {allItems.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
-            No activity yet.
-          </p>
+            {allItems.length === 0 && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                No activity yet.
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

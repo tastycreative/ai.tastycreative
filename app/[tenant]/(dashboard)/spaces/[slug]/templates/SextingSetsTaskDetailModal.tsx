@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useParams } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import {
   X,
   Pencil,
@@ -17,6 +19,8 @@ import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
+import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useBoardItemComments, useAddComment } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
   task: BoardTask;
@@ -41,12 +45,39 @@ const PLACEHOLDER_HISTORY: TaskHistoryEntry[] = [
  * Right (narrow): set details (category, set size, model, quality, watermark, tags), activity.
  */
 export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose, onUpdate }: Props) {
+  const params = useParams<{ slug: string }>();
+  const { data: space } = useSpaceBySlug(params.slug);
+  const { user } = useUser();
+  const spaceId = space?.id;
+  const boardId = space?.boards?.[0]?.id;
+
+  // Fetch real comments from API - only when modal is open
+  const { data: commentsData, isLoading: commentsLoading } = useBoardItemComments(spaceId, boardId, task.id, isOpen);
+  const addCommentMutation = useAddComment(spaceId ?? '', boardId ?? '', task.id);
+
+  // Map API BoardItemComment → ActivityFeed TaskComment
+  const comments: TaskComment[] = useMemo(() => {
+    if (!commentsData?.comments) return [];
+    const currentUserId = user?.id;
+    return commentsData.comments.map((c) => ({
+      id: c.id,
+      author: c.createdBy === currentUserId
+        ? (user?.firstName ?? user?.username ?? 'You')
+        : c.createdBy,
+      content: c.content,
+      createdAt: c.createdAt,
+    }));
+  }, [commentsData, user]);
+
+  const handleAddComment = (content: string) => {
+    addCommentMutation.mutate(content);
+  };
+
   const [mounted, setMounted] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description ?? '');
-  const [comments, setComments] = useState<TaskComment[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -170,7 +201,13 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
               )}
             </div>
 
-            <ActivityFeed comments={comments} history={PLACEHOLDER_HISTORY} onAddComment={(c) => setComments((p) => [{ id: `c-${Date.now()}`, author: 'You', content: c, createdAt: new Date().toISOString() }, ...p])} />
+            <ActivityFeed
+              comments={comments}
+              history={PLACEHOLDER_HISTORY}
+              onAddComment={handleAddComment}
+              currentUserName={user?.firstName ?? user?.username ?? 'User'}
+              isLoading={commentsLoading}
+            />
           </div>
 
           {/* Right — set metadata */}

@@ -633,7 +633,10 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
 
             <button
               onClick={() => {
-                // Handle space settings
+                const space = spaces.find(s => s.id === spaceMenuOpen);
+                if (space) {
+                  router.push(`/${tenant}/spaces/${space.slug}/settings/details`);
+                }
                 setSpaceMenuOpen(null);
               }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"

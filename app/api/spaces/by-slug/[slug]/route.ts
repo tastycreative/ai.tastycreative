@@ -33,12 +33,27 @@ export async function GET(_req: NextRequest, { params }: Params) {
             columns: { orderBy: { position: 'asc' } },
           },
         },
+        members: {
+          where: { role: 'OWNER' },
+          include: {
+            users: {
+              select: {
+                id: true,
+                clerkId: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!workspace) {
       return NextResponse.json({ error: 'Space not found' }, { status: 404 });
     }
+
+    const owner = workspace.members[0]?.users;
 
     return NextResponse.json({
       id: workspace.id,
@@ -50,6 +65,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       access: workspace.access,
       config: workspace.config,
       createdAt: workspace.createdAt.toISOString(),
+      owner: owner
+        ? {
+            id: owner.id,
+            clerkId: owner.clerkId,
+            name: owner.name,
+            email: owner.email,
+          }
+        : null,
       boards: workspace.boards.map((b) => ({
         id: b.id,
         name: b.name,

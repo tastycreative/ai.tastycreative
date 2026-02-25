@@ -103,6 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const data: Record<string, unknown> = {};
     if (typeof body.name === 'string') data.name = body.name.trim();
+    if (typeof body.key === 'string') data.key = body.key.trim();
     if (typeof body.description === 'string') data.description = body.description.trim() || null;
     if (body.access === 'OPEN' || body.access === 'PRIVATE') data.access = body.access;
     if (body.config !== undefined) data.config = body.config;
