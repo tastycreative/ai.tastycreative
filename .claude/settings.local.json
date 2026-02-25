@@ -6,7 +6,18 @@
       "Bash(move \"register\\page.tsx\" \"register\\[[...rest]]\\page.tsx\")",
       "Bash(mv:*)",
       "Bash(rm:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ls /Users/kenjanjan/ai.tastycreative/app/api/spaces/\\\\[spaceId\\\\]/boards/\\\\[boardId\\\\]/items/\\\\[itemId\\\\]/)",
+      "Bash(ls -la \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/\" 2>/dev/null)",
+      "Bash(find /Users/kenjanjan/ai.tastycreative -type f -name \"*Sidebar*\" -o -name \"*SideNav*\" -o -name \"*Navigation*\" 2>/dev/null | grep -v node_modules)",
+      "Bash(find \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/[slug]/settings\" -type f -name \"*.tsx\" -o -name \"*.ts\" 2>/dev/null)",
+      "Bash(ls -la \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/[slug]/\" 2>/dev/null)",
+      "Bash(find \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/[slug]\" -name \"layout.tsx\" 2>/dev/null)",
+      "Bash(ls -la \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/[slug]/settings/\" 2>/dev/null)",
+      "Bash(find \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/spaces/[slug]/settings\" -type f 2>/dev/null)",
+      "Bash(find \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/settings\" -type f -name \"*.tsx\" -o -name \"*.ts\" 2>/dev/null)",
+      "Bash(ls -la \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/settings/\" 2>/dev/null)",
+      "Bash(find \"/Users/kenjanjan/ai.tastycreative/app/[tenant]/\\(dashboard\\)/\" -maxdepth 1 -name \"layout.tsx\" 2>/dev/null)"
     ],
     "deny": []
   }

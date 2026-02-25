@@ -532,6 +532,7 @@ model InstagramProfile {
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   organization           Organization?         @relation(fields: [organizationId], references: [id])
+  profile_assignments    profile_assignments[]
   groupMemberships       ProfileGroupMember[]
   profilePins            ProfilePin[]
 
@@ -540,6 +541,12 @@ model InstagramProfile {
   @@index([organizationId])
   @@index([isFavorite])
   @@index([tags])
+  @@index([clerkId, status])
+  @@index([name])
+  @@index([status])
+  @@index([status, type])
+  @@index([type])
+  @@index([updatedAt])
   @@map("instagram_profiles")
 }
 
@@ -1362,24 +1369,24 @@ model CustomOrganizationPermission {
 }
 
 model Workspace {
-  id             String            @id @default(cuid())
-  organizationId String
-  name           String
-  slug           String
-  description    String?
-  color          String?
-  icon           String?
-  isActive       Boolean           @default(true)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @default(now()) @updatedAt
-  access         SpaceAccess       @default(OPEN)
-  config         Json?
-  key            String?
-  templateType   SpaceTemplateType @default(KANBAN)
-  boards              Board[]
-  members             WorkspaceMember[]
-  contentSubmissions  content_submissions[]
-  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                 String                @id @default(cuid())
+  organizationId     String
+  name               String
+  slug               String
+  description        String?
+  color              String?
+  icon               String?
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @default(now()) @updatedAt
+  access             SpaceAccess           @default(OPEN)
+  config             Json?
+  key                String?
+  templateType       SpaceTemplateType     @default(KANBAN)
+  boards             Board[]
+  contentSubmissions content_submissions[]
+  members            WorkspaceMember[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
   @@unique([organizationId, key])
@@ -1456,6 +1463,7 @@ model BoardItem {
   organizationId String?
   comments       BoardItemComment[]
   media          BoardItemMedia[]
+  history        BoardItemHistory[]
   column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1482,6 +1490,22 @@ model BoardItemComment {
   @@index([createdBy])
   @@index([itemId, createdAt])
   @@map("board_item_comments")
+}
+
+model BoardItemHistory {
+  id        String    @id @default(cuid())
+  itemId    String
+  userId    String
+  action    String
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime  @default(now())
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
+  @@index([userId])
+  @@map("board_item_history")
 }
 
 model BoardItemMedia {
@@ -2013,7 +2037,7 @@ model content_submissions {
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workspace                            Workspace?                            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  workspace                            Workspace?                            @relation(fields: [workspaceId], references: [id])
 
   @@index([clerkId])
   @@index([contentStyle])
@@ -2129,6 +2153,19 @@ model ProfilePin {
   @@index([profileId])
   @@index([userId])
   @@map("profile_pins")
+}
+
+model profile_assignments {
+  id                 String           @id
+  profileId          String
+  assignedToClerkId  String
+  assignedAt         DateTime         @default(now())
+  assignedBy         String?
+  instagram_profiles InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, assignedToClerkId])
+  @@index([assignedToClerkId])
+  @@index([profileId])
 }
 
 enum SyncStatus {

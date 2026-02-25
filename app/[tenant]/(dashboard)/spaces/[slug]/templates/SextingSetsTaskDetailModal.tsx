@@ -20,7 +20,7 @@ import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
-import { useBoardItemComments, useAddComment } from '@/lib/hooks/useBoardItems.query';
+import { useBoardItemComments, useAddComment, useBoardItemHistory } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
   task: BoardTask;
@@ -34,9 +34,6 @@ const CATEGORY_OPTIONS = ['bedroom', 'outdoor', 'studio', 'selfie', 'cosplay', '
 const QUALITY_OPTIONS = ['SD', 'HD', '4K'];
 const QUALITY_COLORS: Record<string, string> = { SD: 'bg-gray-200 text-gray-600', HD: 'bg-brand-blue/10 text-brand-blue', '4K': 'bg-brand-light-pink/10 text-brand-light-pink' };
 
-const PLACEHOLDER_HISTORY: TaskHistoryEntry[] = [
-  { id: 'h1', field: 'quality', oldValue: 'SD', newValue: 'HD', changedBy: 'Alex', changedAt: new Date(Date.now() - 86400000).toISOString() },
-];
 
 /**
  * Sexting Sets detail — media-set management card.
@@ -68,6 +65,24 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
       createdAt: c.createdAt,
     }));
   }, [commentsData, user]);
+
+  // Fetch real history from API
+  const { data: historyData } = useBoardItemHistory(spaceId, boardId, task.id);
+  const history: TaskHistoryEntry[] = useMemo(() => {
+    if (!historyData?.history) return [];
+    const currentUserId = user?.id;
+    return historyData.history.map((h) => ({
+      id: h.id,
+      action: h.action,
+      field: h.field,
+      oldValue: h.oldValue,
+      newValue: h.newValue,
+      changedBy: h.userId === currentUserId
+        ? (user?.firstName ?? user?.username ?? 'You')
+        : h.userId,
+      changedAt: h.createdAt,
+    }));
+  }, [historyData, user]);
 
   const handleAddComment = (content: string) => {
     addCommentMutation.mutate(content);
@@ -203,7 +218,7 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
 
             <ActivityFeed
               comments={comments}
-              history={PLACEHOLDER_HISTORY}
+              history={history}
               onAddComment={handleAddComment}
               currentUserName={user?.firstName ?? user?.username ?? 'User'}
               isLoading={commentsLoading}

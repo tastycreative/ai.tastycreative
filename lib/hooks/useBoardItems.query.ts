@@ -21,6 +21,16 @@ export interface BoardItemMedia {
   size?: number | null;
 }
 
+export interface BoardItemHistoryEntry {
+  id: string;
+  action: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  userId: string;
+  createdAt: string;
+}
+
 export interface BoardItem {
   id: string;
   organizationId: string;
@@ -78,6 +88,7 @@ export const boardItemKeys = {
   details: () => [...boardItemKeys.all, 'detail'] as const,
   detail: (itemId: string) => [...boardItemKeys.details(), itemId] as const,
   comments: (itemId: string) => [...boardItemKeys.all, 'comments', itemId] as const,
+  history: (itemId: string) => [...boardItemKeys.all, 'history', itemId] as const,
 };
 
 /* ------------------------------------------------------------------ */
@@ -173,6 +184,18 @@ async function addComment(
   return res.json();
 }
 
+async function fetchHistory(
+  spaceId: string,
+  boardId: string,
+  itemId: string,
+): Promise<{ history: BoardItemHistoryEntry[] }> {
+  const res = await fetch(
+    `${itemsUrl(spaceId, boardId)}/${itemId}/history`,
+  );
+  if (!res.ok) throw new Error('Failed to fetch history');
+  return res.json();
+}
+
 /* ------------------------------------------------------------------ */
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
@@ -242,9 +265,12 @@ export function useUpdateBoardItem(spaceId: string, boardId: string) {
         );
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
       queryClient.invalidateQueries({
         queryKey: boardItemKeys.list(boardId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: boardItemKeys.history(vars.itemId),
       });
     },
   });
@@ -321,6 +347,20 @@ export function useAddComment(
         queryKey: boardItemKeys.comments(itemId),
       });
     },
+  });
+}
+
+export function useBoardItemHistory(
+  spaceId: string | undefined,
+  boardId: string | undefined,
+  itemId: string | undefined,
+) {
+  return useQuery({
+    queryKey: boardItemKeys.history(itemId!),
+    queryFn: () => fetchHistory(spaceId!, boardId!, itemId!),
+    enabled: !!spaceId && !!boardId && !!itemId,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
