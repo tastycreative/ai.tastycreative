@@ -99,7 +99,7 @@ const QueueItem = memo(function QueueItem({
   isSelected: boolean;
   onSelect: () => void;
   isDragging?: boolean;
-  dragHandleProps?: Record<string, unknown>;
+  dragHandleProps?: any;
 }) {
   const config = urgencyConfig[ticket.urgency];
 
@@ -419,7 +419,7 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
                               isSelected={selectedTicket === virtualRow.index}
                               onSelect={() => onSelectTicket(virtualRow.index)}
                               isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps || {}}
+                              dragHandleProps={provided.dragHandleProps ?? undefined}
                             />
                           </div>
                         );
