@@ -2,7 +2,6 @@
 
 import { memo } from 'react';
 import { Check, Circle } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 interface Step {
   id: string;
@@ -24,6 +23,7 @@ export const ProgressIndicator = memo(function ProgressIndicator({
   allowStepNavigation = false,
 }: ProgressIndicatorProps) {
   const progress = ((currentStep + 1) / steps.length) * 100;
+  const lineProgress = (currentStep / (steps.length - 1)) * 100;
 
   return (
     <div className="w-full mb-12">
@@ -36,42 +36,23 @@ export const ProgressIndicator = memo(function ProgressIndicator({
               Step {currentStep + 1} of {steps.length}
             </span>
           </div>
-          <motion.span
+          <span
             key={progress}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-2xl font-bold bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue bg-clip-text text-transparent"
+            className="text-2xl font-bold bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue bg-clip-text text-transparent animate-fade-in"
           >
             {Math.round(progress)}%
-          </motion.span>
+          </span>
         </div>
 
-        {/* Animated Progress Bar */}
-        <div className="relative h-2 bg-zinc-800/50 rounded-full overflow-hidden backdrop-blur-sm border border-zinc-700/30">
-          <motion.div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue shadow-lg shadow-brand-light-pink/20"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{
-              type: 'spring',
-              stiffness: 100,
-              damping: 20,
-              mass: 1,
-            }}
+        {/* Progress Bar — CSS transition instead of spring */}
+        <div className="relative h-2 bg-zinc-800/50 rounded-full overflow-hidden border border-zinc-700/30">
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-blue shadow-lg shadow-brand-light-pink/20 rounded-full transition-[width] duration-500 ease-out"
+            style={{ width: `${progress}%` }}
           >
-            {/* Animated shine effect */}
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-              animate={{
-                x: ['-100%', '200%'],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'linear',
-              }}
-            />
-          </motion.div>
+            {/* CSS shine effect — GPU accelerated */}
+            <div className="absolute inset-0 progress-shine" />
+          </div>
         </div>
       </div>
 
@@ -79,17 +60,9 @@ export const ProgressIndicator = memo(function ProgressIndicator({
       <div className="relative">
         {/* Connection Line */}
         <div className="absolute top-6 left-0 right-0 h-[2px] bg-zinc-800/50" />
-        <motion.div
-          className="absolute top-6 left-0 h-[2px] bg-gradient-to-r from-brand-light-pink to-brand-blue"
-          initial={{ width: 0 }}
-          animate={{
-            width: `${(currentStep / (steps.length - 1)) * 100}%`,
-          }}
-          transition={{
-            type: 'spring',
-            stiffness: 80,
-            damping: 20,
-          }}
+        <div
+          className="absolute top-6 left-0 h-[2px] bg-gradient-to-r from-brand-light-pink to-brand-blue transition-[width] duration-500 ease-out"
+          style={{ width: `${lineProgress}%` }}
         />
 
         {/* Steps */}
@@ -97,11 +70,10 @@ export const ProgressIndicator = memo(function ProgressIndicator({
           {steps.map((step, index) => {
             const isCompleted = index < currentStep;
             const isCurrent = index === currentStep;
-            const isPending = index > currentStep;
             const isClickable = allowStepNavigation && index <= currentStep;
 
             return (
-              <motion.button
+              <button
                 key={step.id}
                 type="button"
                 onClick={() => isClickable && onStepClick?.(index)}
@@ -109,18 +81,15 @@ export const ProgressIndicator = memo(function ProgressIndicator({
                 className={`
                   group relative flex flex-col items-center gap-3 flex-1
                   ${isClickable ? 'cursor-pointer' : 'cursor-default'}
+                  animate-fade-in-up
                 `}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={isClickable ? { scale: 1.05 } : {}}
-                whileTap={isClickable ? { scale: 0.95 } : {}}
+                style={{ animationDelay: `${index * 80}ms` }}
               >
                 {/* Step Circle */}
-                <motion.div
+                <div
                   className={`
                     relative flex items-center justify-center w-12 h-12 rounded-full
-                    border-2 font-semibold text-sm transition-all z-10
+                    border-2 font-semibold text-sm z-10 transition-all duration-300
                     ${
                       isCompleted
                         ? 'border-brand-light-pink bg-gradient-to-br from-brand-light-pink to-brand-dark-pink text-white shadow-lg shadow-brand-light-pink/30'
@@ -128,66 +97,28 @@ export const ProgressIndicator = memo(function ProgressIndicator({
                         ? 'border-brand-light-pink bg-zinc-900 text-brand-light-pink shadow-lg shadow-brand-light-pink/20 ring-4 ring-brand-light-pink/10'
                         : 'border-zinc-700 bg-zinc-900/50 text-zinc-500'
                     }
+                    ${isClickable ? 'hover:shadow-[0_0_20px_rgba(247,116,185,0.3)]' : ''}
                   `}
-                  whileHover={
-                    isClickable
-                      ? {
-                          boxShadow: '0 0 20px rgba(247, 116, 185, 0.3)',
-                        }
-                      : {}
-                  }
                 >
                   {isCompleted ? (
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 200,
-                        damping: 15,
-                      }}
-                    >
-                      <Check className="w-5 h-5" />
-                    </motion.div>
+                    <Check className="w-5 h-5 animate-scale-in" />
                   ) : isCurrent ? (
-                    <motion.div
-                      animate={{
-                        scale: [1, 1.2, 1],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                      }}
-                    >
-                      <Circle className="w-3 h-3 fill-current" />
-                    </motion.div>
+                    <Circle className="w-3 h-3 fill-current step-pulse" />
                   ) : (
                     <span>{index + 1}</span>
                   )}
 
-                  {/* Glow effect for current step */}
+                  {/* Glow effect for current step — CSS animation */}
                   {isCurrent && (
-                    <motion.div
-                      className="absolute inset-0 rounded-full bg-brand-light-pink/20"
-                      animate={{
-                        scale: [1, 1.5, 1],
-                        opacity: [0.5, 0, 0.5],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                      }}
-                    />
+                    <div className="absolute inset-0 rounded-full bg-brand-light-pink/20 step-glow" />
                   )}
-                </motion.div>
+                </div>
 
                 {/* Step Label */}
                 <div className="text-center max-w-[120px]">
-                  <motion.p
+                  <p
                     className={`
-                      text-xs font-medium transition-colors
+                      text-xs font-medium transition-colors duration-300
                       ${
                         isCurrent
                           ? 'text-white'
@@ -198,7 +129,7 @@ export const ProgressIndicator = memo(function ProgressIndicator({
                     `}
                   >
                     {step.title}
-                  </motion.p>
+                  </p>
                   {step.description && (
                     <p className="text-[10px] text-zinc-600 mt-1 hidden sm:block">
                       {step.description}
@@ -214,7 +145,7 @@ export const ProgressIndicator = memo(function ProgressIndicator({
                     </div>
                   </div>
                 )}
-              </motion.button>
+              </button>
             );
           })}
         </div>
