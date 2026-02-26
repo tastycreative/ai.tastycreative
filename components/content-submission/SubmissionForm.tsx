@@ -3,7 +3,6 @@
 import { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion, AnimatePresence } from 'framer-motion';
 import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
 import { useCreateBoardItem } from '@/lib/hooks/useBoardItems.query';
@@ -14,7 +13,10 @@ import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
-import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon } from 'lucide-react';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText } from 'lucide-react';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { useQuery } from '@tanstack/react-query';
+import type { UseFormWatch } from 'react-hook-form';
 
 // Lazy load heavy components
 import dynamic from 'next/dynamic';
@@ -54,6 +56,7 @@ export const SubmissionForm = memo(function SubmissionForm({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileUploadStep, setFileUploadStep] = useState<{ current: number; total: number } | null>(null);
   const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
+  const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined);
 
   const {
     register,
@@ -194,6 +197,7 @@ export const SubmissionForm = memo(function SubmissionForm({
         type: TYPE_MAP[data.submissionType] ?? 'TASK',
         priority: PRIORITY_MAP[data.priority ?? 'normal'] ?? 'MEDIUM',
         dueDate: rawDue ? new Date(rawDue).toISOString() : undefined,
+        assigneeId: assigneeId || undefined,
         metadata: {
           submissionType: data.submissionType,
           ...meta,
@@ -281,71 +285,29 @@ export const SubmissionForm = memo(function SubmissionForm({
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] pb-16">
-      {/* Success Celebration */}
-      <AnimatePresence>
-        {showSuccess && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="relative bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 border-green-500/50 rounded-2xl p-12 max-w-md text-center shadow-2xl"
-            >
-              {/* Confetti effect */}
-              <div className="absolute inset-0 overflow-hidden rounded-2xl">
-                {[...Array(30)].map((_, i) => (
-                  <motion.div
+      {/* Success Celebration — lightweight CSS-only */}
+      {showSuccess && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 animate-fade-in">
+            <div className="relative bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 border-green-500/50 rounded-2xl p-12 max-w-md text-center shadow-2xl animate-scale-in">
+              {/* CSS confetti — 10 lightweight particles */}
+              <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                {[...Array(10)].map((_, i) => (
+                  <span
                     key={i}
-                    className="absolute w-2 h-2 rounded-full"
+                    className="submission-confetti"
                     style={{
-                      background: [
-                        '#F774B9',
-                        '#E1518E',
-                        '#5DC3F8',
-                        '#EC67A1',
-                      ][i % 4],
-                      left: `${Math.random() * 100}%`,
-                      top: '-10%',
-                    }}
-                    animate={{
-                      y: [0, 500],
-                      x: [0, (Math.random() - 0.5) * 200],
-                      rotate: [0, Math.random() * 360],
-                      opacity: [1, 0],
-                    }}
-                    transition={{
-                      duration: 2 + Math.random(),
-                      delay: Math.random() * 0.5,
-                      ease: 'easeOut',
-                    }}
+                      '--confetti-color': ['#F774B9', '#E1518E', '#5DC3F8', '#EC67A1'][i % 4],
+                      '--confetti-x': `${(Math.random() - 0.5) * 160}px`,
+                      '--confetti-delay': `${Math.random() * 0.4}s`,
+                      left: `${10 + Math.random() * 80}%`,
+                    } as React.CSSProperties}
                   />
                 ))}
               </div>
 
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 200,
-                  damping: 15,
-                  delay: 0.2,
-                }}
-                className="relative"
-              >
+              <div className="relative animate-scale-in" style={{ animationDelay: '0.15s' }}>
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 border-2 border-green-500 mb-4">
-                  <motion.div
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 0.6, delay: 0.3 }}
-                  >
-                    <Check className="w-10 h-10 text-green-500" />
-                  </motion.div>
+                  <Check className="w-10 h-10 text-green-500" />
                 </div>
                 <h2 className="text-3xl font-bold text-white mb-2">
                   Submission Created!
@@ -353,11 +315,10 @@ export const SubmissionForm = memo(function SubmissionForm({
                 <p className="text-zinc-400">
                   Your content has been successfully submitted for review.
                 </p>
-              </motion.div>
-            </motion.div>
-          </motion.div>
+              </div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Progress Indicator */}
@@ -369,139 +330,64 @@ export const SubmissionForm = memo(function SubmissionForm({
         />
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Step Content with Animated Transitions */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStepInfo?.id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{
-                type: 'spring',
-                stiffness: 100,
-                damping: 20,
-              }}
-              className="relative bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-2xl p-8 sm:p-12 overflow-hidden mb-8"
-            >
-              {/* Decorative gradient */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-light-pink to-transparent opacity-60" />
+          {/* Step Content — CSS transitions instead of spring physics */}
+          <div
+            key={currentStepInfo?.id}
+            className="relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl p-8 sm:p-12 mb-8 animate-step-in"
+          >
+            {/* Decorative gradient */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-light-pink to-transparent opacity-60 rounded-t-2xl" />
 
-              {/* Floating decorative elements */}
-              <div className="absolute top-8 right-8 w-32 h-32 bg-violet-500/5 rounded-full blur-3xl" />
-              <div className="absolute bottom-8 left-8 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-3xl" />
+            <div className="relative">
+              {/* Select Space Step */}
+              {currentStepInfo?.id === 'space' && (
+                <StepContent title="Select Space" subtitle="Choose which space this submission belongs to">
+                  <SpacePicker
+                    selectedSpaceId={selectedSpace?.id}
+                    onSelect={handleSpaceSelect}
+                  />
+                </StepContent>
+              )}
 
-              <div className="relative">
-                {/* Select Space Step */}
-                {currentStepInfo?.id === 'space' && (
-                  <StepContent title="Select Space" subtitle="Choose which space this submission belongs to">
-                    <SpacePicker
-                      selectedSpaceId={selectedSpace?.id}
-                      onSelect={handleSpaceSelect}
-                    />
-                  </StepContent>
-                )}
+              {/* Content Details Step */}
+              {currentStepInfo?.id === 'details' && (
+                <StepContent title="Content Details">
+                  <ContentDetailsFields
+                    register={register}
+                    setValue={setValue}
+                    watch={watch}
+                    errors={errors}
+                    readOnlyType={selectedSpace ? (TEMPLATE_TO_SUBMISSION[selectedSpace.templateType] as any) : undefined}
+                    spaceId={selectedSpace?.id}
+                    assigneeId={assigneeId}
+                    onAssigneeChange={setAssigneeId}
+                  />
+                </StepContent>
+              )}
 
-                {/* Content Details Step */}
-                {currentStepInfo?.id === 'details' && (
-                  <StepContent title="Content Details">
-                    <ContentDetailsFields
-                      register={register}
-                      setValue={setValue}
-                      watch={watch}
-                      errors={errors}
-                      readOnlyType={selectedSpace ? (TEMPLATE_TO_SUBMISSION[selectedSpace.templateType] as any) : undefined}
-                    />
-                  </StepContent>
-                )}
+              {/* File Upload Step */}
+              {currentStepInfo?.id === 'files' && (
+                <StepContent title="Upload Files" subtitle="Add images or videos — they'll be attached when you submit">
+                  <LocalFilePicker files={pendingFiles} onChange={setPendingFiles} />
+                </StepContent>
+              )}
 
-                {/* File Upload Step */}
-                {currentStepInfo?.id === 'files' && (
-                  <StepContent title="Upload Files" subtitle="Add images or videos — they'll be attached when you submit">
-                    <LocalFilePicker files={pendingFiles} onChange={setPendingFiles} />
-                  </StepContent>
-                )}
-
-                {/* Review & Submit Step */}
-                {currentStepInfo?.id === 'review' && (
-                  <StepContent title="Review & Submit" subtitle="Review your submission details before finalizing">
-                    <div className="space-y-4">
-                      <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                        <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          {selectedSpace && (
-                            <div>
-                              <p className="text-xs text-zinc-500 mb-1">Space</p>
-                              <p className="text-white font-medium">{selectedSpace.name}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs text-zinc-500 mb-1">Submission Type</p>
-                            <p className="text-white font-medium">
-                              {TEMPLATE_LABELS[submissionType] ?? submissionType}
-                            </p>
-                          </div>
-                          {watch('priority') && (
-                            <div>
-                              <p className="text-xs text-zinc-500 mb-1">Priority</p>
-                              <p className="text-white font-medium capitalize">{watch('priority')}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Template metadata summary */}
-                      {(() => {
-                        const meta = watch('metadata') || {};
-                        const entries = Object.entries(meta).filter(
-                          ([key, v]) => key !== 'submitStatus' && key !== 'boardItemId' && v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
-                        );
-                        if (entries.length === 0) return null;
-                        return (
-                          <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
-                            <h3 className="text-sm font-medium text-zinc-400 mb-3">
-                              {TEMPLATE_LABELS[submissionType]} Details
-                            </h3>
-                            <div className="grid grid-cols-2 gap-3">
-                              {entries.map(([key, val]) => (
-                                <div key={key}>
-                                  <p className="text-xs text-zinc-500 mb-0.5 capitalize">
-                                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                                  </p>
-                                  <p className="text-white text-sm truncate">
-                                    {Array.isArray(val) ? val.join(', ') : String(val)}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {!hasTarget ? (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 flex items-start gap-3">
-                          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-amber-200 font-medium mb-1">No space selected</p>
-                            <p className="text-sm text-amber-200/70">
-                              Go back to Step 1 and select a space before submitting.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
-                          <p className="text-white font-medium mb-1">Ready to submit?</p>
-                          <p className="text-sm text-zinc-400">
-                            Click Submit below to add this to your{' '}
-                            <span className="text-brand-light-pink">{selectedSpace?.name}</span> board.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </StepContent>
-                )}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+              {/* Review & Submit Step */}
+              {currentStepInfo?.id === 'review' && (
+                <StepContent title="Review & Submit" subtitle="Review your submission details before finalizing">
+                  <ReviewStep
+                    selectedSpace={selectedSpace}
+                    submissionType={submissionType}
+                    watch={watch}
+                    hasTarget={hasTarget}
+                    assigneeId={assigneeId}
+                    spaceId={selectedSpace?.id}
+                    pendingFilesCount={pendingFiles.length}
+                  />
+                </StepContent>
+              )}
+            </div>
+          </div>
 
           {/* Submit error */}
           {submitError && (
@@ -513,55 +399,41 @@ export const SubmissionForm = memo(function SubmissionForm({
 
           {/* Navigation Buttons */}
           <div className="flex items-center justify-between">
-            <motion.button
+            <button
               type="button"
               onClick={onCancel}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-6 py-3 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-all duration-200"
+              className="px-6 py-3 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-colors duration-150"
             >
               Cancel
-            </motion.button>
+            </button>
 
             <div className="flex items-center space-x-3">
               {currentStep > 0 && (
-                <motion.button
+                <button
                   type="button"
                   onClick={handlePrevious}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="group inline-flex items-center gap-2 px-6 py-3 bg-zinc-800/50 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 rounded-xl transition-all duration-200"
+                  className="group inline-flex items-center gap-2 px-6 py-3 bg-zinc-800/50 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 rounded-xl transition-all duration-150 active:scale-[0.97]"
                 >
-                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                  <ChevronLeft className="w-4 h-4 transition-transform duration-150 group-hover:-translate-x-1" />
                   <span>Back</span>
-                </motion.button>
+                </button>
               )}
 
               {currentStep < steps.length - 1 ? (
-                <motion.button
+                <button
                   type="button"
                   onClick={handleNext}
                   disabled={currentStepInfo?.id === 'space' && !selectedSpace}
-                  whileHover={{ scale: (currentStepInfo?.id === 'space' && !selectedSpace) ? 1 : 1.05 }}
-                  whileTap={{ scale: (currentStepInfo?.id === 'space' && !selectedSpace) ? 1 : 0.95 }}
-                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 hover:shadow-xl hover:shadow-brand-light-pink/30 active:scale-[0.97]"
                 >
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-brand-dark-pink to-brand-light-pink"
-                    initial={{ x: '100%' }}
-                    whileHover={{ x: 0 }}
-                    transition={{ type: 'tween', duration: 0.3 }}
-                  />
                   <span className="relative">Next</span>
-                  <ChevronRight className="relative w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </motion.button>
+                  <ChevronRight className="relative w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
+                </button>
               ) : (
-                <motion.button
+                <button
                   type="submit"
                   disabled={isSubmitting || targetLoading || !hasTarget}
-                  whileHover={{ scale: (isSubmitting || targetLoading || !hasTarget) ? 1 : 1.05 }}
-                  whileTap={{ scale: (isSubmitting || targetLoading || !hasTarget) ? 1 : 0.95 }}
-                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 hover:shadow-xl hover:shadow-brand-light-pink/30 active:scale-[0.97]"
                 >
                   {(isSubmitting || targetLoading) && (
                     <Loader2 className="relative w-4 h-4 animate-spin" />
@@ -572,7 +444,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                       : 'Submit'}
                   </span>
                   {!fileUploadStep && <Sparkles className="relative w-4 h-4" />}
-                </motion.button>
+                </button>
               )}
             </div>
           </div>
@@ -711,6 +583,163 @@ const LocalFilePicker = memo(function LocalFilePicker({
               </button>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ─── Review Step ─────────────────────────────────────────────────────────────
+
+const TEMPLATE_LABELS_REVIEW: Record<string, string> = {
+  OTP_PTR: 'OTP / PTR',
+  WALL_POST: 'Wall Post',
+  SEXTING_SETS: 'Sexting Sets',
+};
+
+const ReviewStep = memo(function ReviewStep({
+  selectedSpace,
+  submissionType,
+  watch,
+  hasTarget,
+  assigneeId,
+  spaceId,
+  pendingFilesCount,
+}: {
+  selectedSpace: Space | null;
+  submissionType: string;
+  watch: UseFormWatch<FormData>;
+  hasTarget: boolean;
+  assigneeId?: string;
+  spaceId?: string;
+  pendingFilesCount: number;
+}) {
+  const { data: spaceMembers } = useSpaceMembers(spaceId);
+  const { data: orgMembers } = useQuery({
+    queryKey: ['org-members-assignee'],
+    queryFn: async () => {
+      const res = await fetch('/api/organization/members');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const assignee = useMemo(() => {
+    if (!assigneeId) return null;
+    // Try space members first
+    const spaceMember = spaceMembers?.find((m) => m.userId === assigneeId);
+    if (spaceMember) {
+      return { name: spaceMember.user.firstName ? `${spaceMember.user.firstName} ${spaceMember.user.lastName || ''}`.trim() : spaceMember.user.email, email: spaceMember.user.email, initial: (spaceMember.user.firstName?.[0] || spaceMember.user.email[0]).toUpperCase() };
+    }
+    // Fallback to org members
+    const orgMember = orgMembers?.find((m: { id: string }) => m.id === assigneeId);
+    if (orgMember) {
+      return { name: orgMember.firstName ? `${orgMember.firstName} ${orgMember.lastName || ''}`.trim() : orgMember.email, email: orgMember.email, initial: (orgMember.firstName?.[0] || orgMember.email[0]).toUpperCase() };
+    }
+    return null;
+  }, [assigneeId, spaceMembers, orgMembers]);
+
+  const meta = watch('metadata') || {};
+  const entries = Object.entries(meta).filter(
+    ([key, v]) =>
+      key !== 'submitStatus' &&
+      key !== 'boardItemId' &&
+      v !== '' &&
+      v !== null &&
+      v !== undefined &&
+      !(Array.isArray(v) && v.length === 0)
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+        <h3 className="text-sm font-medium text-zinc-400 mb-3">Submission Overview</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {selectedSpace && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Space</p>
+              <p className="text-white font-medium">{selectedSpace.name}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Submission Type</p>
+            <p className="text-white font-medium">
+              {TEMPLATE_LABELS_REVIEW[submissionType] ?? submissionType}
+            </p>
+          </div>
+          {watch('priority') && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Priority</p>
+              <p className="text-white font-medium capitalize">{watch('priority')}</p>
+            </div>
+          )}
+          {assignee && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Assigned To</p>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-brand-light-pink/20 border border-brand-light-pink/30 flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-brand-light-pink">
+                    {assignee.initial}
+                  </span>
+                </div>
+                <p className="text-white font-medium text-sm">
+                  {assignee.name}
+                </p>
+              </div>
+            </div>
+          )}
+          {pendingFilesCount > 0 && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Files</p>
+              <div className="flex items-center gap-1.5 text-white font-medium text-sm">
+                <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                {pendingFilesCount} file{pendingFilesCount !== 1 ? 's' : ''} attached
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Template metadata summary */}
+      {entries.length > 0 && (
+        <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
+          <h3 className="text-sm font-medium text-zinc-400 mb-3">
+            {TEMPLATE_LABELS_REVIEW[submissionType]} Details
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {entries.map(([key, val]) => (
+              <div key={key}>
+                <p className="text-xs text-zinc-500 mb-0.5 capitalize">
+                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                </p>
+                <p className="text-white text-sm truncate">
+                  {Array.isArray(val) ? val.join(', ') : String(val)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!hasTarget ? (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-amber-200 font-medium mb-1">No space selected</p>
+            <p className="text-sm text-amber-200/70">
+              Go back to Step 1 and select a space before submitting.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-brand-light-pink/10 to-brand-dark-pink/10 border border-brand-light-pink/20 rounded-xl p-6">
+          <p className="text-white font-medium mb-1">Ready to submit?</p>
+          <p className="text-sm text-zinc-400">
+            Click Submit below to add this to your{' '}
+            <span className="text-brand-light-pink">{selectedSpace?.name}</span> board.
+          </p>
         </div>
       )}
     </div>
