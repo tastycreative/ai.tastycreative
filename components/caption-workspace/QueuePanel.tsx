@@ -351,7 +351,7 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
                               isSelected={selectedTicket === index}
                               onSelect={() => onSelectTicket(index)}
                               isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps || {}}
+                              dragHandleProps={provided.dragHandleProps ?? undefined}
                             />
                           </div>
                         );
