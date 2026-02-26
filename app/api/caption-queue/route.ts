@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
       urgency,
       releaseDate,
       profileId,
+      contentUrl,
+      contentSourceType,
+      originalFileName,
     } = body;
 
     // Validate required fields
@@ -81,6 +84,9 @@ export async function POST(request: NextRequest) {
         urgency: urgency || 'medium',
         releaseDate: new Date(releaseDate),
         status: 'pending',
+        contentUrl: contentUrl || null,
+        contentSourceType: contentSourceType || null,
+        originalFileName: originalFileName || null,
       },
     });
 

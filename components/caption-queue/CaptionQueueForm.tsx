@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
+import { ContentUploader, ContentData } from './ContentUploader';
 
 interface CaptionQueueFormProps {
   onSuccess: () => void;
@@ -29,6 +30,7 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contentData, setContentData] = useState<ContentData | null>(null);
   
   const [formData, setFormData] = useState({
     profileId: '',
@@ -125,6 +127,9 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
           urgency: formData.urgency,
           releaseDate: releaseDatetime,
           clerkId: user.id,
+          contentUrl: contentData?.url,
+          contentSourceType: contentData?.sourceType,
+          originalFileName: contentData?.fileName,
         }),
       });
 
@@ -141,11 +146,9 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-2xl p-6 shadow-sm">
-      <h3 className="text-lg font-semibold text-sidebar-foreground mb-4">Add New Queue Item</h3>
-      
+    <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl flex items-start gap-3">
+        <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl flex items-start gap-3">
           <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
@@ -210,6 +213,19 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
             rows={3}
             placeholder="Brief description of the content"
           />
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium text-sidebar-foreground mb-2">
+            Content (Upload or Google Drive Link)
+          </label>
+          <ContentUploader 
+            value={contentData}
+            onContentChange={setContentData}
+          />
+          <p className="mt-2 text-xs text-header-muted">
+            Upload a file or paste a Google Drive link to your content. This will help caption writers see what they're writing about.
+          </p>
         </div>
 
         <div>
@@ -358,7 +374,7 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
         </div>
       </div>
 
-      <div className="flex gap-3 mt-6">
+      <div className="flex gap-3 mt-8 pt-6 border-t border-modal-border">
         <button
           type="button"
           onClick={onCancel}
@@ -371,7 +387,7 @@ export function CaptionQueueForm({ onSuccess, onCancel }: CaptionQueueFormProps)
           disabled={loading || !formData.profileId || formData.contentTypes.length === 0 || formData.messageTypes.length === 0}
           className="flex-1 px-5 py-3 bg-linear-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-dark-pink hover:to-brand-mid-pink text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-brand-mid-pink/30 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Adding...' : 'Add to Queue'}
+          {loading ? 'Adding to Queue...' : 'Add to Queue'}
         </button>
       </div>
     </form>

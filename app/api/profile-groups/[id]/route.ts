@@ -17,28 +17,17 @@ export async function PATCH(
     const body = await request.json();
     const { name, color, icon, order, isCollapsed } = body;
 
-    // Verify group exists and user has access
+    // Verify group exists and belongs to user
     const group = await prisma.profileGroup.findUnique({
       where: { id },
-      include: {
-        organization: {
-          include: {
-            members: {
-              where: {
-                user: { clerkId: userId },
-              },
-            },
-          },
-        },
-      },
     });
 
     if (!group) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    if (group.organization.members.length === 0) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
+    if (group.userId !== userId) {
+      return NextResponse.json({ error: 'Not authorized to modify this group' }, { status: 403 });
     }
 
     const updatedGroup = await prisma.profileGroup.update({
@@ -74,7 +63,7 @@ export async function PATCH(
     // Handle unique constraint violation
     if (error.code === 'P2002') {
       return NextResponse.json(
-        { error: 'A group with this name already exists in this organization' },
+        { error: 'A group with this name already exists' },
         { status: 409 }
       );
     }
@@ -96,28 +85,17 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify group exists and user has access
+    // Verify group exists and belongs to user
     const group = await prisma.profileGroup.findUnique({
       where: { id },
-      include: {
-        organization: {
-          include: {
-            members: {
-              where: {
-                user: { clerkId: userId },
-              },
-            },
-          },
-        },
-      },
     });
 
     if (!group) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    if (group.organization.members.length === 0) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
+    if (group.userId !== userId) {
+      return NextResponse.json({ error: 'Not authorized to delete this group' }, { status: 403 });
     }
 
     // Delete the group (members will be cascade deleted)

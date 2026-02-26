@@ -59,24 +59,57 @@ export async function GET(request: NextRequest) {
     }
 
     // Otherwise, return all accessible profiles for the user
-    // Get user's current organization
+    // Get user's current organization and check if they have CREATOR role
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { currentOrganizationId: true },
+      select: { 
+        currentOrganizationId: true,
+        teamMemberships: {
+          select: {
+            role: true,
+          },
+        },
+      },
     });
 
-    // Build query to include user's personal profiles AND organization profiles
-    const whereCondition: any = {
-      OR: [
-        { clerkId: userId }, // User's personal profiles
-      ],
-    };
+    // Check if user has CREATOR role (they could be creator in multiple orgs)
+    const isCreator = user?.teamMemberships?.some(
+      (membership) => membership.role === 'CREATOR'
+    ) || false;
 
-    // Add organization profiles if user belongs to an organization
-    if (user?.currentOrganizationId) {
-      whereCondition.OR.push({
-        organizationId: user.currentOrganizationId, // Organization's shared profiles
-      });
+    // Build query based on user role
+    let whereCondition: any;
+
+    if (isCreator) {
+      // CREATORS only see profiles assigned to them
+      whereCondition = {
+        assignments: {
+          some: {
+            assignedToClerkId: userId,
+          },
+        },
+      };
+    } else {
+      // Regular users see: owned profiles + organization profiles + assigned profiles
+      whereCondition = {
+        OR: [
+          { clerkId: userId }, // User's personal profiles
+          { 
+            assignments: {
+              some: {
+                assignedToClerkId: userId, // Profiles assigned to this user
+              },
+            },
+          },
+        ],
+      };
+
+      // Add organization profiles if user belongs to an organization
+      if (user?.currentOrganizationId) {
+        whereCondition.OR.push({
+          organizationId: user.currentOrganizationId, // Organization's shared profiles
+        });
+      }
     }
 
     const profiles = await prisma.instagramProfile.findMany({
@@ -116,6 +149,13 @@ export async function GET(request: NextRequest) {
             lastName: true,
             imageUrl: true,
             email: true,
+          },
+        },
+        assignments: {
+          select: {
+            id: true,
+            assignedToClerkId: true,
+            assignedAt: true,
           },
         },
       },

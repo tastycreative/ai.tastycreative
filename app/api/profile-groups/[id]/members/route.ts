@@ -21,19 +21,10 @@ export async function POST(
       return NextResponse.json({ error: 'Profile IDs array required' }, { status: 400 });
     }
 
-    // Verify group exists and user has access
+    // Verify group exists and belongs to user
     const group = await prisma.profileGroup.findUnique({
       where: { id: groupId },
       include: {
-        organization: {
-          include: {
-            members: {
-              where: {
-                user: { clerkId: userId },
-              },
-            },
-          },
-        },
         members: true,
       },
     });
@@ -42,8 +33,8 @@ export async function POST(
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    if (group.organization.members.length === 0) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
+    if (group.userId !== userId) {
+      return NextResponse.json({ error: 'Not authorized to modify this group' }, { status: 403 });
     }
 
     // Get the highest order value in this group
@@ -110,28 +101,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });
     }
 
-    // Verify group exists and user has access
+    // Verify group exists and belongs to user
     const group = await prisma.profileGroup.findUnique({
       where: { id: groupId },
-      include: {
-        organization: {
-          include: {
-            members: {
-              where: {
-                user: { clerkId: userId },
-              },
-            },
-          },
-        },
-      },
     });
 
     if (!group) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    if (group.organization.members.length === 0) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
+    if (group.userId !== userId) {
+      return NextResponse.json({ error: 'Not authorized to modify this group' }, { status: 403 });
     }
 
     // Remove the profile from the group

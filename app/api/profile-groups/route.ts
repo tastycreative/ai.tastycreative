@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET /api/profile-groups - Fetch all groups for organization
+// GET /api/profile-groups - Fetch all groups for user
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -10,27 +10,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get('organizationId');
-
-    if (!organizationId) {
-      return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
-    }
-
-    // Verify user belongs to this organization
-    const teamMember = await prisma.teamMember.findFirst({
-      where: {
-        user: { clerkId: userId },
-        organizationId,
-      },
-    });
-
-    if (!teamMember) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
-    }
-
     const groups = await prisma.profileGroup.findMany({
-      where: { organizationId },
+      where: { userId },
       include: {
         members: {
           include: {
@@ -71,27 +52,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, color, icon, organizationId } = body;
+    const { name, color, icon } = body;
 
-    if (!name || !organizationId) {
-      return NextResponse.json({ error: 'Name and organization ID required' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: 'Name required' }, { status: 400 });
     }
 
-    // Verify user belongs to this organization
-    const teamMember = await prisma.teamMember.findFirst({
-      where: {
-        user: { clerkId: userId },
-        organizationId,
-      },
-    });
-
-    if (!teamMember) {
-      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
-    }
-
-    // Get the highest order value
+    // Get the highest order value for this user
     const lastGroup = await prisma.profileGroup.findFirst({
-      where: { organizationId },
+      where: { userId },
       orderBy: { order: 'desc' },
     });
 
@@ -102,7 +71,7 @@ export async function POST(request: NextRequest) {
         name,
         color,
         icon,
-        organizationId,
+        userId,
         order: newOrder,
       },
       include: {
@@ -128,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Handle unique constraint violation
     if (error.code === 'P2002') {
       return NextResponse.json(
-        { error: 'A group with this name already exists in this organization' },
+        { error: 'A group with this name already exists' },
         { status: 409 }
       );
     }

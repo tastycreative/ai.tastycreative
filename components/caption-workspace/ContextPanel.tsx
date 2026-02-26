@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { AlertCircle, X } from 'lucide-react';
 import { ModelContext } from './types';
 
@@ -9,8 +9,53 @@ interface ContextPanelProps {
   onAddToCaption: (text: string) => void;
 }
 
+// Memoized lingo button component
+const LingoButton = memo(function LingoButton({ 
+  word, 
+  onClick 
+}: { 
+  word: string; 
+  onClick: () => void; 
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1.5 bg-brand-off-white dark:bg-gray-800 hover:bg-brand-mid-pink/10 border border-brand-mid-pink/20 hover:border-brand-mid-pink/50 rounded-lg text-xs text-gray-700 dark:text-gray-300 transition-all cursor-pointer"
+    >
+      "{word}"
+    </button>
+  );
+});
+
+// Memoized emoji button component
+const EmojiButton = memo(function EmojiButton({ 
+  emoji, 
+  onClick 
+}: { 
+  emoji: string; 
+  onClick: () => void; 
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1.5 bg-brand-off-white dark:bg-gray-800 hover:bg-brand-mid-pink/10 border border-brand-mid-pink/20 hover:border-brand-mid-pink/50 rounded-lg text-lg transition-all cursor-pointer"
+    >
+      {emoji}
+    </button>
+  );
+});
+
 function ContextPanelComponent({ modelContext, onAddToCaption }: ContextPanelProps) {
   const hasMinimalData = !modelContext.personality || modelContext.personality.includes('No personality data');
+
+  // Memoize handlers for lingo and emoji clicks
+  const handleLingoClick = useCallback((word: string) => {
+    onAddToCaption(' ' + word);
+  }, [onAddToCaption]);
+
+  const handleEmojiClick = useCallback((emoji: string) => {
+    onAddToCaption(emoji);
+  }, [onAddToCaption]);
 
   return (
     <div className="p-4 overflow-auto bg-white dark:bg-gray-900/80 custom-scrollbar">
@@ -83,13 +128,11 @@ function ContextPanelComponent({ modelContext, onAddToCaption }: ContextPanelPro
           </div>
           <div className="flex flex-wrap gap-2">
             {modelContext.lingo.map(word => (
-              <button
-                key={word}
-                onClick={() => onAddToCaption(' ' + word)}
-                className="px-2.5 py-1.5 bg-brand-off-white dark:bg-gray-800 hover:bg-brand-mid-pink/10 border border-brand-mid-pink/20 hover:border-brand-mid-pink/50 rounded-lg text-xs text-gray-700 dark:text-gray-300 transition-all cursor-pointer"
-              >
-                "{word}"
-              </button>
+              <LingoButton 
+                key={word} 
+                word={word} 
+                onClick={() => handleLingoClick(word)} 
+              />
             ))}
           </div>
         </div>
@@ -103,13 +146,11 @@ function ContextPanelComponent({ modelContext, onAddToCaption }: ContextPanelPro
           </div>
           <div className="flex flex-wrap gap-2">
             {modelContext.emojis.map(emoji => (
-              <button
-                key={emoji}
-                onClick={() => onAddToCaption(emoji)}
-                className="px-2.5 py-1.5 bg-brand-off-white dark:bg-gray-800 hover:bg-brand-mid-pink/10 border border-brand-mid-pink/20 hover:border-brand-mid-pink/50 rounded-lg text-lg transition-all cursor-pointer"
-              >
-                {emoji}
-              </button>
+              <EmojiButton 
+                key={emoji} 
+                emoji={emoji} 
+                onClick={() => handleEmojiClick(emoji)} 
+              />
             ))}
           </div>
         </div>

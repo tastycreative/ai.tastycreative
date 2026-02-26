@@ -3966,7 +3966,8 @@ export function VaultContent() {
   const isViewingCreators = isAdmin && adminViewMode === "creators";
   const canEdit =
     (!isViewingShared && !isViewingCreators) ||
-    selectedSharedFolder?.permission === "EDIT";
+    selectedSharedFolder?.permission === "EDIT" ||
+    isViewingCreators;
 
   // Memoize storage stats to prevent recalculation on every render
   const totalItems = useMemo(() => {
@@ -6765,13 +6766,13 @@ export function VaultContent() {
                       : selectedFolder?.name || "Select a folder"}
                 </h1>
                 {isAllProfiles && !selectedFolder && (
-                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted hidden xl:flex xl:items-center xl:gap-1 mt-0.5">
                     <Users className="w-3.5 h-3.5" /> Viewing all{" "}
                     {profiles.length} profiles
                   </p>
                 )}
                 {isViewingShared && selectedSharedFolder && (
-                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted hidden xl:flex xl:items-center xl:gap-1 mt-0.5">
                     <Share2 className="w-3.5 h-3.5" /> Shared by{" "}
                     {selectedSharedFolder.sharedBy}
                     {!canEdit && (
@@ -6780,7 +6781,7 @@ export function VaultContent() {
                   </p>
                 )}
                 {isViewingCreators && (
-                  <p className="text-xs xl:text-sm text-header-muted flex items-center gap-1 mt-0.5 hidden xl:flex">
+                  <p className="text-xs xl:text-sm text-header-muted hidden xl:flex xl:items-center xl:gap-1 mt-0.5">
                     <Crown className="w-3.5 h-3.5 text-amber-500" />
                     Content Creator Generations
                     <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full ml-2">
@@ -7330,7 +7331,7 @@ export function VaultContent() {
                   <span className="hidden md:inline">Export</span>
                 </button>
 
-                {canEdit && !isViewingCreators && (
+                {canEdit && (
                   <button
                     onClick={handleBulkDelete}
                     disabled={isDeleting}

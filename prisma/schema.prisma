@@ -48,6 +48,7 @@ model User {
   onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
   pinnedProfiles           ProfilePin[]
+  profileGroups            ProfileGroup[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
   teamMemberships          TeamMember[]
@@ -532,6 +533,7 @@ model InstagramProfile {
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   organization           Organization?         @relation(fields: [organizationId], references: [id])
+  assignments            ProfileAssignment[]
   groupMemberships       ProfileGroupMember[]
   profilePins            ProfilePin[]
 
@@ -540,6 +542,12 @@ model InstagramProfile {
   @@index([organizationId])
   @@index([isFavorite])
   @@index([tags])
+  @@index([status])
+  @@index([type])
+  @@index([updatedAt])
+  @@index([name])
+  @@index([status, type])
+  @@index([clerkId, status])
   @@map("instagram_profiles")
 }
 
@@ -1160,23 +1168,27 @@ model CaptionToMessageType {
 }
 
 model CaptionQueueTicket {
-  id              String    @id @default(cuid())
-  clerkId         String
-  profileId       String?
-  modelName       String
-  modelAvatar     String
-  description     String
-  urgency         String    @default("medium")
-  releaseDate     DateTime
-  status          String    @default("pending")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  assignedTo      String?
-  completedAt     DateTime?
-  captionText     String?
-  contentTypes    String[]  @default([])
-  messageTypes    String[]  @default([])
-  profileImageUrl String?
+  id                String    @id @default(cuid())
+  clerkId           String
+  profileId         String?
+  modelName         String
+  modelAvatar       String
+  description       String
+  urgency           String    @default("medium")
+  releaseDate       DateTime
+  status            String    @default("pending")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  assignedTo        String?
+  completedAt       DateTime?
+  captionText       String?
+  contentTypes      String[]  @default([])
+  messageTypes      String[]  @default([])
+  profileImageUrl   String?
+  contentSourceType String?
+  contentUrl        String?
+  originalFileName  String?
+  sortOrder         Int?
 
   @@index([clerkId])
   @@index([profileId])
@@ -1184,6 +1196,7 @@ model CaptionQueueTicket {
   @@index([urgency])
   @@index([releaseDate])
   @@index([clerkId, status])
+  @@index([clerkId, sortOrder])
   @@map("caption_queue_tickets")
 }
 
@@ -1294,7 +1307,6 @@ model Organization {
   marketplaceModels             MarketplaceModel[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
-  profileGroups                 ProfileGroup[]
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
@@ -1362,24 +1374,24 @@ model CustomOrganizationPermission {
 }
 
 model Workspace {
-  id             String            @id @default(cuid())
-  organizationId String
-  name           String
-  slug           String
-  description    String?
-  color          String?
-  icon           String?
-  isActive       Boolean           @default(true)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @default(now()) @updatedAt
-  access         SpaceAccess       @default(OPEN)
-  config         Json?
-  key            String?
-  templateType   SpaceTemplateType @default(KANBAN)
-  boards              Board[]
-  members             WorkspaceMember[]
-  contentSubmissions  content_submissions[]
-  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                 String                @id @default(cuid())
+  organizationId     String
+  name               String
+  slug               String
+  description        String?
+  color              String?
+  icon               String?
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @default(now()) @updatedAt
+  access             SpaceAccess           @default(OPEN)
+  config             Json?
+  key                String?
+  templateType       SpaceTemplateType     @default(KANBAN)
+  boards             Board[]
+  contentSubmissions content_submissions[]
+  members            WorkspaceMember[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
   @@unique([organizationId, key])
@@ -1439,25 +1451,26 @@ model BoardColumn {
 }
 
 model BoardItem {
-  id             String             @id @default(cuid())
-  columnId       String
-  title          String
-  description    String?
-  type           BoardItemType      @default(TASK)
-  priority       BoardItemPriority  @default(MEDIUM)
-  assigneeId     String?
-  dueDate        DateTime?
-  position       Int                @default(0)
-  metadata       Json?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  createdBy      String?
-  itemNo         Int?
-  organizationId String?
-  comments       BoardItemComment[]
-  media          BoardItemMedia[]
-  column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                 String               @id @default(cuid())
+  columnId           String
+  title              String
+  description        String?
+  type               BoardItemType        @default(TASK)
+  priority           BoardItemPriority    @default(MEDIUM)
+  assigneeId         String?
+  dueDate            DateTime?
+  position           Int                  @default(0)
+  metadata           Json?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  createdBy          String?
+  itemNo             Int?
+  organizationId     String?
+  comments           BoardItemComment[]
+  board_item_history board_item_history[]
+  media              BoardItemMedia[]
+  column             BoardColumn          @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  organization       Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, itemNo])
   @@index([columnId])
@@ -2013,7 +2026,7 @@ model content_submissions {
   users                                User                                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   contentTypeOption                    ContentTypeOption?                    @relation("SubmissionContentType", fields: [contentTypeOptionId], references: [id])
   organizations                        Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workspace                            Workspace?                            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  workspace                            Workspace?                            @relation(fields: [workspaceId], references: [id])
 
   @@index([clerkId])
   @@index([contentStyle])
@@ -2098,21 +2111,21 @@ model ProfileGroupMember {
 }
 
 model ProfileGroup {
-  id             String               @id @default(cuid())
-  organizationId String
-  name           String
-  color          String?
-  icon           String?
-  order          Int                  @default(0)
-  isCollapsed    Boolean              @default(false)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  members        ProfileGroupMember[]
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id          String               @id @default(cuid())
+  userId      String
+  name        String
+  color       String?
+  icon        String?
+  order       Int                  @default(0)
+  isCollapsed Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  members     ProfileGroupMember[]
+  user        User                 @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
 
-  @@unique([organizationId, name])
-  @@index([organizationId])
-  @@index([organizationId, order])
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([userId, order])
   @@map("profile_groups")
 }
 
@@ -2129,6 +2142,35 @@ model ProfilePin {
   @@index([profileId])
   @@index([userId])
   @@map("profile_pins")
+}
+
+model ProfileAssignment {
+  id                String           @id @default(cuid())
+  profileId         String
+  assignedToClerkId String
+  assignedAt        DateTime         @default(now())
+  assignedBy        String?
+  profile           InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, assignedToClerkId])
+  @@index([assignedToClerkId])
+  @@index([profileId])
+  @@map("profile_assignments")
+}
+
+model board_item_history {
+  id          String    @id
+  itemId      String
+  userId      String
+  action      String
+  field       String
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime  @default(now())
+  board_items BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
+  @@index([userId])
 }
 
 enum SyncStatus {

@@ -1,47 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-
-// Helper function to check if user has access to a profile (own profile or shared via organization)
-async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
-  // First check if it's the user's own profile
-  const ownProfile = await prisma.instagramProfile.findFirst({
-    where: {
-      id: profileId,
-      clerkId: userId,
-    },
-  });
-
-  if (ownProfile) {
-    return { hasAccess: true, profile: ownProfile };
-  }
-
-  // Check if it's a shared organization profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { currentOrganizationId: true },
-  });
-
-  if (user?.currentOrganizationId) {
-    const orgProfile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        organizationId: user.currentOrganizationId,
-      },
-      include: {
-        user: {
-          select: { clerkId: true },
-        },
-      },
-    });
-
-    if (orgProfile) {
-      return { hasAccess: true, profile: orgProfile };
-    }
-  }
-
-  return { hasAccess: false, profile: null };
-}
+import { hasAccessToProfile } from "@/lib/vault-permissions";
 
 // GET /api/vault/folders - Get all folders for a profile (or all folders if no profileId)
 export async function GET(request: NextRequest) {

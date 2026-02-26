@@ -1,28 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-
-// Helper function to check if user has access to a profile
-async function hasAccessToProfile(userId: string, profileId: string): Promise<boolean> {
-  const ownProfile = await prisma.instagramProfile.findFirst({
-    where: { id: profileId, clerkId: userId },
-  });
-  if (ownProfile) return true;
-
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { currentOrganizationId: true },
-  });
-
-  if (user?.currentOrganizationId) {
-    const orgProfile = await prisma.instagramProfile.findFirst({
-      where: { id: profileId, organizationId: user.currentOrganizationId },
-    });
-    if (orgProfile) return true;
-  }
-
-  return false;
-}
+import { hasAccessToProfileSimple } from "@/lib/vault-permissions";
 
 // Helper: get all descendant folder IDs to prevent circular moves
 async function getDescendantFolderIds(folderId: string): Promise<Set<string>> {
@@ -75,7 +54,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Destination folder not found" }, { status: 404 });
       }
 
-      const hasDestAccess = await hasAccessToProfile(userId, destFolder.profileId);
+      const hasDestAccess = await hasAccessToProfileSimple(userId, destFolder.profileId);
       if (!hasDestAccess) {
         return NextResponse.json({ error: "Access denied to destination folder" }, { status: 403 });
       }
@@ -106,7 +85,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const hasAccess = await hasAccessToProfile(userId, folder.profileId);
+        const hasAccess = await hasAccessToProfileSimple(userId, folder.profileId);
         if (!hasAccess) {
           results.push({ folderId, success: false, error: "Access denied" });
           continue;

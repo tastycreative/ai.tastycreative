@@ -3188,6 +3188,15 @@ export default function ModelProfilePage() {
     type: "real" | "ai";
     shareWithOrganization: boolean;
   }>({ type: "real", shareWithOrganization: false });
+  const [editingProfileBasics, setEditingProfileBasics] = useState(false);
+  const [savingProfileBasics, setSavingProfileBasics] = useState(false);
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const [profileBasicsForm, setProfileBasicsForm] = useState({
+    profileImageUrl: "",
+    name: "",
+    instagramUsername: "",
+  });
   const [editingBasicInfo, setEditingBasicInfo] = useState(false);
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoForm, setBasicInfoForm] = useState({
@@ -3430,6 +3439,14 @@ export default function ModelProfilePage() {
     // Initialize notes form from profile
     if (profile?.modelBible?.internalNotes) {
       setNotesForm(profile.modelBible.internalNotes);
+    }
+    // Initialize profile basics form from profile
+    if (profile) {
+      setProfileBasicsForm({
+        profileImageUrl: profile.profileImageUrl || "",
+        name: profile.name || "",
+        instagramUsername: profile.instagramUsername || "",
+      });
     }
   }, [profile]);
 
@@ -4274,6 +4291,77 @@ export default function ModelProfilePage() {
   const handleCancelNotes = () => {
     setNotesForm(profile?.modelBible?.internalNotes || "");
     setEditingNotes(false);
+  };
+
+  const handleEditProfileBasics = () => {
+    if (profile) {
+      setProfileBasicsForm({
+        profileImageUrl: profile.profileImageUrl || "",
+        name: profile.name || "",
+        instagramUsername: profile.instagramUsername || "",
+      });
+    }
+    setEditingProfileBasics(true);
+  };
+
+  const handleSaveProfileBasics = async () => {
+    if (!apiClient || !profile) return;
+    if (!profileBasicsForm.name.trim()) {
+      toast.error("Profile name is required");
+      return;
+    }
+
+    setSavingProfileBasics(true);
+
+    try {
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          profileImageUrl: profileBasicsForm.profileImageUrl || null,
+          name: profileBasicsForm.name,
+          instagramUsername: profileBasicsForm.instagramUsername,
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to save profile basics");
+
+      setProfile({
+        ...profile,
+        profileImageUrl: profileBasicsForm.profileImageUrl,
+        name: profileBasicsForm.name,
+        instagramUsername: profileBasicsForm.instagramUsername,
+      });
+      setEditingProfileBasics(false);
+      toast.success("Profile updated!");
+      
+      // Dispatch event to refresh profile list in sidebar
+      window.dispatchEvent(
+        new CustomEvent("profilesUpdated", {
+          detail: {
+            profileId: profile.id,
+            mode: "edit",
+          },
+        }),
+      );
+      
+      await loadProfile();
+    } catch (error) {
+      console.error("Error saving profile basics:", error);
+      toast.error("Failed to save profile");
+    } finally {
+      setSavingProfileBasics(false);
+    }
+  };
+
+  const handleCancelProfileBasics = () => {
+    if (profile) {
+      setProfileBasicsForm({
+        profileImageUrl: profile.profileImageUrl || "",
+        name: profile.name || "",
+        instagramUsername: profile.instagramUsername || "",
+      });
+    }
+    setEditingProfileBasics(false);
   };
 
   const defaultStrategies = [
@@ -6193,6 +6281,265 @@ export default function ModelProfilePage() {
 
           {activeTab === "settings" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Basic Profile Information */}
+              <div className="lg:col-span-2 bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold">
+                    Basic Profile Information
+                  </h3>
+                  {!editingProfileBasics ? (
+                    <button
+                      onClick={handleEditProfileBasics}
+                      className="px-3 py-1.5 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors flex items-center gap-2"
+                    >
+                      <Edit2 size={12} />
+                      Edit
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCancelProfileBasics}
+                        disabled={savingProfileBasics}
+                        className="px-3 py-1.5 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveProfileBasics}
+                        disabled={savingProfileBasics}
+                        className="px-3 py-1.5 bg-[#3b82f6] rounded-lg text-white text-xs hover:bg-[#2563eb] transition-colors flex items-center gap-2"
+                      >
+                        {savingProfileBasics ? (
+                          <>Saving...</>
+                        ) : (
+                          <>
+                            <Save size={12} />
+                            Save
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingProfileBasics ? (
+                  <div className="space-y-4">
+                    {/* Profile Image */}
+                    <div>
+                      <div className="text-[11px] text-[#71717a] mb-2">
+                        Profile Image
+                      </div>
+                      <div className="flex items-start gap-6">
+                        <div className="relative group">
+                          <div className="w-24 h-24 rounded-2xl bg-[#27272a] flex items-center justify-center overflow-hidden ring-2 ring-[#27272a]">
+                            {profileBasicsForm.profileImageUrl ? (
+                              <img
+                                src={profileBasicsForm.profileImageUrl}
+                                alt="Profile"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User className="w-10 h-10 text-[#71717a]" />
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => profileImageInputRef.current?.click()}
+                            disabled={uploadingProfileImage}
+                            className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            {uploadingProfileImage ? (
+                              <Loader2 className="w-6 h-6 text-white animate-spin" />
+                            ) : (
+                              <Upload className="w-6 h-6 text-white" />
+                            )}
+                          </button>
+                          <input
+                            ref={profileImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (!file.type.startsWith("image/")) {
+                                toast.error("Please select an image file");
+                                return;
+                              }
+                              if (file.size > 5 * 1024 * 1024) {
+                                toast.error("Image must be less than 5MB");
+                                return;
+                              }
+                              setUploadingProfileImage(true);
+                              try {
+                                const presignedRes = await fetch(
+                                  "/api/reference-bank/presigned-url",
+                                  {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      fileName: file.name,
+                                      fileType: file.type,
+                                      folderId: "profile-images",
+                                    }),
+                                  },
+                                );
+                                if (!presignedRes.ok)
+                                  throw new Error("Failed to get upload URL");
+                                const { presignedUrl, url } = await presignedRes.json();
+                                const uploadRes = await fetch(presignedUrl, {
+                                  method: "PUT",
+                                  body: file,
+                                  headers: { "Content-Type": file.type },
+                                });
+                                if (!uploadRes.ok)
+                                  throw new Error("Failed to upload image");
+                                setProfileBasicsForm({ ...profileBasicsForm, profileImageUrl: url });
+                                toast.success("Image uploaded!");
+                              } catch (err) {
+                                console.error("Upload error:", err);
+                                toast.error("Failed to upload image");
+                              } finally {
+                                setUploadingProfileImage(false);
+                                if (profileImageInputRef.current) profileImageInputRef.current.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 pt-1">
+                          <p className="text-sm font-medium text-[#e4e4e7] mb-1">
+                            Profile Picture
+                          </p>
+                          <p className="text-xs text-[#71717a] mb-3">
+                            Upload an image for this influencer profile. Max 5MB.
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => profileImageInputRef.current?.click()}
+                              disabled={uploadingProfileImage}
+                              className="px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {uploadingProfileImage ? "Uploading..." : "Upload"}
+                            </button>
+                            {profileBasicsForm.profileImageUrl && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setProfileBasicsForm({ ...profileBasicsForm, profileImageUrl: "" })
+                                }
+                                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Profile Name */}
+                      <div>
+                        <div className="text-[11px] text-[#71717a] mb-2">
+                          Profile Name *
+                        </div>
+                        <input
+                          type="text"
+                          value={profileBasicsForm.name}
+                          onChange={(e) =>
+                            setProfileBasicsForm({
+                              ...profileBasicsForm,
+                              name: e.target.value,
+                            })
+                          }
+                          placeholder="e.g., Luna Rose"
+                          className="w-full h-10 px-3 text-sm bg-[#0c0c0f] border border-[#27272a] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                        />
+                      </div>
+
+                      {/* Instagram Username */}
+                      <div>
+                        <div className="text-[11px] text-[#71717a] mb-2">
+                          Instagram Username
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717a] text-sm">
+                            @
+                          </span>
+                          <input
+                            type="text"
+                            value={profileBasicsForm.instagramUsername}
+                            onChange={(e) =>
+                              setProfileBasicsForm({
+                                ...profileBasicsForm,
+                                instagramUsername: e.target.value.replace("@", ""),
+                              })
+                            }
+                            placeholder="username"
+                            className="w-full h-10 pl-7 pr-3 text-sm bg-[#0c0c0f] border border-[#27272a] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-[#e4e4e7]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Profile Image Display */}
+                    <div>
+                      <div className="text-[11px] text-[#71717a] mb-2">
+                        Profile Image
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl bg-[#27272a] flex items-center justify-center overflow-hidden ring-2 ring-[#27272a]">
+                          {profile.profileImageUrl ? (
+                            <img
+                              src={profile.profileImageUrl}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-8 h-8 text-[#71717a]" />
+                          )}
+                        </div>
+                        <div className="text-sm text-[#a1a1aa]">
+                          {profile.profileImageUrl ? "Image uploaded" : "No image uploaded"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Profile Name Display */}
+                      <div>
+                        <div className="text-[11px] text-[#71717a] mb-1">
+                          Profile Name
+                        </div>
+                        <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px]">
+                          {profile.name}
+                        </div>
+                      </div>
+
+                      {/* Instagram Username Display */}
+                      <div>
+                        <div className="text-[11px] text-[#71717a] mb-1">
+                          Instagram Username
+                        </div>
+                        <div className="px-3 py-2 bg-[#0c0c0f] rounded-lg text-[13px] flex items-center gap-2">
+                          {profile.instagramUsername ? (
+                            <>
+                              <Instagram size={14} className="text-[#71717a]" />
+                              @{profile.instagramUsername}
+                            </>
+                          ) : (
+                            <span className="text-[#52525b]">Not set</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Profile Configuration */}
               <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
                 <div className="flex items-center justify-between mb-4">

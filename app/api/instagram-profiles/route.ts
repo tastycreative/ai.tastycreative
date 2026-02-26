@@ -99,100 +99,208 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ [instagram-profiles] User authenticated:', userId);
 
-    // Get the user's current organization
-    console.log('🔍 [instagram-profiles] Fetching user organization...');
+    // Get the user's current organization and check if they have CREATOR role
+    console.log('🔍 [instagram-profiles] Fetching user organization and role...');
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { currentOrganizationId: true },
+      select: { 
+        currentOrganizationId: true,
+        teamMemberships: {
+          select: {
+            role: true,
+          },
+        },
+      },
     });
     console.log('🔍 [instagram-profiles] User organization:', user?.currentOrganizationId || 'none');
 
-    // Get user's own profiles
-    console.log('🔍 [instagram-profiles] Fetching own profiles...');
-    const ownProfiles = await prisma.instagramProfile.findMany({
-      where: {
-        clerkId: userId,
-      },
-      orderBy: [
-        { isDefault: 'desc' },
-        { name: 'asc' },
-      ],
-      include: {
-        user: {
-          select: {
-            id: true,
-            clerkId: true,
-            name: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
-            email: true,
-          },
-        },
-        linkedLoRAs: {
-          select: {
-            id: true,
-            displayName: true,
-            thumbnailUrl: true,
-            fileName: true,
-          },
-        },
-        _count: {
-          select: {
-            posts: true,
-            feedPosts: true,
-          },
-        },
-      },
-    });
+    // Check if user has CREATOR role (they could be creator in multiple orgs)
+    const isCreator = user?.teamMemberships?.some(
+      (membership) => membership.role === 'CREATOR'
+    ) || false;
+    console.log('🔍 [instagram-profiles] Is creator:', isCreator);
 
-    // Get organization shared profiles (profiles shared with the user's org, but not owned by the user)
-    console.log('🔍 [instagram-profiles] Fetching shared profiles...');
-    const sharedProfiles = user?.currentOrganizationId
-      ? await prisma.instagramProfile.findMany({
-          where: {
-            organizationId: user.currentOrganizationId,
-            clerkId: { not: userId }, // Exclude own profiles to avoid duplicates
-          },
-          orderBy: [
-            { name: 'asc' },
-          ],
-          include: {
-            user: {
-              select: {
-                id: true,
-                clerkId: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                imageUrl: true,
-                email: true,
-              },
-            },
-            linkedLoRAs: {
-              select: {
-                id: true,
-                displayName: true,
-                thumbnailUrl: true,
-                fileName: true,
-              },
-            },
-            _count: {
-              select: {
-                posts: true,
-                feedPosts: true,
-              },
-            },
-          },
-        })
-      : [];
+    let ownProfiles: any[] = [];
+    let sharedProfiles: any[] = [];
+    let assignedProfiles: any[] = [];
 
-    console.log('✅ [instagram-profiles] Own profiles count:', ownProfiles.length);
-    console.log('✅ [instagram-profiles] Shared profiles count:', sharedProfiles.length);
+    if (isCreator) {
+      // CREATORS only see profiles assigned to them
+      console.log('🔍 [instagram-profiles] Fetching assigned profiles for creator...');
+      assignedProfiles = await prisma.instagramProfile.findMany({
+        where: {
+          assignments: {
+            some: {
+              assignedToClerkId: userId,
+            },
+          },
+        },
+        orderBy: [
+          { isDefault: 'desc' },
+          { name: 'asc' },
+        ],
+        include: {
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              imageUrl: true,
+              email: true,
+            },
+          },
+          linkedLoRAs: {
+            select: {
+              id: true,
+              displayName: true,
+              thumbnailUrl: true,
+              fileName: true,
+            },
+          },
+          _count: {
+            select: {
+              posts: true,
+              feedPosts: true,
+            },
+          },
+        },
+      });
+      console.log('✅ [instagram-profiles] Assigned profiles count:', assignedProfiles.length);
+    } else {
+      // Regular users see their own profiles + organization profiles + assigned profiles
+      // Get user's own profiles
+      console.log('🔍 [instagram-profiles] Fetching own profiles...');
+      ownProfiles = await prisma.instagramProfile.findMany({
+        where: {
+          clerkId: userId,
+        },
+        orderBy: [
+          { isDefault: 'desc' },
+          { name: 'asc' },
+        ],
+        include: {
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              imageUrl: true,
+              email: true,
+            },
+          },
+          linkedLoRAs: {
+            select: {
+              id: true,
+              displayName: true,
+              thumbnailUrl: true,
+              fileName: true,
+            },
+          },
+          _count: {
+            select: {
+              posts: true,
+              feedPosts: true,
+            },
+          },
+        },
+      });
+
+      // Get organization shared profiles (profiles shared with the user's org, but not owned by the user)
+      console.log('🔍 [instagram-profiles] Fetching shared profiles...');
+      sharedProfiles = user?.currentOrganizationId
+        ? await prisma.instagramProfile.findMany({
+            where: {
+              organizationId: user.currentOrganizationId,
+              clerkId: { not: userId }, // Exclude own profiles to avoid duplicates
+            },
+            orderBy: [
+              { name: 'asc' },
+            ],
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  clerkId: true,
+                  name: true,
+                  firstName: true,
+                  lastName: true,
+                  imageUrl: true,
+                  email: true,
+                },
+              },
+              linkedLoRAs: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  thumbnailUrl: true,
+                  fileName: true,
+                },
+              },
+              _count: {
+                select: {
+                  posts: true,
+                  feedPosts: true,
+                },
+              },
+            },
+          })
+        : [];
+
+      // Get assigned profiles (profiles assigned to this user)
+      console.log('🔍 [instagram-profiles] Fetching assigned profiles...');
+      assignedProfiles = await prisma.instagramProfile.findMany({
+        where: {
+          assignments: {
+            some: {
+              assignedToClerkId: userId,
+            },
+          },
+          clerkId: { not: userId }, // Exclude own profiles to avoid duplicates
+        },
+        orderBy: [
+          { name: 'asc' },
+        ],
+        include: {
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              imageUrl: true,
+              email: true,
+            },
+          },
+          linkedLoRAs: {
+            select: {
+              id: true,
+              displayName: true,
+              thumbnailUrl: true,
+              fileName: true,
+            },
+          },
+          _count: {
+            select: {
+              posts: true,
+              feedPosts: true,
+            },
+          },
+        },
+      });
+
+      console.log('✅ [instagram-profiles] Own profiles count:', ownProfiles.length);
+      console.log('✅ [instagram-profiles] Shared profiles count:', sharedProfiles.length);
+      console.log('✅ [instagram-profiles] Assigned profiles count:', assignedProfiles.length);
+    }
 
     // Get user's organization role (if they're in an org)
     let userOrgRole: string | null = null;
-    if (user?.currentOrganizationId) {
+    if (user?.currentOrganizationId && !isCreator) {
       const teamMembership = await prisma.teamMember.findUnique({
         where: {
           userId_organizationId: {
@@ -209,12 +317,36 @@ export async function GET(request: NextRequest) {
       console.log('🔍 [instagram-profiles] User org role:', userOrgRole);
     }
 
-    // Mark profiles as owned or shared, and include user's org role
-    const ownProfilesWithFlag = ownProfiles.map(p => ({ ...p, isShared: false, currentUserOrgRole: null }));
-    const sharedProfilesWithFlag = sharedProfiles.map(p => ({ ...p, isShared: true, currentUserOrgRole: userOrgRole }));
+    // Mark profiles appropriately
+    let allProfiles: any[] = [];
 
-    // Combine and return all accessible profiles
-    const allProfiles = [...ownProfilesWithFlag, ...sharedProfilesWithFlag];
+    if (isCreator) {
+      // For creators, mark all profiles as shared (since they're assigned, not owned)
+      allProfiles = assignedProfiles.map(p => ({ 
+        ...p, 
+        isShared: true, 
+        currentUserOrgRole: null 
+      }));
+    } else {
+      // For regular users, combine own, shared, and assigned profiles
+      const ownProfilesWithFlag = ownProfiles.map(p => ({ 
+        ...p, 
+        isShared: false, 
+        currentUserOrgRole: null 
+      }));
+      const sharedProfilesWithFlag = sharedProfiles.map(p => ({ 
+        ...p, 
+        isShared: true, 
+        currentUserOrgRole: userOrgRole 
+      }));
+      const assignedProfilesWithFlag = assignedProfiles.map(p => ({ 
+        ...p, 
+        isShared: true, 
+        currentUserOrgRole: null 
+      }));
+      
+      allProfiles = [...ownProfilesWithFlag, ...sharedProfilesWithFlag, ...assignedProfilesWithFlag];
+    }
     
     console.log('✅ [instagram-profiles] Total profiles:', allProfiles.length);
     console.log('✅ [instagram-profiles] Returning profiles');

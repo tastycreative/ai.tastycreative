@@ -1,25 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { Calendar, Trash2, AlertCircle } from 'lucide-react';
-
-interface QueueItem {
-  id: string;
-  modelName: string;
-  modelAvatar: string;
-  profileImageUrl: string | null;
-  description: string;
-  contentTypes: string[];
-  messageTypes: string[];
-  urgency: 'low' | 'medium' | 'high' | 'urgent';
-  releaseDate: string;
-  status: string;
-  createdAt: string;
-}
+import { Calendar, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useCaptionQueue, useDeleteQueueItem, CaptionQueueItem } from '@/lib/hooks/useCaptionQueue.query';
 
 interface CaptionQueueListProps {
-  refreshTrigger: number;
+  refreshTrigger?: number;
 }
 
 const urgencyConfig = {
@@ -29,74 +15,52 @@ const urgencyConfig = {
   urgent: { label: 'URGENT', bg: 'bg-red-100 dark:bg-red-950/30', textColor: 'text-red-600 dark:text-red-400' },
 };
 
-// Urgency priority for sorting
-const urgencyPriority: Record<string, number> = {
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-};
+// Skeleton loader for queue items
+function QueueItemSkeleton() {
+  return (
+    <div className="bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-2xl p-4 animate-pulse">
+      <div className="flex items-center justify-between mb-3">
+        <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="h-5 w-14 bg-gray-200 dark:bg-gray-700 rounded" />
+      </div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-md" />
+        <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+      </div>
+      <div className="h-3 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+      <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-700 rounded mb-3" />
+      <div className="flex gap-2 mb-3">
+        <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+      </div>
+      <div className="h-3 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
+    </div>
+  );
+}
 
 export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
-  const { user } = useUser();
-  const [items, setItems] = useState<QueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchQueue = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch('/api/caption-queue');
-        if (!response.ok) throw new Error('Failed to fetch queue');
-        
-        const data = await response.json();
-        const fetchedItems = data.items || [];
-        
-        // Sort by urgency (urgent > high > medium > low), then by releaseDate
-        const sortedItems = [...fetchedItems].sort((a: QueueItem, b: QueueItem) => {
-          const urgencyDiff = (urgencyPriority[b.urgency] || 0) - (urgencyPriority[a.urgency] || 0);
-          if (urgencyDiff !== 0) return urgencyDiff;
-          
-          // If same urgency, sort by releaseDate (earliest first)
-          return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
-        });
-        
-        setItems(sortedItems);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load queue');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchQueue();
-  }, [user, refreshTrigger]);
+  const { data: items = [], isLoading, error, refetch } = useCaptionQueue();
+  const deleteItemMutation = useDeleteQueueItem();
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this queue item?')) return;
 
-    try {
-      const response = await fetch(`/api/caption-queue/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete');
-      
-      setItems(items.filter(item => item.id !== id));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete item');
-    }
+    deleteItemMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('Queue item deleted');
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete item');
+      },
+    });
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-header-muted">Loading queue...</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <QueueItemSkeleton key={i} />
+        ))}
       </div>
     );
   }
@@ -105,7 +69,17 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl flex items-start gap-3">
         <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="flex-1">
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof Error ? error.message : 'Failed to load queue'}
+          </p>
+          <button 
+            onClick={() => refetch()} 
+            className="mt-2 text-xs text-red-500 hover:text-red-700 underline"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -126,13 +100,16 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {items.map((item) => {
-        const config = urgencyConfig[item.urgency];
+      {items.map((item: CaptionQueueItem) => {
+        const config = urgencyConfig[item.urgency as keyof typeof urgencyConfig] || urgencyConfig.medium;
+        const isDeleting = deleteItemMutation.isPending && deleteItemMutation.variables === item.id;
         
         return (
           <div
             key={item.id}
-            className="bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-2xl p-4 hover:shadow-md transition-shadow"
+            className={`bg-white dark:bg-[#1a1625] border border-brand-mid-pink/20 rounded-2xl p-4 hover:shadow-md transition-all ${
+              isDeleting ? 'opacity-50 pointer-events-none' : ''
+            }`}
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
@@ -145,9 +122,14 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
                 </span>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors"
+                  disabled={isDeleting}
+                  className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors disabled:opacity-50"
                 >
-                  <Trash2 size={14} className="text-red-500" />
+                  {isDeleting ? (
+                    <Loader2 size={14} className="text-red-500 animate-spin" />
+                  ) : (
+                    <Trash2 size={14} className="text-red-500" />
+                  )}
                 </button>
               </div>
             </div>

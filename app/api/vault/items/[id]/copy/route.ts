@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { S3Client, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { trackStorageUpload } from "@/lib/storageEvents";
+import { hasAccessToProfileSimple } from "@/lib/vault-permissions";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -43,7 +44,10 @@ export async function POST(
     // Check if user is the owner OR has at least VIEW permission on the source folder
     const isOwner = sourceItem.clerkId === userId;
     
-    if (!isOwner) {
+    // Check if user has access to the source item's profile (own profile or assigned profile)
+    const hasSourceProfileAccess = await hasAccessToProfileSimple(userId, sourceItem.profileId);
+    
+    if (!isOwner && !hasSourceProfileAccess) {
       // Check if user has permission on the folder via sharing
       const sharePermission = await prisma.vaultFolderShare.findUnique({
         where: {
@@ -75,7 +79,10 @@ export async function POST(
     // Check if user owns the destination folder OR has EDIT permission on it
     const isDestinationOwner = destinationFolder.clerkId === userId;
     
-    if (!isDestinationOwner) {
+    // Check if user has access to the destination folder's profile (own profile or assigned profile)
+    const hasDestProfileAccess = await hasAccessToProfileSimple(userId, destinationFolder.profileId);
+    
+    if (!isDestinationOwner && !hasDestProfileAccess) {
       // Check if user has EDIT permission on destination folder
       const destSharePermission = await prisma.vaultFolderShare.findUnique({
         where: {

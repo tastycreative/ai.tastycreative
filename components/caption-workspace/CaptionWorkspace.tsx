@@ -2,13 +2,16 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import QueuePanel from './QueuePanel';
 import ContentViewer from './ContentViewer';
 import CaptionEditor from './CaptionEditor';
 import ContextPanel from './ContextPanel';
 import ReferencePanel from './ReferencePanel';
+import { CaptionWorkspaceSkeleton } from './Skeletons';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { QueueTicket, ModelContext, TopCaption, formatPageStrategy } from './types';
-import { useCaptionQueue } from '@/lib/hooks/useCaptionQueue.query';
+import { useCaptionQueue, useUpdateQueueItem } from '@/lib/hooks/useCaptionQueue.query';
 import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
 
 // Resizable panel component
@@ -95,6 +98,7 @@ export default function CaptionWorkspace() {
 
   // Fetch real queue data
   const { data: queueData, isLoading, error } = useCaptionQueue();
+  const updateQueueMutation = useUpdateQueueItem();
   const queryClient = useQueryClient();
 
   // Transform API data to match QueueTicket interface
@@ -118,8 +122,10 @@ export default function CaptionWorkspace() {
         hour12: true
       }),
       description: item.description,
-      driveLink: 'https://drive.google.com/...',
-      videoUrl: null,
+      driveLink: item.contentSourceType === 'gdrive' ? item.contentUrl || 'https://drive.google.com/...' : 'https://drive.google.com/...',
+      videoUrl: item.contentSourceType === 'upload' ? item.contentUrl : null,
+      contentUrl: item.contentUrl,
+      contentSourceType: item.contentSourceType as 'upload' | 'gdrive' | null,
     })) || [],
   [queueData]);
 
@@ -133,6 +139,22 @@ export default function CaptionWorkspace() {
       ticket.contentTypes.some(ct => ct.toLowerCase().includes(search))
     );
   }, [allQueue, searchQuery]);
+
+  // Initialize caption drafts from database when queue data loads
+  useEffect(() => {
+    if (!queueData) return;
+    
+    setCaptionDrafts(prev => {
+      const newDrafts = { ...prev };
+      queueData.forEach(item => {
+        // Only set if not already in local state and has saved caption
+        if (!newDrafts[item.id] && item.captionText) {
+          newDrafts[item.id] = item.captionText;
+        }
+      });
+      return newDrafts;
+    });
+  }, [queueData]);
 
   // Get the actual index in queueData for the filtered item
   const getOriginalIndex = useCallback((filteredIndex: number) => {
@@ -189,6 +211,56 @@ export default function CaptionWorkspace() {
 
   // Check if current ticket has a draft
   const hasDraft = selectedTicketData && captionDrafts[selectedTicketData.id]?.length > 0;
+
+  // Save draft handler
+  const handleSaveDraft = useCallback(async (captionText: string) => {
+    if (!selectedTicketData || !queueData) return;
+    
+    const ticketId = queueData[originalIndex]?.id;
+    if (!ticketId) return;
+
+    await updateQueueMutation.mutateAsync({
+      id: ticketId,
+      data: { captionText, status: 'draft' },
+    });
+  }, [selectedTicketData, queueData, originalIndex, updateQueueMutation]);
+
+  // Submit for QA handler
+  const handleSubmitCaption = useCallback(async (captionText: string) => {
+    if (!selectedTicketData || !queueData) return;
+    
+    const ticketId = queueData[originalIndex]?.id;
+    if (!ticketId) return;
+
+    await updateQueueMutation.mutateAsync({
+      id: ticketId,
+      data: { captionText, status: 'pending_qa' },
+    });
+
+    // Clear draft after submission
+    setCaptionDrafts(prev => {
+      const next = { ...prev };
+      delete next[selectedTicketData.id];
+      return next;
+    });
+
+    // Move to next ticket if available
+    if (selectedTicket < queue.length - 1) {
+      setSelectedTicket(selectedTicket + 1);
+    }
+  }, [selectedTicketData, queueData, originalIndex, updateQueueMutation, selectedTicket, queue.length]);
+
+  // Handle queue reorder (local state update)
+  const handleQueueReorder = useCallback((startIndex: number, endIndex: number) => {
+    // If selected ticket is being dragged, update selection
+    if (selectedTicket === startIndex) {
+      setSelectedTicket(endIndex);
+    } else if (startIndex < selectedTicket && endIndex >= selectedTicket) {
+      setSelectedTicket(selectedTicket - 1);
+    } else if (startIndex > selectedTicket && endIndex <= selectedTicket) {
+      setSelectedTicket(selectedTicket + 1);
+    }
+  }, [selectedTicket]);
 
   // Transform profile data to ModelContext
   const modelContext: ModelContext = useMemo(() => {
@@ -322,11 +394,8 @@ export default function CaptionWorkspace() {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="col-span-1 lg:col-span-3 flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-brand-mid-pink/20 border-t-brand-mid-pink animate-spin"></div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading queue...</p>
-            </div>
+          <div className="col-span-1 lg:col-span-3">
+            <CaptionWorkspaceSkeleton />
           </div>
         )}
 
@@ -367,26 +436,36 @@ export default function CaptionWorkspace() {
           <>
         {/* Left Panel: Queue - Hidden on mobile, shown with toggle */}
         <div className="hidden lg:block">
-          <QueuePanel 
-            queue={queue} 
-            selectedTicket={selectedTicket} 
-            onSelectTicket={setSelectedTicket}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
+          <ErrorBoundary componentName="Queue Panel">
+            <QueuePanel 
+              queue={queue} 
+              selectedTicket={selectedTicket} 
+              onSelectTicket={setSelectedTicket}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onReorder={handleQueueReorder}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Center Panel: Content Viewer + Editor with Resizable */}
         <div className="overflow-hidden">
           <ResizablePanel initialHeight={40} minHeight={25} maxHeight={65}>
-            <ContentViewer ticket={queue[selectedTicket]} />
-            <CaptionEditor
-              caption={currentCaption}
-              onCaptionChange={handleCaptionChange}
-              modelContext={modelContext}
-              restrictedWordsFound={restrictedWordsFound}
-              isDraft={hasDraft}
-            />
+            <ErrorBoundary componentName="Content Viewer">
+              <ContentViewer ticket={queue[selectedTicket]} />
+            </ErrorBoundary>
+            <ErrorBoundary componentName="Caption Editor">
+              <CaptionEditor
+                caption={currentCaption}
+                onCaptionChange={handleCaptionChange}
+                modelContext={modelContext}
+                restrictedWordsFound={restrictedWordsFound}
+                isDraft={hasDraft}
+                ticketId={selectedTicketData?.id}
+                onSaveDraft={handleSaveDraft}
+                onSubmit={handleSubmitCaption}
+              />
+            </ErrorBoundary>
           </ResizablePanel>
         </div>
 
@@ -419,12 +498,16 @@ export default function CaptionWorkspace() {
           {/* Tab Content */}
           <div className="flex-1 overflow-auto">
             {activeTab === 'context' ? (
-              <ContextPanel 
-                modelContext={modelContext} 
-                onAddToCaption={handleAddToCaption} 
-              />
+              <ErrorBoundary componentName="Context Panel">
+                <ContextPanel 
+                  modelContext={modelContext} 
+                  onAddToCaption={handleAddToCaption} 
+                />
+              </ErrorBoundary>
             ) : (
-              <ReferencePanel topCaptions={topCaptions} />
+              <ErrorBoundary componentName="Reference Panel">
+                <ReferencePanel topCaptions={topCaptions} />
+              </ErrorBoundary>
             )}
           </div>
         </div>

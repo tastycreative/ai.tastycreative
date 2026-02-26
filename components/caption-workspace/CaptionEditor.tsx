@@ -1,8 +1,10 @@
 'use client';
 
-import { memo } from 'react';
-import { Send, AlertTriangle, Check, Info } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Send, AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ModelContext } from './types';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
 
 interface CaptionEditorProps {
   caption: string;
@@ -10,97 +12,192 @@ interface CaptionEditorProps {
   modelContext: ModelContext;
   restrictedWordsFound: string[];
   isDraft?: boolean;
+  ticketId?: string;
+  onSaveDraft?: (caption: string) => Promise<void>;
+  onSubmit?: (caption: string) => Promise<void>;
 }
 
 const MAX_CAPTION_LENGTH = 2200;
-const OPTIMAL_MIN = 50;
-const OPTIMAL_MAX = 300;
+
+// Highlight restricted words in text
+function HighlightedTextarea({ 
+  value, 
+  restrictedWords, 
+  onChange, 
+  placeholder,
+  maxLength 
+}: { 
+  value: string;
+  restrictedWords: string[];
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder: string;
+  maxLength: number;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  // Sync scroll between textarea and highlight div
+  const handleScroll = useCallback(() => {
+    if (highlightRef.current && textareaRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  }, []);
+
+  // Create highlighted HTML
+  const highlightedHtml = useMemo(() => {
+    if (restrictedWords.length === 0 || !value) return value;
+
+    let result = value;
+    // Create a regex that matches any restricted word (case-insensitive)
+    const pattern = restrictedWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${pattern})`, 'gi');
+    
+    result = result.replace(regex, '<mark class="bg-red-300 dark:bg-red-500/50 rounded px-0.5">$1</mark>');
+    
+    // Replace newlines with <br> for proper display
+    result = result.replace(/\n/g, '<br>');
+    
+    return result;
+  }, [value, restrictedWords]);
+
+  return (
+    <div className="relative flex-1 min-h-30 mb-3">
+      {/* Highlight layer (behind textarea) */}
+      <div
+        ref={highlightRef}
+        className="absolute inset-0 px-3 py-3 bg-brand-off-white dark:bg-gray-800 border border-transparent rounded-xl text-sm leading-relaxed text-transparent overflow-auto whitespace-pre-wrap wrap-break-word pointer-events-none"
+        style={{ wordBreak: 'break-word' }}
+        dangerouslySetInnerHTML={{ __html: highlightedHtml || '&nbsp;' }}
+      />
+      {/* Actual textarea */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={onChange}
+        onScroll={handleScroll}
+        placeholder={placeholder}
+        className="relative w-full h-full px-3 py-3 bg-transparent border border-brand-mid-pink/20 focus:border-brand-mid-pink focus:ring-1 focus:ring-brand-mid-pink/30 text-gray-900 dark:text-gray-100 text-sm rounded-xl resize-none leading-relaxed placeholder:text-gray-400 caret-brand-mid-pink"
+        style={{ 
+          background: 'transparent',
+          WebkitTextFillColor: restrictedWords.length > 0 ? 'transparent' : undefined,
+        }}
+        maxLength={maxLength}
+      />
+    </div>
+  );
+}
 
 function CaptionEditorComponent({ 
   caption, 
   onCaptionChange, 
   modelContext, 
   restrictedWordsFound,
-  isDraft = false
+  isDraft = false,
+  ticketId,
+  onSaveDraft,
+  onSubmit,
 }: CaptionEditorProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  // Validation state - defined early for use in hooks
   const hasRestrictions = restrictedWordsFound.length > 0;
-  const isValid = !hasRestrictions && caption.length >= 10;
-  
-  // Character count status
-  const isOptimal = caption.length >= OPTIMAL_MIN && caption.length <= OPTIMAL_MAX;
-  const isTooShort = caption.length > 0 && caption.length < OPTIMAL_MIN;
-  const isTooLong = caption.length > OPTIMAL_MAX;
+  const isValid = !hasRestrictions;
   const isOverLimit = caption.length > MAX_CAPTION_LENGTH;
+  
+  // Handle caption change
+  const handleCaptionChange = useCallback((newCaption: string) => {
+    onCaptionChange(newCaption);
+  }, [onCaptionChange]);
 
-  const getCharCountColor = () => {
-    if (isOverLimit) return 'text-red-500';
-    if (isOptimal) return 'text-emerald-500';
-    if (isTooShort) return 'text-yellow-500';
-    if (isTooLong) return 'text-orange-500';
-    return 'text-gray-400 dark:text-gray-500';
-  };
+  // Auto-save functionality
+  const handleAutoSave = useCallback(async (data: string) => {
+    if (onSaveDraft && data.length > 0) {
+      await onSaveDraft(data);
+    }
+  }, [onSaveDraft]);
 
-  const getProgressWidth = () => {
-    const percent = Math.min((caption.length / OPTIMAL_MAX) * 100, 100);
-    return `${percent}%`;
-  };
+  const { isSaving: isAutoSaving, lastSaved, error: autoSaveError, reset: resetAutoSave } = useAutoSave({
+    data: caption,
+    onSave: handleAutoSave,
+    delay: 3000,
+    enabled: !!onSaveDraft && !!ticketId && caption.length > 0,
+  });
 
-  const getProgressColor = () => {
-    if (isOverLimit) return 'bg-red-500';
-    if (isOptimal) return 'bg-emerald-500';
-    if (isTooShort) return 'bg-yellow-500';
-    if (isTooLong) return 'bg-orange-500';
-    return 'bg-gray-300 dark:bg-gray-600';
-  };
+  // Reset auto-save when ticket changes
+  useEffect(() => {
+    resetAutoSave();
+  }, [ticketId, resetAutoSave]);
+
+  // Show auto-save error
+  useEffect(() => {
+    if (autoSaveError) {
+      toast.error('Failed to auto-save draft');
+    }
+  }, [autoSaveError]);
+
+  // Manual save draft
+  const handleSaveDraft = useCallback(async () => {
+    if (!onSaveDraft || caption.length === 0) return;
+    
+    setIsSavingDraft(true);
+    try {
+      await onSaveDraft(caption);
+      toast.success('Draft saved');
+    } catch (err) {
+      toast.error('Failed to save draft');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [onSaveDraft, caption]);
+
+  // Submit caption
+  const handleSubmit = useCallback(async () => {
+    if (!onSubmit || !isValid || isOverLimit) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onSubmit(caption);
+      toast.success('Caption submitted for QA');
+    } catch (err) {
+      toast.error('Failed to submit caption');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [onSubmit, caption, isValid, isOverLimit]);
 
   return (
     <div className="h-full p-5 flex flex-col overflow-y-auto bg-white dark:bg-gray-900/80 custom-scrollbar">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Write Caption</span>
-          {isDraft && (
-            <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-medium">
-              Draft saved
-            </span>
-          )}
-        </div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Write Caption</span>
         
-        {/* Character count indicator */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-              <div 
-                className={`h-full ${getProgressColor()} transition-all duration-300`}
-                style={{ width: getProgressWidth() }}
-              />
-            </div>
-            <span className={`text-xs font-medium ${getCharCountColor()}`}>
-              {caption.length}
-              <span className="text-gray-400 dark:text-gray-500">/{MAX_CAPTION_LENGTH}</span>
-            </span>
-          </div>
-          {isOptimal && (
-            <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-[10px] font-medium">
-              <Check size={10} />
-              Optimal
-            </span>
-          )}
-          {isTooShort && caption.length > 0 && (
-            <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded text-[10px] font-medium">
-              <Info size={10} />
-              Too short
-            </span>
-          )}
-        </div>
+        {/* Auto-save indicator */}
+        {isAutoSaving && (
+          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px] font-medium">
+            <Loader2 size={10} className="animate-spin" />
+            Saving...
+          </span>
+        )}
+        {isDraft && !isAutoSaving && lastSaved && (
+          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-medium">
+            Draft saved {lastSaved.toLocaleTimeString()}
+          </span>
+        )}
+        {isDraft && !isAutoSaving && !lastSaved && (
+          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-medium">
+            Unsaved draft
+          </span>
+        )}
       </div>
 
-      {/* Text area */}
-      <textarea
+      {/* Text area with restricted word highlighting */}
+      <HighlightedTextarea
         value={caption}
-        onChange={(e) => onCaptionChange(e.target.value)}
+        restrictedWords={restrictedWordsFound}
+        onChange={(e) => handleCaptionChange(e.target.value)}
         placeholder="Write your caption here... Use the model context on the right for personality, lingo, and restrictions."
-        className="flex-1 min-h-30 mb-3 px-3 py-3 bg-brand-off-white dark:bg-gray-800 border border-brand-mid-pink/20 focus:border-brand-mid-pink focus:ring-1 focus:ring-brand-mid-pink/30 text-gray-900 dark:text-gray-100 text-sm rounded-xl resize-none leading-relaxed placeholder:text-gray-400"
         maxLength={MAX_CAPTION_LENGTH}
       />
 
@@ -113,7 +210,7 @@ function CaptionEditorComponent({
               Restricted words detected
             </div>
             <div className="text-xs text-red-500 dark:text-red-300">
-              Found: {restrictedWordsFound.map(w => `"${w}"`).join(', ')} — This model doesn't use these words.
+              Found: {restrictedWordsFound.map(w => `"${w}"`).join(', ')} — This model doesn&apos;t use these words.
             </div>
           </div>
         </div>
@@ -126,7 +223,7 @@ function CaptionEditorComponent({
           {modelContext.emojis.map(emoji => (
             <button
               key={emoji}
-              onClick={() => onCaptionChange(caption + emoji)}
+              onClick={() => handleCaptionChange(caption + emoji)}
               className="px-2 py-1 bg-brand-off-white dark:bg-gray-800 hover:bg-brand-mid-pink/10 border border-brand-mid-pink/20 hover:border-brand-mid-pink/40 rounded-lg text-base transition-colors"
             >
               {emoji}
@@ -137,18 +234,32 @@ function CaptionEditorComponent({
 
       {/* Action buttons */}
       <div className="flex gap-3">
-        <button className="flex-1 px-5 py-3 bg-white dark:bg-gray-800 hover:bg-brand-off-white dark:hover:bg-gray-700 border border-brand-mid-pink/20 rounded-xl text-gray-900 dark:text-gray-100 text-sm font-medium transition-colors">
+        <button 
+          onClick={handleSaveDraft}
+          disabled={isSavingDraft || caption.length === 0}
+          className="flex-1 px-5 py-3 bg-white dark:bg-gray-800 hover:bg-brand-off-white dark:hover:bg-gray-700 border border-brand-mid-pink/20 rounded-xl text-gray-900 dark:text-gray-100 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSavingDraft ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Save size={14} />
+          )}
           Save Draft
         </button>
         <button
-          disabled={!isValid || isOverLimit}
+          onClick={handleSubmit}
+          disabled={!isValid || isOverLimit || isSubmitting}
           className={`flex-2 px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-            isValid && !isOverLimit
+            isValid && !isOverLimit && !isSubmitting
               ? 'bg-linear-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-dark-pink hover:to-brand-mid-pink text-white shadow-lg shadow-brand-mid-pink/30'
               : 'bg-brand-off-white dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-brand-mid-pink/10'
           }`}
         >
-          <Send size={14} />
+          {isSubmitting ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Send size={14} />
+          )}
           Submit for QA
         </button>
       </div>

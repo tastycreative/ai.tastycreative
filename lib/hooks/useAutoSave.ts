@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDebounce } from './useDebounce';
 
 interface UseAutoSaveOptions<T> {
@@ -11,7 +11,7 @@ interface UseAutoSaveOptions<T> {
 export function useAutoSave<T>({
   data,
   onSave,
-  delay = 2000,
+  delay = 3000,
   enabled = true,
 }: UseAutoSaveOptions<T>) {
   const [isSaving, setIsSaving] = useState(false);
@@ -19,36 +19,85 @@ export function useAutoSave<T>({
   const [error, setError] = useState<Error | null>(null);
   const debouncedData = useDebounce(data, delay);
   const isFirstRender = useRef(true);
+  const lastSavedData = useRef<T | null>(null);
+  const onSaveRef = useRef(onSave);
+  const isMounted = useRef(true);
+  const hasFailedRef = useRef(false);
+
+  // Keep onSave ref updated without triggering effect
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  // Track mounted state
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Reset failure state when enabled changes (e.g., new ticket selected)
+  useEffect(() => {
+    hasFailedRef.current = false;
+  }, [enabled]);
 
   useEffect(() => {
     // Skip first render to avoid saving initial values
     if (isFirstRender.current) {
       isFirstRender.current = false;
+      lastSavedData.current = debouncedData;
       return;
     }
 
     if (!enabled) return;
 
+    // Stop auto-saving if a previous save failed (e.g., 404)
+    if (hasFailedRef.current) return;
+
+    // Skip if data hasn't actually changed
+    if (JSON.stringify(debouncedData) === JSON.stringify(lastSavedData.current)) {
+      return;
+    }
+
     const save = async () => {
+      if (!isMounted.current) return;
+      
       setIsSaving(true);
       setError(null);
 
       try {
-        await onSave(debouncedData);
-        setLastSaved(new Date());
+        await onSaveRef.current(debouncedData);
+        if (isMounted.current) {
+          lastSavedData.current = debouncedData;
+          setLastSaved(new Date());
+        }
       } catch (err) {
-        setError(err as Error);
+        if (isMounted.current) {
+          setError(err as Error);
+          // Stop future auto-saves on error (likely 404 or server error)
+          hasFailedRef.current = true;
+        }
       } finally {
-        setIsSaving(false);
+        if (isMounted.current) {
+          setIsSaving(false);
+        }
       }
     };
 
     save();
-  }, [debouncedData, enabled, onSave]);
+  }, [debouncedData, enabled]);
+
+  // Reset function to clear failure state and retry
+  const reset = useCallback(() => {
+    hasFailedRef.current = false;
+    setError(null);
+  }, []);
 
   return {
     isSaving,
     lastSaved,
     error,
+    reset,
   };
 }

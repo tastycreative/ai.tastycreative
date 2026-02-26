@@ -1,41 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-
-// Helper function to check if user can modify a folder
-async function canModifyFolder(userId: string, folderId: string): Promise<boolean> {
-  const folder = await prisma.vaultFolder.findUnique({
-    where: { id: folderId },
-    select: { 
-      clerkId: true, 
-      organizationSlug: true,
-      isDefault: true 
-    },
-  });
-
-  if (!folder) return false;
-
-  // Can't modify default folders
-  if (folder.isDefault) return false;
-
-  // If it's a personal folder, check ownership
-  if (!folder.organizationSlug) {
-    return folder.clerkId === userId;
-  }
-
-  // If it's an organization folder, check membership and role
-  const membership = await prisma.teamMember.findFirst({
-    where: {
-      user: { clerkId: userId },
-      organization: { slug: folder.organizationSlug },
-      role: {
-        in: ['OWNER', 'ADMIN', 'MANAGER']
-      }
-    },
-  });
-
-  return !!membership;
-}
+import { canModifyFolder } from "@/lib/vault-permissions";
 
 // POST /api/vault/folders/reorder - Update the order of folders
 export async function POST(request: NextRequest) {

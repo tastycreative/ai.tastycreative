@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { trackStorageDelete } from "@/lib/storageEvents";
+import { hasAccessToProfileSimple } from "@/lib/vault-permissions";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -11,64 +12,6 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 });
-
-// Helper function to check if user has access to a profile (own profile or shared via organization)
-async function hasAccessToProfile(userId: string, profileId: string): Promise<boolean> {
-  // First check if it's the user's own profile
-  const ownProfile = await prisma.instagramProfile.findFirst({
-    where: {
-      id: profileId,
-      clerkId: userId,
-    },
-  });
-
-  if (ownProfile) {
-    return true;
-  }
-
-  // Get the profile to check if it belongs to an organization
-  const profile = await prisma.instagramProfile.findUnique({
-    where: { id: profileId },
-    select: { organizationId: true },
-  });
-
-  if (!profile?.organizationId) {
-    return false; // Profile doesn't belong to an organization
-  }
-
-  // Check if user is a member of the organization that owns this profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { 
-      id: true,
-      currentOrganizationId: true,
-      teamMemberships: {
-        where: {
-          organizationId: profile.organizationId,
-        },
-        select: {
-          role: true,
-        },
-      },
-    },
-  });
-
-  if (!user) {
-    return false;
-  }
-
-  // User has access if they're a member of the organization
-  if (user.teamMemberships.length > 0) {
-    return true;
-  }
-
-  // Fallback: check if currentOrganizationId matches (for backward compatibility)
-  if (user.currentOrganizationId === profile.organizationId) {
-    return true;
-  }
-
-  return false;
-}
 
 // PATCH /api/vault/items/[id] - Update item (e.g., move to different folder)
 export async function PATCH(
@@ -102,7 +45,7 @@ export async function PATCH(
     const isOwner = item.clerkId === userId;
     
     // Check if user has access to the profile (their own or via organization)
-    const hasProfileAccess = await hasAccessToProfile(userId, item.profileId);
+    const hasProfileAccess = await hasAccessToProfileSimple(userId, item.profileId);
     
     if (!isOwner && !hasProfileAccess) {
       // Check if user has EDIT permission on the folder via sharing
@@ -137,7 +80,7 @@ export async function PATCH(
     const isDestinationOriginalOwnerFolder = folder.clerkId === item.clerkId;
     
     // Check if user has access to the destination folder's profile via organization
-    const hasDestinationProfileAccess = await hasAccessToProfile(userId, folder.profileId);
+    const hasDestinationProfileAccess = await hasAccessToProfileSimple(userId, folder.profileId);
 
     // Check if user has EDIT permission on destination folder (if not owner and no profile access)
     let hasEditOnDestination = isDestinationOwnFolder || hasDestinationProfileAccess;
@@ -248,7 +191,7 @@ export async function DELETE(
     console.log("[DELETE Vault Item] Is owner:", isOwner, "item.clerkId:", item.clerkId, "userId:", userId);
     
     // Check if user has access to the profile (their own or via organization)
-    const hasProfileAccess = await hasAccessToProfile(userId, item.profileId);
+    const hasProfileAccess = await hasAccessToProfileSimple(userId, item.profileId);
     console.log("[DELETE Vault Item] Has profile access:", hasProfileAccess);
     
     if (!isOwner && !hasProfileAccess) {

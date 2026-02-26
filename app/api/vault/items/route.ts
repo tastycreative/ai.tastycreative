@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { hasAccessToProfile } from "@/lib/vault-permissions";
 
 // Helper function to resolve generator user info from clerkId
 async function resolveGeneratorInfo(items: any[]): Promise<any[]> {
@@ -62,69 +63,6 @@ async function resolveGeneratorInfo(items: any[]): Promise<any[]> {
     }
     return item;
   });
-}
-
-// Helper function to check if user has access to a profile (own profile or shared via organization)
-async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
-  // First check if it's the user's own profile
-  const ownProfile = await prisma.instagramProfile.findFirst({
-    where: {
-      id: profileId,
-      clerkId: userId,
-    },
-  });
-
-  if (ownProfile) {
-    return { hasAccess: true, profile: ownProfile };
-  }
-
-  // Get the profile to check if it belongs to an organization
-  const profile = await prisma.instagramProfile.findUnique({
-    where: { id: profileId },
-    select: { 
-      id: true,
-      organizationId: true,
-      name: true,
-      clerkId: true,
-    },
-  });
-
-  if (!profile?.organizationId) {
-    return { hasAccess: false, profile: null }; // Profile doesn't belong to an organization
-  }
-
-  // Check if user is a member of the organization that owns this profile
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { 
-      id: true,
-      currentOrganizationId: true,
-      teamMemberships: {
-        where: {
-          organizationId: profile.organizationId,
-        },
-        select: {
-          role: true,
-        },
-      },
-    },
-  });
-
-  if (!user) {
-    return { hasAccess: false, profile: null };
-  }
-
-  // User has access if they're a member of the organization
-  if (user.teamMemberships.length > 0) {
-    return { hasAccess: true, profile };
-  }
-
-  // Fallback: check if currentOrganizationId matches (for backward compatibility)
-  if (user.currentOrganizationId === profile.organizationId) {
-    return { hasAccess: true, profile };
-  }
-
-  return { hasAccess: false, profile: null };
 }
 
 // GET /api/vault/items - Get all items for a folder or all items for a profile

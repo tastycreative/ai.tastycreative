@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { z } from "zod";
+import { hasAccessToProfileSimple } from "@/lib/vault-permissions";
 
 const shareVaultFolderSchema = z.object({
   vaultFolderId: z.string().min(1),
@@ -34,9 +35,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    if (folder.clerkId !== userId) {
+    // Check if user owns the folder OR has access to the profile
+    const isOwner = folder.clerkId === userId;
+    const hasProfileAccess = folder.profileId 
+      ? await hasAccessToProfileSimple(userId, folder.profileId)
+      : false;
+
+    if (!isOwner && !hasProfileAccess) {
       return NextResponse.json(
-        { error: "You can only share your own folders" },
+        { error: "You can only share folders you own or have access to" },
         { status: 403 }
       );
     }

@@ -61,7 +61,7 @@ export default function VaultFolderDropdownEnhanced({
   const dropdownContentRef = useRef<HTMLDivElement>(null);
   
   // Dropdown position state
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -195,10 +195,23 @@ export default function VaultFolderDropdownEnhanced({
       const updatePosition = () => {
         if (triggerButtonRef.current) {
           const rect = triggerButtonRef.current.getBoundingClientRect();
+          const dropdownWidth = 400; // Fixed width for side dropdown
+          const gap = 8; // Gap between button and dropdown
+          const viewportPadding = 16; // Padding from viewport edges
+          
+          // Check if there's enough space on the right
+          const spaceOnRight = window.innerWidth - rect.right;
+          const shouldPositionLeft = spaceOnRight < dropdownWidth + gap;
+          
+          // Calculate available height from button top to bottom of viewport
+          const availableHeight = window.innerHeight - rect.top - viewportPadding;
+          const maxHeight = Math.min(500, availableHeight); // Max 500px or available space
+          
           setDropdownPosition({
-            top: rect.bottom + 8, // 8px margin (mt-2)
-            left: rect.left,
-            width: rect.width
+            top: rect.top,
+            left: shouldPositionLeft ? rect.left - dropdownWidth - gap : rect.right + gap,
+            width: dropdownWidth,
+            maxHeight
           });
         }
       };
@@ -437,12 +450,12 @@ export default function VaultFolderDropdownEnhanced({
         {folderDropdownOpen && mounted && dropdownPosition && typeof window !== 'undefined' && createPortal(
           <div
             ref={dropdownContentRef}
-            className="fixed z-[9999] py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden"
+            className="fixed z-[9999] flex flex-col py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden"
             style={{
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
               width: `${dropdownPosition.width}px`,
-              maxHeight: '450px'
+              maxHeight: `${dropdownPosition.maxHeight}px`
             }}
           >
             
@@ -521,7 +534,7 @@ export default function VaultFolderDropdownEnhanced({
             )}
 
             {/* Folder List - Scrollable */}
-            <div className="max-h-[450px] overflow-y-auto overscroll-contain pb-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain pb-4 min-h-0">
               {filteredFolders.length === 0 ? (
                 <div className="px-3 py-8 text-center">
                   <FolderOpen className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mx-auto mb-2" />

@@ -29,6 +29,7 @@ import {
   UserPlus,
   Mail,
   CheckCircle,
+  Layers,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -99,6 +100,11 @@ export default function AdminLayout({
       name: "Organization Members",
       href: `/${tenant}/admin/members`,
       icon: Users,
+    },
+    {
+      name: "Model Management",
+      href: `/${tenant}/admin/model-management`,
+      icon: Layers,
     },
   ];
 

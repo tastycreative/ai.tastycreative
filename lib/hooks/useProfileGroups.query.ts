@@ -2,7 +2,6 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
-import { useOrganization } from '@/lib/hooks/useOrganization.query';
 
 export interface ProfileGroup {
   id: string;
@@ -26,20 +25,19 @@ export interface ProfileGroup {
 }
 
 // Fetch all groups with members
-async function fetchProfileGroups(organizationId: string): Promise<ProfileGroup[]> {
-  const response = await fetch(`/api/profile-groups?organizationId=${organizationId}`);
+async function fetchProfileGroups(): Promise<ProfileGroup[]> {
+  const response = await fetch('/api/profile-groups');
   if (!response.ok) throw new Error('Failed to fetch groups');
   return response.json();
 }
 
 export function useProfileGroups() {
   const { user } = useUser();
-  const { currentOrganization } = useOrganization();
   
   return useQuery({
-    queryKey: ['profile-groups', currentOrganization?.id],
-    queryFn: () => fetchProfileGroups(currentOrganization!.id),
-    enabled: !!user && !!currentOrganization,
+    queryKey: ['profile-groups', user?.id],
+    queryFn: fetchProfileGroups,
+    enabled: !!user,
     staleTime: 1000 * 60 * 2, // 2 minutes
     refetchOnWindowFocus: false,
   });
@@ -48,20 +46,20 @@ export function useProfileGroups() {
 // Create group
 export function useCreateProfileGroup() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { user } = useUser();
   
   return useMutation({
     mutationFn: async (data: { name: string; color?: string; icon?: string }) => {
       const response = await fetch('/api/profile-groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, organizationId: currentOrganization?.id }),
+        body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to create group');
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });
 }
@@ -69,7 +67,7 @@ export function useCreateProfileGroup() {
 // Update group
 export function useUpdateProfileGroup() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { user } = useUser();
   
   return useMutation({
     mutationFn: async ({ groupId, data }: { groupId: string; data: { name?: string; color?: string; icon?: string; order?: number; isCollapsed?: boolean } }) => {
@@ -82,7 +80,7 @@ export function useUpdateProfileGroup() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });
 }
@@ -90,7 +88,7 @@ export function useUpdateProfileGroup() {
 // Add profiles to group
 export function useAddProfilesToGroup() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { user } = useUser();
   
   return useMutation({
     mutationFn: async ({ groupId, profileIds }: { groupId: string; profileIds: string[] }) => {
@@ -104,13 +102,13 @@ export function useAddProfilesToGroup() {
     },
     onMutate: async ({ groupId, profileIds }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      await queryClient.cancelQueries({ queryKey: ['profile-groups', user?.id] });
       
       // Snapshot previous value
-      const previousGroups = queryClient.getQueryData<ProfileGroup[]>(['profile-groups', currentOrganization?.id]);
+      const previousGroups = queryClient.getQueryData<ProfileGroup[]>(['profile-groups', user?.id]);
       
       // Optimistically add profiles to group
-      queryClient.setQueryData<ProfileGroup[]>(['profile-groups', currentOrganization?.id], (old = []) => {
+      queryClient.setQueryData<ProfileGroup[]>(['profile-groups', user?.id], (old = []) => {
         return old.map(group => {
           if (group.id === groupId) {
             const newMembers = profileIds.map((profileId, index) => ({
@@ -138,12 +136,12 @@ export function useAddProfilesToGroup() {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousGroups) {
-        queryClient.setQueryData(['profile-groups', currentOrganization?.id], context.previousGroups);
+        queryClient.setQueryData(['profile-groups', user?.id], context.previousGroups);
       }
     },
     onSettled: () => {
       // Refetch to ensure data consistency
-      queryClient.invalidateQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });
 }
@@ -151,7 +149,7 @@ export function useAddProfilesToGroup() {
 // Remove profile from group
 export function useRemoveProfileFromGroup() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { user } = useUser();
   
   return useMutation({
     mutationFn: async ({ groupId, profileId }: { groupId: string; profileId: string }) => {
@@ -163,13 +161,13 @@ export function useRemoveProfileFromGroup() {
     },
     onMutate: async ({ groupId, profileId }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      await queryClient.cancelQueries({ queryKey: ['profile-groups', user?.id] });
       
       // Snapshot previous value
-      const previousGroups = queryClient.getQueryData<ProfileGroup[]>(['profile-groups', currentOrganization?.id]);
+      const previousGroups = queryClient.getQueryData<ProfileGroup[]>(['profile-groups', user?.id]);
       
       // Optimistically remove profile from group
-      queryClient.setQueryData<ProfileGroup[]>(['profile-groups', currentOrganization?.id], (old = []) => {
+      queryClient.setQueryData<ProfileGroup[]>(['profile-groups', user?.id], (old = []) => {
         return old.map(group => {
           if (group.id === groupId) {
             return {
@@ -187,12 +185,12 @@ export function useRemoveProfileFromGroup() {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousGroups) {
-        queryClient.setQueryData(['profile-groups', currentOrganization?.id], context.previousGroups);
+        queryClient.setQueryData(['profile-groups', user?.id], context.previousGroups);
       }
     },
     onSettled: () => {
       // Refetch to ensure data consistency
-      queryClient.invalidateQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });
 }
@@ -200,7 +198,7 @@ export function useRemoveProfileFromGroup() {
 // Delete group
 export function useDeleteProfileGroup() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { user } = useUser();
   
   return useMutation({
     mutationFn: async (groupId: string) => {
@@ -211,7 +209,7 @@ export function useDeleteProfileGroup() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile-groups', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });
 }

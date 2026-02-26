@@ -340,4 +340,49 @@
       opacity: 1;
       transform: translateX(0);
     }
-  }}
+  }
+
+  /* Drag and Drop Styles - Optimized for @hello-pangea/dnd */
+  [data-rfd-draggable-context-id] {
+    /* Prevent layout shift during drag */
+    will-change: transform;
+  }
+
+  [data-rfd-draggable-id] {
+    /* Ensure smooth transitions */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  /* Drag placeholder styling */
+  [data-rfd-placeholder-context-id] {
+    /* Match the original item height for smooth reordering */
+    opacity: 0;
+  }
+
+  /* Dragging state - remove transforms that cause misalignment */
+  [data-rfd-drag-handle-context-id][data-rfd-drag-handle-draggable-id] {
+    cursor: grabbing !important;
+  }
+
+  /* Prevent text selection during drag */
+  body[data-rfd-drag-handle-context-id] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Custom drag cursor */
+  [data-rfd-drag-handle-draggable-id]:active {
+    cursor: grabbing !important;
+  }
+
+  /* Smooth scroll during drag */
+  [data-rfd-droppable-id] {
+    scroll-behavior: smooth;
+  }
+
+  /* Performance optimization for drag */
+  [data-rfd-draggable-id] {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+}

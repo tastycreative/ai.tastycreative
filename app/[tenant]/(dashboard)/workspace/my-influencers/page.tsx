@@ -7,6 +7,7 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
 import { useBillingInfo } from "@/lib/hooks/useBilling.query";
+import { useOrganization } from "@/lib/hooks/useOrganization.query";
 import {
   Users,
   Plus,
@@ -388,6 +389,7 @@ export default function MyInfluencersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedProfile, setSelectedProfile] =
     useState<InfluencerProfile | null>(null);
 
@@ -395,6 +397,7 @@ export default function MyInfluencersPage() {
   const { user: clerkUser } = useUser();
   const router = useRouter();
   const { data: billingInfo } = useBillingInfo();
+  const { currentOrganization } = useOrganization();
   const params = useParams();
   const tenant = params.tenant as string;
 
@@ -421,6 +424,17 @@ export default function MyInfluencersPage() {
   };
 
   const handleCreateProfile = () => {
+    // Check if user has the required organization role
+    if (currentOrganization) {
+      const userRole = currentOrganization.role;
+      const allowedRoles = ["OWNER", "ADMIN", "MANAGER"];
+      
+      if (!allowedRoles.includes(userRole)) {
+        setShowPermissionModal(true);
+        return;
+      }
+    }
+
     // Check if user has reached profile limit
     if (billingInfo) {
       const currentProfiles = billingInfo.usage.profiles.current;
@@ -861,6 +875,12 @@ export default function MyInfluencersPage() {
           onUpgrade={() => router.push("/ai-content-team/billing")}
         />
       )}
+      {showPermissionModal && (
+        <PermissionDeniedModal
+          onClose={() => setShowPermissionModal(false)}
+          currentRole={currentOrganization?.role || ""}
+        />
+      )}
     </div>
   );
 }
@@ -963,6 +983,96 @@ function ProfileLimitModal({
             className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-lg shadow-[#EC67A1]/30 font-medium"
           >
             Add Slots
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function PermissionDeniedModal({
+  onClose,
+  currentRole,
+}: {
+  onClose: () => void;
+  currentRole: string;
+}) {
+  if (typeof window === "undefined") return null;
+
+  const allowedRoles = ["Owner", "Admin", "Manager"];
+  const currentRoleDisplay = currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase();
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-md border border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+        <div className="p-6 border-b border-[#EC67A1]/20 dark:border-[#EC67A1]/30">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-500/10 dark:bg-amber-500/20 rounded-xl">
+              <AlertCircle className="w-6 h-6 text-amber-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-sidebar-foreground">
+                Permission Required
+              </h2>
+              <p className="text-sm text-header-muted">
+                Insufficient permissions to create profiles
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="bg-[#F8F8F8] dark:bg-[#0f0d18] rounded-xl p-4 border border-[#EC67A1]/10">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-sidebar-foreground">
+                Your Current Role
+              </span>
+              <span className="inline-flex items-center px-3 py-1 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-lg">
+                {currentRoleDisplay}
+              </span>
+            </div>
+            <div className="pt-3 border-t border-[#EC67A1]/10">
+              <span className="text-sm font-medium text-sidebar-foreground block mb-2">
+                Roles That Can Create Profiles
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {allowedRoles.map((role) => (
+                  <span
+                    key={role}
+                    className="inline-flex items-center px-3 py-1 bg-[#EC67A1]/10 dark:bg-[#EC67A1]/20 text-[#EC67A1] text-xs font-semibold rounded-lg"
+                  >
+                    {role}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm text-sidebar-foreground">
+              Only users with <strong>Owner</strong>, <strong>Admin</strong>, or{" "}
+              <strong>Manager</strong> roles can create new influencer profiles.
+            </p>
+            <p className="text-sm text-sidebar-foreground">
+              Your current role (<strong>{currentRoleDisplay}</strong>) doesn't have
+              permission to perform this action.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3">
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                <strong>Need access?</strong> Contact your organization owner or admin
+                to request an elevated role.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 bg-[#F8F8F8] dark:bg-[#0f0d18] border-t border-[#EC67A1]/20 dark:border-[#EC67A1]/30 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white rounded-xl hover:from-[#E1518E] hover:to-[#EC67A1] transition-all shadow-lg shadow-[#EC67A1]/30 font-medium"
+          >
+            I Understand
           </button>
         </div>
       </div>

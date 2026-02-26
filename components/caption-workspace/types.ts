@@ -12,6 +12,8 @@ export interface QueueTicket {
   description: string;
   driveLink: string;
   videoUrl: string | null;
+  contentUrl?: string | null;
+  contentSourceType?: 'upload' | 'gdrive' | null;
 }
 
 export interface ModelContext {
