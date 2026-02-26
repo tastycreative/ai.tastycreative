@@ -43,6 +43,7 @@
     "@types/ws": "^8.18.1",
     "@upstash/qstash": "^2.9.0",
     "@vercel/blob": "^1.1.1",
+    "ably": "^2.18.0",
     "apify-client": "^2.15.1",
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.1",

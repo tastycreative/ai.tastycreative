@@ -13,6 +13,7 @@ import {
   type BoardItem,
 } from '@/lib/hooks/useBoardItems.query';
 import type { SpaceWithBoards } from '@/lib/hooks/useSpaces.query';
+import { useBoardRealtime } from '@/lib/hooks/useBoardRealtime';
 
 /* ------------------------------------------------------------------ */
 /*  Column state with task IDs for DnD                                 */
@@ -67,6 +68,8 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     data: boardData,
     isLoading: itemsLoading,
   } = useBoardItems(space?.id, defaultBoard?.id);
+
+  useBoardRealtime(defaultBoard?.id);
 
   const createItemMutation = useCreateBoardItem(
     space?.id ?? '',
@@ -133,6 +136,12 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
   // Local state for optimistic drag-and-drop
   const [localColumns, setLocalColumns] = useState<Record<string, ColumnWithTasks> | null>(null);
   const [localTasks, setLocalTasks] = useState<Record<string, BoardTask> | null>(null);
+
+  // Clear local overrides when server data arrives (refetch after mutation or realtime event)
+  useEffect(() => {
+    setLocalColumns(null);
+    setLocalTasks(null);
+  }, [boardData]);
 
   const effectiveColumns = localColumns ?? columnsMap;
   const effectiveTasks = localTasks ?? tasksMap;

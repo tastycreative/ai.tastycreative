@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { publishBoardEvent } from '@/lib/ably';
 
 type Params = { params: Promise<{ spaceId: string; boardId: string }> };
 
@@ -134,6 +135,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         newValue: item.title,
       },
     });
+
+    const senderTab = req.headers.get('x-tab-id') ?? undefined;
+    publishBoardEvent(boardId, 'item.created', { userId, entityId: item.id, tabId: senderTab });
 
     return NextResponse.json(
       {

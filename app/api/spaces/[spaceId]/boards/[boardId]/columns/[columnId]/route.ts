@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { publishBoardEvent } from '@/lib/ably';
 
 type Params = { params: Promise<{ spaceId: string; boardId: string; columnId: string }> };
 
@@ -13,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { columnId } = await params;
+    const { boardId, columnId } = await params;
     const body = await req.json().catch(() => null);
 
     if (!body) {
@@ -39,6 +40,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id: columnId },
       data: updateData,
     });
+
+    const senderTab = req.headers.get('x-tab-id') ?? undefined;
+    publishBoardEvent(boardId, 'column.updated', { userId, entityId: columnId, tabId: senderTab });
 
     return NextResponse.json({
       id: column.id,

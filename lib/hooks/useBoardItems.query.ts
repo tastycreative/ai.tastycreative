@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { tabId } from './useBoardRealtime';
 
 /* ------------------------------------------------------------------ */
 /*  Types (matching actual schema fields)                              */
@@ -115,7 +116,7 @@ async function createBoardItem(
 ): Promise<BoardItem> {
   const res = await fetch(itemsUrl(spaceId, boardId), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-tab-id': tabId },
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -133,7 +134,7 @@ async function updateBoardItem(
 ): Promise<BoardItem> {
   const res = await fetch(`${itemsUrl(spaceId, boardId)}/${itemId}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-tab-id': tabId },
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -150,6 +151,7 @@ async function deleteBoardItem(
 ): Promise<void> {
   const res = await fetch(`${itemsUrl(spaceId, boardId)}/${itemId}`, {
     method: 'DELETE',
+    headers: { 'x-tab-id': tabId },
   });
   if (!res.ok) throw new Error('Failed to delete item');
 }
@@ -382,7 +384,7 @@ async function createColumn(
     `/api/spaces/${spaceId}/boards/${boardId}/columns`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-tab-id': tabId },
       body: JSON.stringify(input),
     },
   );
@@ -422,7 +424,7 @@ async function updateColumn(
     `/api/spaces/${spaceId}/boards/${boardId}/columns/${columnId}`,
     {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-tab-id': tabId },
       body: JSON.stringify(input),
     },
   );

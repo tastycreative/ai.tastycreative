@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { publishBoardEvent } from '@/lib/ably';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -74,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { itemId } = await params;
+    const { boardId, itemId } = await params;
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
@@ -207,6 +208,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    const senderTab = req.headers.get('x-tab-id') ?? undefined;
+    publishBoardEvent(boardId, 'item.updated', { userId, entityId: itemId, tabId: senderTab });
+
     return NextResponse.json({
       id: updated.id,
       organizationId: updated.organizationId,
@@ -234,14 +238,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 /*  DELETE /api/spaces/:spaceId/boards/:boardId/items/:itemId          */
 /* ------------------------------------------------------------------ */
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { itemId } = await params;
+    const { boardId, itemId } = await params;
 
     await prisma.boardItem.delete({ where: { id: itemId } });
+
+    const senderTab = req.headers.get('x-tab-id') ?? undefined;
+    publishBoardEvent(boardId, 'item.deleted', { userId, entityId: itemId, tabId: senderTab });
 
     return NextResponse.json({ success: true });
   } catch (error) {
