@@ -123,7 +123,7 @@ export default function CaptionWorkspace() {
       }),
       description: item.description,
       driveLink: item.contentSourceType === 'gdrive' ? item.contentUrl || 'https://drive.google.com/...' : 'https://drive.google.com/...',
-      videoUrl: item.contentSourceType === 'upload' ? item.contentUrl : null,
+      videoUrl: item.contentSourceType === 'upload' ? (item.contentUrl || null) : null,
       contentUrl: item.contentUrl,
       contentSourceType: item.contentSourceType as 'upload' | 'gdrive' | null,
     })) || [],
