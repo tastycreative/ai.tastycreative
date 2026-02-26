@@ -106,6 +106,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
     handleDragEnd,
     handleAddTask,
     handleAddColumn,
+    handleColumnColorUpdate,
+    handleColumnTitleUpdate,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
@@ -213,6 +215,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onAddTask={handleAddTask}
                         onTaskClick={handleTaskClick}
                         onTaskTitleUpdate={handleTitleUpdate}
+                        onColumnTitleUpdate={handleColumnTitleUpdate}
+                        onColumnColorUpdate={handleColumnColorUpdate}
                       />
                     );
                   })}

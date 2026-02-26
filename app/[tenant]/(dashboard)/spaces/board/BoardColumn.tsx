@@ -18,7 +18,19 @@ interface BoardColumnProps {
   onTaskClick?: (task: BoardTask) => void;
   onTaskTitleUpdate?: (task: BoardTask, newTitle: string) => void;
   onColumnTitleUpdate?: (columnId: string, newTitle: string) => void;
+  onColumnColorUpdate?: (columnId: string, newColor: string) => void;
 }
+
+const STATUS_COLORS = [
+  { id: 'blue', label: 'Blue', class: 'bg-brand-blue' },
+  { id: 'amber', label: 'Amber', class: 'bg-amber-500' },
+  { id: 'green', label: 'Green', class: 'bg-emerald-500' },
+  { id: 'purple', label: 'Purple', class: 'bg-violet-500' },
+  { id: 'pink', label: 'Pink', class: 'bg-brand-light-pink' },
+  { id: 'red', label: 'Red', class: 'bg-red-500' },
+  { id: 'cyan', label: 'Cyan', class: 'bg-cyan-500' },
+  { id: 'orange', label: 'Orange', class: 'bg-orange-500' },
+];
 
 const DOT_COLORS: Record<string, string> = {
   blue: 'bg-brand-blue',
@@ -26,6 +38,9 @@ const DOT_COLORS: Record<string, string> = {
   green: 'bg-emerald-500',
   amber: 'bg-amber-500',
   purple: 'bg-violet-500',
+  red: 'bg-red-500',
+  cyan: 'bg-cyan-500',
+  orange: 'bg-orange-500',
 };
 
 export function BoardColumn({
@@ -35,14 +50,17 @@ export function BoardColumn({
   onTaskClick,
   onTaskTitleUpdate,
   onColumnTitleUpdate,
+  onColumnColorUpdate,
 }: BoardColumnProps) {
   const dotColor = DOT_COLORS[column.color ?? 'blue'] ?? 'bg-brand-blue';
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [editingColumnTitle, setEditingColumnTitle] = useState(false);
   const [columnTitleDraft, setColumnTitleDraft] = useState(column.title);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const columnTitleRef = useRef<HTMLInputElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isAdding) {
@@ -60,6 +78,20 @@ export function BoardColumn({
   useEffect(() => {
     setColumnTitleDraft(column.title);
   }, [column.title]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    };
+
+    if (colorPickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [colorPickerOpen]);
 
   const handleSubmit = () => {
     const trimmed = newTitle.trim();
@@ -86,7 +118,37 @@ export function BoardColumn({
         {/* Column header */}
         <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-brand-mid-pink/15 bg-white/60 dark:bg-gray-900/50">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor}`} />
+            {/* Color picker */}
+            <div className="relative" ref={colorPickerRef}>
+              <button
+                type="button"
+                onClick={() => setColorPickerOpen(!colorPickerOpen)}
+                className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} hover:scale-125 transition-transform cursor-pointer`}
+                title="Change color"
+              />
+              {colorPickerOpen && (
+                <div className="absolute left-0 top-5 z-20 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-brand-mid-pink/30 shadow-xl p-4 min-w-[200px]">
+                  <div className="grid grid-cols-4 gap-3">
+                    {STATUS_COLORS.map((color) => (
+                      <button
+                        key={color.id}
+                        type="button"
+                        onClick={() => {
+                          if (onColumnColorUpdate) {
+                            onColumnColorUpdate(column.id, color.id);
+                          }
+                          setColorPickerOpen(false);
+                        }}
+                        className={`h-9 w-9 rounded-full ${color.class} hover:scale-110 transition-transform ${
+                          column.color === color.id ? 'ring-2 ring-offset-2 ring-brand-light-pink dark:ring-brand-mid-pink' : ''
+                        }`}
+                        title={color.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {editingColumnTitle ? (
               <input
                 ref={columnTitleRef}
