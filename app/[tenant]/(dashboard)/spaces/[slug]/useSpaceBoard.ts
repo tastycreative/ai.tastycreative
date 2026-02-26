@@ -9,6 +9,7 @@ import {
   useCreateBoardItem,
   useUpdateBoardItem,
   useCreateColumn,
+  useUpdateColumn,
   type BoardItem,
 } from '@/lib/hooks/useBoardItems.query';
 import type { SpaceWithBoards } from '@/lib/hooks/useSpaces.query';
@@ -76,6 +77,10 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     defaultBoard?.id ?? '',
   );
   const createColumnMutation = useCreateColumn(
+    space?.id ?? '',
+    defaultBoard?.id ?? '',
+  );
+  const updateColumnMutation = useUpdateColumn(
     space?.id ?? '',
     defaultBoard?.id ?? '',
   );
@@ -291,6 +296,20 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     [createColumnMutation],
   );
 
+  const handleColumnColorUpdate = useCallback(
+    (columnId: string, newColor: string) => {
+      updateColumnMutation.mutate({ columnId, color: newColor });
+    },
+    [updateColumnMutation],
+  );
+
+  const handleColumnTitleUpdate = useCallback(
+    (columnId: string, newTitle: string) => {
+      updateColumnMutation.mutate({ columnId, name: newTitle });
+    },
+    [updateColumnMutation],
+  );
+
   const closeTaskModal = useCallback(() => {
     // Mark that we're intentionally closing
     isClosingRef.current = true;
@@ -359,6 +378,8 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     handleDragEnd,
     handleAddTask,
     handleAddColumn,
+    handleColumnColorUpdate,
+    handleColumnTitleUpdate,
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,

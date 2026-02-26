@@ -402,3 +402,79 @@ export function useCreateColumn(spaceId: string, boardId: string) {
     },
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  Column Update                                                     */
+/* ------------------------------------------------------------------ */
+
+interface UpdateColumnInput {
+  name?: string;
+  color?: string;
+}
+
+async function updateColumn(
+  spaceId: string,
+  boardId: string,
+  columnId: string,
+  input: UpdateColumnInput,
+) {
+  const response = await fetch(
+    `/api/spaces/${spaceId}/boards/${boardId}/columns/${columnId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error('Failed to update column');
+  return response.json();
+}
+
+export function useUpdateColumn(spaceId: string, boardId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ columnId, ...input }: UpdateColumnInput & { columnId: string }) =>
+      updateColumn(spaceId, boardId, columnId, input),
+    onMutate: async ({ columnId, ...input }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: boardItemKeys.list(boardId),
+      });
+
+      // Snapshot the previous value
+      const previous = queryClient.getQueryData<BoardItemsResponse>(
+        boardItemKeys.list(boardId),
+      );
+
+      // Optimistically update the column
+      if (previous) {
+        queryClient.setQueryData<BoardItemsResponse>(
+          boardItemKeys.list(boardId),
+          {
+            ...previous,
+            columns: previous.columns.map((col) =>
+              col.id === columnId ? { ...col, ...input } : col,
+            ),
+          },
+        );
+      }
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(
+          boardItemKeys.list(boardId),
+          context.previous,
+        );
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure we have the latest data
+      queryClient.invalidateQueries({
+        queryKey: boardItemKeys.list(boardId),
+      });
+    },
+  });
+}
