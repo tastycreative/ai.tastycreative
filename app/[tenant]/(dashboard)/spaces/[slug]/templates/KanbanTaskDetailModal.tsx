@@ -21,7 +21,7 @@ import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
-import { useBoardItemComments, useAddComment } from '@/lib/hooks/useBoardItems.query';
+import { useBoardItemComments, useAddComment, useBoardItemHistory } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
   task: BoardTask;
@@ -38,10 +38,6 @@ const PRIORITY_DOT: Record<string, string> = {
   Low: 'bg-emerald-500',
 };
 
-const PLACEHOLDER_HISTORY: TaskHistoryEntry[] = [
-  { id: 'h1', field: 'priority', oldValue: 'Low', newValue: 'High', changedBy: 'Alex', changedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'h2', field: 'assignee', oldValue: '', newValue: 'Alex', changedBy: 'System', changedAt: new Date(Date.now() - 172800000).toISOString() },
-];
 
 function SidebarLabel({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
@@ -90,6 +86,24 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
       createdAt: c.createdAt,
     }));
   }, [commentsData, user]);
+
+  // Fetch real history from API
+  const { data: historyData } = useBoardItemHistory(spaceId, boardId, task.id);
+  const history: TaskHistoryEntry[] = useMemo(() => {
+    if (!historyData?.history) return [];
+    const currentUserId = user?.id;
+    return historyData.history.map((h) => ({
+      id: h.id,
+      action: h.action,
+      field: h.field,
+      oldValue: h.oldValue,
+      newValue: h.newValue,
+      changedBy: h.userId === currentUserId
+        ? (user?.firstName ?? user?.username ?? 'You')
+        : h.userId,
+      changedAt: h.createdAt,
+    }));
+  }, [historyData, user]);
 
   const handleAddComment = (content: string) => {
     addCommentMutation.mutate(content);
@@ -185,7 +199,7 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
 
             <ActivityFeed
               comments={comments}
-              history={PLACEHOLDER_HISTORY}
+              history={history}
               onAddComment={handleAddComment}
               currentUserName={user?.firstName ?? user?.username ?? 'User'}
               isLoading={commentsLoading}

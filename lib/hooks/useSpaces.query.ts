@@ -199,3 +199,28 @@ export function useDeleteSpace() {
     },
   });
 }
+
+export function useUpdateSpace(spaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { name?: string; description?: string }) => {
+      const res = await fetch(`/api/spaces/${spaceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to update space');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.detail(spaceId) });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.lists() });
+      if (data?.slug) {
+        queryClient.invalidateQueries({ queryKey: spaceKeys.bySlug(data.slug) });
+      }
+    },
+  });
+}

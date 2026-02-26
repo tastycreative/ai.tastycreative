@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare, History, ListTodo } from 'lucide-react';
+import { MessageSquare, History, ListTodo, Plus } from 'lucide-react';
 
 type ActivityTab = 'all' | 'comments' | 'history';
 
@@ -14,9 +14,10 @@ export interface TaskComment {
 
 export interface TaskHistoryEntry {
   id: string;
+  action: string;
   field: string;
-  oldValue: string;
-  newValue: string;
+  oldValue: string | null;
+  newValue: string | null;
   changedBy: string;
   changedAt: string;
 }
@@ -27,6 +28,26 @@ interface ActivityFeedProps {
   onAddComment: (content: string) => void;
   currentUserName?: string;
   isLoading?: boolean;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'title',
+  description: 'description',
+  columnId: 'status',
+  priority: 'priority',
+  assigneeId: 'assignee',
+  dueDate: 'due date',
+  position: 'position',
+};
+
+function formatFieldName(field: string): string {
+  if (FIELD_LABELS[field]) return FIELD_LABELS[field];
+  // metadata.scheduledDate → scheduled date
+  if (field.startsWith('metadata.')) {
+    const key = field.replace('metadata.', '');
+    return key.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+  }
+  return field;
 }
 
 function formatDate(iso: string) {
@@ -169,21 +190,31 @@ export function ActivityFeed({ comments, history, onAddComment, currentUserName,
               }
 
               const h = item as TaskHistoryEntry & { _type: 'history' };
+              const isCreated = h.action === 'CREATED';
+              const IconEl = isCreated ? Plus : History;
+              const fieldLabel = formatFieldName(h.field);
+
               return (
                 <div key={h.id} className="flex items-start gap-2.5">
-                  <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold">
-                    <History className="h-3 w-3" />
+                  <span className={`shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${isCreated ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                    <IconEl className="h-3 w-3" />
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-600 dark:text-gray-300">
                       <span className="font-semibold text-gray-800 dark:text-brand-off-white">{h.changedBy}</span>{' '}
-                      changed <span className="font-medium">{h.field}</span>{' '}
-                      {h.oldValue && (
+                      {isCreated ? (
+                        <>created this item</>
+                      ) : (
                         <>
-                          from <span className="line-through text-gray-400">{h.oldValue}</span>{' '}
+                          changed <span className="font-medium">{fieldLabel}</span>{' '}
+                          {h.oldValue && (
+                            <>
+                              from <span className="line-through text-gray-400">{h.oldValue}</span>{' '}
+                            </>
+                          )}
+                          to <span className="font-medium text-brand-light-pink">{h.newValue}</span>
                         </>
                       )}
-                      to <span className="font-medium text-brand-light-pink">{h.newValue}</span>
                     </p>
                     <span className="text-[10px] text-gray-400">{formatDate(h.changedAt)}</span>
                   </div>

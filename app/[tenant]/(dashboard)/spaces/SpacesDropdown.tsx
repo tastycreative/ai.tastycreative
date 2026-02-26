@@ -7,7 +7,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { CreateSpaceModal } from './CreateSpaceModal';
+import { AddPeopleModal } from './AddPeopleModal';
 import { useSpaces, useArchiveSpace, useDeleteSpace } from '@/lib/hooks/useSpaces.query';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 interface SpacesDropdownProps {
@@ -32,6 +34,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
     type: 'archive' | 'delete' | null;
     spaceId: string | null;
   }>({ isOpen: false, type: null, spaceId: null });
+  const [addPeopleModal, setAddPeopleModal] = useState<{
+    isOpen: boolean;
+    spaceId: string | null;
+    spaceName: string | null;
+  }>({ isOpen: false, spaceId: null, spaceName: null });
   const moreSpacesButtonRef = useRef<HTMLButtonElement>(null);
   const moreSpacesModalRef = useRef<HTMLDivElement>(null);
   const spaceMenuRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -44,9 +51,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
   const { data, isLoading } = useSpaces();
   const { mutateAsync: archiveSpace } = useArchiveSpace();
   const { mutateAsync: deleteSpace } = useDeleteSpace();
+  const { currentOrganization } = useOrganization();
 
   const spaces = data?.spaces ?? [];
   const isActive = pathname?.startsWith(`/${tenant}/spaces`);
+  const organizationRole = currentOrganization?.role;
 
   // Get localStorage key unique to user
   const getStorageKey = () => {
@@ -402,7 +411,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
                         const isSpaceActive = pathname === spaceHref;
 
                         // Check if user has permission to manage this space
-                        const canManageSpace = space.currentUserRole === 'OWNER' || space.currentUserRole === 'ADMIN';
+                        const canManageSpace =
+                          space.currentUserRole === 'OWNER' ||
+                          space.currentUserRole === 'ADMIN' ||
+                          organizationRole === 'OWNER' ||
+                          organizationRole === 'ADMIN';
 
                         return (
                           <div key={space.id} className="relative group/space-item">
@@ -539,7 +552,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
                       const isSpaceActive = pathname === spaceHref;
 
                       // Check if user has permission to manage this space
-                      const canManageSpace = space.currentUserRole === 'OWNER' || space.currentUserRole === 'ADMIN';
+                      const canManageSpace =
+                        space.currentUserRole === 'OWNER' ||
+                        space.currentUserRole === 'ADMIN' ||
+                        organizationRole === 'OWNER' ||
+                        organizationRole === 'ADMIN';
 
                       return (
                         <div key={space.id} className="relative group/space-item">
@@ -622,7 +639,10 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
           <div className="py-2">
             <button
               onClick={() => {
-                // Handle add people
+                const space = spaces.find(s => s.id === spaceMenuOpen);
+                if (space) {
+                  setAddPeopleModal({ isOpen: true, spaceId: space.id, spaceName: space.name });
+                }
                 setSpaceMenuOpen(null);
               }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
@@ -701,6 +721,16 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
           <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-sidebar rotate-45 border-l border-b border-sidebar-border"></div>
         </div>,
         document.body
+      )}
+
+      {/* Add People Modal */}
+      {addPeopleModal.spaceId && addPeopleModal.spaceName && (
+        <AddPeopleModal
+          isOpen={addPeopleModal.isOpen}
+          onClose={() => setAddPeopleModal({ isOpen: false, spaceId: null, spaceName: null })}
+          spaceId={addPeopleModal.spaceId}
+          spaceName={addPeopleModal.spaceName}
+        />
       )}
     </>
   );

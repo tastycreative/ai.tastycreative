@@ -17,8 +17,8 @@ interface TaskDetailModalProps {
 }
 
 const PLACEHOLDER_HISTORY: TaskHistoryEntry[] = [
-  { id: 'h1', field: 'priority', oldValue: 'Low', newValue: 'High', changedBy: 'Alex', changedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'h2', field: 'assignee', oldValue: '', newValue: 'Alex', changedBy: 'System', changedAt: new Date(Date.now() - 172800000).toISOString() },
+  { id: 'h1', action: 'UPDATED', field: 'priority', oldValue: 'Low', newValue: 'High', changedBy: 'Alex', changedAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: 'h2', action: 'UPDATED', field: 'assignee', oldValue: '', newValue: 'Alex', changedBy: 'System', changedAt: new Date(Date.now() - 172800000).toISOString() },
 ];
 
 const INITIAL_COMMENTS: TaskComment[] = [

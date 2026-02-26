@@ -124,6 +124,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
+    // Record creation in history
+    await prisma.boardItemHistory.create({
+      data: {
+        itemId: item.id,
+        userId,
+        action: 'CREATED',
+        field: 'item',
+        newValue: item.title,
+      },
+    });
+
     return NextResponse.json(
       {
         id: item.id,

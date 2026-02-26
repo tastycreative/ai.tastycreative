@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import {
   Image,
   MessageSquare,
@@ -10,6 +10,10 @@ import {
   Minus,
   Zap,
   Check,
+  User as UserIcon,
+  X,
+  Search,
+  Loader2,
 } from 'lucide-react';
 import type { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors } from 'react-hook-form';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
@@ -19,6 +23,8 @@ import {
   type MetadataFieldDescriptor,
 } from '@/lib/spaces/template-metadata';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { useQuery } from '@tanstack/react-query';
 
 type SubmissionTemplateType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -88,6 +94,9 @@ interface ContentDetailsFieldsProps {
   watch: UseFormWatch<CreateSubmissionWithComponents>;
   errors: FieldErrors<CreateSubmissionWithComponents>;
   readOnlyType?: SubmissionTemplateType;
+  spaceId?: string;
+  assigneeId?: string;
+  onAssigneeChange?: (userId: string | undefined) => void;
 }
 
 export function ContentDetailsFields({
@@ -95,6 +104,9 @@ export function ContentDetailsFields({
   watch,
   errors,
   readOnlyType,
+  spaceId,
+  assigneeId,
+  onAssigneeChange,
 }: ContentDetailsFieldsProps) {
   const submissionType = (watch('submissionType') ?? 'OTP_PTR') as SubmissionTemplateType;
   const metadata = watch('metadata') || {};
@@ -217,45 +229,57 @@ export function ContentDetailsFields({
         </div>
       )}
 
-      {/* Priority */}
-      <div className="pt-4 border-t border-zinc-800/60">
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-zinc-300">Priority</label>
-          <span className="text-[11px] text-zinc-500">Affects board visibility</span>
+      {/* Priority & Assignee row */}
+      <div className="pt-4 border-t border-zinc-800/60 space-y-6">
+        {/* Priority */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-zinc-300">Priority</label>
+            <span className="text-[11px] text-zinc-500">Affects board visibility</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {PRIORITY_OPTIONS.map(({ value, label, icon: PriorityIcon, selectedClass }) => {
+              const isSelected = priority === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setValue('priority', value as any)}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                    isSelected
+                      ? selectedClass
+                      : 'border-zinc-700/50 bg-zinc-800/30 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
+                  }`}
+                >
+                  <PriorityIcon className="w-4 h-4" />
+                  {isSelected && (
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        value === 'low'
+                          ? 'bg-emerald-400'
+                          : value === 'normal'
+                            ? 'bg-sky-400'
+                            : value === 'high'
+                              ? 'bg-amber-400'
+                              : 'bg-rose-400'
+                      }`}
+                    />
+                  )}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="grid grid-cols-4 gap-2">
-          {PRIORITY_OPTIONS.map(({ value, label, icon: PriorityIcon, selectedClass }) => {
-            const isSelected = priority === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setValue('priority', value as any)}
-                className={`flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
-                  isSelected
-                    ? selectedClass
-                    : 'border-zinc-700/50 bg-zinc-800/30 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
-                }`}
-              >
-                <PriorityIcon className="w-4 h-4" />
-                {isSelected && (
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      value === 'low'
-                        ? 'bg-emerald-400'
-                        : value === 'normal'
-                          ? 'bg-sky-400'
-                          : value === 'high'
-                            ? 'bg-amber-400'
-                            : 'bg-rose-400'
-                    }`}
-                  />
-                )}
-                {label}
-              </button>
-            );
-          })}
-        </div>
+
+        {/* Assignee Picker */}
+        {spaceId && onAssigneeChange && (
+          <AssigneePicker
+            spaceId={spaceId}
+            assigneeId={assigneeId}
+            onAssigneeChange={onAssigneeChange}
+          />
+        )}
       </div>
     </div>
   );
@@ -363,6 +387,260 @@ function MetadataFieldInput({
         placeholder={field.placeholder}
         className={`${inputClass} ${field.type === 'date' ? '[color-scheme:dark]' : ''}`}
       />
+    </div>
+  );
+}
+
+// ─── Assignee Picker ─────────────────────────────────────────────────────────
+
+interface AssignableMember {
+  id: string;
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  role?: string;
+}
+
+async function fetchOrgMembers(): Promise<AssignableMember[]> {
+  const res = await fetch('/api/organization/members');
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data as Array<{ id: string; firstName: string | null; lastName: string | null; email: string }>).map(
+    (u) => ({
+      id: u.id,
+      userId: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+    })
+  );
+}
+
+function useAssignableMembers(spaceId: string) {
+  const spaceMembersQuery = useSpaceMembers(spaceId);
+  const orgMembersQuery = useQuery({
+    queryKey: ['org-members-assignee'],
+    queryFn: fetchOrgMembers,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+
+  // Normalize space members to AssignableMember shape
+  const spaceMembers: AssignableMember[] = useMemo(() => {
+    if (!spaceMembersQuery.data?.length) return [];
+    return spaceMembersQuery.data.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      firstName: m.user.firstName,
+      lastName: m.user.lastName,
+      email: m.user.email,
+      role: m.role,
+    }));
+  }, [spaceMembersQuery.data]);
+
+  // Use space members if available, otherwise fall back to org members
+  const members = spaceMembers.length > 0 ? spaceMembers : (orgMembersQuery.data ?? []);
+  const isLoading = spaceMembersQuery.isLoading || (spaceMembers.length === 0 && orgMembersQuery.isLoading);
+  const source = spaceMembers.length > 0 ? 'space' : 'org';
+
+  return { members, isLoading, source };
+}
+
+function AssigneePicker({
+  spaceId,
+  assigneeId,
+  onAssigneeChange,
+}: {
+  spaceId: string;
+  assigneeId?: string;
+  onAssigneeChange: (userId: string | undefined) => void;
+}) {
+  const { members, isLoading, source } = useAssignableMembers(spaceId);
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!members.length) return [];
+    if (!search.trim()) return members;
+    const q = search.toLowerCase();
+    return members.filter(
+      (m) =>
+        m.firstName?.toLowerCase().includes(q) ||
+        m.lastName?.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q)
+    );
+  }, [members, search]);
+
+  const selected = assigneeId
+    ? members.find((m) => m.userId === assigneeId)
+    : null;
+
+  const getName = (m: AssignableMember) =>
+    m.firstName
+      ? `${m.firstName} ${m.lastName || ''}`.trim()
+      : m.email;
+
+  const getInitial = (m: AssignableMember) =>
+    (m.firstName?.[0] || m.email[0]).toUpperCase();
+
+  const ROLE_COLORS: Record<string, string> = {
+    OWNER: 'text-amber-400 bg-amber-400/10',
+    ADMIN: 'text-brand-blue bg-brand-blue/10',
+    MEMBER: 'text-zinc-400 bg-zinc-700/40',
+    VIEWER: 'text-zinc-500 bg-zinc-800/40',
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <label className="text-sm font-medium text-zinc-300">
+          Assign To
+          <span className="text-[11px] text-zinc-500 font-normal ml-1.5">(Optional)</span>
+        </label>
+        {selected && (
+          <button
+            type="button"
+            onClick={() => {
+              onAssigneeChange(undefined);
+              setIsOpen(false);
+            }}
+            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Selected member display */}
+      {selected && !isOpen ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-zinc-900/60 border border-brand-light-pink/30 rounded-xl transition-all duration-150 hover:border-brand-light-pink/50 text-left group"
+        >
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-light-pink/30 to-brand-dark-pink/20 border border-brand-light-pink/30 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-brand-light-pink">
+              {getInitial(selected)}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">
+              {getName(selected)}
+            </p>
+            <p className="text-[11px] text-zinc-500 truncate">{selected.email}</p>
+          </div>
+          {selected.role && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[selected.role] || ROLE_COLORS.MEMBER}`}>
+              {selected.role}
+            </span>
+          )}
+        </button>
+      ) : (
+        /* Dropdown picker */
+        <div className="relative">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (!isOpen) setIsOpen(true);
+              }}
+              onFocus={() => setIsOpen(true)}
+              placeholder={source === 'space' ? 'Search space members...' : 'Search team members...'}
+              className="w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl pl-10 pr-4 py-3 transition-all duration-150"
+            />
+            {isOpen && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  setSearch('');
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {isOpen && (
+            <div className="absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-fade-in">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <UserIcon className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-500">
+                    {search ? 'No members found' : 'No team members available'}
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto py-1 scrollbar-thin">
+                  {source === 'org' && (
+                    <div className="px-4 py-1.5 border-b border-zinc-800/40">
+                      <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Organization Members</p>
+                    </div>
+                  )}
+                  {filtered.map((member) => {
+                    const isActive = assigneeId === member.userId;
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => {
+                          onAssigneeChange(member.userId);
+                          setIsOpen(false);
+                          setSearch('');
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-100 ${
+                          isActive
+                            ? 'bg-brand-light-pink/10'
+                            : 'hover:bg-zinc-800/80'
+                        }`}
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
+                            isActive
+                              ? 'bg-gradient-to-br from-brand-light-pink/30 to-brand-dark-pink/20 border-brand-light-pink/40'
+                              : 'bg-zinc-800 border-zinc-700/60'
+                          }`}
+                        >
+                          <span
+                            className={`text-xs font-bold ${
+                              isActive ? 'text-brand-light-pink' : 'text-zinc-400'
+                            }`}
+                          >
+                            {getInitial(member)}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm truncate ${isActive ? 'text-white font-medium' : 'text-zinc-300'}`}>
+                            {getName(member)}
+                          </p>
+                          <p className="text-[11px] text-zinc-600 truncate">{member.email}</p>
+                        </div>
+                        {member.role && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${ROLE_COLORS[member.role] || ROLE_COLORS.MEMBER}`}>
+                            {member.role}
+                          </span>
+                        )}
+                        {isActive && (
+                          <Check className="w-4 h-4 text-brand-light-pink shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

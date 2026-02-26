@@ -89,10 +89,123 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.dueDate !== undefined)
       data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
 
+    // Fetch current item to diff changes for history
+    const current = await prisma.boardItem.findUnique({
+      where: { id: itemId },
+      select: {
+        title: true,
+        description: true,
+        columnId: true,
+        priority: true,
+        position: true,
+        metadata: true,
+        assigneeId: true,
+        dueDate: true,
+      },
+    });
+
     const updated = await prisma.boardItem.update({
       where: { id: itemId },
       data,
     });
+
+    // Build history entries by comparing old vs new values
+    if (current) {
+      type HistoryRow = {
+        itemId: string;
+        userId: string;
+        action: string;
+        field: string;
+        oldValue: string | null;
+        newValue: string | null;
+      };
+      const historyEntries: HistoryRow[] = [];
+
+      // Resolve column IDs to names for readable history
+      const columnIds = new Set<string>();
+      if (data.columnId !== undefined) {
+        if (current.columnId) columnIds.add(current.columnId);
+        if (typeof data.columnId === 'string') columnIds.add(data.columnId);
+      }
+      let columnNameMap: Record<string, string> = {};
+      if (columnIds.size > 0) {
+        const columns = await prisma.boardColumn.findMany({
+          where: { id: { in: [...columnIds] } },
+          select: { id: true, name: true },
+        });
+        columnNameMap = Object.fromEntries(columns.map((c) => [c.id, c.name]));
+      }
+
+      // Helper to format a value for display
+      const formatValue = (field: string, val: unknown): string | null => {
+        if (val == null) return null;
+        if (field === 'columnId') return columnNameMap[String(val)] ?? String(val);
+        if (field === 'priority') return String(val).charAt(0).toUpperCase() + String(val).slice(1).toLowerCase();
+        if (field === 'dueDate' && val instanceof Date) return val.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return String(val);
+      };
+
+      // Track simple fields (skip position — it's just DnD reordering)
+      const trackableFields = ['title', 'description', 'columnId', 'priority', 'assigneeId'] as const;
+      for (const field of trackableFields) {
+        if (data[field] === undefined) continue;
+        const oldVal = current[field] ?? null;
+        const newVal = data[field] ?? null;
+        if (String(oldVal ?? '') !== String(newVal ?? '')) {
+          historyEntries.push({
+            itemId,
+            userId,
+            action: 'UPDATED',
+            field,
+            oldValue: formatValue(field, oldVal),
+            newValue: formatValue(field, newVal),
+          });
+        }
+      }
+
+      // Track dueDate separately (Date comparison)
+      if (data.dueDate !== undefined) {
+        const oldDate = current.dueDate ?? null;
+        const newDate = updated.dueDate ?? null;
+        const oldStr = oldDate?.toISOString() ?? null;
+        const newStr = newDate?.toISOString() ?? null;
+        if (oldStr !== newStr) {
+          historyEntries.push({
+            itemId,
+            userId,
+            action: 'UPDATED',
+            field: 'dueDate',
+            oldValue: oldDate ? oldDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+            newValue: newDate ? newDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+          });
+        }
+      }
+
+      // Track metadata key-level diffs
+      if (data.metadata !== undefined) {
+        const oldMeta = (current.metadata as Record<string, unknown>) ?? {};
+        const newMeta = (data.metadata as Record<string, unknown>) ?? {};
+        const allKeys = new Set([...Object.keys(oldMeta), ...Object.keys(newMeta)]);
+        for (const key of allKeys) {
+          const oldVal = JSON.stringify(oldMeta[key] ?? null);
+          const newVal = JSON.stringify(newMeta[key] ?? null);
+          if (oldVal !== newVal) {
+            historyEntries.push({
+              itemId,
+              userId,
+              action: 'UPDATED',
+              field: `metadata.${key}`,
+              oldValue: oldMeta[key] != null ? String(oldMeta[key]) : null,
+              newValue: newMeta[key] != null ? String(newMeta[key]) : null,
+            });
+          }
+        }
+      }
+
+      if (historyEntries.length > 0) {
+        await prisma.boardItemHistory.createMany({ data: historyEntries });
+      }
+    }
 
     return NextResponse.json({
       id: updated.id,

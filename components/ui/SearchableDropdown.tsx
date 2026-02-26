@@ -142,7 +142,7 @@ export const SearchableDropdown = memo(function SearchableDropdown({
       >
         {/* Value or placeholder */}
         <span
-          className={`flex-1 truncate text-sm ${
+          className={`flex-1 truncate text-sm capitalize ${
             value ? 'text-white font-medium' : 'text-zinc-500 font-normal'
           }`}
         >
@@ -280,7 +280,7 @@ export const SearchableDropdown = memo(function SearchableDropdown({
                             : 'text-zinc-300 hover:bg-zinc-800/40 hover:text-white border-transparent',
                       ].join(' ')}
                     >
-                      <span className="truncate">{option}</span>
+                      <span className="truncate capitalize">{option}</span>
                       {isSelected && (
                         <Check className="shrink-0 w-3.5 h-3.5 text-brand-light-pink" />
                       )}
@@ -299,7 +299,7 @@ export const SearchableDropdown = memo(function SearchableDropdown({
             {value && (
               <span
                 style={{ color: '#F774B9' }}
-                className="text-[10px] opacity-60 truncate max-w-[130px] font-medium"
+                className="text-[10px] opacity-60 truncate max-w-[130px] font-medium capitalize"
               >
                 {value}
               </span>

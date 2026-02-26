@@ -542,12 +542,12 @@ model InstagramProfile {
   @@index([organizationId])
   @@index([isFavorite])
   @@index([tags])
+  @@index([clerkId, status])
+  @@index([name])
   @@index([status])
+  @@index([status, type])
   @@index([type])
   @@index([updatedAt])
-  @@index([name])
-  @@index([status, type])
-  @@index([clerkId, status])
   @@map("instagram_profiles")
 }
 
@@ -1451,26 +1451,26 @@ model BoardColumn {
 }
 
 model BoardItem {
-  id                 String               @id @default(cuid())
-  columnId           String
-  title              String
-  description        String?
-  type               BoardItemType        @default(TASK)
-  priority           BoardItemPriority    @default(MEDIUM)
-  assigneeId         String?
-  dueDate            DateTime?
-  position           Int                  @default(0)
-  metadata           Json?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  createdBy          String?
-  itemNo             Int?
-  organizationId     String?
-  comments           BoardItemComment[]
-  board_item_history board_item_history[]
-  media              BoardItemMedia[]
-  column             BoardColumn          @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  organization       Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String             @id @default(cuid())
+  columnId       String
+  title          String
+  description    String?
+  type           BoardItemType      @default(TASK)
+  priority       BoardItemPriority  @default(MEDIUM)
+  assigneeId     String?
+  dueDate        DateTime?
+  position       Int                @default(0)
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdBy      String?
+  itemNo         Int?
+  organizationId String?
+  comments       BoardItemComment[]
+  media          BoardItemMedia[]
+  history        BoardItemHistory[]
+  column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, itemNo])
   @@index([columnId])
@@ -1495,6 +1495,22 @@ model BoardItemComment {
   @@index([createdBy])
   @@index([itemId, createdAt])
   @@map("board_item_comments")
+}
+
+model BoardItemHistory {
+  id        String    @id @default(cuid())
+  itemId    String
+  userId    String
+  action    String
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime  @default(now())
+  item      BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
+  @@index([userId])
+  @@map("board_item_history")
 }
 
 model BoardItemMedia {
@@ -2156,21 +2172,6 @@ model ProfileAssignment {
   @@index([assignedToClerkId])
   @@index([profileId])
   @@map("profile_assignments")
-}
-
-model board_item_history {
-  id          String    @id
-  itemId      String
-  userId      String
-  action      String
-  field       String
-  oldValue    String?
-  newValue    String?
-  createdAt   DateTime  @default(now())
-  board_items BoardItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  @@index([itemId, createdAt])
-  @@index([userId])
 }
 
 enum SyncStatus {

@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { spaceKeys } from '@/lib/hooks/useSpaces.query';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -84,29 +84,16 @@ export function SpaceSettingsDetails({ slug }: SpaceSettingsDetailsProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="mb-6 flex items-center gap-4">
-          <button
-            onClick={() => router.push(`/${params.tenant}/spaces/${slug}`)}
-            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to space
-          </button>
-        </div>
+    <div className="w-full max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Details
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          Manage your space configuration and details
+        </p>
+      </div>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Space Settings
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage your space configuration and details
-          </p>
-        </div>
-
-      {/* Settings Form */}
       <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-2xl p-6 space-y-6">
         <div className="flex flex-col items-center space-y-6">
           {/* Space Icon */}
@@ -215,7 +202,6 @@ export function SpaceSettingsDetails({ slug }: SpaceSettingsDetailsProps) {
             </Button>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
