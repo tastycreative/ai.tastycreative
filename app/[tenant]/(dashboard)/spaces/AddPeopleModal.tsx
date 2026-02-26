@@ -102,6 +102,7 @@ export function AddPeopleModal({ isOpen, onClose, spaceId, spaceName }: AddPeopl
       addSpaceMembers(spaceId, userIds, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spaces', spaceId, 'members'] });
+      queryClient.invalidateQueries({ queryKey: ['space-members', spaceId] });
       setSelectedMembers([]);
       setSearchQuery('');
       onClose();

@@ -3,7 +3,10 @@
 import { useRef, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { DragDropContext } from '@hello-pangea/dnd';
-import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useSpaceBySlug, useUpdateSpace } from '@/lib/hooks/useSpaces.query';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
+import { useUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
 import {
   BoardLayout,
@@ -73,10 +76,24 @@ export function SpaceBoardView({ slug }: SpaceBoardViewProps) {
  * Separated so hooks are only called when we have valid data.
  */
 function TemplateBoardView({ slug }: { slug: string }) {
+  const { user } = useUser();
   const { data: space } = useSpaceBySlug(slug);
+  const { data: members = [] } = useSpaceMembers(space?.id);
+  const { currentOrganization } = useOrganization();
+  const updateSpaceMutation = useUpdateSpace(space?.id ?? '');
   const config = TEMPLATE_CONFIG[space!.templateType];
   const { DetailModal } = config;
   const boardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Get current user's role in the space
+  const currentMember = members.find((m) => m.user.clerkId === user?.id);
+  const userRole = currentMember?.role;
+  const organizationRole = currentOrganization?.role;
+
+  // Handler for updating space name
+  const handleSpaceNameUpdate = async (newName: string) => {
+    await updateSpaceMutation.mutateAsync({ name: newName });
+  };
 
   const {
     boardData,
@@ -108,6 +125,10 @@ function TemplateBoardView({ slug }: { slug: string }) {
     <>
       <BoardLayout
         spaceName={space!.name}
+        spaceSlug={slug}
+        userRole={userRole}
+        organizationRole={organizationRole}
+        onSpaceNameUpdate={handleSpaceNameUpdate}
         templateLabel={config.label}
         tabs={config.tabs}
         defaultTab="board"

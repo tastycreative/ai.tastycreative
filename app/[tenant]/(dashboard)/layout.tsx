@@ -119,6 +119,9 @@ export default function DashboardLayout({
   } = usePermissions();
   const { currentOrganization } = useOrganization();
 
+  // Check if we're on a space settings page
+  const isSpaceSettings = pathname.includes('/spaces/') && pathname.includes('/settings');
+
   // Check if organization payment is required
   // Exclude billing page from payment block so users can access it to pay
   const isBillingPage = pathname === `/${tenant}/billing`;
@@ -1452,11 +1455,11 @@ export default function DashboardLayout({
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-[#EC67A1]/5 to-[#5DC3F8]/5 rounded-full blur-3xl" />
       </div>
 
-      {/* Desktop Sidebar - Modern Glass Design */}
+      {/* Desktop Sidebar */}
       <div
         className={classNames(
           "hidden lg:flex flex-col transition-all duration-300 ease-out relative z-10",
-          sidebarOpen ? "w-80" : "w-24",
+          isSpaceSettings ? "w-0" : (sidebarOpen ? "w-80" : "w-24"),
         )}
       >
         {/* Sidebar Glass Container */}
@@ -1655,8 +1658,9 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
-      <div
+      {/* Mobile Sidebar Overlay - Only show if NOT on space settings */}
+      {!isSpaceSettings && (
+        <div
         className={classNames(
           "lg:hidden fixed inset-0 z-50 transition-opacity duration-300",
           sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none",
@@ -1794,11 +1798,13 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-        {/* Mobile Header Bar */}
-        <div className="lg:hidden bg-background backdrop-blur-xl border-b border-header-border px-4 py-3 rounded-b-2xl">
+        {/* Mobile Header Bar - Only show if NOT on space settings */}
+        {!isSpaceSettings && (
+          <div className="lg:hidden bg-background backdrop-blur-xl border-b border-header-border px-4 py-3 rounded-b-2xl">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1826,11 +1832,13 @@ export default function DashboardLayout({
             </div>
           </div>
         </div>
+        )}
 
         {/* Content area */}
         <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
-          {/* Modern Top Header */}
-          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-background border-b border-header-border rounded-b-2xl">
+          {/* Modern Top Header - Only show if NOT on space settings */}
+          {!isSpaceSettings && (
+            <div className="sticky top-0 z-20 backdrop-blur-2xl bg-background border-b border-header-border rounded-b-2xl">
             <div className="px-6 lg:px-8 py-4">
               <div className="flex items-center justify-between">
                 {/* Left Side - Progress & Breadcrumb Area */}
@@ -1948,9 +1956,10 @@ export default function DashboardLayout({
               </div>
             </div>
           </div>
+          )}
 
           {/* Content */}
-          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn relative">
+          <div className={!isSpaceSettings ? "px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn relative" : ""}>
             {isPaymentRequired ? (
               <PaymentRequiredOverlay tenant={tenant} isAdmin={isAdmin} />
             ) : (

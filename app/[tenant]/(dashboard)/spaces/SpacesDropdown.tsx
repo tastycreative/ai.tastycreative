@@ -9,6 +9,7 @@ import { useUser } from '@clerk/nextjs';
 import { CreateSpaceModal } from './CreateSpaceModal';
 import { AddPeopleModal } from './AddPeopleModal';
 import { useSpaces, useArchiveSpace, useDeleteSpace } from '@/lib/hooks/useSpaces.query';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 interface SpacesDropdownProps {
@@ -50,9 +51,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
   const { data, isLoading } = useSpaces();
   const { mutateAsync: archiveSpace } = useArchiveSpace();
   const { mutateAsync: deleteSpace } = useDeleteSpace();
+  const { currentOrganization } = useOrganization();
 
   const spaces = data?.spaces ?? [];
   const isActive = pathname?.startsWith(`/${tenant}/spaces`);
+  const organizationRole = currentOrganization?.role;
 
   // Get localStorage key unique to user
   const getStorageKey = () => {
@@ -408,7 +411,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
                         const isSpaceActive = pathname === spaceHref;
 
                         // Check if user has permission to manage this space
-                        const canManageSpace = space.currentUserRole === 'OWNER' || space.currentUserRole === 'ADMIN';
+                        const canManageSpace =
+                          space.currentUserRole === 'OWNER' ||
+                          space.currentUserRole === 'ADMIN' ||
+                          organizationRole === 'OWNER' ||
+                          organizationRole === 'ADMIN';
 
                         return (
                           <div key={space.id} className="relative group/space-item">
@@ -545,7 +552,11 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
                       const isSpaceActive = pathname === spaceHref;
 
                       // Check if user has permission to manage this space
-                      const canManageSpace = space.currentUserRole === 'OWNER' || space.currentUserRole === 'ADMIN';
+                      const canManageSpace =
+                        space.currentUserRole === 'OWNER' ||
+                        space.currentUserRole === 'ADMIN' ||
+                        organizationRole === 'OWNER' ||
+                        organizationRole === 'ADMIN';
 
                       return (
                         <div key={space.id} className="relative group/space-item">

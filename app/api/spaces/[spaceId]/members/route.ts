@@ -47,6 +47,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         workspaceId: spaceId,
       },
       select: {
+        id: true,
         userId: true,
         role: true,
         users: {
@@ -64,6 +65,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     return NextResponse.json(
       members.map((m) => ({
+        id: m.id,
         userId: m.userId,
         role: m.role,
         user: m.users,
