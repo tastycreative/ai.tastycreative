@@ -137,7 +137,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
 
     const senderTab = req.headers.get('x-tab-id') ?? undefined;
-    publishBoardEvent(boardId, 'item.created', { userId, entityId: item.id, tabId: senderTab });
+    try {
+      publishBoardEvent(boardId, 'item.created', { userId, entityId: item.id, tabId: senderTab });
+    } catch (_) {
+      // Ably not configured — skip real-time notification
+    }
 
     return NextResponse.json(
       {

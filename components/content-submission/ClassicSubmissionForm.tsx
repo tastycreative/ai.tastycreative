@@ -60,7 +60,13 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
     },
   });
 
-  const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
+  const [selectedTemplateType, setSelectedTemplateType] = useState<'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null>(null);
+  const [selectedSpaces, setSelectedSpaces] = useState<Map<string, Space>>(new Map());
+  const selectedSpaceIds = useMemo(() => new Set(selectedSpaces.keys()), [selectedSpaces]);
+  const selectedSpace = useMemo(() => {
+    const arr = Array.from(selectedSpaces.values());
+    return arr[0] ?? null;
+  }, [selectedSpaces]);
 
   const createSubmission = useCreateSubmission();
   const updateSubmission = useUpdateSubmission();
@@ -69,22 +75,30 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
   const platform = watch('platform');
   const selectedComponents = watch('selectedComponents') || [];
 
-  const handleSpaceSelect = useCallback(
-    (space: Space) => {
-      setSelectedSpace(space);
-      const typeMap: Record<string, 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS'> = {
-        OTP_PTR: 'OTP_PTR',
-        WALL_POST: 'WALL_POST',
-        SEXTING_SETS: 'SEXTING_SETS',
-      };
-      const mappedType = typeMap[space.templateType];
-      if (mappedType) {
-        setValue('submissionType', mappedType);
-        const defaults = getMetadataDefaults(space.templateType as any);
-        setValue('metadata', defaults);
-      }
+  const handleTemplateTypeChange = useCallback(
+    (type: 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS') => {
+      setSelectedTemplateType(type);
+      setSelectedSpaces(new Map());
+      setValue('submissionType', type);
+      const defaults = getMetadataDefaults(type as any);
+      setValue('metadata', defaults);
     },
     [setValue]
+  );
+
+  const handleToggleSpace = useCallback(
+    (space: Space) => {
+      setSelectedSpaces((prev) => {
+        const next = new Map(prev);
+        if (next.has(space.id)) {
+          next.delete(space.id);
+        } else {
+          next.set(space.id, space);
+        }
+        return next;
+      });
+    },
+    []
   );
 
   // Get smart recommendations
@@ -122,7 +136,8 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
             onSuccess(result.id ?? '');
           } else {
             setShowSuccess(false);
-            setSelectedSpace(null);
+            setSelectedTemplateType(null);
+            setSelectedSpaces(new Map());
             reset();
           }
         }, 2000);
@@ -165,10 +180,12 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Space Selection */}
-          <Section title="Select Space">
+          <Section title="Type & Space">
             <SpacePicker
-              selectedSpaceId={selectedSpace?.id}
-              onSelect={handleSpaceSelect}
+              selectedTemplateType={selectedTemplateType}
+              onTemplateTypeChange={handleTemplateTypeChange}
+              selectedSpaceIds={selectedSpaceIds}
+              onToggleSpace={handleToggleSpace}
             />
           </Section>
 

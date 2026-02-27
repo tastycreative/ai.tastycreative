@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 
 /* ------------------------------------------------------------------ */
 /*  Types (matching actual schema: position, no isDefault)             */
@@ -81,6 +81,18 @@ export function useBoards(spaceId: string | undefined) {
     enabled: !!spaceId,
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useMultiSpaceBoards(spaceIds: string[]) {
+  return useQueries({
+    queries: spaceIds.map((spaceId) => ({
+      queryKey: boardKeys.list(spaceId),
+      queryFn: () => fetchBoards(spaceId),
+      enabled: !!spaceId,
+      staleTime: 1000 * 60 * 2,
+      refetchOnWindowFocus: false,
+    })),
   });
 }
 

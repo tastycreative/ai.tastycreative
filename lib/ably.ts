@@ -1,6 +1,16 @@
 import Ably from 'ably';
 
-const ablyRest = new Ably.Rest(process.env.ABLY_API_KEY!);
+let _ablyRest: Ably.Rest | null = null;
+
+function getAblyRest(): Ably.Rest {
+  if (!_ablyRest) {
+    if (!process.env.ABLY_API_KEY) {
+      throw new Error('ABLY_API_KEY environment variable is not set');
+    }
+    _ablyRest = new Ably.Rest(process.env.ABLY_API_KEY);
+  }
+  return _ablyRest;
+}
 
 /**
  * Publish a board event (fire-and-forget).
@@ -11,7 +21,7 @@ export function publishBoardEvent(
   eventName: string,
   data: { userId: string; entityId: string; tabId?: string },
 ) {
-  const channel = ablyRest.channels.get(`board:${boardId}`);
+  const channel = getAblyRest().channels.get(`board:${boardId}`);
   channel.publish(eventName, data).catch((err) => {
     console.error('[ably] publish failed:', err);
   });
@@ -22,5 +32,5 @@ export function publishBoardEvent(
  * The Ably SDK auto-calls the auth endpoint to get & refresh tokens.
  */
 export async function createAblyTokenRequest(clientId: string) {
-  return ablyRest.auth.createTokenRequest({ clientId });
+  return getAblyRest().auth.createTokenRequest({ clientId });
 }

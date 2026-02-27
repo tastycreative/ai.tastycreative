@@ -6,16 +6,25 @@ export interface WizardStep {
 }
 
 /**
- * Fixed 4-step wizard for content submissions.
- * Space is selected first, which determines the submission type.
+ * Dynamic wizard steps for content submissions.
+ * Content Style step only shows for OTP_PTR submissions.
  */
-export function generateSteps(): WizardStep[] {
-  return [
-    { id: 'space', title: 'Select Space' },
+export function generateSteps(submissionType?: string): WizardStep[] {
+  const steps: WizardStep[] = [
+    { id: 'space', title: 'Type & Spaces' },
+  ];
+
+  if (!submissionType || submissionType === 'OTP_PTR') {
+    steps.push({ id: 'contentStyle', title: 'Content Style' });
+  }
+
+  steps.push(
     { id: 'details', title: 'Content Details' },
     { id: 'files', title: 'File Uploads' },
     { id: 'review', title: 'Review & Submit' },
-  ];
+  );
+
+  return steps;
 }
 
 /**
@@ -24,6 +33,7 @@ export function generateSteps(): WizardStep[] {
 export function stepHasErrors(stepId: string, errors: FieldErrors): boolean {
   const fieldMap: Record<string, string[]> = {
     space: ['workspaceId'],
+    contentStyle: [],
     details: [
       'submissionType',
       'modelName',
