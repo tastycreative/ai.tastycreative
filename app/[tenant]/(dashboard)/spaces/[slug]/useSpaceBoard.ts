@@ -69,8 +69,6 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     isLoading: itemsLoading,
   } = useBoardItems(space?.id, defaultBoard?.id);
 
-  useBoardRealtime(defaultBoard?.id);
-
   const createItemMutation = useCreateBoardItem(
     space?.id ?? '',
     defaultBoard?.id ?? '',
@@ -90,6 +88,8 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
 
   const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
   const [selectedColumnTitle, setSelectedColumnTitle] = useState('');
+
+  useBoardRealtime(defaultBoard?.id, selectedTask?.id);
   const isClosingRef = useRef(false);
 
   // Build columns + tasks from real data

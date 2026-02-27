@@ -178,7 +178,7 @@ async function addComment(
     `${itemsUrl(spaceId, boardId)}/${itemId}/comments`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-tab-id': tabId },
       body: JSON.stringify({ content }),
     },
   );

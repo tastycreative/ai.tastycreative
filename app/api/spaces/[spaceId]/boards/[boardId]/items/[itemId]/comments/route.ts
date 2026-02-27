@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { publishBoardEvent } from '@/lib/ably';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { itemId } = await params;
+    const { boardId, itemId } = await params;
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body.content !== 'string' || !body.content.trim()) {
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         content: body.content.trim(),
       },
     });
+
+    const senderTab = req.headers.get('x-tab-id') ?? undefined;
+    publishBoardEvent(boardId, 'comment.created', { userId, entityId: itemId, tabId: senderTab });
 
     return NextResponse.json(
       {

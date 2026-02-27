@@ -39,12 +39,13 @@ function getAblyClient(): Ably.Realtime {
 
 /**
  * Subscribe to real-time board events.
- * When another tab/user mutates the board, invalidate the React Query cache
- * so the UI refetches fresh data.
+ * Invalidates board items, and also comments/history for the currently open item.
  */
-export function useBoardRealtime(boardId: string | undefined) {
+export function useBoardRealtime(boardId: string | undefined, openItemId?: string | null) {
   const queryClient = useQueryClient();
   const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+  const openItemIdRef = useRef(openItemId);
+  openItemIdRef.current = openItemId;
 
   useEffect(() => {
     if (!boardId) return;
@@ -54,12 +55,33 @@ export function useBoardRealtime(boardId: string | undefined) {
     channelRef.current = channel;
 
     const listener = (message: Ably.Message) => {
-      const senderTab = (message.data as { tabId?: string })?.tabId;
-      if (senderTab === tabId) return; // skip events from this tab
-      console.log('[ably] received event:', message.name, '— invalidating board cache');
+      const data = message.data as { tabId?: string; entityId?: string };
+      if (data.tabId === tabId) return; // skip events from this tab
+
+      const eventName = message.name ?? '';
+      console.log('[ably] received event:', eventName, '— invalidating cache');
+
+      // Always invalidate the board list
       queryClient.invalidateQueries({
         queryKey: boardItemKeys.list(boardId),
       });
+
+      const entityId = data.entityId;
+      const currentItemId = openItemIdRef.current;
+
+      // If a comment was added to the currently open item, refresh comments
+      if (eventName === 'comment.created' && entityId && entityId === currentItemId) {
+        queryClient.invalidateQueries({
+          queryKey: boardItemKeys.comments(entityId),
+        });
+      }
+
+      // If the currently open item was updated, refresh its history
+      if (eventName === 'item.updated' && entityId && entityId === currentItemId) {
+        queryClient.invalidateQueries({
+          queryKey: boardItemKeys.history(entityId),
+        });
+      }
     };
 
     channel.subscribe(listener);
