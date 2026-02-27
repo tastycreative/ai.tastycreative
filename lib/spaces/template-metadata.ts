@@ -186,33 +186,18 @@ export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
     required: true,
     options: ['OTP', 'PTR', 'CUSTOM'],
   },
-  { key: 'price', label: 'Price ($)', type: 'number', required: true, placeholder: '0.00' },
-  { key: 'model', label: 'Model', type: 'text', placeholder: 'Model name' },
-  {
-    key: 'pricingTier',
-    label: 'Pricing Tier',
-    type: 'select',
-    options: ['Porn Accurate', 'Porn Scam', 'GF Accurate', 'GF Scam'],
-  },
-  {
-    key: 'pageType',
-    label: 'Page Type',
-    type: 'select',
-    options: ['All Pages', 'Free', 'Paid', 'VIP'],
-  },
+  { key: 'price', label: 'Price ($)', type: 'number', placeholder: '0.00' },
+  // model — now a dedicated searchable dropdown in ContentDetailsFields
+  // pricingTier — now a dedicated dropdown in ContentDetailsFields
+  // pageType — now a dedicated dropdown in ContentDetailsFields
   { key: 'driveLink', label: 'Drive Link', type: 'text', placeholder: 'https://drive.google.com/...' },
-  {
-    key: 'contentType',
-    label: 'Content Type',
-    type: 'select',
-    options: ['Photo', 'Video', 'Photo Set', 'Video Set', 'Mixed (Photos + Videos)', 'GIF', 'Livestream', 'Audio', 'Text Only'],
-  },
+  // contentType — now a dedicated pricing-aware dropdown in ContentDetailsFields
   { key: 'contentLength', label: 'Content Length', type: 'text', placeholder: 'e.g. 8:43 or 8 mins 43 secs' },
   { key: 'contentCount', label: 'Content Count', type: 'text', placeholder: 'e.g. 1 Video, 3 Photos' },
   { key: 'deliverables', label: 'Deliverables', type: 'tags', placeholder: 'e.g. 3 photos, 1 video' },
   { key: 'externalCreatorTags', label: 'Tags — External Creators', type: 'tags', placeholder: '@johndoe @janedoe' },
-  { key: 'internalModelTags', label: 'Tags — Internal Models', type: 'tags', placeholder: '@modelname' },
-  { key: 'contentTags', label: 'Content Tags', type: 'tags', placeholder: 'e.g. exclusive, solo, custom' },
+  // internalModelTags — now a dedicated modal multi-select in ContentDetailsFields
+  // contentTags — now a dedicated multi-select in ContentDetailsFields
   { key: 'deadline', label: 'Deadline', type: 'date' },
   { key: 'isPaid', label: 'Paid', type: 'boolean' },
   { key: 'fulfillmentNotes', label: 'Fulfillment Notes', type: 'textarea', placeholder: 'Delivery instructions...' },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export interface ContentTypeOption {
   id: string;
@@ -38,6 +38,7 @@ async function fetchContentTypeOptions(params: {
   modelName?: string;
   pageType?: string;
   fetchAll?: boolean;
+  includeInactive?: boolean;
 }): Promise<ContentTypeOption[]> {
   const searchParams = new URLSearchParams();
   if (params.category) searchParams.append('category', params.category);
@@ -45,6 +46,7 @@ async function fetchContentTypeOptions(params: {
   if (params.modelName) searchParams.append('modelName', params.modelName);
   if (params.pageType) searchParams.append('pageType', params.pageType);
   if (params.fetchAll) searchParams.append('fetchAll', 'true');
+  if (params.includeInactive) searchParams.append('includeInactive', 'true');
 
   const response = await fetch(`/api/content-type-options?${searchParams.toString()}`);
   if (!response.ok) {
@@ -76,6 +78,122 @@ export function useContentTypeOptions(params: {
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
+  });
+}
+
+// Admin: fetch ALL content type options (including inactive)
+export function useContentTypeAdmin(params?: {
+  category?: string;
+  modelId?: string;
+  pageType?: string;
+}) {
+  return useQuery({
+    queryKey: ['content-type-options-admin', params],
+    queryFn: () =>
+      fetchContentTypeOptions({
+        ...params,
+        fetchAll: true,
+        includeInactive: true,
+      }),
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export interface CreateContentTypePayload {
+  value: string;
+  label: string;
+  category: string;
+  pageType?: string;
+  priceType?: string;
+  priceFixed?: number | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  description?: string;
+  order?: number;
+  isFree?: boolean;
+  modelId?: string | null;
+}
+
+export function useCreateContentType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateContentTypePayload) => {
+      const response = await fetch('/api/content-type-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create content type');
+      }
+      return data.contentTypeOption as ContentTypeOption;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-type-options-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['contentTypeOptions'] });
+    },
+  });
+}
+
+export interface UpdateContentTypePayload {
+  id: string;
+  value?: string;
+  label?: string;
+  pageType?: string;
+  priceType?: string;
+  priceFixed?: number | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  description?: string;
+  reason?: string;
+  isFree?: boolean;
+  modelId?: string | null;
+}
+
+export function useUpdateContentType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: UpdateContentTypePayload) => {
+      const response = await fetch(`/api/content-type-options/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update content type');
+      }
+      return data.contentTypeOption as ContentTypeOption;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-type-options-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['contentTypeOptions'] });
+    },
+  });
+}
+
+export function useDeleteContentType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/content-type-options/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete content type');
+      }
+      return data.contentTypeOption as ContentTypeOption;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-type-options-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['contentTypeOptions'] });
+    },
   });
 }
 

@@ -15,11 +15,14 @@ export async function GET(req: NextRequest) {
     const modelName = searchParams.get('modelName');
     const pageType = searchParams.get('pageType');
     const fetchAll = searchParams.get('fetchAll');
+    const includeInactive = searchParams.get('includeInactive');
 
     // Build where clause
-    const whereClause: any = {
-      isActive: true,
-    };
+    const whereClause: any = {};
+
+    if (includeInactive !== 'true') {
+      whereClause.isActive = true;
+    }
 
     if (category) {
       whereClause.category = category;

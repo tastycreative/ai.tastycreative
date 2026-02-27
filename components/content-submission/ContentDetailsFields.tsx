@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Image,
   MessageSquare,
@@ -10,6 +11,7 @@ import {
   Minus,
   Zap,
   Check,
+  ChevronDown,
   User as UserIcon,
   X,
   Search,
@@ -24,7 +26,10 @@ import {
 } from '@/lib/spaces/template-metadata';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { useContentTypeOptions, formatContentTypePrice, type ContentTypeOption } from '@/lib/hooks/useContentTypeOptions.query';
+import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 import { useQuery } from '@tanstack/react-query';
+import { CONTENT_TAGS } from '@/lib/constants/contentTags';
 
 type SubmissionTemplateType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -88,6 +93,20 @@ const PRIORITY_OPTIONS: {
   },
 ];
 
+const PRICING_TIER_OPTIONS = [
+  { value: 'PORN_ACCURATE', label: 'Porn Accurate' },
+  { value: 'PORN_SCAM', label: 'Porn Scam' },
+  { value: 'GF_ACCURATE', label: 'GF Accurate' },
+  { value: 'GF_SCAM', label: 'GF Scam' },
+];
+
+const PAGE_TYPE_OPTIONS = [
+  { value: 'ALL_PAGES', label: 'All Pages' },
+  { value: 'FREE', label: 'Free' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'VIP', label: 'VIP' },
+];
+
 interface ContentDetailsFieldsProps {
   register: UseFormRegister<CreateSubmissionWithComponents>;
   setValue: UseFormSetValue<CreateSubmissionWithComponents>;
@@ -111,6 +130,103 @@ export function ContentDetailsFields({
   const submissionType = (watch('submissionType') ?? 'OTP_PTR') as SubmissionTemplateType;
   const metadata = watch('metadata') || {};
   const priority = watch('priority') || 'normal';
+  const pricingCategory = watch('pricingCategory') || 'PORN_ACCURATE';
+  const selectedContentType = watch('contentType');
+
+  // Content Type Options (OTP_PTR only)
+  const [contentTypeOpen, setContentTypeOpen] = useState(false);
+  const [contentTypeSearch, setContentTypeSearch] = useState('');
+  const contentTypeRef = useRef<HTMLDivElement>(null);
+
+  // Content Tags multi-select (OTP_PTR only)
+  const [contentTagsOpen, setContentTagsOpen] = useState(false);
+  const [contentTagsSearch, setContentTagsSearch] = useState('');
+  const contentTagsRef = useRef<HTMLDivElement>(null);
+  const selectedContentTags: string[] = watch('contentTags') || [];
+
+  // Model selector (OTP_PTR only)
+  const [manualModelEntry, setManualModelEntry] = useState(false);
+
+  // Internal Models modal multi-select (OTP_PTR only)
+  const [internalModelsModalOpen, setInternalModelsModalOpen] = useState(false);
+  const [internalModelsSearch, setInternalModelsSearch] = useState('');
+  const [internalModelsSelection, setInternalModelsSelection] = useState<string[]>([]);
+  const selectedInternalModelTags: string[] = watch('internalModelTags') || [];
+
+  const { data: contentTypeOptions, isLoading: contentTypeLoading } = useContentTypeOptions({
+    category: pricingCategory,
+    pageType: (metadata.pageType as string) || undefined,
+    enabled: submissionType === 'OTP_PTR',
+  });
+
+  // Fetch influencer profiles for model selector & internal models
+  const { data: influencerProfiles, isLoading: influencerProfilesLoading } = useInstagramProfiles();
+
+  // Close content type dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (contentTypeRef.current && !contentTypeRef.current.contains(e.target as Node)) {
+        setContentTypeOpen(false);
+        setContentTypeSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Close content tags dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (contentTagsRef.current && !contentTagsRef.current.contains(e.target as Node)) {
+        setContentTagsOpen(false);
+        setContentTagsSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Filtered content type options
+  const filteredContentTypeOptions = useMemo(() => {
+    if (!contentTypeOptions) return [];
+    if (!contentTypeSearch.trim()) return contentTypeOptions;
+    const q = contentTypeSearch.toLowerCase();
+    return contentTypeOptions.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        opt.value.toLowerCase().includes(q) ||
+        opt.description?.toLowerCase().includes(q)
+    );
+  }, [contentTypeOptions, contentTypeSearch]);
+
+  // Find currently selected content type option
+  const selectedContentTypeOption = useMemo(
+    () => contentTypeOptions?.find((opt) => opt.value === selectedContentType) ?? null,
+    [contentTypeOptions, selectedContentType]
+  );
+
+  // Filtered content tags
+  const filteredContentTags = useMemo(() => {
+    if (!contentTagsSearch.trim()) return CONTENT_TAGS;
+    const q = contentTagsSearch.toLowerCase();
+    return CONTENT_TAGS.filter((tag) => tag.toLowerCase().includes(q));
+  }, [contentTagsSearch]);
+
+  // Sorted & filtered influencer profiles for model selector & internal models modal
+  const sortedProfiles = useMemo(() => {
+    const profiles = influencerProfiles ?? [];
+    return [...profiles].sort((a, b) => a.name.localeCompare(b.name));
+  }, [influencerProfiles]);
+
+  const filteredProfiles = useMemo(() => {
+    if (!internalModelsSearch.trim()) return sortedProfiles;
+    const q = internalModelsSearch.toLowerCase();
+    return sortedProfiles.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.username?.toLowerCase().includes(q)
+    );
+  }, [sortedProfiles, internalModelsSearch]);
 
   const handleTemplateChange = useCallback(
     (type: SubmissionTemplateType) => {
@@ -123,9 +239,21 @@ export function ContentDetailsFields({
 
   const handleMetadataChange = useCallback(
     (key: string, value: any) => {
-      setValue('metadata', { ...metadata, [key]: value });
+      const current = watch('metadata') || {};
+      setValue('metadata', { ...current, [key]: value }, { shouldDirty: true });
     },
-    [setValue, metadata]
+    [setValue, watch]
+  );
+
+  const handleContentTypeSelect = useCallback(
+    (opt: ContentTypeOption) => {
+      setValue('contentType', opt.value);
+      setValue('contentTypeOptionId', opt.id);
+      handleMetadataChange('contentType', opt.label);
+      setContentTypeOpen(false);
+      setContentTypeSearch('');
+    },
+    [setValue, handleMetadataChange]
   );
 
   const templateFields = getMetadataFields(submissionType);
@@ -204,6 +332,657 @@ export function ContentDetailsFields({
         )}
       </div>
 
+      {/* Pricing & Distribution (OTP_PTR only) */}
+      {submissionType === 'OTP_PTR' && (
+        <div>
+          <div className="flex items-center gap-3 my-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-brand-light-pink/30 to-transparent" />
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-widest px-3 py-1 rounded-full bg-zinc-800/60 border border-zinc-700/40">
+              Pricing &amp; Distribution
+            </span>
+            <div className="h-px w-8 bg-zinc-800" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">
+                Pricing Tier <span className="text-brand-light-pink">*</span>
+              </label>
+              <SearchableDropdown
+                options={PRICING_TIER_OPTIONS.map(o => o.label)}
+                value={PRICING_TIER_OPTIONS.find(o => o.value === watch('pricingCategory'))?.label || 'Porn Accurate'}
+                onChange={(label) => {
+                  const opt = PRICING_TIER_OPTIONS.find(o => o.label === label);
+                  if (opt) setValue('pricingCategory', opt.value as any);
+                }}
+                placeholder="Select pricing tier..."
+                searchPlaceholder="Search tiers..."
+              />
+              <p className="text-[11px] text-zinc-500 mt-1">Determines available content types and pricing</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">
+                Page Type <span className="text-brand-light-pink">*</span>
+              </label>
+              <SearchableDropdown
+                options={PAGE_TYPE_OPTIONS.map(o => o.label)}
+                value={PAGE_TYPE_OPTIONS.find(o => o.value === (metadata.pageType || 'ALL_PAGES'))?.label || 'All Pages'}
+                onChange={(label) => {
+                  const opt = PAGE_TYPE_OPTIONS.find(o => o.label === label);
+                  if (opt) handleMetadataChange('pageType', opt.value);
+                }}
+                placeholder="Select page type..."
+                searchPlaceholder="Search page types..."
+              />
+              <p className="text-[11px] text-zinc-500 mt-1">Filter content types by distribution channel</p>
+            </div>
+          </div>
+
+          {/* Model Selector */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Model <span className="text-brand-light-pink">*</span>
+            </label>
+            {manualModelEntry ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={(metadata.model as string) || ''}
+                  onChange={(e) => handleMetadataChange('model', e.target.value)}
+                  placeholder="Enter model name manually..."
+                  className="w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 transition-all duration-150"
+                />
+                <button
+                  type="button"
+                  onClick={() => setManualModelEntry(false)}
+                  className="text-[11px] text-brand-light-pink hover:text-brand-mid-pink transition-colors"
+                >
+                  Back to dropdown
+                </button>
+              </div>
+            ) : (
+              <SearchableDropdown
+                options={
+                  sortedProfiles.length > 0
+                    ? [...sortedProfiles.map((p) => p.name), '+ Add model manually']
+                    : ['+ Add model manually']
+                }
+                value={(metadata.model as string) || ''}
+                onChange={(selected) => {
+                  if (selected === '+ Add model manually') {
+                    setManualModelEntry(true);
+                  } else {
+                    setManualModelEntry(false);
+                    handleMetadataChange('model', selected);
+                    const profile = sortedProfiles.find((p) => p.name === selected);
+                    if (profile) setValue('modelId', profile.id);
+                  }
+                }}
+                placeholder="Search influencer profiles..."
+                searchPlaceholder="Type to search profiles..."
+              />
+            )}
+            <p className="text-[11px] text-zinc-500 mt-1">Select the model associated with this content</p>
+          </div>
+
+          {/* Content Type Dropdown */}
+          <div className="mt-4" ref={contentTypeRef}>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Content Type <span className="text-brand-light-pink">*</span>
+            </label>
+            <div className="relative">
+              {/* Trigger button */}
+              <button
+                type="button"
+                onClick={() => setContentTypeOpen((o) => !o)}
+                className={[
+                  'w-full flex items-center gap-2 px-4 py-3 rounded-xl border text-sm transition-all duration-200 text-left outline-none',
+                  contentTypeOpen
+                    ? 'bg-zinc-900 border-brand-light-pink ring-2 ring-brand-light-pink/20 text-white'
+                    : 'bg-zinc-900/60 border-zinc-700/50 text-white hover:border-zinc-500 hover:bg-zinc-900/80',
+                ].join(' ')}
+              >
+                {contentTypeLoading ? (
+                  <span className="flex items-center gap-2 text-zinc-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading content types...
+                  </span>
+                ) : selectedContentTypeOption ? (
+                  <span className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="truncate font-medium text-white">
+                      {selectedContentTypeOption.label}
+                    </span>
+                    <span className="shrink-0 ml-2 text-xs font-semibold text-brand-light-pink">
+                      {formatContentTypePrice(selectedContentTypeOption)}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="flex-1 text-zinc-500">Select content type...</span>
+                )}
+                <ChevronDown
+                  className={`shrink-0 w-4 h-4 transition-all duration-200 ${
+                    contentTypeOpen ? 'text-brand-light-pink rotate-180' : 'text-zinc-500'
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown panel */}
+              {contentTypeOpen && (
+                <div
+                  className="absolute z-50 left-0 right-0 mt-2 bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden shadow-2xl shadow-black/50"
+                  style={{ borderTop: '2px solid #F774B9' }}
+                >
+                  {/* Search */}
+                  <div className="p-2 border-b border-zinc-800/60">
+                    <div className="relative flex items-center">
+                      <Search className={`absolute left-3 w-3.5 h-3.5 pointer-events-none transition-colors ${contentTypeSearch ? 'text-brand-light-pink' : 'text-zinc-600'}`} />
+                      <input
+                        type="text"
+                        value={contentTypeSearch}
+                        onChange={(e) => setContentTypeSearch(e.target.value)}
+                        placeholder="Search content types..."
+                        className="w-full pl-8 pr-8 py-2 text-sm bg-zinc-900/80 border border-zinc-700/40 rounded-lg text-white placeholder-zinc-600 outline-none focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/15 transition-all duration-150"
+                        autoFocus
+                      />
+                      {contentTypeSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setContentTypeSearch('')}
+                          className="absolute right-2 text-zinc-600 hover:text-brand-light-pink transition-colors p-0.5 rounded"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Options list */}
+                  <div className="max-h-64 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                    {contentTypeLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                      </div>
+                    ) : filteredContentTypeOptions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 gap-2">
+                        <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center">
+                          <Search className="w-3.5 h-3.5 text-zinc-600" />
+                        </div>
+                        <span className="text-xs text-zinc-600">
+                          {contentTypeSearch ? `No results for "${contentTypeSearch}"` : 'No content types available'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-1.5 space-y-px">
+                        {filteredContentTypeOptions.map((opt) => {
+                          const isSelected = selectedContentType === opt.value;
+                          const price = formatContentTypePrice(opt);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => handleContentTypeSelect(opt)}
+                              className={[
+                                'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-100 text-left border-l-2',
+                                isSelected
+                                  ? 'bg-brand-light-pink/10 text-white font-medium border-brand-light-pink'
+                                  : 'text-zinc-300 hover:bg-zinc-800/60 hover:text-white border-transparent',
+                              ].join(' ')}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="truncate">{opt.label}</span>
+                                  <span
+                                    className={`shrink-0 text-xs font-semibold ${
+                                      opt.isFree
+                                        ? 'text-emerald-400'
+                                        : isSelected
+                                          ? 'text-brand-light-pink'
+                                          : 'text-zinc-400'
+                                    }`}
+                                  >
+                                    {price}
+                                  </span>
+                                </div>
+                                {opt.description && (
+                                  <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
+                                    {opt.description}
+                                  </p>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <Check className="shrink-0 w-4 h-4 text-brand-light-pink mt-0.5" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-3 py-1.5 border-t border-zinc-800/60 flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-700 tracking-wide uppercase">
+                      {filteredContentTypeOptions.length} {filteredContentTypeOptions.length !== 1 ? 'types' : 'type'}
+                    </span>
+                    {selectedContentTypeOption && (
+                      <span className="text-[10px] text-brand-light-pink/60 truncate max-w-[180px] font-medium">
+                        {selectedContentTypeOption.label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-1">Content type with pricing from the selected tier</p>
+          </div>
+
+          {/* Content Tags Multi-Select */}
+          <div className="mt-4" ref={contentTagsRef}>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Content Tags
+              <span className="text-[11px] text-zinc-500 font-normal ml-1.5">(Optional)</span>
+            </label>
+            <div className="relative">
+              {/* Trigger button */}
+              <button
+                type="button"
+                onClick={() => setContentTagsOpen((o) => !o)}
+                className={[
+                  'w-full flex items-center gap-2 px-4 py-3 rounded-xl border text-sm transition-all duration-200 text-left outline-none',
+                  contentTagsOpen
+                    ? 'bg-zinc-900 border-brand-light-pink ring-2 ring-brand-light-pink/20 text-white'
+                    : 'bg-zinc-900/60 border-zinc-700/50 text-white hover:border-zinc-500 hover:bg-zinc-900/80',
+                ].join(' ')}
+              >
+                <span className="flex-1 text-zinc-500">
+                  {selectedContentTags.length > 0
+                    ? 'Content tags selected'
+                    : 'Select content tags...'}
+                </span>
+                {selectedContentTags.length > 0 && (
+                  <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-light-pink text-white text-[10px] font-bold">
+                    {selectedContentTags.length}
+                  </span>
+                )}
+                <ChevronDown
+                  className={`shrink-0 w-4 h-4 transition-all duration-200 ${
+                    contentTagsOpen ? 'text-brand-light-pink rotate-180' : 'text-zinc-500'
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown panel */}
+              {contentTagsOpen && (
+                <div
+                  className="absolute z-50 left-0 right-0 mt-2 bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden shadow-2xl shadow-black/50"
+                  style={{ borderTop: '2px solid #F774B9' }}
+                >
+                  {/* Search */}
+                  <div className="p-2 border-b border-zinc-800/60">
+                    <div className="relative flex items-center">
+                      <Search className={`absolute left-3 w-3.5 h-3.5 pointer-events-none transition-colors ${contentTagsSearch ? 'text-brand-light-pink' : 'text-zinc-600'}`} />
+                      <input
+                        type="text"
+                        value={contentTagsSearch}
+                        onChange={(e) => setContentTagsSearch(e.target.value)}
+                        placeholder="Search tags..."
+                        className="w-full pl-8 pr-8 py-2 text-sm bg-zinc-900/80 border border-zinc-700/40 rounded-lg text-white placeholder-zinc-600 outline-none focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/15 transition-all duration-150"
+                        autoFocus
+                      />
+                      {contentTagsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setContentTagsSearch('')}
+                          className="absolute right-2 text-zinc-600 hover:text-brand-light-pink transition-colors p-0.5 rounded"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Options list */}
+                  <div className="max-h-64 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                    <div className="p-1.5 space-y-px">
+                      {/* Select All */}
+                      {!contentTagsSearch.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedContentTags.length === CONTENT_TAGS.length) {
+                              setValue('contentTags', []);
+                            } else {
+                              setValue('contentTags', [...CONTENT_TAGS]);
+                            }
+                          }}
+                          className={[
+                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-100 text-left border-b border-zinc-800/40 mb-1',
+                            selectedContentTags.length === CONTENT_TAGS.length
+                              ? 'text-brand-light-pink font-medium'
+                              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60',
+                          ].join(' ')}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                              selectedContentTags.length === CONTENT_TAGS.length
+                                ? 'bg-brand-light-pink border-brand-light-pink'
+                                : selectedContentTags.length > 0
+                                  ? 'border-brand-light-pink/50 bg-brand-light-pink/20'
+                                  : 'border-zinc-600 bg-zinc-900'
+                            }`}
+                          >
+                            {selectedContentTags.length === CONTENT_TAGS.length ? (
+                              <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                            ) : selectedContentTags.length > 0 ? (
+                              <Minus className="w-3 h-3 text-brand-light-pink" strokeWidth={3} />
+                            ) : null}
+                          </div>
+                          <span className="italic">(Select All)</span>
+                        </button>
+                      )}
+
+                      {/* Tag checkboxes */}
+                      {filteredContentTags.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2">
+                          <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center">
+                            <Search className="w-3.5 h-3.5 text-zinc-600" />
+                          </div>
+                          <span className="text-xs text-zinc-600">
+                            No tags matching &quot;{contentTagsSearch}&quot;
+                          </span>
+                        </div>
+                      ) : (
+                        filteredContentTags.map((tag) => {
+                          const isChecked = selectedContentTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                const next = isChecked
+                                  ? selectedContentTags.filter((t) => t !== tag)
+                                  : [...selectedContentTags, tag];
+                                setValue('contentTags', next);
+                              }}
+                              className={[
+                                'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-100 text-left',
+                                isChecked
+                                  ? 'bg-brand-light-pink/10 text-white font-medium'
+                                  : 'text-zinc-300 hover:bg-zinc-800/60 hover:text-white',
+                              ].join(' ')}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                                  isChecked
+                                    ? 'bg-brand-light-pink border-brand-light-pink'
+                                    : 'border-zinc-600 bg-zinc-900'
+                                }`}
+                              >
+                                {isChecked && (
+                                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                )}
+                              </div>
+                              <span>{tag}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-3 py-1.5 border-t border-zinc-800/60 flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-700 tracking-wide uppercase">
+                      {selectedContentTags.length} of {CONTENT_TAGS.length} selected
+                    </span>
+                    {selectedContentTags.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setValue('contentTags', [])}
+                        className="text-[10px] text-zinc-500 hover:text-brand-light-pink transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Selected tags as pills */}
+            {selectedContentTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {selectedContentTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-light-pink/10 border border-brand-light-pink/20 text-brand-light-pink rounded-lg text-[11px] font-medium"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue(
+                          'contentTags',
+                          selectedContentTags.filter((t) => t !== tag)
+                        )
+                      }
+                      className="ml-0.5 hover:text-white transition-colors text-brand-mid-pink"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-zinc-500 mt-1">Categorize content for the QA review process</p>
+          </div>
+
+          {/* Internal Models Modal Multi-Select */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Internal Models
+              <span className="text-[11px] text-zinc-500 font-normal ml-1.5">(Optional)</span>
+            </label>
+            {/* Trigger button */}
+            <button
+              type="button"
+              onClick={() => {
+                setInternalModelsSelection(selectedInternalModelTags);
+                setInternalModelsSearch('');
+                setInternalModelsModalOpen(true);
+              }}
+              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border text-sm transition-all duration-200 text-left outline-none bg-zinc-900/60 border-zinc-700/50 text-white hover:border-zinc-500 hover:bg-zinc-900/80"
+            >
+              <span className="flex-1 text-zinc-500">
+                {selectedInternalModelTags.length > 0
+                  ? `Click to select models... (${selectedInternalModelTags.length} selected)`
+                  : 'Select internal models...'}
+              </span>
+              {selectedInternalModelTags.length > 0 && (
+                <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-light-pink text-white text-[10px] font-bold">
+                  {selectedInternalModelTags.length}
+                </span>
+              )}
+              <ChevronDown className="shrink-0 w-4 h-4 text-zinc-500" />
+            </button>
+
+            {/* Selected model names as pills */}
+            {selectedInternalModelTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {selectedInternalModelTags.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-light-pink/10 border border-brand-light-pink/20 text-brand-light-pink rounded-lg text-[11px] font-medium"
+                  >
+                    {name}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue(
+                          'internalModelTags',
+                          selectedInternalModelTags.filter((n) => n !== name)
+                        )
+                      }
+                      className="ml-0.5 hover:text-white transition-colors text-brand-mid-pink"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-zinc-500 mt-1">Tag internal models associated with this content</p>
+
+            {/* Modal Overlay */}
+            {internalModelsModalOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-6"
+              >
+                {/* Backdrop */}
+                <div
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                  onClick={() => {
+                    setInternalModelsModalOpen(false);
+                    setInternalModelsSearch('');
+                  }}
+                />
+
+                {/* Modal */}
+                <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/60 flex flex-col max-h-[60vh]">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-white">Select Internal Models</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInternalModelsModalOpen(false);
+                        setInternalModelsSearch('');
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Search */}
+                  <div className="px-5 py-3 border-b border-zinc-800/60">
+                    <div className="relative flex items-center">
+                      <Search className={`absolute left-3 w-3.5 h-3.5 pointer-events-none transition-colors ${internalModelsSearch ? 'text-brand-light-pink' : 'text-zinc-600'}`} />
+                      <input
+                        type="text"
+                        value={internalModelsSearch}
+                        onChange={(e) => setInternalModelsSearch(e.target.value)}
+                        placeholder="Search models..."
+                        className="w-full pl-8 pr-8 py-2 text-sm bg-zinc-900/80 border border-zinc-700/40 rounded-lg text-white placeholder-zinc-600 outline-none focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/15 transition-all duration-150"
+                        autoFocus
+                      />
+                      {internalModelsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setInternalModelsSearch('')}
+                          className="absolute right-2 text-zinc-600 hover:text-brand-light-pink transition-colors p-0.5 rounded"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Model grid */}
+                  <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                    {influencerProfilesLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                      </div>
+                    ) : filteredProfiles.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 gap-2">
+                        <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center">
+                          <Search className="w-3.5 h-3.5 text-zinc-600" />
+                        </div>
+                        <span className="text-xs text-zinc-600">
+                          {internalModelsSearch
+                            ? `No models matching "${internalModelsSearch}"`
+                            : 'No active models found'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {filteredProfiles.map((profile) => {
+                          const displayName = profile.name;
+                          const isChecked = internalModelsSelection.includes(displayName);
+                          return (
+                            <button
+                              key={profile.id}
+                              type="button"
+                              onClick={() => {
+                                setInternalModelsSelection((prev) =>
+                                  isChecked
+                                    ? prev.filter((n) => n !== displayName)
+                                    : [...prev, displayName]
+                                );
+                              }}
+                              className={[
+                                'flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all duration-100 text-left border',
+                                isChecked
+                                  ? 'bg-brand-light-pink/10 border-brand-light-pink/30 text-white'
+                                  : 'border-zinc-800 text-zinc-300 hover:bg-zinc-800/60 hover:text-white hover:border-zinc-700',
+                              ].join(' ')}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                                  isChecked
+                                    ? 'bg-brand-light-pink border-brand-light-pink'
+                                    : 'border-zinc-600 bg-zinc-900'
+                                }`}
+                              >
+                                {isChecked && (
+                                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                )}
+                              </div>
+                              <span className="truncate">{displayName}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-zinc-800">
+                    <span className="text-[11px] text-zinc-500">
+                      {internalModelsSelection.length} selected
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInternalModelsModalOpen(false);
+                          setInternalModelsSearch('');
+                        }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValue('internalModelTags', internalModelsSelection);
+                          setInternalModelsModalOpen(false);
+                          setInternalModelsSearch('');
+                        }}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg bg-brand-light-pink hover:bg-brand-dark-pink text-white transition-colors"
+                      >
+                        Save Selection ({internalModelsSelection.length})
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Template-specific metadata fields */}
       {templateFields.length > 0 && (
         <div className="space-y-4">
@@ -223,6 +1002,7 @@ export function ContentDetailsFields({
                 field={field}
                 value={metadata[field.key]}
                 onChange={(value) => handleMetadataChange(field.key, value)}
+                profiles={field.key === 'model' ? sortedProfiles : undefined}
               />
             ))}
           </div>
@@ -290,10 +1070,12 @@ function MetadataFieldInput({
   field,
   value,
   onChange,
+  profiles,
 }: {
   field: MetadataFieldDescriptor;
   value: any;
   onChange: (value: any) => void;
+  profiles?: { id: string; name: string; username?: string | null }[];
 }) {
   const inputClass =
     'w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 transition-all duration-150';
@@ -370,6 +1152,22 @@ function MetadataFieldInput({
       <div className="sm:col-span-2">
         {label}
         <TagInput tags={tags} onChange={onChange} placeholder={field.placeholder} />
+      </div>
+    );
+  }
+
+  // Model field with profiles → searchable dropdown
+  if (field.key === 'model' && profiles && profiles.length > 0) {
+    return (
+      <div>
+        {label}
+        <SearchableDropdown
+          options={profiles.map((p) => p.name)}
+          value={(value as string) || ''}
+          onChange={onChange}
+          placeholder="Search models..."
+          searchPlaceholder="Type to search models..."
+        />
       </div>
     );
   }
@@ -567,7 +1365,7 @@ function AssigneePicker({
           </div>
 
           {isOpen && (
-            <div className="absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-fade-in">
+            <div className="absolute z-50 mt-2 w-full bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-fade-in">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
