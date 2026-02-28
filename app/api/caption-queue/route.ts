@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       // Create content items
       if ((contentItems as typeof contentItems).length > 0) {
         await tx.captionQueueContentItem.createMany({
-          data: (contentItems as typeof contentItems).map((item, i) => ({
+          data: (contentItems as Array<{ url: string; sourceType: string; fileName?: string | null; fileType?: string | null; sortOrder?: number }>).map((item, i) => ({
             ticketId: ticket.id,
             url: item.url,
             sourceType: item.sourceType,
