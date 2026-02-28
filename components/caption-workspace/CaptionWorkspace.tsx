@@ -11,10 +11,9 @@ import ReferencePanel from './ReferencePanel';
 import { CaptionWorkspaceSkeleton } from './Skeletons';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { QueueTicket, ModelContext, TopCaption, formatPageStrategy } from './types';
-import { useCaptionQueue, useUpdateQueueItem } from '@/lib/hooks/useCaptionQueue.query';
+import { useCaptionQueue, useUpdateQueueItem, useUpdateContentItemCaption } from '@/lib/hooks/useCaptionQueue.query';
 import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
-
-// Resizable panel component
+import { useCaptionQueueSSE, type RemoteCaptionUpdate } from '@/lib/hooks/useCaptionQueueSSE';
 const ResizablePanel = memo(function ResizablePanel({ 
   children, 
   initialHeight = 45,
@@ -93,13 +92,35 @@ export default function CaptionWorkspace() {
   const [activeTab, setActiveTab] = useState<'context' | 'reference'>('context');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Caption drafts stored by ticket ID
+  // Caption drafts stored by "ticketId" (legacy) or "ticketId:itemId" (multi-item)
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
+
+  // Per-ticket selected content item index
+  const [selectedItemIndices, setSelectedItemIndices] = useState<Record<string, number>>({});
+
+  // Per-ticket timestamp of the last KEY LOCAL edit — used to avoid overwriting
+  // text the current user is actively typing with a remote update.
+  const lastLocalEditRef = useRef<Record<string, number>>({});
 
   // Fetch real queue data
   const { data: queueData, isLoading, error } = useCaptionQueue();
   const updateQueueMutation = useUpdateQueueItem();
+  const updateItemCaptionMutation = useUpdateContentItemCaption();
   const queryClient = useQueryClient();
+
+  // Real-time: when another org member saves a caption, push it into our
+  // local draft state — unless the current user typed in that ticket within
+  // the last 5 seconds (i.e. they're actively editing it themselves).
+  const handleRemoteCaption = useCallback((update: RemoteCaptionUpdate) => {
+    if (update.captionText === null) return;
+    const lastEdit = lastLocalEditRef.current[update.ticketId] ?? 0;
+    const idleLongEnough = Date.now() - lastEdit > 5_000;
+    if (!idleLongEnough) return; // user is actively typing — don't interrupt
+    setCaptionDrafts(prev => ({ ...prev, [update.ticketId]: update.captionText! }));
+  }, []);
+
+  // Subscribe to real-time push events.
+  useCaptionQueueSSE({ onRemoteCaption: handleRemoteCaption });
 
   // Transform API data to match QueueTicket interface
   const allQueue: QueueTicket[] = useMemo(() => 
@@ -126,6 +147,15 @@ export default function CaptionWorkspace() {
       videoUrl: item.contentSourceType === 'upload' ? (item.contentUrl || null) : null,
       contentUrl: item.contentUrl,
       contentSourceType: item.contentSourceType as 'upload' | 'gdrive' | null,
+      contentItems: (item.contentItems || []).map(ci => ({
+        id: ci.id,
+        url: ci.url,
+        sourceType: ci.sourceType as 'upload' | 'gdrive',
+        fileName: ci.fileName,
+        fileType: ci.fileType as 'image' | 'video' | null,
+        sortOrder: ci.sortOrder,
+        captionText: ci.captionText,
+      })),
     })) || [],
   [queueData]);
 
@@ -147,10 +177,17 @@ export default function CaptionWorkspace() {
     setCaptionDrafts(prev => {
       const newDrafts = { ...prev };
       queueData.forEach(item => {
-        // Only set if not already in local state and has saved caption
-        if (!newDrafts[item.id] && item.captionText) {
+        // Legacy single-caption tickets
+        if (!item.contentItems?.length && !newDrafts[item.id] && item.captionText) {
           newDrafts[item.id] = item.captionText;
         }
+        // Per-item captions
+        item.contentItems?.forEach(ci => {
+          const key = `${item.id}:${ci.id}`;
+          if (!newDrafts[key] && ci.captionText) {
+            newDrafts[key] = ci.captionText;
+          }
+        });
       });
       return newDrafts;
     });
@@ -160,6 +197,7 @@ export default function CaptionWorkspace() {
   const getOriginalIndex = useCallback((filteredIndex: number) => {
     if (!searchQuery.trim()) return filteredIndex;
     const filteredItem = queue[filteredIndex];
+    if (!filteredItem) return filteredIndex;
     return queueData?.findIndex(item => item.id === filteredItem.id) ?? filteredIndex;
   }, [queue, queueData, searchQuery]);
 
@@ -195,60 +233,95 @@ export default function CaptionWorkspace() {
     });
   }, [originalIndex, queueData, queryClient]);
 
-  // Get current caption for selected ticket (supports draft persistence)
-  const currentCaption = selectedTicketData 
-    ? (captionDrafts[selectedTicketData.id] ?? '') 
+  // ── Per-item helpers ──────────────────────────────────────────────────
+  const hasMultipleItems = (selectedTicketData?.contentItems?.length ?? 0) > 0;
+  const currentItemIndex = selectedTicketData
+    ? (selectedItemIndices[selectedTicketData.id] ?? 0)
+    : 0;
+  const currentItem = selectedTicketData?.contentItems?.[currentItemIndex] ?? null;
+  const captionDraftKey = selectedTicketData
+    ? (currentItem ? `${selectedTicketData.id}:${currentItem.id}` : selectedTicketData.id)
     : '';
 
-  // Update caption for current ticket
+  // Current caption (item-aware)
+  const currentCaption = captionDraftKey ? (captionDrafts[captionDraftKey] ?? '') : '';
+
+  // Update caption (item-aware)
   const handleCaptionChange = useCallback((newCaption: string) => {
+    if (!captionDraftKey) return;
+    lastLocalEditRef.current[captionDraftKey] = Date.now();
+    setCaptionDrafts(prev => ({ ...prev, [captionDraftKey]: newCaption }));
+  }, [captionDraftKey]);
+
+  // Navigate to a specific item within the current ticket
+  const handleSelectItem = useCallback((itemIndex: number) => {
     if (!selectedTicketData) return;
-    setCaptionDrafts(prev => ({
-      ...prev,
-      [selectedTicketData.id]: newCaption
-    }));
+    setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: itemIndex }));
   }, [selectedTicketData]);
 
-  // Check if current ticket has a draft
-  const hasDraft = selectedTicketData && captionDrafts[selectedTicketData.id]?.length > 0;
+  // Check if current slot has a draft
+  const hasDraft = !!captionDraftKey && (captionDrafts[captionDraftKey]?.length ?? 0) > 0;
 
-  // Save draft handler
+  // Save draft handler (item-aware)
   const handleSaveDraft = useCallback(async (captionText: string) => {
     if (!selectedTicketData || !queueData) return;
     
-    const ticketId = queueData[originalIndex]?.id;
-    if (!ticketId) return;
+    if (currentItem) {
+      // Save to the specific content item
+      await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
+    } else {
+      // Legacy: save to ticket's captionText field
+      const ticketId = queueData[originalIndex]?.id;
+      if (!ticketId) return;
+      await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'draft' } });
+    }
+  }, [selectedTicketData, queueData, originalIndex, currentItem, updateItemCaptionMutation, updateQueueMutation]);
 
-    await updateQueueMutation.mutateAsync({
-      id: ticketId,
-      data: { captionText, status: 'draft' },
-    });
-  }, [selectedTicketData, queueData, originalIndex, updateQueueMutation]);
-
-  // Submit for QA handler
+  // Submit caption handler (item-aware)
   const handleSubmitCaption = useCallback(async (captionText: string) => {
     if (!selectedTicketData || !queueData) return;
     
-    const ticketId = queueData[originalIndex]?.id;
-    if (!ticketId) return;
+    if (currentItem) {
+      // Save the item caption
+      await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
+      // Clear this item's draft
+      setCaptionDrafts(prev => {
+        const next = { ...prev };
+        delete next[captionDraftKey];
+        return next;
+      });
 
-    await updateQueueMutation.mutateAsync({
-      id: ticketId,
-      data: { captionText, status: 'pending_qa' },
-    });
+      const totalItems = selectedTicketData.contentItems.length;
+      const nextItemIndex = currentItemIndex + 1;
 
-    // Clear draft after submission
-    setCaptionDrafts(prev => {
-      const next = { ...prev };
-      delete next[selectedTicketData.id];
-      return next;
-    });
-
-    // Move to next ticket if available
-    if (selectedTicket < queue.length - 1) {
-      setSelectedTicket(selectedTicket + 1);
+      if (nextItemIndex < totalItems) {
+        // Advance to next item
+        setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: nextItemIndex }));
+      } else {
+        // All items done — mark ticket as pending_qa and move to next ticket
+        const ticketId = queueData[originalIndex]?.id;
+        if (ticketId) {
+          await updateQueueMutation.mutateAsync({ id: ticketId, data: { status: 'pending_qa' } });
+        }
+        if (selectedTicket < queue.length - 1) {
+          setSelectedTicket(selectedTicket + 1);
+          setSelectedItemIndices({});
+        }
+      }
+    } else {
+      // Legacy single-caption ticket
+      const ticketId = queueData[originalIndex]?.id;
+      if (!ticketId) return;
+      await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'pending_qa' } });
+      setCaptionDrafts(prev => {
+        const next = { ...prev };
+        delete next[selectedTicketData.id];
+        return next;
+      });
+      if (selectedTicket < queue.length - 1) setSelectedTicket(selectedTicket + 1);
     }
-  }, [selectedTicketData, queueData, originalIndex, updateQueueMutation, selectedTicket, queue.length]);
+  }, [selectedTicketData, queueData, originalIndex, currentItem, currentItemIndex, captionDraftKey,
+      updateItemCaptionMutation, updateQueueMutation, selectedTicket, queue.length]);
 
   // Handle queue reorder (local state update)
   const handleQueueReorder = useCallback((startIndex: number, endIndex: number) => {
@@ -364,9 +437,9 @@ export default function CaptionWorkspace() {
   }, [selectedTicketData]);
 
   return (
-    <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden bg-brand-off-white dark:bg-gray-950 border border-brand-mid-pink/20 rounded-2xl shadow-lg custom-scrollbar">
+    <div className="h-[85vh] overflow-hidden bg-brand-off-white dark:bg-gray-950 border border-brand-mid-pink/20 rounded-2xl shadow-lg">
       {/* Responsive grid: stack on mobile, 3-col on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] grid-rows-[60px_1fr] h-[85vh]">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] grid-rows-[60px_1fr] h-full">
         {/* Header */}
         <div className="col-span-1 lg:col-span-3 px-4 lg:px-6 border-b border-brand-mid-pink/20 flex items-center justify-between bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl sticky top-0 z-40 rounded-t-2xl">
           <div className="flex items-center gap-3 lg:gap-4">
@@ -435,7 +508,7 @@ export default function CaptionWorkspace() {
         {!isLoading && !error && queue.length > 0 && (
           <>
         {/* Left Panel: Queue - Hidden on mobile, shown with toggle */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:flex lg:flex-col h-full overflow-hidden">
           <ErrorBoundary componentName="Queue Panel">
             <QueuePanel 
               queue={queue} 
@@ -449,10 +522,14 @@ export default function CaptionWorkspace() {
         </div>
 
         {/* Center Panel: Content Viewer + Editor with Resizable */}
-        <div className="overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden">
           <ResizablePanel initialHeight={40} minHeight={25} maxHeight={65}>
             <ErrorBoundary componentName="Content Viewer">
-              <ContentViewer ticket={queue[selectedTicket]} />
+              <ContentViewer
+                ticket={queue[selectedTicket]}
+                selectedItemIndex={currentItemIndex}
+                onSelectItem={handleSelectItem}
+              />
             </ErrorBoundary>
             <ErrorBoundary componentName="Caption Editor">
               <CaptionEditor
@@ -464,6 +541,8 @@ export default function CaptionWorkspace() {
                 ticketId={selectedTicketData?.id}
                 onSaveDraft={handleSaveDraft}
                 onSubmit={handleSubmitCaption}
+                currentItemIndex={hasMultipleItems ? currentItemIndex : undefined}
+                totalItems={hasMultipleItems ? (selectedTicketData?.contentItems.length ?? 0) : undefined}
               />
             </ErrorBoundary>
           </ResizablePanel>

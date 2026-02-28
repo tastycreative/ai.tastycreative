@@ -1,9 +1,8 @@
 'use client';
 
-import { useRef, useCallback, memo, useState } from 'react';
+import { useRef, memo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Search, X, GripVertical, Loader2 } from 'lucide-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useInView } from 'react-intersection-observer';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { toast } from 'sonner';
@@ -146,13 +145,17 @@ const QueueItem = memo(function QueueItem({
       </div>
 
       {/* Tags */}
-      <div className="flex flex-wrap gap-1.5 mb-1.5">
-        <span className="px-2 py-0.5 bg-brand-off-white dark:bg-gray-800 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 border border-brand-mid-pink/10">
-          {ticket.contentTypes.join(', ')}
-        </span>
-        <span className="px-2 py-0.5 bg-brand-off-white dark:bg-gray-800 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 border border-brand-mid-pink/10">
-          {Array.isArray(ticket.messageType) ? ticket.messageType.join(', ') : ticket.messageType}
-        </span>
+      <div className="flex flex-wrap gap-1 mb-1.5">
+        {ticket.contentTypes.map((type) => (
+          <span key={type} className="px-1.5 py-0.5 bg-brand-off-white dark:bg-gray-800 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 border border-brand-mid-pink/10 whitespace-nowrap">
+            {type}
+          </span>
+        ))}
+        {(Array.isArray(ticket.messageType) ? ticket.messageType : [ticket.messageType]).map((type) => (
+          <span key={type} className="px-1.5 py-0.5 bg-brand-blue/10 rounded text-[10px] font-medium text-brand-blue border border-brand-blue/20 whitespace-nowrap">
+            {type}
+          </span>
+        ))}
       </div>
 
       {/* Release date */}
@@ -174,15 +177,6 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
   const parentRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const reorderMutation = useReorderQueueItems();
-  
-  // Virtual list for performance with large queues (disabled when dragging)
-  const virtualizer = useVirtualizer({
-    count: queue.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: useCallback(() => 150, []), // Estimated height of each item
-    overscan: 5,
-    enabled: !isDragging, // Disable virtualization while dragging
-  });
 
   const handleClearSearch = () => {
     onSearchChange('');
@@ -292,9 +286,7 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
             <div 
               ref={(el) => {
                 provided.innerRef(el);
-                if (parentRef.current !== el) {
-                  (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-                }
+                (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
               }}
               {...provided.droppableProps}
               className={`flex-1 overflow-auto custom-scrollbar ${snapshot.isDraggingOver ? 'bg-brand-mid-pink/5' : ''}`}
@@ -316,13 +308,13 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
                     </button>
                   )}
                 </div>
-              ) : isDragging || searchQuery ? (
-                // Non-virtualized list when dragging or searching
+              ) : (
+                // Plain list — no virtualizer, card heights are always correct
                 <>
                   {queue.map((ticket, index) => (
-                    <Draggable 
-                      key={ticket.id} 
-                      draggableId={ticket.id} 
+                    <Draggable
+                      key={ticket.id}
+                      draggableId={ticket.id}
                       index={index}
                       isDragDisabled={!!searchQuery}
                     >
@@ -356,7 +348,6 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
                           </div>
                         );
 
-                        // Use portal when dragging
                         if (snapshot.isDragging && typeof document !== 'undefined') {
                           return createPortal(dragContent, document.body);
                         }
@@ -367,74 +358,6 @@ function QueuePanel({ queue, selectedTicket, onSelectTicket, searchQuery, onSear
                   ))}
                   {provided.placeholder}
                 </>
-              ) : (
-                // Virtualized list when not dragging
-                <div
-                  style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((virtualRow) => (
-                    <Draggable 
-                      key={queue[virtualRow.index].id} 
-                      draggableId={queue[virtualRow.index].id} 
-                      index={virtualRow.index}
-                    >
-                      {(provided, snapshot) => {
-                        const style = provided.draggableProps.style;
-                        let draggingStyle: React.CSSProperties;
-                        
-                        if (snapshot.isDragging) {
-                          // When dragging, use fixed positioning
-                          const parentRect = parentRef.current?.getBoundingClientRect();
-                          draggingStyle = {
-                            ...style,
-                            position: 'fixed',
-                            width: parentRect?.width || 300,
-                            left: parentRect?.left || 0,
-                            zIndex: 9999,
-                          };
-                        } else {
-                          // When not dragging, position absolutely within the virtual list
-                          draggingStyle = {
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            transform: `translateY(${virtualRow.start}px)`,
-                          };
-                        }
-
-                        const dragContent = (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            style={draggingStyle}
-                          >
-                            <QueueItem
-                              ticket={queue[virtualRow.index]}
-                              index={virtualRow.index}
-                              isSelected={selectedTicket === virtualRow.index}
-                              onSelect={() => onSelectTicket(virtualRow.index)}
-                              isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps ?? undefined}
-                            />
-                          </div>
-                        );
-
-                        // Use portal when dragging to avoid positioning issues
-                        if (snapshot.isDragging && typeof document !== 'undefined') {
-                          return createPortal(dragContent, document.body);
-                        }
-
-                        return dragContent;
-                      }}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
               )}
             </div>
           )}

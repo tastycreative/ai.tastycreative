@@ -1168,36 +1168,89 @@ model CaptionToMessageType {
 }
 
 model CaptionQueueTicket {
-  id                String    @id @default(cuid())
+  id                String                   @id @default(cuid())
   clerkId           String
+  organizationId    String?
   profileId         String?
   modelName         String
   modelAvatar       String
   description       String
-  urgency           String    @default("medium")
+  urgency           String                   @default("medium")
   releaseDate       DateTime
-  status            String    @default("pending")
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  status            String                   @default("pending")
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
   assignedTo        String?
   completedAt       DateTime?
   captionText       String?
-  contentTypes      String[]  @default([])
-  messageTypes      String[]  @default([])
+  contentTypes      String[]                 @default([])
+  messageTypes      String[]                 @default([])
   profileImageUrl   String?
   contentSourceType String?
   contentUrl        String?
   originalFileName  String?
   sortOrder         Int?
+  organization      Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  assignees         CaptionQueueAssignee[]
+  contentItems      CaptionQueueContentItem[]
 
   @@index([clerkId])
+  @@index([organizationId])
   @@index([profileId])
   @@index([status])
   @@index([urgency])
   @@index([releaseDate])
   @@index([clerkId, status])
   @@index([clerkId, sortOrder])
+  @@index([organizationId, status])
   @@map("caption_queue_tickets")
+}
+
+/// Individual content piece (image/video/drive link) within a caption queue ticket.
+/// Each item has its own caption so a single ticket can cover multiple assets.
+model CaptionQueueContentItem {
+  id          String             @id @default(cuid())
+  ticketId    String
+  url         String
+  sourceType  String             // 'upload' | 'gdrive'
+  fileName    String?
+  fileType    String?            // 'image' | 'video'
+  sortOrder   Int                @default(0)
+  captionText String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  ticket      CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("caption_queue_content_items")
+}
+
+model CaptionQueueAssignee {
+  id         String             @id @default(cuid())
+  ticketId   String
+  clerkId    String
+  assignedAt DateTime           @default(now())
+  ticket     CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, clerkId])
+  @@index([ticketId])
+  @@index([clerkId])
+  @@map("caption_queue_assignees")
+}
+
+/// Stores each user's personal sort order for caption queue tickets within an org.
+/// This allows each user (including Creators) to have their own independent ordering
+/// without affecting what other members see.
+model CaptionQueueUserOrder {
+  id        String   @id @default(cuid())
+  clerkId   String
+  orgId     String
+  ticketIds String[] @default([])
+  updatedAt DateTime @updatedAt
+
+  @@unique([clerkId, orgId])
+  @@index([clerkId])
+  @@map("caption_queue_user_orders")
 }
 
 model SextingSet {
@@ -1307,6 +1360,7 @@ model Organization {
   marketplaceModels             MarketplaceModel[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
+  captionQueueTickets           CaptionQueueTicket[]
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]

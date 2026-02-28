@@ -154,53 +154,73 @@ export async function POST(request: NextRequest) {
 
     console.log("Sending Image-to-Image request to BytePlus API with payload:", JSON.stringify(payload, null, 2));
 
-    // Call BytePlus API
-    const response = await fetch(BYTEPLUSES_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${BYTEPLUSES_API_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Call BytePlus API with automatic retry on ServerOverloaded / 429
+    const RETRY_DELAYS_MS = [5_000, 10_000, 20_000]; // 5s → 10s → 20s
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    let response!: Response;
+    let lastErrorData: any = null;
+    let lastStatus = 0;
+
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      response = await fetch(BYTEPLUSES_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${BYTEPLUSES_API_KEY}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) break; // success — exit retry loop
+
+      const errorText = await response.text();
+      try {
+        lastErrorData = JSON.parse(errorText);
+      } catch {
+        lastErrorData = { message: errorText };
+      }
+      lastStatus = response.status;
+
+      const isOverloaded = response.status === 429 || lastErrorData?.error?.code === 'ServerOverloaded';
+
+      if (!isOverloaded || attempt === RETRY_DELAYS_MS.length) {
+        // Non-retriable error, or we've exhausted retries — fall through to error handler
+        break;
+      }
+
+      const delay = RETRY_DELAYS_MS[attempt];
+      console.warn(`BytePlus ServerOverloaded (attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}). Retrying in ${delay / 1000}s...`);
+      await sleep(delay);
+    }
 
     if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { message: errorText };
-      }
       console.error("BytePlus API error response:", {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-        fullResponse: errorText
+        status: lastStatus,
+        error: lastErrorData,
       });
-      
+
       // Extract error message, handling nested error objects
       let errorMessage = "Image generation failed";
-      if (typeof errorData.message === 'string') {
-        errorMessage = errorData.message;
-      } else if (typeof errorData.error === 'string') {
-        errorMessage = errorData.error;
-      } else if (errorData.error && typeof errorData.error === 'object') {
-        // Handle nested error object (e.g., {error: {code: "ServerOverloaded", message: "..."}})
-        errorMessage = errorData.error.message || errorData.error.code || "Image generation failed";
+      if (typeof lastErrorData?.message === 'string') {
+        errorMessage = lastErrorData.message;
+      } else if (typeof lastErrorData?.error === 'string') {
+        errorMessage = lastErrorData.error;
+      } else if (lastErrorData?.error && typeof lastErrorData.error === 'object') {
+        errorMessage = lastErrorData.error.message || lastErrorData.error.code || "Image generation failed";
       }
-      
+
       // Add user-friendly messages for specific error codes
-      if (response.status === 429 || errorData.error?.code === 'ServerOverloaded') {
-        errorMessage = "API rate limit exceeded or server is overloaded. Please try again in a few moments with fewer images (1-3 recommended).";
+      if (lastStatus === 429 || lastErrorData?.error?.code === 'ServerOverloaded') {
+        errorMessage = "BytePlus servers are currently overloaded. Generation was attempted 4 times but the service is unavailable. Please try again in a few minutes.";
       }
-      
+
       return NextResponse.json(
-        { 
+        {
           error: errorMessage,
-          details: errorData 
+          details: lastErrorData,
         },
-        { status: response.status }
+        { status: lastStatus || 503 }
       );
     }
 

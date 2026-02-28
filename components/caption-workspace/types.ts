@@ -1,3 +1,13 @@
+export interface ContentItemData {
+  id: string;
+  url: string;
+  sourceType: 'upload' | 'gdrive';
+  fileName?: string | null;
+  fileType?: 'image' | 'video' | null;
+  sortOrder: number;
+  captionText?: string | null;
+}
+
 export interface QueueTicket {
   id: string;
   model: {
@@ -14,6 +24,8 @@ export interface QueueTicket {
   videoUrl: string | null;
   contentUrl?: string | null;
   contentSourceType?: 'upload' | 'gdrive' | null;
+  /** Multi-content items (each has its own caption) */
+  contentItems: ContentItemData[];
 }
 
 export interface ModelContext {

@@ -15,6 +15,9 @@ interface CaptionEditorProps {
   ticketId?: string;
   onSaveDraft?: (caption: string) => Promise<void>;
   onSubmit?: (caption: string) => Promise<void>;
+  /** When set, shows "Caption X of N" indicator */
+  currentItemIndex?: number;
+  totalItems?: number;
 }
 
 const MAX_CAPTION_LENGTH = 2200;
@@ -97,6 +100,8 @@ function CaptionEditorComponent({
   ticketId,
   onSaveDraft,
   onSubmit,
+  currentItemIndex,
+  totalItems,
 }: CaptionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -168,10 +173,19 @@ function CaptionEditorComponent({
   }, [onSubmit, caption, isValid, isOverLimit]);
 
   return (
-    <div className="h-full p-5 flex flex-col overflow-y-auto bg-white dark:bg-gray-900/80 custom-scrollbar">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900/80">
+      {/* Scrollable area: header + textarea + warnings + emojis */}
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-5 pb-3 custom-scrollbar">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Write Caption</span>
+
+        {/* Multi-item indicator */}
+        {totalItems !== undefined && currentItemIndex !== undefined && (
+          <span className="px-2 py-0.5 bg-brand-mid-pink/10 border border-brand-mid-pink/20 text-brand-mid-pink rounded text-[10px] font-semibold">
+            {currentItemIndex + 1} / {totalItems}
+          </span>
+        )}
         
         {/* Auto-save indicator */}
         {isAutoSaving && (
@@ -232,7 +246,10 @@ function CaptionEditorComponent({
         </div>
       )}
 
-      {/* Action buttons */}
+      </div>{/* end scrollable area */}
+
+      {/* Action buttons — always pinned at bottom */}
+      <div className="shrink-0 px-5 py-3 border-t border-brand-mid-pink/10 bg-white dark:bg-gray-900/80">
       <div className="flex gap-3">
         <button 
           onClick={handleSaveDraft}
@@ -260,9 +277,14 @@ function CaptionEditorComponent({
           ) : (
             <Send size={14} />
           )}
-          Submit for QA
+          {totalItems !== undefined && currentItemIndex !== undefined
+            ? currentItemIndex < totalItems - 1
+              ? `Next (${currentItemIndex + 1}/${totalItems})`
+              : `Submit All`
+            : 'Submit for QA'}
         </button>
       </div>
+      </div>{/* end action buttons container */}
     </div>
   );
 }

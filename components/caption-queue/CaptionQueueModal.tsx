@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, PlusCircle } from 'lucide-react';
+import { X, ClipboardList } from 'lucide-react';
 import { CaptionQueueForm } from './CaptionQueueForm';
 
 interface CaptionQueueModalProps {
@@ -13,25 +13,31 @@ interface CaptionQueueModalProps {
 
 export function CaptionQueueModal({ isOpen, onClose, onSuccess }: CaptionQueueModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  // Handle client-side mounting for portal
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
-  // Handle escape key to close modal
+  // Drive enter / exit animation
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => setVisible(true), 10);
+      return () => clearTimeout(t);
+    } else {
+      setVisible(false);
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
 
     document.addEventListener('keydown', handleEscape);
-    // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
 
     return () => {
@@ -49,40 +55,66 @@ export function CaptionQueueModal({ isOpen, onClose, onSuccess }: CaptionQueueMo
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
+        visible ? 'bg-black/65 backdrop-blur-md' : 'bg-transparent backdrop-blur-none'
+      }`}
       onClick={onClose}
     >
+      {/* Ambient glow behind the panel */}
       <div
-        className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-brand-mid-pink/20 dark:border-brand-mid-pink/30"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-175 h-87.5 bg-brand-mid-pink/8 blur-[120px] rounded-full" />
+        <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 translate-y-1/2 w-125 h-62.5 bg-brand-blue/6 blur-[100px] rounded-full" />
+      </div>
+
+      {/* Panel */}
+      <div
+        className={`relative max-w-4xl w-full max-h-[90vh] overflow-hidden rounded-2xl shadow-[0_32px_80px_rgba(0,0,0,0.5)] border transition-all duration-300
+          bg-white dark:bg-[#0d0b16]
+          border-zinc-200/80 dark:border-white/8
+          ${visible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.97] translate-y-3'}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brand-mid-pink/70 to-transparent" />
+
         {/* Header */}
-        <div className="bg-linear-to-r from-brand-mid-pink to-brand-light-pink p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                <PlusCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold">Add to Caption Queue</h2>
-                <p className="text-brand-off-white text-sm mt-1">
-                  Create a new caption writing task for your content
-                </p>
-              </div>
+        <div className="relative flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-white/6">
+          {/* Subtle header tint */}
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-brand-mid-pink/4 to-transparent" />
+
+          <div className="relative flex items-center gap-3.5">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-brand-mid-pink/10 dark:bg-brand-mid-pink/15 border border-brand-mid-pink/20 dark:border-brand-mid-pink/25 shadow-sm shadow-brand-mid-pink/10">
+              <ClipboardList className="w-4.5 h-4.5 text-brand-mid-pink" />
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors duration-200"
-              aria-label="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-white tracking-tight">
+                Add to Caption Queue
+              </h2>
+              <p className="text-[11px] text-zinc-500 dark:text-white/35 mt-0.5">
+                Create a new caption writing task for your content
+              </p>
+            </div>
           </div>
+
+          <button
+            onClick={onClose}
+            className="relative flex items-center justify-center w-7 h-7 rounded-lg
+              bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10
+              border border-zinc-200 dark:border-white/8 hover:border-zinc-300 dark:hover:border-white/15
+              text-zinc-400 hover:text-zinc-600 dark:text-white/40 dark:hover:text-white/70
+              transition-all duration-200"
+            aria-label="Close modal"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* Content - Scrollable Form */}
-        <div className="overflow-y-auto max-h-[calc(90vh-120px)] custom-scrollbar bg-brand-off-white dark:bg-[#0f0d18]">
-          <div className="p-6">
+        {/* Scrollable form */}
+        <div className="overflow-y-auto max-h-[calc(90vh-73px)] custom-scrollbar bg-zinc-50 dark:bg-[#0a0812]">
+          <div className="px-6 py-5">
             <CaptionQueueForm onSuccess={handleSuccess} onCancel={onClose} />
           </div>
         </div>

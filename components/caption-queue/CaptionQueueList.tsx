@@ -1,8 +1,13 @@
 'use client';
 
-import { Calendar, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, Trash2, AlertCircle, Loader2, Users, Pencil } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import { useCaptionQueue, useDeleteQueueItem, CaptionQueueItem } from '@/lib/hooks/useCaptionQueue.query';
+import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
+import { useOrgCreators } from '@/lib/hooks/useOrgCreators.query';
+import { CaptionQueueEditModal } from './CaptionQueueEditModal';
 
 interface CaptionQueueListProps {
   refreshTrigger?: number;
@@ -41,6 +46,13 @@ function QueueItemSkeleton() {
 export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
   const { data: items = [], isLoading, error, refetch } = useCaptionQueue();
   const deleteItemMutation = useDeleteQueueItem();
+  const { canManageQueue } = useOrgRole();
+  const { data: creators = [] } = useOrgCreators(canManageQueue);
+  const { user } = useUser();
+  const [editingItem, setEditingItem] = useState<CaptionQueueItem | null>(null);
+
+  // Build clerkId → display name map for assigned creator badges
+  const creatorMap = Object.fromEntries(creators.map((c) => [c.clerkId, c.name || c.email || c.clerkId]));
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this queue item?')) return;
@@ -99,6 +111,7 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {items.map((item: CaptionQueueItem) => {
         const config = urgencyConfig[item.urgency as keyof typeof urgencyConfig] || urgencyConfig.medium;
@@ -120,17 +133,30 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
                 <span className={`px-2 py-0.5 ${config.bg} ${config.textColor} rounded text-[9px] font-bold`}>
                   {config.label}
                 </span>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  disabled={isDeleting}
-                  className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors disabled:opacity-50"
-                >
-                  {isDeleting ? (
-                    <Loader2 size={14} className="text-red-500 animate-spin" />
-                  ) : (
-                    <Trash2 size={14} className="text-red-500" />
-                  )}
-                </button>
+                {/* Edit button — managers+ or ticket creator */}
+                {(canManageQueue || item.clerkId === user?.id) && (
+                  <button
+                    onClick={() => setEditingItem(item)}
+                    className="p-1 hover:bg-brand-mid-pink/10 dark:hover:bg-brand-mid-pink/20 rounded transition-colors"
+                    aria-label="Edit queue item"
+                  >
+                    <Pencil size={13} className="text-brand-mid-pink" />
+                  </button>
+                )}
+                {/* Delete button — managers+ or ticket creator */}
+                {(canManageQueue || item.clerkId === user?.id) && (
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    disabled={isDeleting}
+                    className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <Loader2 size={14} className="text-red-500 animate-spin" />
+                    ) : (
+                      <Trash2 size={14} className="text-red-500" />
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -176,7 +202,7 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
             </div>
 
             {/* Release date */}
-            <div className="flex items-center gap-1 text-[11px] text-header-muted">
+            <div className="flex items-center gap-1 text-[11px] text-header-muted mb-3">
               <Calendar size={10} />
               {new Date(item.releaseDate).toLocaleString('en-US', { 
                 month: 'short', 
@@ -187,9 +213,38 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
                 hour12: true
               })}
             </div>
+
+            {/* Assigned creators */}
+            {item.assignees && item.assignees.length > 0 && (
+              <div className="flex items-start gap-2 mt-1 pt-3 border-t border-brand-mid-pink/10 dark:border-brand-mid-pink/15">
+                <Users size={11} className="text-brand-mid-pink mt-0.5 shrink-0" />
+                <div className="flex flex-wrap gap-1">
+                  {item.assignees.map((a) => {
+                    const name = creatorMap[a.clerkId] || a.clerkId.slice(0, 8);
+                    return (
+                      <span
+                        key={a.clerkId}
+                        className="px-1.5 py-0.5 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/15 text-brand-mid-pink rounded text-[10px] font-medium"
+                        title={a.clerkId}
+                      >
+                        {name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
+
+    {/* Edit modal */}
+    <CaptionQueueEditModal
+      item={editingItem}
+      isOpen={editingItem !== null}
+      onClose={() => setEditingItem(null)}
+    />
+  </>
   );
 }

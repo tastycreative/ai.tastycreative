@@ -3,9 +3,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 
+export interface CaptionQueueAssignee {
+  clerkId: string;
+}
+
+export interface CaptionQueueContentItem {
+  id: string;
+  url: string;
+  sourceType: string;
+  fileName?: string | null;
+  fileType?: string | null;
+  sortOrder: number;
+  captionText?: string | null;
+}
+
 export interface CaptionQueueItem {
   id: string;
   clerkId: string;
+  organizationId: string | null;
   profileId: string | null;
   modelName: string;
   modelAvatar: string;
@@ -24,15 +39,13 @@ export interface CaptionQueueItem {
   contentUrl?: string | null;
   contentSourceType?: string | null;
   sortOrder?: number;
+  /** Creators assigned to this ticket */
+  assignees: CaptionQueueAssignee[];
+  /** Individual content pieces, each with its own caption */
+  contentItems: CaptionQueueContentItem[];
 }
 
-// Urgency priority mapping for proper sorting
-const urgencyPriority: Record<string, number> = {
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-};
+
 
 async function fetchCaptionQueue(): Promise<CaptionQueueItem[]> {
   const response = await fetch('/api/caption-queue');
@@ -86,21 +99,9 @@ export function useCaptionQueue() {
     staleTime: 1000 * 60 * 2, // 2 minutes
     gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: false,
-    select: (data) => {
-      // Sort by sortOrder first if exists, then by urgency priority, then by releaseDate
-      return [...data].sort((a, b) => {
-        // If both have sortOrder, use that
-        if (a.sortOrder !== undefined && b.sortOrder !== undefined) {
-          return a.sortOrder - b.sortOrder;
-        }
-        
-        const urgencyDiff = (urgencyPriority[b.urgency] || 0) - (urgencyPriority[a.urgency] || 0);
-        if (urgencyDiff !== 0) return urgencyDiff;
-        
-        // If same urgency, sort by releaseDate (earliest first)
-        return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
-      });
-    },
+    // Order is handled server-side (personal per-user sort via CaptionQueueUserOrder).
+    // Do not re-sort here so that the server's order is respected and optimistic
+    // drag-and-drop reorders are rendered immediately without being reversed.
   });
 }
 
@@ -207,6 +208,29 @@ export function useReorderQueueItems() {
       }
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+    },
+  });
+}
+
+/**
+ * Mutation to update the captionText of a single CaptionQueueContentItem.
+ */
+export function useUpdateContentItemCaption() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: async (params: { itemId: string; captionText: string }) => {
+      const response = await fetch(`/api/caption-queue/items/${params.itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captionText: params.captionText }),
+      });
+      if (!response.ok) throw new Error('Failed to update item caption');
+      return response.json();
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
     },
   });
