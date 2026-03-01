@@ -1,4 +1,4 @@
-export { BoardTaskCard, type BoardTask } from './BoardTaskCard';
+export { BoardTaskCard, type BoardTask, type BoardTaskCardProps } from './BoardTaskCard';
 export { BoardColumn, type BoardColumnData } from './BoardColumn';
 export { BoardLayout, type BoardTab, type BoardFilters } from './BoardLayout';
 export { TaskDetailModal } from './TaskDetailModal';

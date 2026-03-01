@@ -19,7 +19,7 @@ export interface BoardTask {
   metadata?: Record<string, unknown>;
 }
 
-interface BoardTaskCardProps {
+export interface BoardTaskCardProps {
   task: BoardTask;
   index: number;
   onClick?: (task: BoardTask) => void;
