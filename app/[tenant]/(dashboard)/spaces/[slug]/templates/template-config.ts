@@ -34,7 +34,7 @@ const wallPostItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Bo
       ...(Array.isArray(meta.hashtags) ? (meta.hashtags as string[]) : []),
     ],
     dueDate: (meta.scheduledDate as string) ?? item.dueDate ?? undefined,
-    metadata: meta,
+    metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },
   };
 };
 
@@ -102,6 +102,7 @@ import { WallPostTaskDetailModal } from './WallPostTaskDetailModal';
 import { SextingSetsTaskDetailModal } from './SextingSetsTaskDetailModal';
 import { OtpPtrTaskDetailModal } from './OtpPtrTaskDetailModal';
 import { OtpPtrTaskCard } from './OtpPtrTaskCard';
+import { WallPostTaskCard } from './WallPostTaskCard';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -123,6 +124,7 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     ],
     itemToTask: wallPostItemToTask,
     DetailModal: WallPostTaskDetailModal,
+    CardComponent: WallPostTaskCard,
   },
   SEXTING_SETS: {
     label: 'Sexting Sets',
