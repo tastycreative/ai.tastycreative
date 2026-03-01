@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus, X, Pencil } from 'lucide-react';
-import { BoardTaskCard, type BoardTask } from './BoardTaskCard';
+import { BoardTaskCard, type BoardTask, type BoardTaskCardProps } from './BoardTaskCard';
+import type { ComponentType } from 'react';
 
 export interface BoardColumnData {
   id: string;
@@ -19,6 +20,7 @@ interface BoardColumnProps {
   onTaskTitleUpdate?: (task: BoardTask, newTitle: string) => void;
   onColumnTitleUpdate?: (columnId: string, newTitle: string) => void;
   onColumnColorUpdate?: (columnId: string, newColor: string) => void;
+  CardComponent?: ComponentType<BoardTaskCardProps>;
 }
 
 const STATUS_COLORS = [
@@ -51,7 +53,9 @@ export function BoardColumn({
   onTaskTitleUpdate,
   onColumnTitleUpdate,
   onColumnColorUpdate,
+  CardComponent,
 }: BoardColumnProps) {
+  const Card = CardComponent ?? BoardTaskCard;
   const dotColor = DOT_COLORS[column.color ?? 'blue'] ?? 'bg-brand-blue';
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -249,7 +253,7 @@ export function BoardColumn({
               )}
 
               {tasks.map((task, index) => (
-                <BoardTaskCard
+                <Card
                   key={task.id}
                   task={task}
                   index={index}

@@ -279,6 +279,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
         priority: updated.priority?.toUpperCase(),
         dueDate: updated.dueDate,
         assigneeId: updated.assignee,
+        metadata: updated.metadata,
       });
 
       setSelectedTask(updated);

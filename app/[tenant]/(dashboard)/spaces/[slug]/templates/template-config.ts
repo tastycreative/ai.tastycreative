@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { BoardTask, BoardTab } from '../../board';
+import type { BoardTask, BoardTab, BoardTaskCardProps } from '../../board';
 import type { BoardItem } from '@/lib/hooks/useBoardItems.query';
 import type { ItemToTaskFn } from '../useSpaceBoard';
 import { defaultItemToTask } from '../useSpaceBoard';
@@ -60,6 +60,13 @@ const sextingSetsItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string):
 const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): BoardTask => {
   const meta = (item.metadata ?? {}) as Record<string, unknown>;
   const priceTag = meta.price ? `$${meta.price}` : undefined;
+  const requestType = (meta.requestType as string) ?? '';
+  const contentStyle = (meta.contentStyle as string) ?? '';
+  const typeTag = requestType
+    ? contentStyle && contentStyle !== 'NORMAL'
+      ? `${requestType}-${contentStyle.replace(/_/g, ' ')}`
+      : requestType
+    : undefined;
   return {
     id: item.id,
     taskKey: spaceKey ? `${spaceKey}-${item.itemNo}` : item.id.slice(-6).toUpperCase(),
@@ -68,12 +75,12 @@ const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Boar
     assignee: (meta.model as string) ?? (item.assigneeId as string) ?? undefined,
     priority: meta.isPaid ? ('Low' as const) : ('High' as const),
     tags: [
-      ...(meta.requestType ? [meta.requestType as string] : []),
+      ...(typeTag ? [typeTag] : []),
       ...(priceTag ? [priceTag] : []),
       ...(meta.buyer ? [`@${meta.buyer}`] : []),
     ],
     dueDate: (meta.deadline as string) ?? item.dueDate ?? undefined,
-    metadata: meta,
+    metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },
   };
 };
 
@@ -86,6 +93,7 @@ export interface TemplateConfig {
   tabs: BoardTab[];
   itemToTask: ItemToTaskFn;
   DetailModal: ComponentType<TaskDetailModalProps>;
+  CardComponent?: ComponentType<BoardTaskCardProps>;
 }
 
 // Lazy imports — resolved at render time, keeps this file light
@@ -93,6 +101,7 @@ import { KanbanTaskDetailModal } from './KanbanTaskDetailModal';
 import { WallPostTaskDetailModal } from './WallPostTaskDetailModal';
 import { SextingSetsTaskDetailModal } from './SextingSetsTaskDetailModal';
 import { OtpPtrTaskDetailModal } from './OtpPtrTaskDetailModal';
+import { OtpPtrTaskCard } from './OtpPtrTaskCard';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -134,5 +143,6 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     ],
     itemToTask: otpPtrItemToTask,
     DetailModal: OtpPtrTaskDetailModal,
+    CardComponent: OtpPtrTaskCard,
   },
 };

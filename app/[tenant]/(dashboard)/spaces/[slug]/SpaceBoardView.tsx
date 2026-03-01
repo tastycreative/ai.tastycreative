@@ -82,7 +82,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const { currentOrganization } = useOrganization();
   const updateSpaceMutation = useUpdateSpace(space?.id ?? '');
   const config = TEMPLATE_CONFIG[space!.templateType];
-  const { DetailModal } = config;
+  const { DetailModal, CardComponent } = config;
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
   // Get current user's role in the space
@@ -217,6 +217,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onTaskTitleUpdate={handleTitleUpdate}
                         onColumnTitleUpdate={handleColumnTitleUpdate}
                         onColumnColorUpdate={handleColumnColorUpdate}
+                        CardComponent={CardComponent}
                       />
                     );
                   })}
