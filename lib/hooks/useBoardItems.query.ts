@@ -11,6 +11,7 @@ export interface BoardItemComment {
   id: string;
   content: string;
   createdBy: string;
+  author: string;
   createdAt: string;
 }
 
@@ -29,6 +30,7 @@ export interface BoardItemHistoryEntry {
   oldValue: string | null;
   newValue: string | null;
   userId: string;
+  userName: string;
   createdAt: string;
 }
 

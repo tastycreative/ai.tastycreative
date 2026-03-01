@@ -387,7 +387,7 @@ export function OtpPtrTaskDetailModal({
       author:
         c.createdBy === currentUserId
           ? (user?.firstName ?? user?.username ?? 'You')
-          : c.createdBy,
+          : c.author,
       content: c.content,
       createdAt: c.createdAt,
     }));
@@ -405,7 +405,7 @@ export function OtpPtrTaskDetailModal({
       changedBy:
         h.userId === currentUserId
           ? (user?.firstName ?? user?.username ?? 'You')
-          : h.userId,
+          : h.userName,
       changedAt: h.createdAt,
     }));
   }, [historyData, user]);

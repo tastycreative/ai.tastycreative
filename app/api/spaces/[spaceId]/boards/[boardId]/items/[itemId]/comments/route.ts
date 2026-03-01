@@ -24,11 +24,31 @@ export async function GET(_req: NextRequest, { params }: Params) {
       take: 100,
     });
 
+    // Collect unique user IDs
+    const userIds = [...new Set(comments.map((c) => c.createdBy))];
+
+    // Fetch user information for all unique user IDs
+    const users = await prisma.user.findMany({
+      where: { clerkId: { in: userIds } },
+      select: { clerkId: true, firstName: true, lastName: true, email: true },
+    });
+
+    // Create a map of userId -> display name
+    const userMap = new Map(
+      users.map((u) => {
+        const displayName = u.firstName && u.lastName
+          ? `${u.firstName} ${u.lastName}`
+          : u.firstName || u.lastName || u.email || 'Unknown User';
+        return [u.clerkId, displayName];
+      })
+    );
+
     return NextResponse.json({
       comments: comments.map((c) => ({
         id: c.id,
         content: c.content,
         createdBy: c.createdBy,
+        author: userMap.get(c.createdBy) || 'Unknown User',
         createdAt: c.createdAt.toISOString(),
       })),
     });
@@ -62,6 +82,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
+    // Get user information for the author
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { firstName: true, lastName: true, email: true },
+    });
+
+    const author = user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user?.firstName || user?.lastName || user?.email || 'Unknown User';
+
     const senderTab = req.headers.get('x-tab-id') ?? undefined;
     publishBoardEvent(boardId, 'comment.created', { userId, entityId: itemId, tabId: senderTab });
 
@@ -70,6 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         id: comment.id,
         content: comment.content,
         createdBy: comment.createdBy,
+        author,
         createdAt: comment.createdAt.toISOString(),
       },
       { status: 201 },

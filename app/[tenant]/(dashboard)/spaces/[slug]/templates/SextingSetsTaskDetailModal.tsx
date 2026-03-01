@@ -60,7 +60,7 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
       id: c.id,
       author: c.createdBy === currentUserId
         ? (user?.firstName ?? user?.username ?? 'You')
-        : c.createdBy,
+        : c.author,
       content: c.content,
       createdAt: c.createdAt,
     }));
@@ -79,7 +79,7 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
       newValue: h.newValue,
       changedBy: h.userId === currentUserId
         ? (user?.firstName ?? user?.username ?? 'You')
-        : h.userId,
+        : h.userName,
       changedAt: h.createdAt,
     }));
   }, [historyData, user]);
