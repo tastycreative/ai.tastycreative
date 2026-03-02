@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Draggable } from "@hello-pangea/dnd";
 import { Pencil, Check, X, Calendar, AtSign } from "lucide-react";
 import type { BoardTaskCardProps } from "../../board/BoardTaskCard";
@@ -55,15 +56,16 @@ export function WallPostTaskCard({
 
   return (
     <Draggable draggableId={task.id} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onClick={() => {
-            if (!editing) onClick?.(task);
-          }}
-          className={[
+      {(provided, snapshot) => {
+        const card = (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            onClick={() => {
+              if (!editing) onClick?.(task);
+            }}
+            className={[
             "group/card relative rounded-xl bg-white dark:bg-gray-900/90 border px-3.5 py-3 cursor-pointer select-none",
             snapshot.isDragging
               ? "shadow-xl border-brand-light-pink/70 ring-2 ring-brand-light-pink/30"
@@ -202,8 +204,15 @@ export function WallPostTaskCard({
               )}
             </div>
           )}
-        </div>
-      )}
+          </div>
+        );
+
+        if (snapshot.isDragging) {
+          return createPortal(card, document.body);
+        }
+
+        return card;
+      }}
     </Draggable>
   );
 }
