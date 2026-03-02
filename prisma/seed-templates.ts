@@ -162,10 +162,14 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     description: 'Handle OTP and PTR request workflows efficiently.',
     config: {
       defaultColumns: [
-        { name: 'Incoming', color: 'blue', position: 0 },
-        { name: 'In Production', color: 'amber', position: 1 },
-        { name: 'Delivered', color: 'green', position: 2 },
-        { name: 'Completed', color: 'purple', position: 3 },
+        { name: 'PGT Team', color: 'pink', position: 0 },
+        { name: 'PGT Completed', color: 'gray', position: 1 },
+        { name: 'Flyer Team', color: 'amber', position: 2 },
+        { name: 'Flyer Completed', color: 'gray', position: 3 },
+        { name: 'QA', color: 'green', position: 4 },
+        { name: 'For Approval', color: 'purple', position: 5 },
+        { name: 'Ready to Deploy', color: 'blue', position: 6 },
+        { name: 'Posted', color: 'pink', position: 7 },
       ],
       workTypes: [
         { name: 'OTP Request', icon: 'zap', description: 'One-time purchase content requests' },
@@ -480,7 +484,7 @@ function getSampleItems(
     case 'OTP_PTR':
       return [
         {
-          columnId: columnIds['Incoming'],
+          columnId: columnIds['PGT Team'],
           title: 'Custom video request — @fan123',
           description: 'Requested a 2-minute custom video with specific outfit.',
           type: 'REQUEST',
@@ -490,7 +494,7 @@ function getSampleItems(
           metadata: { ...OTP_PTR_METADATA_DEFAULTS, buyer: '@fan123', price: 50.0, deliverables: ['1 custom video (2 min)'] },
         },
         {
-          columnId: columnIds['In Production'],
+          columnId: columnIds['Flyer Team'],
           title: 'Photo bundle — @vipuser',
           description: '5 exclusive photos, already paid.',
           type: 'REQUEST',
@@ -499,7 +503,7 @@ function getSampleItems(
           metadata: { ...OTP_PTR_METADATA_DEFAULTS, buyer: '@vipuser', price: 35.0, deliverables: ['5 photos'], isPaid: true },
         },
         {
-          columnId: columnIds['Delivered'],
+          columnId: columnIds['For Approval'],
           title: 'Voice note — @subscriber99',
           description: 'Personalized voice note, delivered via DM.',
           type: 'REQUEST',
@@ -508,7 +512,7 @@ function getSampleItems(
           metadata: { ...OTP_PTR_METADATA_DEFAULTS, requestType: 'PTR', buyer: '@subscriber99', price: 15.0, isPaid: true },
         },
         {
-          columnId: columnIds['Completed'],
+          columnId: columnIds['Posted'],
           title: 'GFE package — @loyalfan',
           description: 'Girlfriend-experience message bundle, completed and reviewed.',
           type: 'REQUEST',

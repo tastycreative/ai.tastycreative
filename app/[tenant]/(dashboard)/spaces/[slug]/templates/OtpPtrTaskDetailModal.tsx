@@ -34,7 +34,9 @@ import {
 import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import {
   useBoardItemComments,
   useAddComment,
@@ -132,6 +134,7 @@ function GlowCard({
   defaultOpen = true,
   badge,
   iconColorClass,
+  className,
 }: {
   icon: LucideIcon;
   title: string;
@@ -139,12 +142,13 @@ function GlowCard({
   defaultOpen?: boolean;
   badge?: React.ReactNode;
   iconColorClass?: string;
+  className?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const iconClasses = iconColorClass ?? 'bg-brand-light-pink/10 text-brand-light-pink';
 
   return (
-    <div className="relative mb-4 rounded-xl overflow-hidden group/glow">
+    <div className={`relative mb-4 rounded-xl group/glow ${open ? 'overflow-visible' : 'overflow-hidden'} ${className ?? ''}`}>
       {/* Gradient left border */}
       <div
         className="absolute inset-y-0 left-0 w-[3px] transition-opacity"
@@ -190,7 +194,7 @@ function GlowCard({
             gridTemplateRows: open ? '1fr' : '0fr',
           }}
         >
-          <div className="overflow-hidden">
+          <div className={open ? 'overflow-visible' : 'overflow-hidden'}>
             <div className="px-5 pb-4 pt-0">
               <div
                 className="pt-3.5"
@@ -318,18 +322,28 @@ export function OtpPtrTaskDetailModal({
 }: Props) {
   const params = useParams<{ slug: string }>();
   const { data: space } = useSpaceBySlug(params.slug);
+  const { data: orgMembers = [] } = useOrgMembers();
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
+
+  const getMemberName = (id?: string) => {
+    if (!id) return undefined;
+    const m = orgMembers.find((mb) => mb.clerkId === id || mb.id === id);
+    if (!m) return undefined;
+    return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
+  };
 
   const [activeTab, setActiveTab] = useState<ModalTab>('details');
   const [mounted, setMounted] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
+  const [editingCaption, setEditingCaption] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [newComment, setNewComment] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
 
   /* ── Metadata ────────────────────────────────────────── */
 
@@ -361,10 +375,14 @@ export function OtpPtrTaskDetailModal({
   const contentTags = Array.isArray(meta.contentTags)
     ? (meta.contentTags as string[])
     : [];
+  const caption = (meta.caption as string) ?? '';
+  const gameType = (meta.gameType as string) ?? '';
+  const gifUrl = (meta.gifUrl as string) ?? '';
 
   const tier = pricingCategory || pricingTier;
 
   const [notesDraft, setNotesDraft] = useState(fulfillmentNotes);
+  const [captionDraft, setCaptionDraft] = useState(caption);
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
   /* ── API hooks ───────────────────────────────────────── */
@@ -416,13 +434,17 @@ export function OtpPtrTaskDetailModal({
   useEffect(() => {
     setTitleDraft(task.title);
     setNotesDraft(fulfillmentNotes);
-  }, [task, fulfillmentNotes]);
+    setCaptionDraft(caption);
+  }, [task, fulfillmentNotes, caption]);
   useEffect(() => {
     if (editingTitle) titleRef.current?.focus();
   }, [editingTitle]);
   useEffect(() => {
     if (editingNotes) notesRef.current?.focus();
   }, [editingNotes]);
+  useEffect(() => {
+    if (editingCaption) captionRef.current?.focus();
+  }, [editingCaption]);
 
   if (!mounted || !isOpen) return null;
 
@@ -442,6 +464,12 @@ export function OtpPtrTaskDetailModal({
     setEditingNotes(false);
     if (notesDraft !== fulfillmentNotes)
       updateMeta({ fulfillmentNotes: notesDraft });
+  };
+
+  const saveCaption = () => {
+    setEditingCaption(false);
+    if (captionDraft !== caption)
+      updateMeta({ caption: captionDraft });
   };
 
   const getTagInput = (key: string) => tagInputs[key] ?? '';
@@ -496,7 +524,7 @@ export function OtpPtrTaskDetailModal({
       }}
     >
       <div
-        className="relative w-full max-w-[1120px] rounded-2xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-[1120px] rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         style={{
           background:
@@ -685,7 +713,7 @@ export function OtpPtrTaskDetailModal({
             {activeTab === 'details' && (
               <>
                 {/* Basic Information */}
-                <GlowCard icon={Info} title="Basic Information" iconColorClass="bg-brand-blue/10 text-brand-blue">
+                <GlowCard icon={Info} title="Basic Information" iconColorClass="bg-brand-blue/10 text-brand-blue" className="z-10">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div>
                       <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
@@ -711,17 +739,127 @@ export function OtpPtrTaskDetailModal({
                       <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
                         Assignee
                       </span>
-                      <EditableField
-                        value={model}
+                      <SearchableDropdown
+                        value={getMemberName(task.assignee) ?? ''}
                         placeholder="Unassigned"
-                        onSave={(v) => updateMeta({ model: v })}
+                        searchPlaceholder="Search members..."
+                        options={orgMembers.map((m) => getMemberName(m.clerkId) ?? m.email)}
+                        onChange={(v) => {
+                          if (!v) {
+                            onUpdate({ ...task, assignee: undefined });
+                          } else {
+                            const member = orgMembers.find((m) => (getMemberName(m.clerkId) ?? m.email) === v);
+                            if (member) onUpdate({ ...task, assignee: member.clerkId });
+                          }
+                        }}
+                        clearable
                       />
                     </div>
                   </div>
                 </GlowCard>
 
+                {/* PGT Team */}
+                <GlowCard icon={FileText} title="PGT Team" iconColorClass="bg-amber-400/10 text-amber-400">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
+                      Caption
+                    </span>
+                    <div className="group/caption">
+                      {editingCaption ? (
+                        <div>
+                          <textarea
+                            ref={captionRef}
+                            value={captionDraft}
+                            onChange={(e) => setCaptionDraft(e.target.value)}
+                            rows={4}
+                            placeholder="PGT caption text..."
+                            className="w-full rounded-lg border border-brand-light-pink/25 bg-white/[0.03] px-3.5 py-2.5 text-sm text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/30 resize-none transition-shadow"
+                          />
+                          <div className="flex items-center gap-2 mt-2.5">
+                            <button
+                              type="button"
+                              onClick={saveCaption}
+                              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-110"
+                              style={{
+                                background:
+                                  'linear-gradient(135deg, #E1518E, #EC67A1)',
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCaptionDraft(caption);
+                                setEditingCaption(false);
+                              }}
+                              className="px-4 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingCaption(true)}
+                          className="flex items-start gap-2 w-full text-left"
+                        >
+                          <p className="text-sm text-gray-300 whitespace-pre-wrap flex-1 leading-relaxed">
+                            {caption || (
+                              <span className="text-gray-600 italic">
+                                Click to add caption...
+                              </span>
+                            )}
+                          </p>
+                          <Pencil className="h-3.5 w-3.5 text-gray-600 opacity-0 group-hover/caption:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </GlowCard>
+
+                {/* Flyer Team */}
+                <GlowCard icon={Film} title="Flyer Team" iconColorClass="bg-rose-400/10 text-rose-400">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
+                        Game Type
+                      </span>
+                      <EditableField
+                        value={gameType}
+                        placeholder="e.g. Wheel, Dice, Trivia..."
+                        onSave={(v) => updateMeta({ gameType: v })}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
+                        GIF URL
+                      </span>
+                      <EditableField
+                        value={gifUrl}
+                        placeholder="https://..."
+                        onSave={(v) => updateMeta({ gifUrl: v })}
+                      />
+                      {gifUrl && (
+                        <a
+                          href={gifUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs text-brand-blue hover:text-brand-blue/80 transition-colors mt-1.5"
+                        >
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          <span className="underline underline-offset-2">
+                            Open GIF
+                          </span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </GlowCard>
+
                 {/* Description */}
-                <GlowCard icon={FileText} title="Description" iconColorClass="bg-brand-light-pink/10 text-brand-light-pink">
+                <GlowCard icon={Info} title="Description" iconColorClass="bg-brand-light-pink/10 text-brand-light-pink">
                   <div className="space-y-4">
                     <EditableField
                       value={task.description ?? ''}
@@ -838,8 +976,8 @@ export function OtpPtrTaskDetailModal({
                   </div>
                 </GlowCard>
 
-                {/* Fulfillment Notes */}
-                <GlowCard icon={ClipboardList} title="Fulfillment Notes" iconColorClass="bg-emerald-400/10 text-emerald-400">
+                {/* Notes */}
+                <GlowCard icon={ClipboardList} title="Notes" iconColorClass="bg-emerald-400/10 text-emerald-400">
                   <div className="group/notes">
                     {editingNotes ? (
                       <div>
@@ -1539,6 +1677,46 @@ export function OtpPtrTaskDetailModal({
                 </div>
               ) : (
                 <span className="text-xs text-gray-600 italic">None</span>
+              )}
+            </SidebarField>
+
+            {/* ── Team Fields ── */}
+            <SidebarSectionHeader label="Team Fields" />
+
+            <SidebarField label="Caption">
+              <EditableField
+                value={caption}
+                placeholder="PGT caption..."
+                onSave={(v) => updateMeta({ caption: v })}
+              />
+            </SidebarField>
+
+            <SidebarField label="Game Type">
+              <EditableField
+                value={gameType}
+                placeholder="Set game type"
+                onSave={(v) => updateMeta({ gameType: v })}
+              />
+            </SidebarField>
+
+            <SidebarField label="GIF URL">
+              <EditableField
+                value={gifUrl}
+                placeholder="Paste URL..."
+                onSave={(v) => updateMeta({ gifUrl: v })}
+              />
+              {gifUrl && (
+                <a
+                  href={gifUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[10px] text-brand-blue hover:text-brand-blue/80 transition-colors mt-1"
+                >
+                  <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                  <span className="underline underline-offset-2">
+                    Open
+                  </span>
+                </a>
               )}
             </SidebarField>
 

@@ -72,7 +72,7 @@ const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Boar
     taskKey: spaceKey ? `${spaceKey}-${item.itemNo}` : item.id.slice(-6).toUpperCase(),
     title: item.title,
     description: (item.description as string) ?? undefined,
-    assignee: (meta.model as string) ?? (item.assigneeId as string) ?? undefined,
+    assignee: (item.assigneeId as string) ?? undefined,
     priority: meta.isPaid ? ('Low' as const) : ('High' as const),
     tags: [
       ...(typeTag ? [typeTag] : []),
