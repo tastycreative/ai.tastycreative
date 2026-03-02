@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   CircleX,
 } from 'lucide-react';
+import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import type { BoardTask } from '../../board';
 
 interface OtpPtrTaskCardProps {
@@ -105,6 +106,7 @@ export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate }: OtpPtrTa
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { data: orgMembers = [] } = useOrgMembers();
 
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
 
@@ -133,7 +135,12 @@ export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate }: OtpPtrTa
   const price = meta.price as number | undefined;
   const isPaid = meta.isPaid as boolean | undefined;
   const createdAt = typeof meta._createdAt === 'string' ? meta._createdAt : '';
-  const model = (meta.model as string) || task.assignee;
+  const assigneeName = (() => {
+    if (!task.assignee) return undefined;
+    const m = orgMembers.find((mb) => mb.clerkId === task.assignee || mb.id === task.assignee);
+    if (!m) return task.assignee;
+    return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
+  })();
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -289,7 +296,7 @@ export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate }: OtpPtrTa
 
                 <span className="inline-flex items-center gap-0.5 text-gray-400 dark:text-gray-500 truncate max-w-[100px]">
                   <User className="h-3 w-3 shrink-0" />
-                  {model || 'Unassigned'}
+                  {assigneeName || 'Unassigned'}
                 </span>
               </div>
             </div>

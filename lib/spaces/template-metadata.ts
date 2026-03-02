@@ -157,6 +157,9 @@ export interface OtpPtrItemMetadata {
   deadline: string;
   isPaid: boolean;
   fulfillmentNotes: string;
+  caption: string;
+  gameType: string;
+  gifUrl: string;
 }
 
 export const OTP_PTR_METADATA_DEFAULTS: OtpPtrItemMetadata = {
@@ -176,6 +179,9 @@ export const OTP_PTR_METADATA_DEFAULTS: OtpPtrItemMetadata = {
   deadline: '',
   isPaid: false,
   fulfillmentNotes: '',
+  caption: '',
+  gameType: '',
+  gifUrl: '',
 };
 
 export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
@@ -201,6 +207,9 @@ export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
   { key: 'deadline', label: 'Deadline', type: 'date' },
   { key: 'isPaid', label: 'Paid', type: 'boolean' },
   { key: 'fulfillmentNotes', label: 'Fulfillment Notes', type: 'textarea', placeholder: 'Delivery instructions...' },
+  { key: 'caption', label: 'Caption', type: 'textarea', placeholder: 'PGT caption text...' },
+  { key: 'gameType', label: 'Game Type', type: 'text', placeholder: 'e.g. Wheel, Dice, Trivia...' },
+  { key: 'gifUrl', label: 'GIF URL', type: 'text', placeholder: 'https://...' },
 ];
 
 /* ================================================================== */

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { useSpaceBySlug, useUpdateSpace } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import { useUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
@@ -79,6 +80,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const { user } = useUser();
   const { data: space } = useSpaceBySlug(slug);
   const { data: members = [] } = useSpaceMembers(space?.id);
+  const { data: orgMembers = [] } = useOrgMembers();
   const { currentOrganization } = useOrganization();
   const updateSpaceMutation = useUpdateSpace(space?.id ?? '');
   const config = TEMPLATE_CONFIG[space!.templateType];
@@ -89,6 +91,13 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const currentMember = members.find((m) => m.user.clerkId === user?.id);
   const userRole = currentMember?.role;
   const organizationRole = currentOrganization?.role;
+
+  const resolveMemberName = (id?: string) => {
+    if (!id) return undefined;
+    const m = orgMembers.find((mb) => mb.clerkId === id || mb.id === id);
+    if (!m) return id;
+    return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
+  };
 
   // Handler for updating space name
   const handleSpaceNameUpdate = async (newName: string) => {
@@ -114,11 +123,11 @@ function TemplateBoardView({ slug }: { slug: string }) {
     closeTaskModal,
   } = useSpaceBoard({ space, itemToTask: config.itemToTask });
 
-  // Extract unique assignees from all tasks
+  // Extract unique assignees from all tasks (resolve IDs to display names)
   const uniqueAssignees = Array.from(
     new Set(
       Object.values(effectiveTasks)
-        .map((t) => t.assignee)
+        .map((t) => resolveMemberName(t.assignee))
         .filter(Boolean) as string[],
     ),
   ).sort();
@@ -194,8 +203,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
                           return false;
                         }
 
-                        // Assignee filter
-                        if (filters.assigneeFilter && t.assignee !== filters.assigneeFilter) {
+                        // Assignee filter (compare resolved name)
+                        if (filters.assigneeFilter && resolveMemberName(t.assignee) !== filters.assigneeFilter) {
                           return false;
                         }
 
