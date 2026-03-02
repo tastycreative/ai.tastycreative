@@ -52,7 +52,7 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Check access - user owns it or it's shared with their org
+    // Check access - user owns it, it's shared with their org, or the owner is in the same org
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { currentOrganizationId: true },
@@ -63,7 +63,26 @@ export async function GET(
       profile.organizationId &&
       user?.currentOrganizationId === profile.organizationId;
 
-    if (!isOwner && !isSharedWithOrg) {
+    // Allow access if the profile owner is a member of the requester's org
+    // (needed for Caption Workspace where managers view any org model)
+    const isOrgMemberProfile =
+      !isOwner &&
+      !isSharedWithOrg &&
+      user?.currentOrganizationId
+        ? await prisma.user
+            .findUnique({
+              where: { clerkId: profile.clerkId },
+              select: {
+                teamMemberships: {
+                  where: { organizationId: user.currentOrganizationId! },
+                  select: { id: true },
+                },
+              },
+            })
+            .then((owner) => (owner?.teamMemberships?.length ?? 0) > 0)
+        : false;
+
+    if (!isOwner && !isSharedWithOrg && !isOrgMemberProfile) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 

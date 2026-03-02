@@ -14,15 +14,17 @@ import {
   FileText,
   Clock,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   PanelRightOpen,
   PanelRightClose,
   CheckCircle2,
-  Send,
   XCircle,
+  ArrowRight,
+  ShieldCheck,
+  RotateCcw,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
@@ -36,7 +38,15 @@ import {
   useBoardItemComments,
   useAddComment,
   useBoardItemHistory,
+  useBoardItemMedia,
 } from '@/lib/hooks/useBoardItems.query';
+import { usePushToCaptionWorkspace, useQAAction, useQAItemAction, useRepushRejected } from '@/lib/hooks/useCaptionQueue.query';
+import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
+import {
+  WALL_POST_STATUS,
+  WALL_POST_STATUS_CONFIG,
+  type WallPostStatus,
+} from '@/lib/wall-post-status';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -55,50 +65,398 @@ interface WallPostPhoto {
   url: string;
   status: 'pending_review' | 'ready_to_post' | 'posted' | 'rejected';
   name?: string;
+  type?: string;
 }
 
 /* ── Constants ───────────────────────────────────────────── */
 
 const PLATFORM_OPTIONS = ['onlyfans', 'fansly', 'instagram', 'twitter', 'reddit'];
 
-const SAMPLE_PHOTOS: WallPostPhoto[] = [
-  { id: 'sample-1', url: 'https://picsum.photos/seed/wall1/800/600', status: 'pending_review', name: 'Beach sunset shot.jpg' },
-  { id: 'sample-2', url: 'https://picsum.photos/seed/wall2/800/600', status: 'ready_to_post', name: 'Studio portrait.jpg' },
-  { id: 'sample-3', url: 'https://picsum.photos/seed/wall3/800/600', status: 'posted', name: 'City skyline.jpg' },
-  { id: 'sample-4', url: 'https://picsum.photos/seed/wall4/800/600', status: 'rejected', name: 'Blurry outtake.jpg' },
-  { id: 'sample-5', url: 'https://picsum.photos/seed/wall5/800/600', status: 'pending_review', name: 'Pool day.jpg' },
-  { id: 'sample-6', url: 'https://picsum.photos/seed/wall6/800/600', status: 'ready_to_post', name: 'Mirror selfie.jpg' },
-];
+/* ── Media + Caption types ───────────────────────────────── */
 
-const PHOTO_STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string; dotColor: string; icon: LucideIcon }
-> = {
-  pending_review: {
-    label: 'Pending Review',
-    color: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    dotColor: 'bg-amber-500',
-    icon: Clock,
-  },
-  ready_to_post: {
-    label: 'Ready to Post',
-    color: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
-    dotColor: 'bg-brand-blue',
-    icon: CheckCircle2,
-  },
-  posted: {
-    label: 'Posted',
-    color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    dotColor: 'bg-emerald-500',
-    icon: Send,
-  },
-  rejected: {
-    label: 'Rejected',
-    color: 'bg-red-500/10 text-red-400 border-red-500/20',
-    dotColor: 'bg-red-500',
-    icon: XCircle,
-  },
-};
+interface CaptionItem {
+  url: string;
+  fileName: string | null;
+  captionText: string | null;
+  captionStatus?: string | null;
+  qaRejectionReason?: string | null;
+  /** Content item ID from CaptionQueueContentItem — used for per-item QA */
+  contentItemId?: string | null;
+  /** Whether this item has already been posted to the platform */
+  isPosted?: boolean;
+}
+
+interface MediaWithCaption {
+  id: string;
+  url: string;
+  type: string;
+  name?: string | null;
+  captionText: string | null;
+  captionStatus: string | null;
+  qaRejectionReason: string | null;
+  /** Content item ID from CaptionQueueContentItem — needed for per-item QA actions */
+  contentItemId: string | null;
+  /** Whether this item has already been posted to the platform */
+  isPosted: boolean;
+  index: number;
+}
+
+/* ── Caption status label helper ─────────────────────────── */
+
+function captionStatusBadge(
+  captionStatus: string | null,
+  wallPostStatus: WallPostStatus | null,
+  hasCaption: boolean,
+  /** Per-item captionStatus (takes priority when present) */
+  itemCaptionStatus?: string | null,
+  /** Whether this specific item has been posted to the platform */
+  isPosted?: boolean,
+): { label: string; className: string } | null {
+  // Posted overrides everything — item is already live
+  if (isPosted) {
+    return {
+      label: 'Posted',
+      className: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+    };
+  }
+  // Per-item status takes priority
+  if (itemCaptionStatus) {
+    switch (itemCaptionStatus) {
+      case 'approved':
+        return {
+          label: 'Approved',
+          className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        };
+      case 'rejected':
+        return {
+          label: 'Rejected',
+          className: 'bg-red-500/10 text-red-400 border-red-500/20',
+        };
+      case 'submitted':
+        return {
+          label: 'Pending QA',
+          className: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+        };
+      case 'in_progress':
+        return {
+          label: 'In Progress',
+          className: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
+        };
+      case 'not_required':
+        return {
+          label: 'No Caption',
+          className: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+        };
+      case 'pending':
+        return {
+          label: 'Pending',
+          className: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+        };
+    }
+  }
+  if (!hasCaption) {
+    return {
+      label: 'Awaiting Caption',
+      className: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    };
+  }
+  if (wallPostStatus === WALL_POST_STATUS.COMPLETED) {
+    return {
+      label: 'QA Approved',
+      className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    };
+  }
+  if (
+    wallPostStatus === WALL_POST_STATUS.REVISION_REQUIRED ||
+    captionStatus === 'revision_required'
+  ) {
+    return {
+      label: 'Revision Required',
+      className: 'bg-red-500/10 text-red-400 border-red-500/20',
+    };
+  }
+  if (
+    wallPostStatus === WALL_POST_STATUS.FOR_QA ||
+    captionStatus === 'pending_qa'
+  ) {
+    return {
+      label: 'Pending QA',
+      className: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    };
+  }
+  if (captionStatus === 'in_progress' || hasCaption) {
+    return {
+      label: 'Captioned',
+      className: 'bg-brand-blue/10 text-brand-blue border-brand-blue/20',
+    };
+  }
+  return null;
+}
+
+/* ── MediaCard ───────────────────────────────────────────── */
+
+function MediaCard({
+  media,
+  wallPostStatus,
+  captionStatus,
+  compact = false,
+  canQA = false,
+  onApprove,
+  onReject,
+  onRevert,
+  onMarkPosted,
+  isActioning = false,
+}: {
+  media: MediaWithCaption;
+  wallPostStatus: WallPostStatus | null;
+  captionStatus: string | null;
+  compact?: boolean;
+  canQA?: boolean;
+  onApprove?: () => void;
+  onReject?: (reason: string) => void;
+  onRevert?: () => void;
+  onMarkPosted?: (posted: boolean) => void;
+  isActioning?: boolean;
+}) {
+  const [showItemReject, setShowItemReject] = useState(false);
+  const [itemRejectReason, setItemRejectReason] = useState('');
+  const isVideo = media.type?.startsWith('video/');
+  const hasCaption = !!media.captionText;
+  const badge = captionStatusBadge(captionStatus, wallPostStatus, hasCaption, media.captionStatus, media.isPosted);
+  const itemStatus = media.captionStatus;
+  const isSubmitted = itemStatus === 'submitted';
+  const isApproved = itemStatus === 'approved';
+  const isRejected = itemStatus === 'rejected';
+  const isPosted = media.isPosted;
+  const showPerItemActions = canQA && isSubmitted && !isApproved;
+
+  return (
+    <div
+      className={`group/card flex flex-col rounded-xl overflow-hidden transition-all duration-200 hover:ring-1 hover:ring-brand-light-pink/20 ${
+        isPosted ? 'ring-1 ring-violet-500/40' : isApproved ? 'ring-1 ring-emerald-500/30' : ''
+      } ${isRejected ? 'ring-1 ring-red-500/30' : ''}`}
+      style={{
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.07)',
+      }}
+    >
+      {/* ── Media Preview ── */}
+      <div
+        className={`relative overflow-hidden bg-black/40 ${
+          compact ? 'aspect-4/3' : 'aspect-3/2'
+        }`}
+      >
+        {isVideo ? (
+          <video
+            src={media.url}
+            className="w-full h-full object-cover"
+            preload="metadata"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={media.url}
+            alt={media.name ?? `Media ${media.index + 1}`}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
+          />
+        )}
+
+        {/* Index badge */}
+        <div className="absolute top-2 left-2 pointer-events-none">
+          <span
+            className="inline-flex items-center justify-center h-5 min-w-5 rounded-md px-1.5 text-[10px] font-bold text-white/90 backdrop-blur-sm"
+            style={{ background: 'rgba(0,0,0,0.55)' }}
+          >
+            {media.index + 1}
+          </span>
+        </div>
+
+        {/* Caption presence dot */}
+        <div className="absolute top-2 right-2 pointer-events-none">
+          <span
+            className={`block h-2 w-2 rounded-full border border-black/30 ${
+              hasCaption ? 'bg-emerald-400' : 'bg-gray-500'
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* ── Caption Text ── */}
+      <div className="flex-1 px-3 py-2.5">
+        {hasCaption ? (
+          <p className="text-[13px] text-gray-200 leading-relaxed whitespace-pre-wrap line-clamp-4">
+            {media.captionText}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-600 italic">No caption yet</p>
+        )}
+      </div>
+
+      {/* ── Status Row ── */}
+      <div
+        className="flex items-center gap-1.5 flex-wrap px-3 pb-3 pt-1"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
+      >
+        {badge && (
+          <span
+            className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold border ${badge.className}`}
+          >
+            {badge.label}
+          </span>
+        )}
+        {media.name && (
+          <span className="ml-auto text-[10px] text-gray-600 truncate max-w-30">
+            {media.name}
+          </span>
+        )}
+      </div>
+
+      {/* ── Per-item QA rejection reason ── */}
+      {isRejected && media.qaRejectionReason && (
+        <div className="px-3 pb-3">
+          <div
+            className="flex items-start gap-1.5 rounded-lg px-2.5 py-2"
+            style={{
+              background: 'rgba(239,68,68,0.06)',
+              border: '1px solid rgba(239,68,68,0.12)',
+            }}
+          >
+            <RotateCcw className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] text-red-300 leading-relaxed line-clamp-3">
+              {media.qaRejectionReason}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark as Posted button — available on approved (or already posted) items ── */}
+      {isApproved && onMarkPosted && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={() => onMarkPosted(!isPosted)}
+            disabled={isActioning}
+            className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50 ${
+              isPosted
+                ? 'text-violet-300 hover:bg-violet-500/20'
+                : 'text-violet-400 hover:bg-violet-500/15'
+            }`}
+            style={{
+              background: isPosted ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.08)',
+              border: isPosted ? '1px solid rgba(139,92,246,0.35)' : '1px solid rgba(139,92,246,0.18)',
+            }}
+          >
+            {isActioning ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : isPosted ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <ArrowRight className="h-3 w-3" />
+            )}
+            {isPosted ? 'Posted ✓  (undo)' : 'Mark as Posted'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Revert button for approved/rejected items ── */}
+      {canQA && (isApproved || isRejected) && onRevert && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={onRevert}
+            disabled={isActioning}
+            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-amber-400 transition-all hover:bg-amber-500/15 active:scale-[0.97] disabled:opacity-50"
+            style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.18)',
+            }}
+          >
+            {isActioning ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            Undo {isApproved ? 'Approval' : 'Rejection'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Per-item QA Actions ── */}
+      {showPerItemActions && (
+        <div className="px-3 pb-3">
+          {!showItemReject ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onApprove}
+                disabled={isActioning}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                }}
+              >
+                {isActioning ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3 w-3" />
+                )}
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowItemReject(true)}
+                disabled={isActioning}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97] disabled:opacity-50"
+                style={{
+                  background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.15)',
+                }}
+              >
+                <XCircle className="h-3 w-3" />
+                Reject
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <textarea
+                value={itemRejectReason}
+                onChange={(e) => setItemRejectReason(e.target.value)}
+                placeholder="Rejection reason..."
+                rows={2}
+                className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-2.5 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none"
+              />
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onReject && itemRejectReason.trim()) {
+                      onReject(itemRejectReason.trim());
+                      setItemRejectReason('');
+                      setShowItemReject(false);
+                    }
+                  }}
+                  disabled={isActioning || !itemRejectReason.trim()}
+                  className="px-3 py-1 rounded-lg text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {isActioning ? 'Sending...' : 'Send'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowItemReject(false); setItemRejectReason(''); }}
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── GlowCard — card with gradient left border ───────────── */
 
@@ -232,7 +590,6 @@ export function WallPostTaskDetailModal({
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingCaption, setEditingCaption] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const titleRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -247,29 +604,13 @@ export function WallPostTaskDetailModal({
   const scheduledDate = (meta.scheduledDate as string) ?? '';
   const model = (meta.model as string) ?? '';
   const mediaCount = (meta.mediaCount as number) ?? 0;
-  const realPhotos: WallPostPhoto[] = Array.isArray(meta.photos)
-    ? (meta.photos as WallPostPhoto[])
-    : [];
-  const photos: WallPostPhoto[] = realPhotos.length > 0 ? realPhotos : SAMPLE_PHOTOS;
+  const wallPostStatus = (meta.wallPostStatus as WallPostStatus) ?? null;
+  const captionTicketId = (meta.captionTicketId as string) ?? null;
+  const captionText = (meta.captionText as string) ?? null;
+  const captionStatus = (meta.captionStatus as string) ?? null;
+  const qaRejectionReason = (meta.qaRejectionReason as string) ?? null;
 
   const [captionDraft, setCaptionDraft] = useState(caption);
-
-  /* ── Photo status counts ───────────────────────────── */
-
-  const statusCounts = useMemo(() => {
-    const counts = {
-      pending_review: 0,
-      ready_to_post: 0,
-      posted: 0,
-      rejected: 0,
-    };
-    photos.forEach((p) => {
-      if (p.status in counts) counts[p.status]++;
-    });
-    return counts;
-  }, [photos]);
-
-  const selectedPhoto = photos[selectedPhotoIndex] ?? null;
 
   /* ── API hooks ───────────────────────────────────────── */
 
@@ -284,6 +625,74 @@ export function WallPostTaskDetailModal({
     spaceId,
     boardId,
     task.id,
+  );
+  const { data: mediaData = [], isLoading: mediaLoading } = useBoardItemMedia(
+    spaceId,
+    boardId,
+    task.id,
+    isOpen,
+  );
+
+  /* ── RBAC + Caption Workspace hooks ────────────────── */
+
+  const { canCreateQueue: canPush, canManageQueue: canQA } = useOrgRole();
+  const pushToCaptionMutation = usePushToCaptionWorkspace();
+  const qaActionMutation = useQAAction();
+  const qaItemActionMutation = useQAItemAction();
+  const repushRejectedMutation = useRepushRejected();
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [actioningItemId, setActioningItemId] = useState<string | null>(null);
+
+  /* ── Map raw media → WallPostPhoto ─────────────────── */
+
+  const photos: WallPostPhoto[] = useMemo(
+    () =>
+      mediaData.map((m) => ({
+        id: m.id,
+        url: m.url,
+        name: m.name ?? undefined,
+        type: m.type,
+        status: 'pending_review' as const,
+      })),
+    [mediaData],
+  );
+
+  /* ── Joined media + captions ─────────────────────────── */
+
+  const captionItems: CaptionItem[] = useMemo(() => {
+    const raw = meta.captionItems;
+    if (!Array.isArray(raw)) return [];
+    return raw as CaptionItem[];
+  }, [meta.captionItems]);
+
+  const mediaWithCaptions: MediaWithCaption[] = useMemo(
+    () =>
+      mediaData.map((m, idx) => {
+        const match =
+          captionItems.find((ci) => ci.url === m.url) ??
+          captionItems.find(
+            (ci) =>
+              ci.fileName != null &&
+              m.name != null &&
+              ci.fileName === m.name,
+          ) ??
+          captionItems[idx] ??
+          null;
+        return {
+          id: m.id,
+          url: m.url,
+          type: m.type,
+          name: m.name,
+          captionText: match?.captionText ?? null,
+          captionStatus: match?.captionStatus ?? null,
+          qaRejectionReason: match?.qaRejectionReason ?? null,
+          contentItemId: match?.contentItemId ?? null,
+          isPosted: match?.isPosted ?? false,
+          index: idx,
+        };
+      }),
+    [mediaData, captionItems],
   );
 
   const comments: TaskComment[] = useMemo(() => {
@@ -321,6 +730,251 @@ export function WallPostTaskDetailModal({
     addCommentMutation.mutate(content);
   };
 
+  /* ── Push to Caption Workspace ──────────────────────── */
+
+  const handlePushToCaption = () => {
+    pushToCaptionMutation.mutate(
+      { boardItemId: task.id },
+      {
+        onSuccess: (data) => {
+          toast.success('Pushed to Caption Workspace');
+          // Update local task with new status
+          onUpdate({
+            ...task,
+            metadata: {
+              ...meta,
+              wallPostStatus: data.wallPostStatus,
+              captionTicketId: data.item?.id,
+              captionStatus: 'pending',
+            },
+          });
+        },
+        onError: (error) => {
+          toast.error(error.message || 'Failed to push to Caption Workspace');
+        },
+      },
+    );
+  };
+
+  /* ── QA Approve / Reject ────────────────────────────── */
+
+  const handleQAApprove = () => {
+    if (!captionTicketId) return;
+    qaActionMutation.mutate(
+      { ticketId: captionTicketId, action: 'approve' },
+      {
+        onSuccess: (data: any) => {
+          toast.success('Caption approved!');
+          // Build updated captionItems from the response so per-item badges update
+          const updatedCaptionItems = data.item?.contentItems?.map((ci: any) => ({
+            contentItemId: ci.id,
+            url: ci.url,
+            fileName: ci.fileName ?? null,
+            captionText: ci.captionText ?? null,
+            captionStatus: ci.captionStatus ?? 'approved',
+            qaRejectionReason: ci.qaRejectionReason ?? null,
+          })) ?? meta.captionItems;
+          onUpdate({
+            ...task,
+            metadata: {
+              ...meta,
+              wallPostStatus: data.wallPostStatus,
+              captionStatus: 'completed',
+              captionItems: updatedCaptionItems,
+            },
+          });
+        },
+        onError: (error) => {
+          toast.error(error.message || 'Failed to approve');
+        },
+      },
+    );
+  };
+
+  const handleQAReject = () => {
+    if (!captionTicketId || !rejectReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    qaActionMutation.mutate(
+      { ticketId: captionTicketId, action: 'reject', reason: rejectReason.trim() },
+      {
+        onSuccess: (data: any) => {
+          toast.info('Items rejected — use "Re-push" to send back to caption workspace');
+          setRejectReason('');
+          setShowRejectInput(false);
+          // Build updated captionItems from the response so per-item badges update
+          const updatedCaptionItems = data.item?.contentItems?.map((ci: any) => ({
+            contentItemId: ci.id,
+            url: ci.url,
+            fileName: ci.fileName ?? null,
+            captionText: ci.captionText ?? null,
+            captionStatus: ci.captionStatus ?? 'rejected',
+            qaRejectionReason: ci.qaRejectionReason ?? null,
+          })) ?? meta.captionItems;
+          onUpdate({
+            ...task,
+            metadata: {
+              ...meta,
+              wallPostStatus: data.wallPostStatus,
+              captionStatus: data.wallPostStatus === 'PARTIALLY_APPROVED' ? 'partially_approved' : 'pending',
+              qaRejectionReason: data.reason,
+              captionItems: updatedCaptionItems,
+            },
+          });
+        },
+        onError: (error) => {
+          toast.error(error.message || 'Failed to reject');
+        },
+      },
+    );
+  };
+
+  /* ── Per-item QA Approve / Reject ───────────────────── */
+
+  const handleItemApprove = (mediaItem: MediaWithCaption) => {
+    if (!captionTicketId || !mediaItem.contentItemId) return;
+    setActioningItemId(mediaItem.id);
+    qaItemActionMutation.mutate(
+      {
+        ticketId: captionTicketId,
+        items: [{ contentItemId: mediaItem.contentItemId, action: 'approve' as const }],
+      },
+      {
+        onSuccess: (data) => {
+          toast.success(`Item ${mediaItem.index + 1} approved`);
+          setActioningItemId(null);
+          // Update local metadata with the new caption items + status
+          if (data.captionItems) {
+            onUpdate({
+              ...task,
+              metadata: {
+                ...meta,
+                wallPostStatus: data.wallPostStatus,
+                captionStatus: data.ticketStatus,
+                captionItems: data.captionItems,
+              },
+            });
+          }
+        },
+        onError: (error) => {
+          setActioningItemId(null);
+          toast.error(error.message || 'Failed to approve item');
+        },
+      },
+    );
+  };
+
+  const handleItemReject = (mediaItem: MediaWithCaption, reason: string) => {
+    if (!captionTicketId || !mediaItem.contentItemId) return;
+    setActioningItemId(mediaItem.id);
+    qaItemActionMutation.mutate(
+      {
+        ticketId: captionTicketId,
+        items: [{ contentItemId: mediaItem.contentItemId, action: 'reject' as const, reason }],
+      },
+      {
+        onSuccess: (data) => {
+          toast.info(`Item ${mediaItem.index + 1} rejected`);
+          setActioningItemId(null);
+          if (data.captionItems) {
+            onUpdate({
+              ...task,
+              metadata: {
+                ...meta,
+                wallPostStatus: data.wallPostStatus,
+                captionStatus: data.ticketStatus,
+                captionItems: data.captionItems,
+              },
+            });
+          }
+        },
+        onError: (error) => {
+          setActioningItemId(null);
+          toast.error(error.message || 'Failed to reject item');
+        },
+      },
+    );
+  };
+
+  /* ── Per-item Revert (undo approve / reject → submitted) ── */
+
+  const handleItemRevert = (mediaItem: MediaWithCaption) => {
+    if (!captionTicketId || !mediaItem.contentItemId) return;
+    setActioningItemId(mediaItem.id);
+    qaItemActionMutation.mutate(
+      {
+        ticketId: captionTicketId,
+        items: [{ contentItemId: mediaItem.contentItemId, action: 'revert' as const }],
+      },
+      {
+        onSuccess: (data) => {
+          toast.success(`Item ${mediaItem.index + 1} reverted to Pending QA`);
+          setActioningItemId(null);
+          if (data.captionItems) {
+            onUpdate({
+              ...task,
+              metadata: {
+                ...meta,
+                wallPostStatus: data.wallPostStatus,
+                captionStatus: data.ticketStatus,
+                captionItems: data.captionItems,
+              },
+            });
+          }
+        },
+        onError: (error) => {
+          setActioningItemId(null);
+          toast.error(error.message || 'Failed to revert item');
+        },
+      },
+    );
+  };
+
+  /* ── Mark item as Posted ─────────────────────────── */
+
+  const handleMarkPosted = (mediaItem: MediaWithCaption, posted: boolean) => {
+    // Update the matching CaptionItem entry in metadata (match by contentItemId or url)
+    const updatedCaptionItems = captionItems.map((ci) => {
+      const isMatch =
+        (mediaItem.contentItemId && ci.contentItemId === mediaItem.contentItemId) ||
+        ci.url === mediaItem.url;
+      return isMatch ? { ...ci, isPosted: posted } : ci;
+    });
+    onUpdate({
+      ...task,
+      metadata: { ...meta, captionItems: updatedCaptionItems },
+    });
+    toast.success(
+      posted
+        ? `Item ${mediaItem.index + 1} marked as Posted`
+        : `Item ${mediaItem.index + 1} unmarked`,
+    );
+  };
+
+  /* ── Re-push rejected items to caption workspace ──── */
+
+  const handleRepushRejected = () => {
+    if (!captionTicketId) return;
+    repushRejectedMutation.mutate(captionTicketId, {
+      onSuccess: (data) => {
+        toast.success(`${data.repushedCount} rejected item(s) re-pushed to caption workspace`);
+        onUpdate({
+          ...task,
+          metadata: {
+            ...meta,
+            wallPostStatus: data.wallPostStatus,
+            captionStatus: data.ticketStatus,
+            captionItems: data.captionItems,
+          },
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || 'Failed to re-push rejected items');
+      },
+    });
+  };
+
   /* ── Effects ─────────────────────────────────────────── */
 
   useEffect(() => setMounted(true), []);
@@ -334,7 +988,6 @@ export function WallPostTaskDetailModal({
   useEffect(() => {
     if (editingCaption) captionRef.current?.focus();
   }, [editingCaption]);
-
   if (!mounted || !isOpen) return null;
 
   /* ── Helpers ─────────────────────────────────────────── */
@@ -432,6 +1085,15 @@ export function WallPostTaskDetailModal({
                     {platform}
                   </span>
                 )}
+                {/* Wall Post Status Badge */}
+                {wallPostStatus && WALL_POST_STATUS_CONFIG[wallPostStatus] && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-semibold border ${WALL_POST_STATUS_CONFIG[wallPostStatus].bgColor} ${WALL_POST_STATUS_CONFIG[wallPostStatus].color}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${WALL_POST_STATUS_CONFIG[wallPostStatus].dotColor}`} />
+                    {WALL_POST_STATUS_CONFIG[wallPostStatus].label}
+                  </span>
+                )}
               </div>
 
               {/* Editable Title */}
@@ -490,8 +1152,29 @@ export function WallPostTaskDetailModal({
               )}
             </div>
 
-            {/* Edit + Close buttons */}
+            {/* Action buttons */}
             <div className="flex items-center gap-2 shrink-0 pt-1">
+              {/* Push to Caption Workspace — shown when PENDING_CAPTION and user can create queue */}
+              {canPush && (!wallPostStatus || wallPostStatus === WALL_POST_STATUS.PENDING_CAPTION) && photos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePushToCaption}
+                  disabled={pushToCaptionMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    background: 'linear-gradient(135deg, #5DC3F8 0%, #4BA8D8 100%)',
+                    boxShadow: '0 2px 12px rgba(93,195,248,0.25)',
+                  }}
+                >
+                  {pushToCaptionMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-3 w-3" />
+                  )}
+                  Push to Caption
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setEditingTitle(true)}
@@ -585,48 +1268,49 @@ export function WallPostTaskDetailModal({
             {/* ── Description Tab ────────────────────────── */}
             {activeTab === 'description' && (
               <>
-                {/* Photo Status Overview */}
-                <GlowCard
-                  icon={ImageIcon}
-                  title="Photo Status Overview"
-                  iconColorClass="bg-brand-blue/10 text-brand-blue"
-                  badge={
-                    photos.length > 0 ? (
-                      <span className="inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-brand-blue/15 text-brand-blue text-[10px] font-bold px-1.5">
-                        {photos.length}
-                      </span>
-                    ) : undefined
-                  }
-                >
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {(
-                      Object.entries(PHOTO_STATUS_CONFIG) as [
-                        string,
-                        (typeof PHOTO_STATUS_CONFIG)[string],
-                      ][]
-                    ).map(([key, cfg]) => {
-                      const count =
-                        statusCounts[key as keyof typeof statusCounts] ?? 0;
-                      const StatusIcon = cfg.icon;
-                      return (
-                        <div
-                          key={key}
-                          className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 border ${cfg.color}`}
-                        >
-                          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
-                          <div className="min-w-0">
-                            <span className="text-lg font-bold leading-none block">
-                              {count}
-                            </span>
-                            <span className="text-[9px] font-medium uppercase tracking-wider opacity-70 block mt-0.5">
-                              {cfg.label}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* QA Reject reason input — shown when reject button clicked */}
+                {showRejectInput && (
+                  <div className="mb-4 rounded-xl p-4" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-red-400 block mb-2">
+                      Rejection Reason
+                    </label>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Explain why the caption needs revision..."
+                      rows={3}
+                      className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-3.5 py-2.5 text-sm text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30 resize-none transition-shadow"
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={handleQAReject}
+                        disabled={qaActionMutation.isPending || !rejectReason.trim()}
+                        className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {qaActionMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                        className="px-4 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </GlowCard>
+                )}
+
+                {/* QA Rejection banner — shown when status is REVISION_REQUIRED */}
+                {wallPostStatus === WALL_POST_STATUS.REVISION_REQUIRED && qaRejectionReason && (
+                  <div className="mb-4 rounded-xl p-4" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <RotateCcw className="h-3.5 w-3.5 text-red-400" />
+                      <span className="text-[11px] font-semibold text-red-400">Revision Required</span>
+                    </div>
+                    <p className="text-sm text-gray-300">{qaRejectionReason}</p>
+                  </div>
+                )}
 
                 {/* Description / Caption */}
                 <GlowCard
@@ -735,160 +1419,225 @@ export function WallPostTaskDetailModal({
 
             {/* ── Photos Tab ─────────────────────────────── */}
             {activeTab === 'photos' && (
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4 items-start">
-                    {/* Left column: Main Photo Viewer + Activity */}
-                    <div className="min-w-0">
-                      <div
-                        className="relative rounded-xl overflow-hidden"
-                        style={{
-                          background: 'rgba(255,255,255,0.025)',
-                          border: '1px solid rgba(255,255,255,0.05)',
-                        }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={selectedPhoto?.url ?? ''}
-                          alt={selectedPhoto?.name ?? 'Photo'}
-                          className="w-full aspect-[4/3] object-contain bg-black/30"
-                        />
-
-                        {/* Photo navigation overlay */}
-                        {photos.length > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedPhotoIndex((prev) =>
-                                  prev > 0 ? prev - 1 : photos.length - 1,
-                                )
-                              }
-                              className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors"
-                            >
-                              <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedPhotoIndex((prev) =>
-                                  prev < photos.length - 1 ? prev + 1 : 0,
-                                )
-                              }
-                              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors"
-                            >
-                              <ChevronRight className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-
-                        {/* Status badge on photo */}
-                        {selectedPhoto && (
-                          <div className="absolute top-3 left-3">
-                            {(() => {
-                              const cfg =
-                                PHOTO_STATUS_CONFIG[selectedPhoto.status];
-                              if (!cfg) return null;
-                              const StatusIcon = cfg.icon;
-                              return (
-                                <span
-                                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border backdrop-blur-sm ${cfg.color}`}
-                                >
-                                  <StatusIcon className="h-3 w-3" />
-                                  {cfg.label}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        )}
-
-                        {/* Counter */}
-                        <div className="absolute bottom-3 right-3">
-                          <span
-                            className="inline-flex items-center rounded-lg px-2.5 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm"
-                            style={{
-                              background: 'rgba(0,0,0,0.5)',
-                            }}
-                          >
-                            {selectedPhotoIndex + 1} / {photos.length}
+              mediaLoading ? (
+                /* Loading skeleton */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-xl overflow-hidden">
+                      <div className="aspect-3/2 bg-white/4" />
+                      <div className="p-3 space-y-1.5">
+                        <div className="h-3 bg-white/4 rounded w-4/5" />
+                        <div className="h-3 bg-white/4 rounded w-3/5" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : mediaWithCaptions.length === 0 ? (
+                /* Empty state */
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div
+                    className="h-16 w-16 rounded-2xl flex items-center justify-center mb-4"
+                    style={{ background: 'rgba(247,116,185,0.08)', border: '1px solid rgba(247,116,185,0.15)' }}
+                  >
+                    <ImageIcon className="h-7 w-7 text-brand-light-pink/60" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-400 mb-1">No media uploaded yet</p>
+                  <p className="text-xs text-gray-600">
+                    Upload files via the Content Submission form and they will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* ── Caption status summary ── */}
+                  {(() => {
+                    const counts = { approved: 0, submitted: 0, rejected: 0, in_progress: 0, pending: 0, not_required: 0 };
+                    mediaWithCaptions.forEach((m) => {
+                      const s = m.captionStatus ?? 'pending';
+                      if (s in counts) counts[s as keyof typeof counts]++;
+                    });
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {counts.approved > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span className="font-bold">{counts.approved}</span> Approved
                           </span>
+                        )}
+                        {counts.submitted > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            <Clock className="h-3 w-3" />
+                            <span className="font-bold">{counts.submitted}</span> Pending QA
+                          </span>
+                        )}
+                        {counts.rejected > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-red-500/10 text-red-400 border-red-500/20">
+                            <XCircle className="h-3 w-3" />
+                            <span className="font-bold">{counts.rejected}</span> Revision
+                          </span>
+                        )}
+                        {counts.in_progress > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-brand-blue/10 text-brand-blue border-brand-blue/20">
+                            <span className="font-bold">{counts.in_progress}</span> In Progress
+                          </span>
+                        )}
+                        {(counts.pending > 0) && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-white/4 text-gray-400 border-white/6">
+                            <span className="font-bold">{counts.pending}</span> Pending
+                          </span>
+                        )}
+                        <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-white/4 text-gray-400 border-white/6">
+                          <ImageIcon className="h-3 w-3" />
+                          <span className="font-bold">{mediaWithCaptions.length}</span> Total
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Bulk QA actions bar ── */}
+                  {canQA && (wallPostStatus === WALL_POST_STATUS.FOR_QA || wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED) && (
+                    <div
+                      className="rounded-xl px-4 py-3 flex flex-col gap-3"
+                      style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-semibold text-gray-400">
+                          {wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED
+                            ? 'Partially approved — some items need revision'
+                            : 'Awaiting QA review'}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleQAApprove}
+                            disabled={qaActionMutation.isPending}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
+                            style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                          >
+                            {qaActionMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+                            Approve All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowRejectInput((v) => !v)}
+                            disabled={qaActionMutation.isPending}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97] disabled:opacity-50"
+                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Reject All
+                          </button>
                         </div>
                       </div>
-
-                      {/* Photo name */}
-                      {selectedPhoto?.name && (
-                        <p className="text-xs text-gray-400 mt-2 px-1">
-                          {selectedPhoto.name}
-                        </p>
-                      )}
-
-                      {/* Activity Feed below main photo viewer */}
-                      <div className="mt-6">
-                        <ActivityFeed
-                          comments={comments}
-                          history={history}
-                          onAddComment={handleAddComment}
-                          currentUserName={
-                            user?.firstName ?? user?.username ?? 'User'
-                          }
-                          isLoading={commentsLoading}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Photo List Sidebar — stretches full height of left column */}
-                    <div className="lg:sticky lg:top-0 space-y-2 overflow-y-auto custom-scrollbar pr-1" style={{ maxHeight: '56vh' }}>
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-2">
-                        All Photos
-                      </span>
-                      {photos.map((photo, idx) => {
-                        const isActive = idx === selectedPhotoIndex;
-                        const cfg = PHOTO_STATUS_CONFIG[photo.status];
-                        return (
-                          <button
-                            key={photo.id}
-                            type="button"
-                            onClick={() => setSelectedPhotoIndex(idx)}
-                            className={`w-full rounded-lg overflow-hidden transition-all ${
-                              isActive
-                                ? 'ring-2 ring-brand-light-pink/60'
-                                : 'ring-1 ring-white/[0.06] hover:ring-white/[0.12]'
-                            }`}
-                          >
-                            <div className="relative">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={photo.url}
-                                alt={photo.name ?? `Photo ${idx + 1}`}
-                                className="w-full aspect-[16/10] object-cover"
-                              />
-                              {/* Status dot */}
-                              {cfg && (
-                                <div className="absolute top-1.5 right-1.5">
-                                  <span
-                                    className={`block h-2.5 w-2.5 rounded-full border border-black/30 ${cfg.dotColor}`}
-                                  />
-                                </div>
-                              )}
-                              {isActive && (
-                                <div className="absolute inset-0 bg-brand-light-pink/10" />
-                              )}
-                            </div>
-                            <div
-                              className="px-2 py-1.5 text-left"
-                              style={{
-                                background: isActive
-                                  ? 'rgba(247,116,185,0.06)'
-                                  : 'rgba(255,255,255,0.025)',
-                              }}
+                      {showRejectInput && (
+                        <div className="space-y-2">
+                          <textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Explain why the captions need revision..."
+                            rows={2}
+                            className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-3 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleQAReject}
+                              disabled={qaActionMutation.isPending || !rejectReason.trim()}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
                             >
-                              <span className="text-[10px] text-gray-400 block truncate">
-                                {photo.name ?? `Photo ${idx + 1}`}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                              {qaActionMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                              className="px-3 py-1.5 rounded-lg text-[11px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  )}
+
+                  {/* ── Re-push rejected items banner ── */}
+                  {canQA && wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED && (() => {
+                    const rejCount = mediaWithCaptions.filter(
+                      (m) => m.captionStatus === 'rejected',
+                    ).length;
+                    if (rejCount === 0) return null;
+                    return (
+                      <div
+                        className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+                        style={{ background: 'rgba(93,195,248,0.06)', border: '1px solid rgba(93,195,248,0.18)' }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <RotateCcw className="h-3.5 w-3.5 text-brand-blue shrink-0" />
+                          <span className="text-[11px] font-semibold text-brand-blue truncate">
+                            {rejCount} rejected item{rejCount > 1 ? 's' : ''} ready to re-push
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRepushRejected}
+                          disabled={repushRejectedMutation.isPending}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[11px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                          style={{
+                            background: 'linear-gradient(135deg, #5DC3F8 0%, #4BA8D8 100%)',
+                            boxShadow: '0 2px 12px rgba(93,195,248,0.25)',
+                          }}
+                        >
+                          {repushRejectedMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <ArrowRight className="h-3 w-3" />
+                          )}
+                          Re-push to Caption Workspace
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Completed banner ── */}
+                  {wallPostStatus === WALL_POST_STATUS.COMPLETED && (
+                    <div
+                      className="flex items-center gap-2 rounded-xl px-4 py-3"
+                      style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}
+                    >
+                      <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <span className="text-[12px] font-semibold text-emerald-400">All captions QA Approved</span>
+                    </div>
+                  )}
+
+                  {/* ── Media grid ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {mediaWithCaptions.map((m) => (
+                      <MediaCard
+                        key={m.id}
+                        media={m}
+                        wallPostStatus={wallPostStatus}
+                        captionStatus={captionStatus}
+                        canQA={canQA}
+                        onApprove={() => handleItemApprove(m)}
+                        onReject={(reason) => handleItemReject(m, reason)}
+                        onRevert={() => handleItemRevert(m)}
+                        onMarkPosted={(posted) => handleMarkPosted(m, posted)}
+                        isActioning={actioningItemId === m.id}
+                      />
+                    ))}
                   </div>
+
+                  {/* Activity Feed */}
+                  <div className="mt-2">
+                    <ActivityFeed
+                      comments={comments}
+                      history={history}
+                      onAddComment={handleAddComment}
+                      currentUserName={user?.firstName ?? user?.username ?? 'User'}
+                      isLoading={commentsLoading}
+                    />
+                  </div>
+                </div>
+              )
             )}
           </div>
 
@@ -915,6 +1664,17 @@ export function WallPostTaskDetailModal({
                 {columnTitle}
               </span>
             </SidebarField>
+
+            {wallPostStatus && WALL_POST_STATUS_CONFIG[wallPostStatus] && (
+              <SidebarField label="Caption Status">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border ${WALL_POST_STATUS_CONFIG[wallPostStatus].bgColor} ${WALL_POST_STATUS_CONFIG[wallPostStatus].color}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${WALL_POST_STATUS_CONFIG[wallPostStatus].dotColor}`} />
+                  {WALL_POST_STATUS_CONFIG[wallPostStatus].label}
+                </span>
+              </SidebarField>
+            )}
 
             <SidebarField label="Platform">
               <SelectField

@@ -1,10 +1,9 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Send, AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { Send, AlertTriangle, Save, Loader2, AlertCircle, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModelContext } from './types';
-import { useAutoSave } from '@/lib/hooks/useAutoSave';
 
 interface CaptionEditorProps {
   caption: string;
@@ -18,6 +17,19 @@ interface CaptionEditorProps {
   /** When set, shows "Caption X of N" indicator */
   currentItemIndex?: number;
   totalItems?: number;
+  /** Number of actionable items (excludes approved/not_required) */
+  actionableCount?: number;
+  /**
+   * When provided (multi-item tickets), the Submit button submits the whole
+   * ticket at once instead of advancing item-by-item.
+   */
+  onSubmitAll?: () => Promise<void>;
+  /** QA rejection reason — shown as a banner so the writer knows what to fix; per-item takes priority over ticket-level */
+  qaRejectionReason?: string | null;
+  /** Per-item caption status (pending, in_progress, submitted, approved, rejected, not_required) */
+  itemCaptionStatus?: string;
+  /** Whether this item is locked (approved / not_required) — makes editor read-only */
+  isLocked?: boolean;
 }
 
 const MAX_CAPTION_LENGTH = 2200;
@@ -100,13 +112,18 @@ function CaptionEditorComponent({
   ticketId,
   onSaveDraft,
   onSubmit,
+  onSubmitAll,
   currentItemIndex,
   totalItems,
+  actionableCount,
+  qaRejectionReason,
+  itemCaptionStatus,
+  isLocked = false,
 }: CaptionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
-  // Validation state - defined early for use in hooks
+  // Validation state
   const hasRestrictions = restrictedWordsFound.length > 0;
   const isValid = !hasRestrictions;
   const isOverLimit = caption.length > MAX_CAPTION_LENGTH;
@@ -115,32 +132,6 @@ function CaptionEditorComponent({
   const handleCaptionChange = useCallback((newCaption: string) => {
     onCaptionChange(newCaption);
   }, [onCaptionChange]);
-
-  // Auto-save functionality
-  const handleAutoSave = useCallback(async (data: string) => {
-    if (onSaveDraft && data.length > 0) {
-      await onSaveDraft(data);
-    }
-  }, [onSaveDraft]);
-
-  const { isSaving: isAutoSaving, lastSaved, error: autoSaveError, reset: resetAutoSave } = useAutoSave({
-    data: caption,
-    onSave: handleAutoSave,
-    delay: 3000,
-    enabled: !!onSaveDraft && !!ticketId && caption.length > 0,
-  });
-
-  // Reset auto-save when ticket changes
-  useEffect(() => {
-    resetAutoSave();
-  }, [ticketId, resetAutoSave]);
-
-  // Show auto-save error
-  useEffect(() => {
-    if (autoSaveError) {
-      toast.error('Failed to auto-save draft');
-    }
-  }, [autoSaveError]);
 
   // Manual save draft
   const handleSaveDraft = useCallback(async () => {
@@ -159,18 +150,29 @@ function CaptionEditorComponent({
 
   // Submit caption
   const handleSubmit = useCallback(async () => {
+    if (onSubmitAll) {
+      if (isOverLimit) return;
+      setIsSubmitting(true);
+      try {
+        await onSubmitAll();
+      } catch (err) {
+        toast.error('Failed to submit captions');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
     if (!onSubmit || !isValid || isOverLimit) return;
     
     setIsSubmitting(true);
     try {
       await onSubmit(caption);
-      toast.success('Caption submitted for QA');
     } catch (err) {
       toast.error('Failed to submit caption');
     } finally {
       setIsSubmitting(false);
     }
-  }, [onSubmit, caption, isValid, isOverLimit]);
+  }, [onSubmit, onSubmitAll, caption, isValid, isOverLimit]);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900/80">
@@ -186,34 +188,65 @@ function CaptionEditorComponent({
             {currentItemIndex + 1} / {totalItems}
           </span>
         )}
-        
-        {/* Auto-save indicator */}
-        {isAutoSaving && (
-          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px] font-medium">
-            <Loader2 size={10} className="animate-spin" />
-            Saving...
+
+        {/* Per-item status badge */}
+        {itemCaptionStatus === 'approved' && (
+          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-[10px] font-semibold">
+            <CheckCircle2 size={10} />
+            Approved
           </span>
         )}
-        {isDraft && !isAutoSaving && lastSaved && (
-          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-medium">
-            Draft saved {lastSaved.toLocaleTimeString()}
+        {itemCaptionStatus === 'rejected' && (
+          <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded text-[10px] font-semibold">
+            Revision Required
           </span>
         )}
-        {isDraft && !isAutoSaving && !lastSaved && (
-          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-medium">
-            Unsaved draft
+        {itemCaptionStatus === 'not_required' && (
+          <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded text-[10px] font-semibold">
+            No Caption Needed
+          </span>
+        )}
+
+        {/* Lock indicator */}
+        {isLocked && (
+          <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded text-[10px] font-medium">
+            <Lock size={10} />
+            Read-only
           </span>
         )}
       </div>
 
+      {/* QA rejection banner — shown when this ticket was rejected and returned for revision */}
+      {qaRejectionReason && (
+        <div className="mb-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-xl flex items-start gap-3">
+          <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <div className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">
+              QA Revision Required
+            </div>
+            <div className="text-xs text-red-500 dark:text-red-300 leading-relaxed whitespace-pre-wrap">
+              {qaRejectionReason}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Text area with restricted word highlighting */}
-      <HighlightedTextarea
-        value={caption}
-        restrictedWords={restrictedWordsFound}
-        onChange={(e) => handleCaptionChange(e.target.value)}
-        placeholder="Write your caption here... Use the model context on the right for personality, lingo, and restrictions."
-        maxLength={MAX_CAPTION_LENGTH}
-      />
+      {isLocked ? (
+        <div className="flex-1 min-h-30 mb-3 relative">
+          <div className="absolute inset-0 px-3 py-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm leading-relaxed text-gray-600 dark:text-gray-300 overflow-auto whitespace-pre-wrap">
+            {caption || <span className="text-gray-400 italic">No caption</span>}
+          </div>
+        </div>
+      ) : (
+        <HighlightedTextarea
+          value={caption}
+          restrictedWords={restrictedWordsFound}
+          onChange={(e) => handleCaptionChange(e.target.value)}
+          placeholder="Write your caption here... Use the model context on the right for personality, lingo, and restrictions."
+          maxLength={MAX_CAPTION_LENGTH}
+        />
+      )}
 
       {/* Restriction warning */}
       {hasRestrictions && (
@@ -250,6 +283,12 @@ function CaptionEditorComponent({
 
       {/* Action buttons — always pinned at bottom */}
       <div className="shrink-0 px-5 py-3 border-t border-brand-mid-pink/10 bg-white dark:bg-gray-900/80">
+      {isLocked ? (
+        <div className="flex items-center justify-center gap-2 py-3 text-sm text-gray-400 dark:text-gray-500">
+          <Lock size={14} />
+          This item is {itemCaptionStatus === 'approved' ? 'approved' : 'locked'} and cannot be edited
+        </div>
+      ) : (
       <div className="flex gap-3">
         <button 
           onClick={handleSaveDraft}
@@ -265,9 +304,9 @@ function CaptionEditorComponent({
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!isValid || isOverLimit || isSubmitting}
+          disabled={isOverLimit || isSubmitting || (!onSubmitAll && !isValid)}
           className={`flex-2 px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-            isValid && !isOverLimit && !isSubmitting
+            !isOverLimit && !isSubmitting && (onSubmitAll || isValid)
               ? 'bg-linear-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-dark-pink hover:to-brand-mid-pink text-white shadow-lg shadow-brand-mid-pink/30'
               : 'bg-brand-off-white dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-brand-mid-pink/10'
           }`}
@@ -277,13 +316,26 @@ function CaptionEditorComponent({
           ) : (
             <Send size={14} />
           )}
-          {totalItems !== undefined && currentItemIndex !== undefined
-            ? currentItemIndex < totalItems - 1
-              ? `Next (${currentItemIndex + 1}/${totalItems})`
-              : `Submit All`
+          {isSubmitting
+            ? 'Submitting...'
+            : onSubmitAll
+            ? (itemCaptionStatus === 'rejected' ? 'Resubmit All for QA' : 'Submit All for QA')
+            : totalItems !== undefined && currentItemIndex !== undefined
+            ? (() => {
+                const remaining = actionableCount ?? totalItems;
+                if (remaining <= 1) {
+                  return itemCaptionStatus === 'rejected' ? 'Resubmit for QA' : 'Submit All';
+                }
+                return itemCaptionStatus === 'rejected'
+                  ? `Resubmit & Next`
+                  : `Next (${currentItemIndex + 1}/${totalItems})`;
+              })()
+            : itemCaptionStatus === 'rejected'
+            ? 'Resubmit for QA'
             : 'Submit for QA'}
         </button>
       </div>
+      )}
       </div>{/* end action buttons container */}
     </div>
   );

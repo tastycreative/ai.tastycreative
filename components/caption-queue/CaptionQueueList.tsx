@@ -185,16 +185,16 @@ export function CaptionQueueList({ refreshTrigger }: CaptionQueueListProps) {
             <div className="space-y-2 mb-3">
               {/* Content Types */}
               <div className="flex flex-wrap gap-1">
-                {item.contentTypes.map((type) => (
-                  <span key={type} className="px-2 py-1 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded text-[10px] font-medium text-brand-mid-pink border border-brand-mid-pink/20">
+                {[...new Set(item.contentTypes)].map((type, idx) => (
+                  <span key={`ct-${type}-${idx}`} className="px-2 py-1 bg-brand-mid-pink/10 dark:bg-brand-mid-pink/20 rounded text-[10px] font-medium text-brand-mid-pink border border-brand-mid-pink/20">
                     {type}
                   </span>
                 ))}
               </div>
               {/* Message Types */}
               <div className="flex flex-wrap gap-1">
-                {item.messageTypes.map((type) => (
-                  <span key={type} className="px-2 py-1 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 rounded text-[10px] font-medium text-brand-light-pink border border-brand-light-pink/20">
+                {[...new Set(item.messageTypes)].map((type, idx) => (
+                  <span key={`mt-${type}-${idx}`} className="px-2 py-1 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 rounded text-[10px] font-medium text-brand-light-pink border border-brand-light-pink/20">
                     {type}
                   </span>
                 ))}

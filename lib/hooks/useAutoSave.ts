@@ -88,9 +88,12 @@ export function useAutoSave<T>({
     save();
   }, [debouncedData, enabled]);
 
-  // Reset function to clear failure state and retry
-  const reset = useCallback(() => {
+  // Reset function — clears failure state and sets a new baseline so the
+  // next debounce only fires if the user actually changes the data from this point.
+  const reset = useCallback((baseline?: T) => {
     hasFailedRef.current = false;
+    isFirstRender.current = false; // baseline is now known; skip the first-render guard
+    lastSavedData.current = baseline !== undefined ? baseline : lastSavedData.current;
     setError(null);
   }, []);
 

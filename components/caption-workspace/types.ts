@@ -6,10 +6,20 @@ export interface ContentItemData {
   fileType?: 'image' | 'video' | null;
   sortOrder: number;
   captionText?: string | null;
+  // Per-item QA fields
+  requiresCaption: boolean;
+  captionStatus: string;
+  qaRejectionReason?: string | null;
+  qaRejectedAt?: string | null;
+  qaRejectedBy?: string | null;
+  qaApprovedAt?: string | null;
+  qaApprovedBy?: string | null;
+  revisionCount: number;
 }
 
 export interface QueueTicket {
   id: string;
+  status: string;
   model: {
     name: string;
     avatar: string;
@@ -26,6 +36,8 @@ export interface QueueTicket {
   contentSourceType?: 'upload' | 'gdrive' | null;
   /** Multi-content items (each has its own caption) */
   contentItems: ContentItemData[];
+  /** Reason left by QA when the ticket was rejected and returned; null if never rejected */
+  qaRejectionReason?: string | null;
 }
 
 export interface ModelContext {

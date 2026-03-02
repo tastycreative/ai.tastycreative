@@ -24,6 +24,14 @@ const TICKET_INCLUDE = {
       fileType: true,
       sortOrder: true,
       captionText: true,
+      requiresCaption: true,
+      captionStatus: true,
+      qaRejectionReason: true,
+      qaRejectedAt: true,
+      qaRejectedBy: true,
+      qaApprovedAt: true,
+      qaApprovedBy: true,
+      revisionCount: true,
     },
   },
 } as const;
@@ -114,7 +122,26 @@ export async function GET(_request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ items });
+    // Batch-fetch board item metadata to surface the QA rejection reason on each ticket
+    const boardItemIds = items.map(i => i.boardItemId).filter(Boolean) as string[];
+    const boardItemMeta = boardItemIds.length > 0
+      ? await prisma.boardItem.findMany({
+          where: { id: { in: boardItemIds } },
+          select: { id: true, metadata: true },
+        })
+      : [];
+    const boardMetaMap = new Map(
+      boardItemMeta.map(b => [b.id, (b.metadata ?? {}) as Record<string, unknown>])
+    );
+
+    const enrichedItems = items.map(item => ({
+      ...item,
+      qaRejectionReason: item.boardItemId
+        ? ((boardMetaMap.get(item.boardItemId)?.qaRejectionReason as string | null) ?? null)
+        : null,
+    }));
+
+    return NextResponse.json({ items: enrichedItems });
   } catch (error) {
     console.error('Error fetching caption queue:', error);
     return NextResponse.json({ error: 'Failed to fetch queue items' }, { status: 500 });
@@ -158,6 +185,7 @@ export async function POST(request: NextRequest) {
       contentUrl,
       contentSourceType,
       originalFileName,
+      boardItemId,
       assignedCreatorClerkIds = [] as string[],
       contentItems = [] as Array<{
         url: string;
@@ -221,6 +249,7 @@ export async function POST(request: NextRequest) {
           contentUrl: contentUrl ?? null,
           contentSourceType: contentSourceType ?? null,
           originalFileName: originalFileName ?? null,
+          boardItemId: boardItemId ?? null,
         },
       });
 
@@ -263,6 +292,34 @@ export async function POST(request: NextRequest) {
         senderClerkId: clerkId,
         assignedCreatorClerkIds: item.assignees.map((a) => a.clerkId),
       });
+    }
+
+    // Write caption ticket reference back to the linked board item so the
+    // wall-post modal can display status without an extra join.
+    if (item && boardItemId) {
+      try {
+        const existing = await prisma.boardItem.findUnique({
+          where: { id: boardItemId },
+          select: { metadata: true },
+        });
+        const prev = (existing?.metadata as Record<string, unknown>) ?? {};
+        await prisma.boardItem.update({
+          where: { id: boardItemId },
+          data: {
+            metadata: {
+              ...prev,
+              captionTicketId: item.id,
+              captionStatus: 'pending',
+              captionText: null,
+              wallPostStatus: 'IN_CAPTION',
+            },
+            updatedAt: new Date(),
+          },
+        });
+      } catch (e) {
+        // Non-fatal — log but don't fail the response
+        console.error('Failed to write captionTicketId back to board item:', e);
+      }
     }
 
     return NextResponse.json({ item }, { status: 201 });

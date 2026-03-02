@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle } from 'lucide-react';
+import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck } from 'lucide-react';
 import { QueueTicket, ContentItemData } from './types';
 
 interface ContentViewerProps {
@@ -45,11 +45,15 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
           </div>
 
           {/* Caption status badge */}
-          {item.captionText && (
+          {item.captionStatus === 'approved' ? (
+            <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-600/90 backdrop-blur-sm rounded-lg text-white text-xs font-semibold flex items-center gap-1">
+              <ShieldCheck size={11} /> Approved — Locked
+            </div>
+          ) : item.captionText ? (
             <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-600/80 backdrop-blur-sm rounded-lg text-white text-xs flex items-center gap-1">
               <CheckCircle size={11} /> Captioned
             </div>
-          )}
+          ) : null}
 
           {/* Navigation arrows */}
           {items.length > 1 && (
@@ -85,7 +89,9 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
                   className={`relative shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
                     isSelected
                       ? 'border-brand-mid-pink shadow-sm shadow-brand-mid-pink/30'
-                      : 'border-transparent hover:border-brand-mid-pink/40'
+                      : thumb.captionStatus === 'approved'
+                        ? 'border-emerald-500/50 opacity-60'
+                        : 'border-transparent hover:border-brand-mid-pink/40'
                   }`}
                 >
                   {thumbIsImage ? (
@@ -95,12 +101,16 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
                       {thumb.sourceType === 'gdrive' ? <Link2 size={14} className="text-brand-mid-pink" /> : <FileVideo size={14} className="text-brand-mid-pink" />}
                     </div>
                   )}
-                  {/* Captioned indicator */}
-                  {thumb.captionText && (
+                  {/* Approved overlay */}
+                  {thumb.captionStatus === 'approved' ? (
+                    <div className="absolute inset-0 bg-emerald-900/40 flex items-center justify-center">
+                      <ShieldCheck size={14} className="text-emerald-300" />
+                    </div>
+                  ) : thumb.captionText ? (
                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-tl-sm flex items-center justify-center">
                       <CheckCircle size={8} className="text-white" />
                     </div>
-                  )}
+                  ) : null}
                 </button>
               );
             })}

@@ -3,6 +3,9 @@ import * as Ably from 'ably';
 /** Channel name pattern — must match what the client subscribes to. */
 export const queueChannel = (orgId: string) => `caption-queue:org:${orgId}`;
 
+/** Board real-time channel — matches what useBoardRealtime subscribes to. */
+export const boardChannel = (boardId: string) => `board:${boardId}`;
+
 /**
  * Per-user generation channel.
  * The /process worker publishes progress + completion events here.
@@ -34,6 +37,22 @@ export async function broadcastToOrg(
   } catch (err) {
     // Non-fatal — real-time update missed, but the next query refetch will catch up
     console.error('[Ably] Failed to publish queue event:', err);
+  }
+}
+
+/**
+ * Publish a board event so useBoardRealtime invalidates the board items cache.
+ * Safe to call from serverless route handlers.
+ */
+export async function broadcastToBoard(
+  boardId: string,
+  entityId: string,
+): Promise<void> {
+  try {
+    const channel = getAblyRest().channels.get(boardChannel(boardId));
+    await channel.publish('item.updated', { entityId, tabId: '__server__' });
+  } catch (err) {
+    console.error('[Ably] Failed to publish board event:', err);
   }
 }
 

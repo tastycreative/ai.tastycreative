@@ -15,6 +15,15 @@ export interface CaptionQueueContentItem {
   fileType?: string | null;
   sortOrder: number;
   captionText?: string | null;
+  // Per-item QA fields
+  requiresCaption: boolean;
+  captionStatus: string;
+  qaRejectionReason?: string | null;
+  qaRejectedAt?: string | null;
+  qaRejectedBy?: string | null;
+  qaApprovedAt?: string | null;
+  qaApprovedBy?: string | null;
+  revisionCount: number;
 }
 
 export interface CaptionQueueItem {
@@ -39,10 +48,13 @@ export interface CaptionQueueItem {
   contentUrl?: string | null;
   contentSourceType?: string | null;
   sortOrder?: number;
+  boardItemId?: string | null;
   /** Creators assigned to this ticket */
   assignees: CaptionQueueAssignee[];
   /** Individual content pieces, each with its own caption */
   contentItems: CaptionQueueContentItem[];
+  /** Reason left by QA when the ticket was rejected (null if never rejected) */
+  qaRejectionReason?: string | null;
 }
 
 
@@ -232,6 +244,249 @@ export function useUpdateContentItemCaption() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+    },
+  });
+}
+
+export interface CreateCaptionTicketInput {
+  modelName: string;
+  modelAvatar: string;
+  profileImageUrl?: string | null;
+  profileId?: string | null;
+  description: string;
+  contentTypes: string[];
+  messageTypes: string[];
+  urgency: 'urgent' | 'high' | 'medium' | 'low';
+  releaseDate: string;
+  boardItemId?: string | null;
+  contentItems?: Array<{
+    url: string;
+    sourceType: 'upload' | 'gdrive';
+    fileName?: string | null;
+    fileType?: 'image' | 'video' | null;
+    sortOrder?: number;
+  }>;
+}
+
+async function createCaptionTicket(input: CreateCaptionTicketInput): Promise<CaptionQueueItem> {
+  const response = await fetch('/api/caption-queue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create caption ticket');
+  }
+  const data = await response.json();
+  return data.item;
+}
+
+/**
+ * Create a new caption queue ticket, e.g. from a wall-post board item.
+ * Automatically invalidates the queue list on success.
+ */
+export function useCreateCaptionTicket() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: createCaptionTicket,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+    },
+  });
+}
+
+// ─── Push to Caption Workspace (from Wall Post Board) ───────────────
+
+export interface PushToCaptionInput {
+  boardItemId: string;
+  assignedCreatorClerkIds?: string[];
+  urgency?: 'urgent' | 'high' | 'medium' | 'low';
+  releaseDate?: string;
+  description?: string;
+}
+
+async function pushToCaptionWorkspace(
+  input: PushToCaptionInput,
+): Promise<{ item: CaptionQueueItem; boardItemId: string; wallPostStatus: string }> {
+  const response = await fetch('/api/caption-queue/from-board-item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to push to Caption Workspace');
+  }
+  return response.json();
+}
+
+/**
+ * Push a Wall Post board item to the Caption Workspace.
+ * Creates a CaptionQueueTicket from the board item's media and metadata.
+ * Invalidates both the caption queue and the board items cache.
+ */
+export function usePushToCaptionWorkspace() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: pushToCaptionWorkspace,
+    onSuccess: (_data, variables) => {
+      // Invalidate caption queue
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      // Invalidate board items so the status badge updates
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      // Invalidate the specific board item if there's a cache entry
+      queryClient.invalidateQueries({
+        queryKey: ['boardItems', 'detail', variables.boardItemId],
+      });
+    },
+  });
+}
+
+// ─── QA Approve / Reject ────────────────────────────────────────────
+
+export interface QAActionInput {
+  ticketId: string;
+  action: 'approve' | 'reject';
+  reason?: string;
+}
+
+async function performQAAction(
+  input: QAActionInput,
+): Promise<{ item: CaptionQueueItem; action: string; wallPostStatus: string; reason?: string }> {
+  const response = await fetch(`/api/caption-queue/${input.ticketId}/qa`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: input.action, reason: input.reason }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to process QA action');
+  }
+  return response.json();
+}
+
+/**
+ * Approve or reject a caption ticket during QA review.
+ * - approve → ticket completed, wallPostStatus = COMPLETED
+ * - reject  → ticket re-opened, wallPostStatus = REVISION_REQUIRED
+ */
+export function useQAAction() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: performQAAction,
+    onSuccess: () => {
+      // Invalidate caption queue
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      // Invalidate board items so status badges update
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+    },
+  });
+}
+
+// ─── Per-Item QA Approve / Reject ───────────────────────────────────
+
+export interface QAItemActionInput {
+  ticketId: string;
+  items: Array<{
+    contentItemId: string;
+    action: 'approve' | 'reject' | 'revert';
+    reason?: string;
+  }>;
+}
+
+async function performQAItemAction(
+  input: QAItemActionInput,
+): Promise<{
+  ticket: CaptionQueueItem;
+  results: Array<{ contentItemId: string; action: string; captionStatus: string }>;
+  ticketStatus: string;
+  wallPostStatus: string;
+  captionItems?: Array<{
+    url: string;
+    fileName: string | null;
+    captionText: string | null;
+    captionStatus: string;
+    qaRejectionReason: string | null;
+  }>;
+}> {
+  const response = await fetch(`/api/caption-queue/${input.ticketId}/qa/items`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: input.items }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to process per-item QA action');
+  }
+  return response.json();
+}
+
+/**
+ * Approve or reject individual content items during QA review.
+ * Supports partial approval — only rejected items go back to the captioner.
+ */
+export function useQAItemAction() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: performQAItemAction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+    },
+  });
+}
+
+// ─── Re-push Rejected Items to Caption Workspace ─────────────────────
+
+async function performRepushRejected(
+  ticketId: string,
+): Promise<{
+  ticket: CaptionQueueItem;
+  wallPostStatus: string;
+  ticketStatus: string;
+  captionItems: Array<{
+    contentItemId: string;
+    url: string;
+    fileName: string | null;
+    captionText: string | null;
+    captionStatus: string;
+    qaRejectionReason: string | null;
+  }>;
+  repushedCount: number;
+}> {
+  const response = await fetch(`/api/caption-queue/${ticketId}/qa/repush`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to re-push rejected items');
+  }
+  return response.json();
+}
+
+/**
+ * Explicitly re-push rejected items back to the caption workspace.
+ * Flips rejected → pending and moves ticket to in_revision.
+ */
+export function useRepushRejected() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: performRepushRejected,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
     },
   });
 }

@@ -2,7 +2,7 @@
 
 import { useRef, memo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Search, X, GripVertical, Loader2 } from 'lucide-react';
+import { Calendar, Search, X, GripVertical, Loader2, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { toast } from 'sonner';
@@ -112,21 +112,34 @@ const QueueItem = memo(function QueueItem({
       } ${isDragging ? 'shadow-lg ring-2 ring-brand-mid-pink/50 bg-white dark:bg-gray-800' : ''}`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {/* Drag handle */}
           <div
             {...dragHandleProps}
-            className="p-1 -ml-1 hover:bg-brand-mid-pink/10 rounded cursor-grab active:cursor-grabbing"
+            className="shrink-0 p-1 -ml-1 hover:bg-brand-mid-pink/10 rounded cursor-grab active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical size={12} className="text-gray-400" />
           </div>
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{ticket.id}</span>
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate" title={ticket.id}>{ticket.id}</span>
         </div>
-        <span className={`px-2 py-0.5 ${config.bg} ${config.textColor} rounded text-[10px] font-bold`}>
-          {config.label}
-        </span>
+        <div className="shrink-0 flex items-center gap-1">
+          {ticket.status === 'partially_approved' && (
+            <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded text-[10px] font-bold flex items-center gap-0.5">
+              PARTIAL
+            </span>
+          )}
+          {ticket.qaRejectionReason && ticket.status !== 'partially_approved' && (
+            <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded text-[10px] font-bold flex items-center gap-0.5">
+              <AlertCircle size={9} />
+              REVISION
+            </span>
+          )}
+          <span className={`px-2 py-0.5 ${config.bg} ${config.textColor} rounded text-[10px] font-bold`}>
+            {config.label}
+          </span>
+        </div>
       </div>
 
       {/* Model info */}
@@ -144,15 +157,56 @@ const QueueItem = memo(function QueueItem({
         {ticket.description}
       </div>
 
+      {/* QA rejection reason */}
+      {ticket.qaRejectionReason && (
+        <div className="mb-1.5 px-2 py-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-lg flex items-start gap-1.5">
+          <AlertCircle size={10} className="text-red-500 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-red-600 dark:text-red-400 line-clamp-2 leading-relaxed">
+            <span className="font-semibold">QA feedback: </span>
+            {ticket.qaRejectionReason}
+          </p>
+        </div>
+      )}
+
+      {/* Per-item status summary */}
+      {ticket.contentItems.length > 1 && (() => {
+        const approved = ticket.contentItems.filter(ci => ci.captionStatus === 'approved').length;
+        const rejected = ticket.contentItems.filter(ci => ci.captionStatus === 'rejected').length;
+        const notRequired = ticket.contentItems.filter(ci => ci.captionStatus === 'not_required').length;
+        const total = ticket.contentItems.length;
+        if (approved === 0 && rejected === 0 && notRequired === 0) return null;
+        return (
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px]">
+            {approved > 0 && (
+              <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400 font-medium">
+                <CheckCircle size={9} />
+                {approved}/{total - notRequired}
+              </span>
+            )}
+            {rejected > 0 && (
+              <span className="flex items-center gap-0.5 text-red-500 dark:text-red-400 font-medium">
+                <XCircle size={9} />
+                {rejected} rejected
+              </span>
+            )}
+            {notRequired > 0 && (
+              <span className="text-gray-400 dark:text-gray-500 font-medium">
+                {notRequired} skipped
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Tags */}
       <div className="flex flex-wrap gap-1 mb-1.5">
-        {ticket.contentTypes.map((type) => (
-          <span key={type} className="px-1.5 py-0.5 bg-brand-off-white dark:bg-gray-800 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 border border-brand-mid-pink/10 whitespace-nowrap">
+        {[...new Set(ticket.contentTypes)].map((type, idx) => (
+          <span key={`ct-${type}-${idx}`} className="px-1.5 py-0.5 bg-brand-off-white dark:bg-gray-800 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 border border-brand-mid-pink/10 whitespace-nowrap">
             {type}
           </span>
         ))}
-        {(Array.isArray(ticket.messageType) ? ticket.messageType : [ticket.messageType]).map((type) => (
-          <span key={type} className="px-1.5 py-0.5 bg-brand-blue/10 rounded text-[10px] font-medium text-brand-blue border border-brand-blue/20 whitespace-nowrap">
+        {[...new Set(Array.isArray(ticket.messageType) ? ticket.messageType : [ticket.messageType])].map((type, idx) => (
+          <span key={`mt-${type}-${idx}`} className="px-1.5 py-0.5 bg-brand-blue/10 rounded text-[10px] font-medium text-brand-blue border border-brand-blue/20 whitespace-nowrap">
             {type}
           </span>
         ))}

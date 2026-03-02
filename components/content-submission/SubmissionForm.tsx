@@ -233,6 +233,10 @@ export const SubmissionForm = memo(function SubmissionForm({
           internalModelTags: data.internalModelTags,
           externalCreatorTags: data.externalCreatorTags,
           ...meta,
+          // Hoist top-level form fields into metadata so board items can access them
+          modelId: data.modelId ?? null,
+          // Wall post workflow: set initial status so it appears in Caption Workspace flow
+          ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
         },
       };
 

@@ -91,8 +91,7 @@ export const boardItemKeys = {
   details: () => [...boardItemKeys.all, 'detail'] as const,
   detail: (itemId: string) => [...boardItemKeys.details(), itemId] as const,
   comments: (itemId: string) => [...boardItemKeys.all, 'comments', itemId] as const,
-  history: (itemId: string) => [...boardItemKeys.all, 'history', itemId] as const,
-};
+  history: (itemId: string) => [...boardItemKeys.all, 'history', itemId] as const,  media: (itemId: string) => [...boardItemKeys.all, 'media', itemId] as const,};
 
 /* ------------------------------------------------------------------ */
 /*  Fetch functions                                                    */
@@ -480,5 +479,36 @@ export function useUpdateColumn(spaceId: string, boardId: string) {
         queryKey: boardItemKeys.list(boardId),
       });
     },
+  });
+}
+
+// ─── Board Item Media ────────────────────────────────────────────────
+
+async function fetchBoardItemMedia(
+  spaceId: string,
+  boardId: string,
+  itemId: string,
+): Promise<BoardItemMedia[]> {
+  const response = await fetch(
+    `/api/spaces/${spaceId}/boards/${boardId}/items/${itemId}/media`,
+  );
+  if (!response.ok) throw new Error('Failed to fetch board item media');
+  const data = await response.json();
+  return data.media ?? [];
+}
+
+export function useBoardItemMedia(
+  spaceId: string | undefined,
+  boardId: string | undefined,
+  itemId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: boardItemKeys.media(itemId ?? ''),
+    queryFn: () => fetchBoardItemMedia(spaceId!, boardId!, itemId!),
+    enabled: enabled && !!spaceId && !!boardId && !!itemId,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 }

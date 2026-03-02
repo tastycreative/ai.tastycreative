@@ -61,7 +61,7 @@ export default function VaultFolderDropdownEnhanced({
   const dropdownContentRef = useRef<HTMLDivElement>(null);
   
   // Dropdown position state
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; left: number; width: number; maxHeight: number } | null>(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -203,12 +203,12 @@ export default function VaultFolderDropdownEnhanced({
           const spaceOnRight = window.innerWidth - rect.right;
           const shouldPositionLeft = spaceOnRight < dropdownWidth + gap;
           
-          // Calculate available height from button top to bottom of viewport
-          const availableHeight = window.innerHeight - rect.top - viewportPadding;
-          const maxHeight = Math.min(500, availableHeight); // Max 500px or available space
+          // Calculate available height upward from button bottom
+          const availableHeight = rect.bottom - viewportPadding;
+          const maxHeight = Math.min(650, availableHeight); // Max 650px or available space
           
           setDropdownPosition({
-            top: rect.top,
+            bottom: window.innerHeight - rect.bottom, // Anchor bottom edge to button bottom, grows upward
             left: shouldPositionLeft ? rect.left - dropdownWidth - gap : rect.right + gap,
             width: dropdownWidth,
             maxHeight
@@ -452,7 +452,7 @@ export default function VaultFolderDropdownEnhanced({
             ref={dropdownContentRef}
             className="fixed z-[9999] flex flex-col py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden"
             style={{
-              top: `${dropdownPosition.top}px`,
+              bottom: `${dropdownPosition.bottom}px`,
               left: `${dropdownPosition.left}px`,
               width: `${dropdownPosition.width}px`,
               maxHeight: `${dropdownPosition.maxHeight}px`

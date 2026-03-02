@@ -1190,6 +1190,7 @@ model CaptionQueueTicket {
   contentUrl        String?
   originalFileName  String?
   sortOrder         Int?
+  boardItemId       String?
   organization      Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   assignees         CaptionQueueAssignee[]
   contentItems      CaptionQueueContentItem[]
@@ -1203,26 +1204,58 @@ model CaptionQueueTicket {
   @@index([clerkId, status])
   @@index([clerkId, sortOrder])
   @@index([organizationId, status])
+  @@index([boardItemId])
   @@map("caption_queue_tickets")
 }
 
 /// Individual content piece (image/video/drive link) within a caption queue ticket.
 /// Each item has its own caption so a single ticket can cover multiple assets.
 model CaptionQueueContentItem {
-  id          String             @id @default(cuid())
-  ticketId    String
-  url         String
-  sourceType  String             // 'upload' | 'gdrive'
-  fileName    String?
-  fileType    String?            // 'image' | 'video'
-  sortOrder   Int                @default(0)
-  captionText String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  ticket      CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id               String             @id @default(cuid())
+  ticketId         String
+  url              String
+  sourceType       String             // 'upload' | 'gdrive'
+  fileName         String?
+  fileType         String?            // 'image' | 'video'
+  sortOrder        Int                @default(0)
+  captionText      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // ── Per-item QA fields ──
+  requiresCaption  Boolean            @default(true)
+  captionStatus    String             @default("pending") // pending | in_progress | submitted | approved | rejected | not_required
+  qaRejectionReason String?
+  qaRejectedAt     DateTime?
+  qaRejectedBy     String?
+  qaApprovedAt     DateTime?
+  qaApprovedBy     String?
+  revisionCount    Int                @default(0)
+
+  ticket           CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  revisions        CaptionRevisionHistory[]
 
   @@index([ticketId])
+  @@index([ticketId, captionStatus])
   @@map("caption_queue_content_items")
+}
+
+/// Tracks caption revision history per content item — who wrote/approved/rejected each version.
+model CaptionRevisionHistory {
+  id             String                   @id @default(cuid())
+  contentItemId  String
+  revisionNumber Int
+  captionText    String
+  action         String                   // submitted | approved | rejected
+  reason         String?                  // rejection reason
+  performedBy    String                   // clerk ID
+  createdAt      DateTime                 @default(now())
+
+  contentItem    CaptionQueueContentItem  @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([contentItemId])
+  @@index([contentItemId, revisionNumber])
+  @@map("caption_revision_history")
 }
 
 model CaptionQueueAssignee {

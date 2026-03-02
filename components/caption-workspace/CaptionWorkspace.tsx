@@ -98,8 +98,8 @@ export default function CaptionWorkspace() {
   // Per-ticket selected content item index
   const [selectedItemIndices, setSelectedItemIndices] = useState<Record<string, number>>({});
 
-  // Per-ticket timestamp of the last KEY LOCAL edit — used to avoid overwriting
-  // text the current user is actively typing with a remote update.
+  // Per-ticket timestamp of the last local keystroke — used to avoid overwriting
+  // text the current user is actively typing with a real-time SSE update from another user.
   const lastLocalEditRef = useRef<Record<string, number>>({});
 
   // Fetch real queue data
@@ -123,9 +123,17 @@ export default function CaptionWorkspace() {
   useCaptionQueueSSE({ onRemoteCaption: handleRemoteCaption });
 
   // Transform API data to match QueueTicket interface
+  // Show tickets the captioner needs to act on:
+  //   - pending, draft, in_progress: normal flow
+  //   - in_revision: captioner actively revising rejected items (after QA re-push)
+  // Hide: pending_qa (waiting for QA), completed (done),
+  //        partially_approved (QA still reviewing — items stay until explicit re-push)
   const allQueue: QueueTicket[] = useMemo(() => 
-    queueData?.map(item => ({
+    (queueData || [])
+      .filter(item => !['pending_qa', 'completed', 'partially_approved'].includes(item.status))
+      .map(item => ({
       id: item.id,
+      status: item.status,
       model: { 
         name: item.modelName, 
         avatar: item.modelAvatar,
@@ -155,7 +163,16 @@ export default function CaptionWorkspace() {
         fileType: ci.fileType as 'image' | 'video' | null,
         sortOrder: ci.sortOrder,
         captionText: ci.captionText,
+        requiresCaption: ci.requiresCaption ?? true,
+        captionStatus: ci.captionStatus ?? 'pending',
+        qaRejectionReason: ci.qaRejectionReason ?? null,
+        qaRejectedAt: ci.qaRejectedAt ?? null,
+        qaRejectedBy: ci.qaRejectedBy ?? null,
+        qaApprovedAt: ci.qaApprovedAt ?? null,
+        qaApprovedBy: ci.qaApprovedBy ?? null,
+        revisionCount: ci.revisionCount ?? 0,
       })),
+      qaRejectionReason: item.qaRejectionReason ?? null,
     })) || [],
   [queueData]);
 
@@ -169,6 +186,13 @@ export default function CaptionWorkspace() {
       ticket.contentTypes.some(ct => ct.toLowerCase().includes(search))
     );
   }, [allQueue, searchQuery]);
+
+  // Clamp selectedTicket whenever the filtered queue shrinks (e.g. a ticket is completed and filtered out)
+  useEffect(() => {
+    if (queue.length > 0 && selectedTicket >= queue.length) {
+      setSelectedTicket(queue.length - 1);
+    }
+  }, [queue.length, selectedTicket]);
 
   // Initialize caption drafts from database when queue data loads
   useEffect(() => {
@@ -194,12 +218,13 @@ export default function CaptionWorkspace() {
   }, [queueData]);
 
   // Get the actual index in queueData for the filtered item
+  // Always look up by ID — queueData includes all statuses so indices don't match queue's filtered indices
   const getOriginalIndex = useCallback((filteredIndex: number) => {
-    if (!searchQuery.trim()) return filteredIndex;
     const filteredItem = queue[filteredIndex];
-    if (!filteredItem) return filteredIndex;
-    return queueData?.findIndex(item => item.id === filteredItem.id) ?? filteredIndex;
-  }, [queue, queueData, searchQuery]);
+    if (!filteredItem || !queueData) return filteredIndex;
+    const idx = queueData.findIndex(item => item.id === filteredItem.id);
+    return idx >= 0 ? idx : filteredIndex;
+  }, [queue, queueData]);
 
   // Fetch profile data for the selected ticket
   const selectedTicketData = queue[selectedTicket];
@@ -239,6 +264,32 @@ export default function CaptionWorkspace() {
     ? (selectedItemIndices[selectedTicketData.id] ?? 0)
     : 0;
   const currentItem = selectedTicketData?.contentItems?.[currentItemIndex] ?? null;
+
+  // Items that the captioner needs to work on (not approved, not not_required)
+  const actionableItemIndices = useMemo(() => {
+    if (!selectedTicketData?.contentItems) return [];
+    return selectedTicketData.contentItems
+      .map((ci, idx) => ({ idx, status: ci.captionStatus }))
+      .filter(({ status }) => !['approved', 'not_required'].includes(status))
+      .map(({ idx }) => idx);
+  }, [selectedTicketData?.contentItems]);
+
+  // Whether the current item is locked (approved or not_required)
+  const isCurrentItemLocked = currentItem
+    ? ['approved', 'not_required'].includes(currentItem.captionStatus)
+    : false;
+
+  // Auto-navigate to first actionable item when selecting a ticket
+  // (skip approved items so the captioner lands on work that needs doing)
+  useEffect(() => {
+    if (!selectedTicketData?.id) return;
+    const storedIdx = selectedItemIndices[selectedTicketData.id];
+    if (storedIdx !== undefined) return; // user already navigated manually
+    if (actionableItemIndices.length > 0 && actionableItemIndices[0] !== 0) {
+      setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: actionableItemIndices[0] }));
+    }
+  }, [selectedTicketData?.id, actionableItemIndices]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const captionDraftKey = selectedTicketData
     ? (currentItem ? `${selectedTicketData.id}:${currentItem.id}` : selectedTicketData.id)
     : '';
@@ -253,11 +304,23 @@ export default function CaptionWorkspace() {
     setCaptionDrafts(prev => ({ ...prev, [captionDraftKey]: newCaption }));
   }, [captionDraftKey]);
 
-  // Navigate to a specific item within the current ticket
+  // Navigate to a specific item within the current ticket.
+  // Flush the current item's draft immediately (fire-and-forget) so rapid
+  // navigation can't lose text that hasn't hit the 3-second auto-save debounce yet.
   const handleSelectItem = useCallback((itemIndex: number) => {
     if (!selectedTicketData) return;
+
+    // Flush current item draft before switching
+    if (currentItem && captionDraftKey) {
+      const draftText = captionDrafts[captionDraftKey];
+      if (draftText && draftText.length > 0) {
+        // Fire-and-forget — navigation is instant, save runs in background
+        updateItemCaptionMutation.mutate({ itemId: currentItem.id, captionText: draftText });
+      }
+    }
+
     setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: itemIndex }));
-  }, [selectedTicketData]);
+  }, [selectedTicketData, currentItem, captionDraftKey, captionDrafts, updateItemCaptionMutation]);
 
   // Check if current slot has a draft
   const hasDraft = !!captionDraftKey && (captionDrafts[captionDraftKey]?.length ?? 0) > 0;
@@ -271,16 +334,65 @@ export default function CaptionWorkspace() {
       await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
     } else {
       // Legacy: save to ticket's captionText field
-      const ticketId = queueData[originalIndex]?.id;
-      if (!ticketId) return;
+      const ticketId = selectedTicketData.id;
       await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'draft' } });
     }
-  }, [selectedTicketData, queueData, originalIndex, currentItem, updateItemCaptionMutation, updateQueueMutation]);
+  }, [selectedTicketData, queueData, currentItem, updateItemCaptionMutation, updateQueueMutation]);
+
+  // Submit ALL items at once — saves every in-memory draft and marks the ticket pending_qa.
+  // Empty items are allowed through: we only save items that have text in draft.
+  const handleSubmitAll = useCallback(async () => {
+    if (!selectedTicketData || !queueData) return;
+    const ticketId = selectedTicketData.id;
+
+    // Save every actionable item that has a draft in memory (even if it hasn't auto-saved yet)
+    const itemsToSave = selectedTicketData.contentItems
+      .filter(ci => !['approved', 'not_required'].includes(ci.captionStatus))
+      .filter(ci => {
+        const key = `${ticketId}:${ci.id}`;
+        const draft = captionDrafts[key];
+        // Save if the in-memory draft differs from what's persisted
+        return draft !== undefined && draft !== (ci.captionText ?? '');
+      });
+
+    if (itemsToSave.length > 0) {
+      await Promise.all(
+        itemsToSave.map(ci =>
+          updateItemCaptionMutation.mutateAsync({
+            itemId: ci.id,
+            captionText: captionDrafts[`${ticketId}:${ci.id}`] ?? '',
+          }),
+        ),
+      );
+    }
+
+    // Mark the whole ticket as pending_qa
+    await updateQueueMutation.mutateAsync({ id: ticketId, data: { status: 'pending_qa' } });
+
+    // Clear all item drafts for this ticket
+    setCaptionDrafts(prev => {
+      const next = { ...prev };
+      selectedTicketData.contentItems.forEach(ci => {
+        delete next[`${ticketId}:${ci.id}`];
+      });
+      return next;
+    });
+
+    const captionedCount = selectedTicketData.contentItems.filter(ci => {
+      const key = `${ticketId}:${ci.id}`;
+      return captionDrafts[key] || ci.captionText;
+    }).length;
+    toast.success(`Submitted for QA (${captionedCount}/${selectedTicketData.contentItems.length} captioned) ✓`);
+    setSelectedTicket(0);
+    setSelectedItemIndices({});
+  }, [selectedTicketData, queueData, captionDrafts, updateItemCaptionMutation, updateQueueMutation]);
 
   // Submit caption handler (item-aware)
   const handleSubmitCaption = useCallback(async (captionText: string) => {
     if (!selectedTicketData || !queueData) return;
-    
+    // Use the ticket ID directly from selectedTicketData — never derive via array index
+    const ticketId = selectedTicketData.id;
+
     if (currentItem) {
       // Save the item caption
       await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
@@ -291,37 +403,62 @@ export default function CaptionWorkspace() {
         return next;
       });
 
-      const totalItems = selectedTicketData.contentItems.length;
-      const nextItemIndex = currentItemIndex + 1;
+      // Find the next actionable item (skip approved/not_required items)
+      const remainingActionable = actionableItemIndices.filter(idx => idx > currentItemIndex);
 
-      if (nextItemIndex < totalItems) {
-        // Advance to next item
-        setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: nextItemIndex }));
+      if (remainingActionable.length > 0) {
+        // Advance to next actionable item
+        setSelectedItemIndices(prev => ({ ...prev, [ticketId]: remainingActionable[0] }));
       } else {
-        // All items done — mark ticket as pending_qa and move to next ticket
-        const ticketId = queueData[originalIndex]?.id;
-        if (ticketId) {
-          await updateQueueMutation.mutateAsync({ id: ticketId, data: { status: 'pending_qa' } });
+        // Safety net: flush any other actionable items that still have unsaved drafts in memory.
+        // This handles the case where the user typed quickly and navigated before the
+        // 3-second auto-save debounce could fire (which resets/cancels on item change).
+        const otherUnsavedItems = actionableItemIndices
+          .filter(idx => idx !== currentItemIndex)
+          .map(idx => selectedTicketData.contentItems[idx])
+          .filter(ci => {
+            const key = `${ticketId}:${ci.id}`;
+            const draft = captionDrafts[key];
+            return draft && draft.length > 0 && draft !== ci.captionText;
+          });
+
+        if (otherUnsavedItems.length > 0) {
+          await Promise.all(
+            otherUnsavedItems.map(ci =>
+              updateItemCaptionMutation.mutateAsync({
+                itemId: ci.id,
+                captionText: captionDrafts[`${ticketId}:${ci.id}`],
+              })
+            )
+          );
         }
-        if (selectedTicket < queue.length - 1) {
-          setSelectedTicket(selectedTicket + 1);
-          setSelectedItemIndices({});
+
+        // All actionable items done — mark ticket as pending_qa
+        await updateQueueMutation.mutateAsync({ id: ticketId, data: { status: 'pending_qa' } });
+        const totalActionable = actionableItemIndices.length;
+        const totalApproved = selectedTicketData.contentItems.filter(ci => ci.captionStatus === 'approved').length;
+        if (totalApproved > 0) {
+          toast.success(`${totalActionable} caption${totalActionable > 1 ? 's' : ''} resubmitted for QA (${totalApproved} already approved) ✓`);
+        } else {
+          toast.success('All captions submitted! Ticket moved to QA ✓');
         }
+        // Reset to first ticket — the completed ticket will be filtered out after refetch
+        setSelectedTicket(0);
+        setSelectedItemIndices({});
       }
     } else {
       // Legacy single-caption ticket
-      const ticketId = queueData[originalIndex]?.id;
-      if (!ticketId) return;
       await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'pending_qa' } });
       setCaptionDrafts(prev => {
         const next = { ...prev };
-        delete next[selectedTicketData.id];
+        delete next[ticketId];
         return next;
       });
-      if (selectedTicket < queue.length - 1) setSelectedTicket(selectedTicket + 1);
+      toast.success('Caption submitted! Ticket moved to QA ✓');
+      setSelectedTicket(0);
     }
-  }, [selectedTicketData, queueData, originalIndex, currentItem, currentItemIndex, captionDraftKey,
-      updateItemCaptionMutation, updateQueueMutation, selectedTicket, queue.length]);
+  }, [selectedTicketData, queueData, currentItem, currentItemIndex, captionDraftKey,
+      actionableItemIndices, updateItemCaptionMutation, updateQueueMutation]);
 
   // Handle queue reorder (local state update)
   const handleQueueReorder = useCallback((startIndex: number, endIndex: number) => {
@@ -538,11 +675,16 @@ export default function CaptionWorkspace() {
                 modelContext={modelContext}
                 restrictedWordsFound={restrictedWordsFound}
                 isDraft={hasDraft}
-                ticketId={selectedTicketData?.id}
-                onSaveDraft={handleSaveDraft}
-                onSubmit={handleSubmitCaption}
+                ticketId={captionDraftKey || selectedTicketData?.id}
+                onSaveDraft={isCurrentItemLocked ? undefined : handleSaveDraft}
+                onSubmit={isCurrentItemLocked ? undefined : handleSubmitCaption}
+                onSubmitAll={isCurrentItemLocked || !hasMultipleItems ? undefined : handleSubmitAll}
                 currentItemIndex={hasMultipleItems ? currentItemIndex : undefined}
                 totalItems={hasMultipleItems ? (selectedTicketData?.contentItems.length ?? 0) : undefined}
+                actionableCount={hasMultipleItems ? actionableItemIndices.length : undefined}
+                qaRejectionReason={currentItem?.qaRejectionReason ?? selectedTicketData?.qaRejectionReason}
+                itemCaptionStatus={currentItem?.captionStatus}
+                isLocked={isCurrentItemLocked}
               />
             </ErrorBoundary>
           </ResizablePanel>

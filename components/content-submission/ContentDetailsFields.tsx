@@ -1003,6 +1003,11 @@ export function ContentDetailsFields({
                 value={metadata[field.key]}
                 onChange={(value) => handleMetadataChange(field.key, value)}
                 profiles={field.key === 'model' ? sortedProfiles : undefined}
+                onProfileSelect={
+                  field.key === 'model'
+                    ? (profileId: string) => setValue('modelId', profileId)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -1071,11 +1076,14 @@ function MetadataFieldInput({
   value,
   onChange,
   profiles,
+  onProfileSelect,
 }: {
   field: MetadataFieldDescriptor;
   value: any;
   onChange: (value: any) => void;
   profiles?: { id: string; name: string; username?: string | null }[];
+  /** Called with the profile ID when a model is selected from the searchable dropdown */
+  onProfileSelect?: (profileId: string) => void;
 }) {
   const inputClass =
     'w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 transition-all duration-150';
@@ -1164,7 +1172,14 @@ function MetadataFieldInput({
         <SearchableDropdown
           options={profiles.map((p) => p.name)}
           value={(value as string) || ''}
-          onChange={onChange}
+          onChange={(selected) => {
+            onChange(selected);
+            // Also set the profile ID so the caption workspace can load the model bible
+            const profile = profiles.find((p) => p.name === selected);
+            if (profile && onProfileSelect) {
+              onProfileSelect(profile.id);
+            }
+          }}
           placeholder="Search models..."
           searchPlaceholder="Type to search models..."
         />
