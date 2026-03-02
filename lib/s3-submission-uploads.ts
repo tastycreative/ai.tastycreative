@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { convertS3ToCdnUrl } from './cdnUtils';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-west-2',
@@ -50,7 +51,9 @@ export async function generatePresignedUploadUrl(
       expiresIn: 3600, // 1 hour
     });
 
-    const fileUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${s3Key}`;
+    // Generate S3 URL and convert to CDN URL
+    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${s3Key}`;
+    const fileUrl = convertS3ToCdnUrl(s3Url);
 
     return {
       uploadUrl,

@@ -5,6 +5,7 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { convertS3ToCdnUrl } from './cdnUtils';
 
 // AWS S3 Configuration
 const AWS_REGION = process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1';
@@ -61,8 +62,9 @@ export async function uploadToAwsS3(
 
     await s3Client.send(command);
 
-    // Generate public URL
-    const publicUrl = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${s3Key}`;
+    // Generate public URL via CDN
+    const s3Url = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${s3Key}`;
+    const publicUrl = convertS3ToCdnUrl(s3Url);
 
     console.log(`✅ Successfully uploaded to AWS S3: ${publicUrl}`);
 
@@ -108,13 +110,14 @@ export async function generateAwsSignedUrl(
 }
 
 /**
- * Generate direct public URL (fastest - no Vercel bandwidth)
+ * Generate direct public URL via CDN (fastest - no Vercel bandwidth)
  */
 export function generateAwsPublicUrl(s3Key: string): string {
   if (!s3Key) return '';
-  
+
   const cleanKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
-  return `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${cleanKey}`;
+  const s3Url = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${cleanKey}`;
+  return convertS3ToCdnUrl(s3Url);
 }
 
 /**
