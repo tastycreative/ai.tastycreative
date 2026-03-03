@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "@/lib/database";
 import { hasAccessToProfile } from "@/lib/vault-permissions";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -83,8 +84,9 @@ export async function POST(request: NextRequest) {
 
     const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
-    // Generate the final S3 URL
-    const awsS3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    // Generate the final S3 URL and convert to CDN URL
+    const s3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    const awsS3Url = convertS3ToCdnUrl(s3Url);
 
     return NextResponse.json({
       presignedUrl,

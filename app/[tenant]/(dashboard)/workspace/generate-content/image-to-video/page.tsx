@@ -6,6 +6,7 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { getBestMediaUrl } from "@/lib/directUrlUtils";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 import {
   Video,
   Upload,
@@ -1641,8 +1642,9 @@ export default function ImageToVideoPage() {
         awsS3Url = video.awsS3Url;
         console.log("📥 Using direct AWS S3 URL:", awsS3Url);
       } else if (video.awsS3Key) {
-        awsS3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
-        console.log("📥 Generated AWS S3 URL:", awsS3Url);
+        const s3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+        awsS3Url = convertS3ToCdnUrl(s3Url);
+        console.log("📥 Generated CDN URL:", awsS3Url);
       } else {
         console.error("❌ No AWS S3 URL available for download");
         alert("❌ This video is not available for download (no AWS S3 URL)");
@@ -1695,8 +1697,9 @@ export default function ImageToVideoPage() {
       awsS3Url = video.awsS3Url;
       console.log("📤 Sharing direct AWS S3 URL:", awsS3Url);
     } else if (video.awsS3Key) {
-      awsS3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
-      console.log("📤 Sharing generated AWS S3 URL:", awsS3Url);
+      const s3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+      awsS3Url = convertS3ToCdnUrl(s3Url);
+      console.log("📤 Sharing generated CDN URL:", awsS3Url);
     } else {
       console.error("❌ No AWS S3 URL available for sharing");
       alert("❌ This video cannot be shared (no AWS S3 URL)");

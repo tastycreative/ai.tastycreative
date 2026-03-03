@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 // GET - List all reference items for a user (universal, no profile dependency)
 export async function GET(req: NextRequest) {
@@ -183,10 +184,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Construct the S3 URL
+    // Construct the S3 URL and convert to CDN URL
     const bucket = process.env.AWS_S3_BUCKET || "tastycreative";
     const region = process.env.AWS_REGION || "us-east-1";
-    const awsS3Url = `https://${bucket}.s3.${region}.amazonaws.com/${awsS3Key}`;
+    const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${awsS3Key}`;
+    const awsS3Url = convertS3ToCdnUrl(s3Url);
 
     const item = await prisma.reference_items.create({
       data: {
