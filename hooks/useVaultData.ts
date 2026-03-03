@@ -66,11 +66,12 @@ interface VaultItem {
 
 export const vaultKeys = {
   all: ['vault'] as const,
-  folders: (profileId?: string, organizationSlug?: string | null) => 
+  folders: (profileId?: string, organizationSlug?: string | null) =>
     ['vault', 'folders', profileId, organizationSlug] as const,
-  items: (profileId?: string, folderId?: string, organizationSlug?: string | null, sharedFolderId?: string) => 
+  items: (profileId?: string, folderId?: string, organizationSlug?: string | null, sharedFolderId?: string) =>
     ['vault', 'items', profileId, folderId, organizationSlug, sharedFolderId] as const,
   sharedFolders: () => ['vault', 'sharedFolders'] as const,
+  trash: (profileId?: string) => ['vault', 'trash', profileId] as const,
 };
 
 // ==================== Hooks ====================

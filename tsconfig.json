@@ -34,7 +34,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
-  ],
+, "shiftreport.txs"  ],
   "exclude": [
     "node_modules",
     "skills",

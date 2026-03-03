@@ -41,18 +41,26 @@ export interface VaultItem {
   folderId: string;
   profileId: string;
   metadata?: VaultItemMetadata | null;
+  deletedAt?: Date | null;
+  deletedFromFolderId?: string | null;
   creatorName?: string;
   creatorId?: string;
   folder?: {
     id: string;
     name: string;
     isDefault?: boolean;
+    deletedAt?: Date | null;
   };
   profile?: {
     id: string;
     name: string;
     instagramUsername?: string | null;
   };
+  // Trash-specific enrichment fields
+  daysSinceDeleted?: number;
+  daysRemaining?: number;
+  originalFolderName?: string;
+  originalFolderExists?: boolean;
 }
 
 interface FetchVaultItemsParams {
@@ -221,6 +229,137 @@ export function useContentCreatorItems(
 }
 
 /**
+ * Hook to fetch trashed items for the Trash Bin view
+ */
+export interface TrashItem extends VaultItem {
+  daysSinceDeleted: number;
+  daysRemaining: number;
+  originalFolderName: string;
+  originalFolderExists: boolean;
+}
+
+async function fetchTrashItems(profileId?: string | null): Promise<TrashItem[]> {
+  const url = profileId && profileId !== 'all'
+    ? `/api/vault/trash?profileId=${profileId}`
+    : '/api/vault/trash';
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('Failed to load trash items');
+  }
+
+  const data = await response.json();
+  return data.map((item: any) => ({
+    ...item,
+    createdAt: new Date(item.createdAt),
+    updatedAt: new Date(item.updatedAt),
+    deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
+  }));
+}
+
+export function useTrashItems(profileId?: string | null) {
+  const { user } = useUser();
+
+  return useQuery({
+    queryKey: ['vault', 'trash', profileId, user?.id],
+    queryFn: () => fetchTrashItems(profileId),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Hook to restore items from trash
+ */
+export function useRestoreTrashItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const response = await fetch('/api/vault/trash/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemIds }),
+      });
+      if (!response.ok) throw new Error('Failed to restore items');
+      return response.json();
+    },
+    onSuccess: () => {
+      // API is done — now sync with server for consistency
+      // Use refetch instead of invalidate to avoid flicker
+      queryClient.invalidateQueries({ queryKey: ['vault', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['vault', 'trash'] });
+    },
+  });
+}
+
+/**
+ * Hook to permanently delete items from trash
+ */
+export function usePermanentlyDeleteTrashItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const response = await fetch('/api/vault/trash', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemIds }),
+      });
+      if (!response.ok) throw new Error('Failed to permanently delete items');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vault', 'trash'] });
+    },
+  });
+}
+
+/**
+ * Hook to empty entire trash
+ */
+export function useEmptyTrash() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/vault/trash/empty', {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to empty trash');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vault'] });
+    },
+  });
+}
+
+/**
+ * Hook to restore a folder from trash
+ */
+export function useRestoreTrashFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (folderId: string) => {
+      const response = await fetch('/api/vault/trash/folders/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId }),
+      });
+      if (!response.ok) throw new Error('Failed to restore folder');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vault'] });
+    },
+  });
+}
+
+/**
  * Hook to invalidate vault items cache after mutations
  */
 export function useInvalidateVaultItems() {
@@ -242,6 +381,71 @@ export function useInvalidateVaultItems() {
       } else {
         queryClient.invalidateQueries({ queryKey: ['vault', 'creator-items'] });
       }
+    },
+    invalidateTrash: () => {
+      queryClient.invalidateQueries({ queryKey: ['vault', 'trash'] });
+    },
+    /**
+     * Optimistically remove items from cache so they disappear instantly,
+     * then invalidate in the background for a fresh server fetch.
+     */
+    optimisticRemoveItems: (itemIds: string[]) => {
+      const idSet = new Set(itemIds);
+      queryClient.setQueriesData<VaultItem[]>(
+        { queryKey: ['vault', 'items'] },
+        (old) => old ? old.filter((item) => !idSet.has(item.id)) : [],
+      );
+      queryClient.setQueriesData<VaultItem[]>(
+        { queryKey: ['vault', 'shared-items'] },
+        (old) => old ? old.filter((item) => !idSet.has(item.id)) : [],
+      );
+    },
+    /**
+     * Optimistically move items from trash cache back into vault items cache
+     * so they appear instantly in both views without a server round-trip.
+     * Does NOT invalidate — the mutation's onSuccess handles that after the API completes.
+     */
+    optimisticRestoreItems: (itemIds: string[]) => {
+      const idSet = new Set(itemIds);
+
+      // 1. Grab the full item data from trash cache before removing
+      const restoredItems: VaultItem[] = [];
+      const allTrashData = queryClient.getQueriesData<TrashItem[]>({
+        queryKey: ['vault', 'trash'],
+      });
+      for (const [, data] of allTrashData) {
+        if (data) {
+          restoredItems.push(
+            ...data
+              .filter((item) => idSet.has(item.id))
+              .map(({ daysSinceDeleted, daysRemaining, originalFolderName, originalFolderExists, deletedAt, deletedFromFolderId, ...rest }) => ({
+                ...rest,
+                deletedAt: null,
+                deletedFromFolderId: null,
+              })),
+          );
+        }
+      }
+
+      // 2. Remove from trash cache instantly
+      queryClient.setQueriesData<TrashItem[]>(
+        { queryKey: ['vault', 'trash'] },
+        (old) => old ? old.filter((item) => !idSet.has(item.id)) : [],
+      );
+
+      // 3. Inject restored items into vault items cache (all matching queries)
+      if (restoredItems.length > 0) {
+        queryClient.setQueriesData<VaultItem[]>(
+          { queryKey: ['vault', 'items'] },
+          (old) => {
+            if (!old) return restoredItems;
+            const existingIds = new Set(old.map((i) => i.id));
+            const newItems = restoredItems.filter((i) => !existingIds.has(i.id));
+            return [...newItems, ...old];
+          },
+        );
+      }
+      // No invalidation here — wait for the API to finish first
     },
   };
 }

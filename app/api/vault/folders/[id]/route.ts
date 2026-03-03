@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-import { S3Client, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { Prisma } from "@/lib/generated/prisma";
 import { hasAccessToProfile } from "@/lib/vault-permissions";
-
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
 
 // Helper: get all descendant folder IDs to prevent circular moves
 async function getDescendantFolderIds(folderId: string): Promise<Set<string>> {
@@ -245,39 +237,26 @@ export async function DELETE(
       );
     }
 
-    // Get all items in the folder to delete from S3
-    const items = await prisma.vaultItem.findMany({
-      where: { folderId: id },
-      select: { awsS3Key: true },
+    // Soft-delete: move folder and all its contents to trash
+    const descendantIds = await getDescendantFolderIds(id);
+    const allFolderIds = [id, ...Array.from(descendantIds)];
+    const now = new Date();
+
+    // Soft-delete all items in these folders (set deletedFromFolderId = current folderId)
+    await prisma.$executeRaw`
+      UPDATE vault_items
+      SET "deletedAt" = ${now}, "deletedFromFolderId" = "folderId", "updatedAt" = ${now}
+      WHERE "folderId" IN (${Prisma.join(allFolderIds)})
+      AND "deletedAt" IS NULL
+    `;
+
+    // Soft-delete all folders
+    await prisma.vaultFolder.updateMany({
+      where: { id: { in: allFolderIds } },
+      data: { deletedAt: now },
     });
 
-    // Delete all S3 files in the folder
-    if (items.length > 0) {
-      try {
-        // S3 DeleteObjects can handle up to 1000 objects at a time
-        const batchSize = 1000;
-        for (let i = 0; i < items.length; i += batchSize) {
-          const batch = items.slice(i, i + batchSize);
-          await s3Client.send(
-            new DeleteObjectsCommand({
-              Bucket: process.env.AWS_S3_BUCKET!,
-              Delete: {
-                Objects: batch.map((item) => ({ Key: item.awsS3Key })),
-                Quiet: true,
-              },
-            })
-          );
-        }
-      } catch (s3Error) {
-        console.error("Error deleting S3 files:", s3Error);
-        // Continue with database deletion even if S3 deletion fails
-      }
-    }
-
-    // Delete folder (items will cascade delete)
-    await prisma.vaultFolder.delete({
-      where: { id },
-    });
+    console.log("[DELETE Vault Folder] Soft-deleted folder and contents:", { folderId: id, totalFolders: allFolderIds.length });
 
     return NextResponse.json({ success: true });
   } catch (error) {

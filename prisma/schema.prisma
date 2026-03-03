@@ -47,8 +47,8 @@ model User {
   notifications            Notification[]
   onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
-  pinnedProfiles           ProfilePin[]
   profileGroups            ProfileGroup[]
+  pinnedProfiles           ProfilePin[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
   teamMemberships          TeamMember[]
@@ -1033,6 +1033,7 @@ model VaultFolder {
   updatedAt        DateTime           @updatedAt
   isDefault        Boolean            @default(false)
   parentId         String?
+  deletedAt        DateTime?
   organizationSlug String?
   order            Int                @default(0)
   shares           VaultFolderShare[]
@@ -1046,6 +1047,7 @@ model VaultFolder {
   @@index([clerkId, profileId])
   @@index([parentId])
   @@index([organizationSlug])
+  @@index([deletedAt])
   @@map("vault_folders")
 }
 
@@ -1069,25 +1071,29 @@ model VaultFolderShare {
 }
 
 model VaultItem {
-  id        String      @id @default(cuid())
-  clerkId   String
-  profileId String
-  folderId  String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  awsS3Key  String
-  awsS3Url  String
-  fileName  String
-  fileSize  Int
-  fileType  String
-  metadata  Json?
-  folder    VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  id                  String      @id @default(cuid())
+  clerkId             String
+  profileId           String
+  folderId            String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  awsS3Key            String
+  awsS3Url            String
+  fileName            String
+  fileSize            Int
+  fileType            String
+  metadata            Json?
+  deletedAt           DateTime?
+  deletedFromFolderId String?
+  folder              VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([profileId])
   @@index([folderId])
   @@index([clerkId, profileId, folderId])
   @@index([awsS3Key])
+  @@index([deletedAt])
+  @@index([clerkId, deletedAt])
   @@map("vault_items")
 }
 
@@ -1168,28 +1174,28 @@ model CaptionToMessageType {
 }
 
 model CaptionQueueTicket {
-  id                String                   @id @default(cuid())
+  id                String                    @id @default(cuid())
   clerkId           String
-  organizationId    String?
   profileId         String?
   modelName         String
   modelAvatar       String
   description       String
-  urgency           String                   @default("medium")
+  urgency           String                    @default("medium")
   releaseDate       DateTime
-  status            String                   @default("pending")
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  status            String                    @default("pending")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
   assignedTo        String?
   completedAt       DateTime?
   captionText       String?
-  contentTypes      String[]                 @default([])
-  messageTypes      String[]                 @default([])
+  contentTypes      String[]                  @default([])
+  messageTypes      String[]                  @default([])
   profileImageUrl   String?
   contentSourceType String?
   contentUrl        String?
   originalFileName  String?
   sortOrder         Int?
+  organizationId    String?
   boardItemId       String?
   /// Differentiates caption workflows: 'wall_post' (per-item captions) vs 'otp_ptr' (single ticket-level caption)
   workflowType      String?                  @default("wall_post")
@@ -1198,6 +1204,7 @@ model CaptionQueueTicket {
   organization      Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   assignees         CaptionQueueAssignee[]
   contentItems      CaptionQueueContentItem[]
+  organization      Organization?             @relation(fields: [organizationId], references: [id])
 
   @@index([clerkId])
   @@index([organizationId])
@@ -1215,20 +1222,21 @@ model CaptionQueueTicket {
 /// Individual content piece (image/video/drive link) within a caption queue ticket.
 /// Each item has its own caption so a single ticket can cover multiple assets.
 model CaptionQueueContentItem {
-  id               String             @id @default(cuid())
-  ticketId         String
-  url              String
-  sourceType       String             // 'upload' | 'gdrive'
-  fileName         String?
-  fileType         String?            // 'image' | 'video'
-  sortOrder        Int                @default(0)
-  captionText      String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-
-  // ── Per-item QA fields ──
-  requiresCaption  Boolean            @default(true)
-  captionStatus    String             @default("pending") // pending | in_progress | submitted | approved | rejected | not_required
+  id                String                   @id @default(cuid())
+  ticketId          String
+  url               String
+  sourceType        String
+  fileName          String?
+  fileType          String?
+  sortOrder         Int                      @default(0)
+  captionText       String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  captionStatus     String                   @default("pending")
+  qaApprovedAt      DateTime?
+  qaApprovedBy      String?
+  qaRejectedAt      DateTime?
+  qaRejectedBy      String?
   qaRejectionReason String?
   qaRejectedAt     DateTime?
   qaRejectedBy     String?
@@ -1250,16 +1258,15 @@ model CaptionQueueContentItem {
 
 /// Tracks caption revision history per content item — who wrote/approved/rejected each version.
 model CaptionRevisionHistory {
-  id             String                   @id @default(cuid())
+  id             String                  @id @default(cuid())
   contentItemId  String
   revisionNumber Int
   captionText    String
-  action         String                   // submitted | approved | rejected
-  reason         String?                  // rejection reason
-  performedBy    String                   // clerk ID
-  createdAt      DateTime                 @default(now())
-
-  contentItem    CaptionQueueContentItem  @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  action         String
+  reason         String?
+  performedBy    String
+  createdAt      DateTime                @default(now())
+  contentItem    CaptionQueueContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
 
   @@index([contentItemId])
   @@index([contentItemId, revisionNumber])
@@ -1393,6 +1400,7 @@ model Organization {
   storageSlotPrice              Float?
   transactions                  BillingTransaction[]
   boardItems                    BoardItem[]
+  captionQueueTickets           CaptionQueueTicket[]
   content_submissions           content_submissions[]
   creditUsageLogs               CreditUsageLog[]
   customPermissions             CustomOrganizationPermission?
@@ -1401,7 +1409,6 @@ model Organization {
   marketplaceModels             MarketplaceModel[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
-  captionQueueTickets           CaptionQueueTicket[]
   members                       TeamMember[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
@@ -1562,8 +1569,8 @@ model BoardItem {
   itemNo         Int?
   organizationId String?
   comments       BoardItemComment[]
-  media          BoardItemMedia[]
   history        BoardItemHistory[]
+  media          BoardItemMedia[]
   column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -2223,7 +2230,6 @@ model ProfileGroupMember {
 
 model ProfileGroup {
   id          String               @id @default(cuid())
-  userId      String
   name        String
   color       String?
   icon        String?
@@ -2231,6 +2237,7 @@ model ProfileGroup {
   isCollapsed Boolean              @default(false)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
+  userId      String
   members     ProfileGroupMember[]
   user        User                 @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
 

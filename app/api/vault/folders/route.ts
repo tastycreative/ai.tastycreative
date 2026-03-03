@@ -122,8 +122,9 @@ export async function GET(request: NextRequest) {
       // Build the where clause with optional organizationSlug filter
       const folderWhereClause: any = {
         OR: folderOrConditions,
+        deletedAt: null,
       };
-      
+
       // If organizationSlug is provided, filter folders by organization
       if (validatedOrgSlug) {
         folderWhereClause.organizationSlug = validatedOrgSlug;
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
         where: folderWhereClause,
         include: {
           _count: {
-            select: { items: true },
+            select: { items: { where: { deletedAt: null } } },
           },
           subfolders: {
             select: {
@@ -196,6 +197,7 @@ export async function GET(request: NextRequest) {
         profileId: profileId,
         // Only show folders created by the profile owner
         clerkId: profileOwnerClerkId,
+        deletedAt: null,
       };
       
       if (validatedOrgSlug) {
@@ -206,7 +208,7 @@ export async function GET(request: NextRequest) {
         where: specificProfileWhereClause,
         include: {
           _count: {
-            select: { items: true },
+            select: { items: { where: { deletedAt: null } } },
           },
           subfolders: {
             select: {
@@ -224,7 +226,7 @@ export async function GET(request: NextRequest) {
 
     // No profileId provided - get all folders for user's own profiles only
     // Build where clause with optional organizationSlug filter
-    const noProfileWhereClause: any = { clerkId: userId };
+    const noProfileWhereClause: any = { clerkId: userId, deletedAt: null };
     if (validatedOrgSlug) {
       noProfileWhereClause.organizationSlug = validatedOrgSlug;
     }

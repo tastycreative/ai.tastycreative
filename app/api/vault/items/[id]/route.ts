@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { trackStorageDelete } from "@/lib/storageEvents";
 import { hasAccessToProfileSimple } from "@/lib/vault-permissions";
-
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
 
 // PATCH /api/vault/items/[id] - Update item (e.g., move to different folder)
 export async function PATCH(
@@ -221,32 +211,15 @@ export async function DELETE(
       }
     }
 
-    // Delete from S3
-    try {
-      await s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.AWS_S3_BUCKET!,
-          Key: item.awsS3Key,
-        })
-      );
-      console.log("[DELETE Vault Item] S3 delete successful for key:", item.awsS3Key);
-    } catch (s3Error) {
-      console.error("[DELETE Vault Item] Error deleting from S3:", s3Error);
-      // Continue with database deletion even if S3 deletion fails
-    }
-
-    // Delete from database
-    const deleteResult = await prisma.vaultItem.delete({
+    // Soft-delete: move to trash instead of permanent deletion
+    await prisma.vaultItem.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+        deletedFromFolderId: item.folderId,
+      },
     });
-    console.log("[DELETE Vault Item] Database delete successful:", deleteResult.id);
-
-    // Track storage deletion (non-blocking)
-    if (item.fileSize && item.fileSize > 0) {
-      trackStorageDelete(item.clerkId, item.fileSize).catch((error) => {
-        console.error('[DELETE Vault Item] Failed to track storage deletion:', error);
-      });
-    }
+    console.log("[DELETE Vault Item] Soft-deleted (moved to trash):", id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -17,12 +17,15 @@ export async function GET(request: NextRequest) {
     const shares = await prisma.vaultFolderShare.findMany({
       where: {
         sharedWithClerkId: userId,
+        folder: {
+          deletedAt: null,
+        },
       },
       include: {
         folder: {
           include: {
             _count: {
-              select: { items: true },
+              select: { items: { where: { deletedAt: null } } },
             },
           },
         },

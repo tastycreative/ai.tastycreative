@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
       const items = await prisma.vaultItem.findMany({
         where: {
           folderId: sharedFolderId,
+          deletedAt: null,
         },
         orderBy: {
           createdAt: "desc",
@@ -193,6 +194,7 @@ export async function GET(request: NextRequest) {
       // Build the where clause with optional organizationSlug filter through folder relation
       const itemsWhereClause: any = {
         OR: itemOrConditions,
+        deletedAt: null,
       };
       
       // If organizationSlug is provided, filter items by their folder's organization
@@ -242,6 +244,7 @@ export async function GET(request: NextRequest) {
       const whereClause: any = {
         profileId: profileId,
         clerkId: profileOwnerClerkId,
+        deletedAt: null,
       };
       
       if (folderId) {

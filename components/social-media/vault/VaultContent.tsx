@@ -12,7 +12,13 @@ import {
   useSharedFolderItems,
   useInvalidateVaultItems,
   useContentCreatorItems,
+  useTrashItems,
+  useRestoreTrashItems,
+  usePermanentlyDeleteTrashItems,
+  useEmptyTrash,
+  useRestoreTrashFolder,
 } from "@/lib/hooks/useVaultItems.query";
+import type { TrashItem } from "@/lib/hooks/useVaultItems.query";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -1295,6 +1301,50 @@ export function VaultContent() {
   const [selectedSharedFolder, setSelectedSharedFolder] =
     useState<SharedVaultFolder | null>(null);
 
+  // Trash Bin state
+  const [isTrashView, setIsTrashView] = useState(false);
+  const [selectedTrashItems, setSelectedTrashItems] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Trash hooks
+  const {
+    data: trashItems = [],
+    isLoading: loadingTrash,
+    refetch: refetchTrash,
+  } = useTrashItems(selectedProfileId);
+  const restoreTrashMutation = useRestoreTrashItems();
+  const permanentDeleteMutation = usePermanentlyDeleteTrashItems();
+  const emptyTrashMutation = useEmptyTrash();
+  const restoreFolderMutation = useRestoreTrashFolder();
+
+  // Track items animating out of trash (restore or permanent delete)
+  const [animatingOutItems, setAnimatingOutItems] = useState<Set<string>>(
+    new Set(),
+  );
+  const animateOutAndAct = useCallback(
+    (
+      ids: string[],
+      action: () => void,
+    ) => {
+      setAnimatingOutItems((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+      // Run action after CSS transition finishes
+      setTimeout(() => {
+        action();
+        setAnimatingOutItems((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+      }, 300);
+    },
+    [],
+  );
+
   // Cache invalidation hook for mutations
   const invalidateVaultItems = useInvalidateVaultItems();
 
@@ -1791,7 +1841,9 @@ export function VaultContent() {
   const handleBulkDelete = async () => {
     if (selectedItems.size === 0) return;
     if (
-      !confirm(`Are you sure you want to delete ${selectedItems.size} file(s)?`)
+      !confirm(
+        `Move ${selectedItems.size} file(s) to trash? They will be permanently deleted after 30 days.`,
+      )
     )
       return;
 
@@ -1818,48 +1870,46 @@ export function VaultContent() {
         for (const failed of failedDeletes) {
           try {
             const errorData = await failed.response.json();
-            console.error(`Failed to delete item ${failed.id}:`, {
+            console.error(`Failed to move item ${failed.id} to trash:`, {
               status: failed.status,
               error: errorData.error,
             });
           } catch (e) {
             console.error(
-              `Failed to delete item ${failed.id}: Status ${failed.status}`,
+              `Failed to move item ${failed.id} to trash: Status ${failed.status}`,
             );
           }
         }
       }
 
-      // Invalidate cache after successful deletes
+      // Optimistically remove from cache for instant UI update
       if (successfulDeletes.length > 0) {
-        if (selectedSharedFolder) {
-          invalidateVaultItems.invalidateShared(selectedSharedFolder.folderId);
-        } else if (isViewingCreators) {
-          invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
-        } else if (selectedProfileId) {
-          invalidateVaultItems.invalidateProfile(selectedProfileId);
-        }
+        invalidateVaultItems.optimisticRemoveItems(successfulDeletes);
+        invalidateVaultItems.invalidateTrash();
       }
 
       setSelectedItems(new Set());
 
       // Show appropriate message based on results
       if (failedDeletes.length === 0) {
-        showToast(`Deleted ${successfulDeletes.length} file(s)`, "success");
+        showToast(
+          `Moved ${successfulDeletes.length} file(s) to Trash`,
+          "success",
+        );
       } else if (successfulDeletes.length === 0) {
         showToast(
-          `Failed to delete all ${failedDeletes.length} file(s). You may not have permission.`,
+          `Failed to move ${failedDeletes.length} file(s) to trash. You may not have permission.`,
           "error",
         );
       } else {
         showToast(
-          `Deleted ${successfulDeletes.length} file(s). Failed to delete ${failedDeletes.length} file(s) - you may not have permission.`,
+          `Moved ${successfulDeletes.length} file(s) to Trash. Failed to move ${failedDeletes.length} file(s).`,
           "error",
         );
       }
     } catch (error) {
-      console.error("Error deleting items:", error);
-      showToast("Failed to delete files", "error");
+      console.error("Error moving items to trash:", error);
+      showToast("Failed to move files to trash", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -1998,12 +2048,20 @@ export function VaultContent() {
   // loadContentCreatorItems removed - now handled by TanStack Query hook
   // Items are automatically cached by creator and won't refetch on folder navigation
 
+  // Exit trash view when a folder or shared folder is selected
+  useEffect(() => {
+    if (selectedFolderId || selectedSharedFolder) {
+      setIsTrashView(false);
+    }
+  }, [selectedFolderId, selectedSharedFolder]);
+
   // Sync with global profile selector
   useEffect(() => {
     if (globalProfileId && globalProfileId !== selectedProfileId) {
       setSelectedProfileId(globalProfileId);
       setSelectedFolderId(null); // Reset folder selection when profile changes
       setSelectedSharedFolder(null); // Query will automatically clear items
+      setIsTrashView(false);
     }
   }, [globalProfileId]);
 
@@ -3134,7 +3192,12 @@ export function VaultContent() {
     const folder = folders.find((f) => f.id === folderId);
     if (folder?.isDefault) return;
 
-    if (!confirm("Delete this folder and all its contents?")) return;
+    if (
+      !confirm(
+        "Move this folder and all its contents to trash? They will be permanently deleted after 30 days.",
+      )
+    )
+      return;
 
     try {
       const response = await fetch(`/api/vault/folders/${folderId}`, {
@@ -3144,13 +3207,13 @@ export function VaultContent() {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ error: "Failed to delete folder" }));
+          .catch(() => ({ error: "Failed to move folder to trash" }));
         console.error(
           "Folder deletion failed with status:",
           response.status,
           errorData,
         );
-        throw new Error(errorData.error || "Failed to delete folder");
+        throw new Error(errorData.error || "Failed to move folder to trash");
       }
 
       setFolders(folders.filter((f) => f.id !== folderId));
@@ -3162,6 +3225,7 @@ export function VaultContent() {
       } else if (selectedProfileId) {
         invalidateVaultItems.invalidateProfile(selectedProfileId);
       }
+      invalidateVaultItems.invalidateTrash();
 
       if (selectedFolderId === folderId) {
         const remaining = folders.filter(
@@ -3169,10 +3233,10 @@ export function VaultContent() {
         );
         setSelectedFolderId(remaining[0]?.id || null);
       }
-      showToast("Folder deleted", "success");
+      showToast("Moved to Trash", "success");
     } catch (error: any) {
-      console.error("Error deleting folder:", error);
-      showToast(error.message || "Failed to delete folder", "error");
+      console.error("Error moving folder to trash:", error);
+      showToast(error.message || "Failed to move folder to trash", "error");
     }
   };
 
@@ -3273,7 +3337,12 @@ export function VaultContent() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm("Delete this file?")) return;
+    if (
+      !confirm(
+        "Move this file to trash? It will be permanently deleted after 30 days.",
+      )
+    )
+      return;
 
     try {
       const response = await fetch(`/api/vault/items/${id}`, {
@@ -3283,24 +3352,24 @@ export function VaultContent() {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ error: "Failed to delete item" }));
+          .catch(() => ({ error: "Failed to move item to trash" }));
         console.error("Delete failed with status:", response.status, errorData);
-        throw new Error(errorData.error || "Failed to delete item");
+        throw new Error(errorData.error || "Failed to move item to trash");
       }
 
-      // Invalidate cache after delete
-      if (selectedSharedFolder) {
-        invalidateVaultItems.invalidateShared(selectedSharedFolder.folderId);
-      } else if (isViewingCreators) {
-        invalidateVaultItems.invalidateCreator(selectedContentCreator?.id);
-      } else if (selectedProfileId) {
-        invalidateVaultItems.invalidateProfile(selectedProfileId);
+      // Optimistically remove from cache for instant UI update
+      invalidateVaultItems.optimisticRemoveItems([id]);
+      // Also close preview if this item was being previewed
+      if (previewItem?.id === id) {
+        setPreviewItem(null);
       }
+      // Background refresh
+      invalidateVaultItems.invalidateTrash();
 
-      showToast("File deleted", "success");
+      showToast("Moved to Trash", "success");
     } catch (error: any) {
-      console.error("Error deleting item:", error);
-      showToast(error.message || "Failed to delete file", "error");
+      console.error("Error moving item to trash:", error);
+      showToast(error.message || "Failed to move file to trash", "error");
     }
   };
 
@@ -6420,6 +6489,37 @@ export function VaultContent() {
                     </div>
                   </div>
                 )}
+
+                {/* Trash Bin */}
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      setIsTrashView(true);
+                      setSelectedSharedFolder(null);
+                      setSelectedFolderId(null);
+                      setSelectedTrashItems(new Set());
+                      setSidebarOpen(false);
+                      setAdminViewMode("personal");
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                      isTrashView
+                        ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-header-muted border border-transparent"
+                    }`}
+                  >
+                    <Trash2
+                      className={`w-4 h-4 flex-shrink-0 ${
+                        isTrashView ? "text-red-500" : "text-header-muted"
+                      }`}
+                    />
+                    <span className="text-sm font-medium">Trash</span>
+                    {trashItems.length > 0 && (
+                      <span className="ml-auto text-xs bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full">
+                        {trashItems.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
               </>
             )}
 
@@ -6708,16 +6808,18 @@ export function VaultContent() {
                 <Menu className="w-5 h-5 text-header-muted" />
               </button>
               <h1 className="text-lg font-semibold text-sidebar-foreground truncate flex-1">
-                {isViewingCreators
-                  ? selectedContentCreator
-                    ? `${selectedContentCreator.firstName || ""} ${selectedContentCreator.lastName || ""}`.trim() ||
-                      "Creator Files"
-                    : "All Creator Files"
-                  : isAllProfiles
-                    ? selectedFolder
-                      ? `${selectedFolder.name}`
-                      : "All Profiles"
-                    : selectedFolder?.name || "Select a folder"}
+                {isTrashView
+                  ? "Trash"
+                  : isViewingCreators
+                    ? selectedContentCreator
+                      ? `${selectedContentCreator.firstName || ""} ${selectedContentCreator.lastName || ""}`.trim() ||
+                        "Creator Files"
+                      : "All Creator Files"
+                    : isAllProfiles
+                      ? selectedFolder
+                        ? `${selectedFolder.name}`
+                        : "All Profiles"
+                      : selectedFolder?.name || "Select a folder"}
               </h1>
               {!isViewingShared && !isViewingCreators && (
                 <button
@@ -6754,16 +6856,18 @@ export function VaultContent() {
             <div className="hidden lg:flex items-center justify-between gap-1.5 xl:gap-3">
               <div className="flex-shrink min-w-0 max-w-[30%] xl:max-w-none">
                 <h1 className="text-sm xl:text-xl font-semibold text-sidebar-foreground truncate">
-                  {isViewingCreators
-                    ? selectedContentCreator
-                      ? `${selectedContentCreator.firstName || ""} ${selectedContentCreator.lastName || ""}`.trim() ||
-                        "Creator Files"
-                      : "All Creator Files"
-                    : isAllProfiles
-                      ? selectedFolder
-                        ? `${selectedFolder.name} (${getProfileNameForFolder(selectedFolder.profileId)})`
-                        : "All Profiles"
-                      : selectedFolder?.name || "Select a folder"}
+                  {isTrashView
+                    ? "Trash"
+                    : isViewingCreators
+                      ? selectedContentCreator
+                        ? `${selectedContentCreator.firstName || ""} ${selectedContentCreator.lastName || ""}`.trim() ||
+                          "Creator Files"
+                        : "All Creator Files"
+                      : isAllProfiles
+                        ? selectedFolder
+                          ? `${selectedFolder.name} (${getProfileNameForFolder(selectedFolder.profileId)})`
+                          : "All Profiles"
+                        : selectedFolder?.name || "Select a folder"}
                 </h1>
                 {isAllProfiles && !selectedFolder && (
                   <p className="text-xs xl:text-sm text-header-muted hidden xl:flex xl:items-center xl:gap-1 mt-0.5">
@@ -7038,7 +7142,298 @@ export function VaultContent() {
                 </div>
               )}
 
-            {!isViewingCreators &&
+            {/* Trash Bin View */}
+            {isTrashView ? (
+              <div className="flex-1 overflow-auto p-4 sm:p-6">
+                {/* Trash Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center border border-red-500/20">
+                      <Trash2 className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-sidebar-foreground">
+                        Trash
+                      </h2>
+                      <p className="text-xs text-header-muted">
+                        {trashItems.length === 0
+                          ? "Trash is empty"
+                          : `${trashItems.length} item(s) - auto-deleted after 30 days`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedTrashItems.size > 0 && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const ids = Array.from(selectedTrashItems);
+                            animateOutAndAct(ids, () => {
+                              invalidateVaultItems.optimisticRestoreItems(ids);
+                              setSelectedTrashItems(new Set());
+                              showToast(
+                                `Restored ${ids.length} item(s)`,
+                                "success",
+                              );
+                              restoreTrashMutation.mutate(ids, {
+                                onError: () => {
+                                  showToast("Failed to restore items — please refresh", "error");
+                                  invalidateVaultItems.invalidateAll();
+                                },
+                              });
+                            });
+                          }}
+                          disabled={restoreTrashMutation.isPending}
+                          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Restore ({selectedTrashItems.size})
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `Permanently delete ${selectedTrashItems.size} item(s)? This cannot be undone.`,
+                              )
+                            )
+                              return;
+                            const ids = Array.from(selectedTrashItems);
+                            animateOutAndAct(ids, () => {
+                              setSelectedTrashItems(new Set());
+                              permanentDeleteMutation.mutate(ids, {
+                                onSuccess: () =>
+                                  showToast("Permanently deleted", "success"),
+                                onError: () =>
+                                  showToast("Failed to delete items", "error"),
+                              });
+                            });
+                          }}
+                          disabled={permanentDeleteMutation.isPending}
+                          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete ({selectedTrashItems.size})
+                        </button>
+                      </>
+                    )}
+                    {trashItems.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              "Permanently delete all items in trash? This cannot be undone.",
+                            )
+                          )
+                            return;
+                          const allIds = trashItems.map((i: TrashItem) => i.id);
+                          animateOutAndAct(allIds, () => {
+                            setSelectedTrashItems(new Set());
+                            emptyTrashMutation.mutate(undefined, {
+                              onSuccess: () =>
+                                showToast("Trash emptied", "success"),
+                              onError: () =>
+                                showToast("Failed to empty trash", "error"),
+                            });
+                          });
+                        }}
+                        disabled={emptyTrashMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Empty Trash
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Trash Loading State */}
+                {loadingTrash ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {[...Array(6)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="bg-zinc-100 dark:bg-zinc-800/50 border border-red-500/10 rounded-xl p-3 animate-pulse"
+                      >
+                        <div className="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-lg mb-3" />
+                        <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4 mb-2" />
+                        <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
+                      </div>
+                    ))}
+                  </div>
+                ) : trashItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl flex items-center justify-center mb-4 border border-zinc-200 dark:border-zinc-700">
+                      <Trash2 className="w-8 h-8 text-header-muted" />
+                    </div>
+                    <h3 className="text-lg font-medium text-sidebar-foreground mb-1">
+                      Trash is empty
+                    </h3>
+                    <p className="text-sm text-header-muted">
+                      Deleted files will appear here for 30 days before being
+                      permanently removed.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {/* Select All */}
+                    <div className="col-span-full flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedTrashItems.size > 0 &&
+                          selectedTrashItems.size === trashItems.length
+                        }
+                        onChange={() => {
+                          if (selectedTrashItems.size === trashItems.length) {
+                            setSelectedTrashItems(new Set());
+                          } else {
+                            setSelectedTrashItems(
+                              new Set(trashItems.map((i: TrashItem) => i.id)),
+                            );
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-red-500 focus:ring-red-500/50"
+                      />
+                      <span className="text-xs text-header-muted">
+                        {selectedTrashItems.size > 0
+                          ? `${selectedTrashItems.size} of ${trashItems.length} selected`
+                          : `${trashItems.length} item(s) in trash`}
+                      </span>
+                    </div>
+
+                    {trashItems.map((item: TrashItem) => (
+                      <div
+                        key={item.id}
+                        className={`group relative bg-white dark:bg-zinc-900/50 border rounded-xl overflow-hidden transition-all duration-300 ${
+                          animatingOutItems.has(item.id)
+                            ? "opacity-0 scale-90 pointer-events-none"
+                            : "opacity-100 scale-100"
+                        } ${
+                          selectedTrashItems.has(item.id)
+                            ? "border-red-500/50 ring-1 ring-red-500/20"
+                            : "border-zinc-200 dark:border-zinc-700/50 hover:border-red-500/30"
+                        }`}
+                      >
+                        {/* Selection checkbox */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedTrashItems.has(item.id)}
+                            onChange={() => {
+                              setSelectedTrashItems((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) {
+                                  next.delete(item.id);
+                                } else {
+                                  next.add(item.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-red-500 focus:ring-red-500/50"
+                          />
+                        </div>
+
+                        {/* Thumbnail */}
+                        <div className="aspect-square relative bg-zinc-100 dark:bg-zinc-800">
+                          {item.fileType.startsWith("image/") ? (
+                            <Image
+                              src={item.awsS3Url}
+                              alt={item.fileName}
+                              fill
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+                              className="object-cover opacity-60"
+                              loading="lazy"
+                            />
+                          ) : item.fileType.startsWith("video/") ? (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <PlayCircle className="w-8 h-8 text-header-muted opacity-50" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <FileIcon className="w-8 h-8 text-header-muted opacity-50" />
+                            </div>
+                          )}
+                          {/* Overlay with days remaining */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <span className="text-[10px] text-white/80">
+                              {item.daysRemaining > 0
+                                ? `${item.daysRemaining}d left`
+                                : "Expiring soon"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-2.5">
+                          <p
+                            className="text-xs font-medium text-sidebar-foreground truncate"
+                            title={item.fileName}
+                          >
+                            {item.fileName}
+                          </p>
+                          <p className="text-[10px] text-header-muted mt-0.5">
+                            Deleted {item.daysSinceDeleted}d ago
+                            {item.originalFolderName
+                              ? ` from ${item.originalFolderName}`
+                              : ""}
+                          </p>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 mt-2">
+                            <button
+                              onClick={() => {
+                                animateOutAndAct([item.id], () => {
+                                  invalidateVaultItems.optimisticRestoreItems([
+                                    item.id,
+                                  ]);
+                                  showToast("Item restored", "success");
+                                  restoreTrashMutation.mutate([item.id], {
+                                    onError: () => {
+                                      showToast("Failed to restore — please refresh", "error");
+                                      invalidateVaultItems.invalidateAll();
+                                    },
+                                  });
+                                });
+                              }}
+                              disabled={restoreTrashMutation.isPending}
+                              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                              title="Restore"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    "Permanently delete this item? This cannot be undone.",
+                                  )
+                                )
+                                  return;
+                                animateOutAndAct([item.id], () => {
+                                  permanentDeleteMutation.mutate([item.id], {
+                                    onSuccess: () =>
+                                      showToast("Permanently deleted", "success"),
+                                    onError: () =>
+                                      showToast("Failed to delete", "error"),
+                                  });
+                                });
+                              }}
+                              disabled={permanentDeleteMutation.isPending}
+                              className="flex items-center justify-center p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                              title="Delete permanently"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : !isViewingCreators &&
             !selectedProfileId &&
             !selectedSharedFolder ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
