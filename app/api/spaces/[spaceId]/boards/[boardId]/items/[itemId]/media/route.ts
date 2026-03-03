@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { Prisma } from '@/lib/generated/prisma';
 import { generatePresignedUploadUrl } from '@/lib/s3-submission-uploads';
 import { WALL_POST_STATUS } from '@/lib/wall-post-status';
 
@@ -232,7 +233,7 @@ export async function POST(req: NextRequest, { params }: Params) {
                     captionTicketId: created.id,
                     captionStatus: 'pending',
                     wallPostStatus: WALL_POST_STATUS.IN_CAPTION,
-                  } as Record<string, unknown>,
+                  } as unknown as Prisma.InputJsonValue,
                   updatedAt: new Date(),
                 },
               });

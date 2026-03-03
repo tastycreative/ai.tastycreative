@@ -49,6 +49,7 @@ import {
 import {
   OTP_PTR_CAPTION_STATUS,
   OTP_PTR_STATUS_CONFIG,
+  type OtpPtrCaptionStatus,
 } from '@/lib/otp-ptr-caption-status';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -389,7 +390,7 @@ export function OtpPtrTaskDetailModal({
 
   // Caption Workspace integration
   const captionTicketId = (meta.captionTicketId as string) ?? null;
-  const otpPtrCaptionStatus: string = (meta.otpPtrCaptionStatus as string) ?? OTP_PTR_CAPTION_STATUS.PENDING_CAPTION;
+  const otpPtrCaptionStatus: OtpPtrCaptionStatus = (meta.otpPtrCaptionStatus as OtpPtrCaptionStatus) ?? OTP_PTR_CAPTION_STATUS.PENDING_CAPTION;
   /** Caption text written by the captioner in Caption Workspace */
   const workspaceCaptionText = (meta.captionText as string) ?? '';
 
@@ -784,7 +785,7 @@ export function OtpPtrTaskDetailModal({
 
                     {/* ── Caption Status Banner ─────────────────────── */}
                     {(() => {
-                      const cfg = OTP_PTR_STATUS_CONFIG[otpPtrCaptionStatus] ?? OTP_PTR_STATUS_CONFIG[OTP_PTR_CAPTION_STATUS.PENDING_CAPTION];
+                      const cfg = OTP_PTR_STATUS_CONFIG[otpPtrCaptionStatus as OtpPtrCaptionStatus] ?? OTP_PTR_STATUS_CONFIG[OTP_PTR_CAPTION_STATUS.PENDING_CAPTION];
                       return (
                         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${cfg.bgColor} ${cfg.color} border-current/20 text-xs font-semibold`}>
                           <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dotColor}`} />
