@@ -456,7 +456,7 @@ export async function POST(request: NextRequest) {
         await s3Client.send(uploadCommand);
 
         // Generate public URL via CDN
-        const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;/
+        const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
         publicUrl = convertS3ToCdnUrl(s3Url);
 
         console.log(`✅ Image uploaded: ${publicUrl}`);

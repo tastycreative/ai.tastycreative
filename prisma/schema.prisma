@@ -1033,9 +1033,9 @@ model VaultFolder {
   updatedAt        DateTime           @updatedAt
   isDefault        Boolean            @default(false)
   parentId         String?
-  deletedAt        DateTime?
   organizationSlug String?
   order            Int                @default(0)
+  deletedAt        DateTime?
   shares           VaultFolderShare[]
   organization     Organization?      @relation(fields: [organizationSlug], references: [slug])
   parent           VaultFolder?       @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
@@ -1197,13 +1197,13 @@ model CaptionQueueTicket {
   sortOrder         Int?
   organizationId    String?
   boardItemId       String?
-  /// Differentiates caption workflows: 'wall_post' (per-item captions) vs 'otp_ptr' (single ticket-level caption)
-  workflowType      String?                  @default("wall_post")
   /// Ticket-level QA rejection reason — populated when a Manager rejects an OTP/PTR ticket
   qaRejectionReason String?
-  organization      Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  /// Differentiates caption workflows: 'wall_post' (per-item captions) vs 'otp_ptr' (single ticket-level caption)
+  workflowType      String?                   @default("wall_post")
   assignees         CaptionQueueAssignee[]
   contentItems      CaptionQueueContentItem[]
+  organization      Organization?             @relation(fields: [organizationId], references: [id])
 
   @@index([clerkId])
   @@index([organizationId])
@@ -1232,19 +1232,17 @@ model CaptionQueueContentItem {
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   captionStatus     String                   @default("pending")
+  qaApprovedAt      DateTime?
+  qaApprovedBy      String?
+  qaRejectedAt      DateTime?
+  qaRejectedBy      String?
   qaRejectionReason String?
-  qaRejectedAt     DateTime?
-  qaRejectedBy     String?
-  qaApprovedAt     DateTime?
-  qaApprovedBy     String?
-  revisionCount    Int                @default(0)
-
-  // ── Posting tracking ──
-  isPosted         Boolean            @default(false)
-  postedAt         DateTime?
-
-  ticket           CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  revisions        CaptionRevisionHistory[]
+  requiresCaption   Boolean                  @default(true)
+  revisionCount     Int                      @default(0)
+  isPosted          Boolean                  @default(false)
+  postedAt          DateTime?
+  ticket            CaptionQueueTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  revisions         CaptionRevisionHistory[]
 
   @@index([ticketId])
   @@index([ticketId, captionStatus])
