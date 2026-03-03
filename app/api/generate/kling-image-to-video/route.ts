@@ -660,7 +660,9 @@ export async function GET(request: NextRequest) {
         await s3Client.send(uploadCommand);
         console.log("[Kling I2V] Video uploaded to S3:", s3Key);
 
-        const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+        // Generate S3 URL and convert to CDN URL
+        const s3UrlRaw = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+        const awsS3Url = convertS3ToCdnUrl(s3UrlRaw);
 
         // ALWAYS create GeneratedVideo for history tracking
         const generatedVideo = await prisma.generatedVideo.create({

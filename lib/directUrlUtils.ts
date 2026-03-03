@@ -1,20 +1,23 @@
 /**
  * Direct URL utilities to eliminate Vercel bandwidth usage
- * Prioritizes direct S3 access over proxy endpoints
+ * Prioritizes CDN access over proxy endpoints
  */
+
+import { convertS3ToCdnUrl } from './cdnUtils';
 
 // AWS S3 Configuration for direct public access
 const AWS_S3_BUCKET = process.env.NEXT_PUBLIC_AWS_S3_BUCKET || process.env.NEXT_PUBLIC_S3_BUCKET || 'tastycreative';
 const AWS_REGION = process.env.NEXT_PUBLIC_AWS_REGION || process.env.NEXT_PUBLIC_S3_REGION || 'us-east-1';
 
 /**
- * Generate direct AWS S3 URL (fastest option - no bandwidth usage)
+ * Generate direct CDN URL (fastest option - no bandwidth usage)
  */
 export function generateDirectAwsUrl(s3Key: string): string {
   if (!s3Key) return '';
-  
+
   const cleanKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
-  return `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${cleanKey}`;
+  const s3Url = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${cleanKey}`;
+  return convertS3ToCdnUrl(s3Url);
 }
 
 /**

@@ -4,6 +4,8 @@
  * NOTE: RunPod S3 API does NOT support signed URLs (GeneratePresignedURL operation)
  */
 
+import { convertS3ToCdnUrl } from './cdnUtils';
+
 // S3 Configuration - These should match your handler configuration
 const S3_ENDPOINT = 'https://s3api-us-ks-2.runpod.io';
 const S3_BUCKET = '83cljmpqfd';
@@ -110,9 +112,10 @@ export function getBestImageUrl(image: {
     return image.awsS3Url;
   }
   
-  // Priority 2: AWS S3 key (construct URL)
+  // Priority 2: AWS S3 key (construct URL and convert to CDN)
   if (image.awsS3Key) {
-    const awsS3Url = `https://tastycreative.s3.amazonaws.com/${image.awsS3Key}`;
+    const s3Url = `https://tastycreative.s3.amazonaws.com/${image.awsS3Key}`;
+    const awsS3Url = convertS3ToCdnUrl(s3Url);
     console.log(`🚀 Using AWS S3 key for ${image.filename}:`, awsS3Url);
     return awsS3Url;
   }

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
 import { trackStorageUpload } from "@/lib/storageEvents";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 // For Next.js App Router runtime configuration
 export const runtime = 'nodejs';
@@ -87,8 +88,9 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Generate S3 URL
-    const awsS3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    // Generate S3 URL and convert to CDN URL
+    const s3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    const awsS3Url = convertS3ToCdnUrl(s3Url);
 
     // Create vault item in database
     const vaultItem = await prisma.vaultItem.create({
