@@ -38,6 +38,8 @@ export interface QueueTicket {
   contentItems: ContentItemData[];
   /** Reason left by QA when the ticket was rejected and returned; null if never rejected */
   qaRejectionReason?: string | null;
+  /** 'wall_post' (default) or 'otp_ptr' – determines single-caption vs per-item workflow */
+  workflowType?: string | null;
 }
 
 export interface ModelContext {

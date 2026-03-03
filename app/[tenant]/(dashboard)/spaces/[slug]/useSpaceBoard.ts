@@ -143,6 +143,22 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     setLocalTasks(null);
   }, [boardData]);
 
+  // Keep the open task-detail modal in sync with fresh board data.
+  // When Caption Workspace submits for QA (or any server-side metadata change)
+  // broadcastToBoard triggers a board-items refetch, tasksMap updates with
+  // the new metadata, and this effect propagates the change into the open
+  // modal without requiring the user to close and re-open it.
+  useEffect(() => {
+    if (!selectedTask) return;
+    const fresh = tasksMap[selectedTask.id];
+    if (fresh && fresh !== selectedTask) {
+      setSelectedTask(fresh);
+    }
+    // Intentionally depend only on tasksMap: updating selectedTask does NOT
+    // change tasksMap (it depends on boardData), so this never loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksMap]);
+
   const effectiveColumns = localColumns ?? columnsMap;
   const effectiveTasks = localTasks ?? tasksMap;
   const effectiveColumnOrder = localColumns

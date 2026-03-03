@@ -1,8 +1,185 @@
 'use client';
 
-import { memo } from 'react';
-import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck } from 'lucide-react';
+import { memo, useState, useEffect } from 'react';
+import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck, FolderOpen } from 'lucide-react';
 import { QueueTicket, ContentItemData } from './types';
+
+/* ── Google Drive helpers ──────────────────────────────────────────── */
+
+/** Extract a file/folder ID from common Google Drive URL formats. */
+function extractDriveFileId(url: string): string | null {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
+/** Build a preview URL suitable for <iframe> embedding. */
+function toPreviewUrl(url: string): string {
+  // Already a /preview URL — use as-is
+  if (url.includes('/preview')) return url;
+  const id = extractDriveFileId(url);
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
+
+/** Build the normal shareable URL (for "Open in Drive" button). */
+function toViewUrl(url: string): string {
+  if (url.includes('/preview')) return url.replace('/preview', '/view');
+  return url;
+}
+
+/** true when the link points at a Drive *folder* (cannot be previewed). */
+function isDriveFolder(url: string): boolean {
+  return url.includes('/folders/');
+}
+
+/* ── Drive preview component ───────────────────────────────────────── */
+
+/** Build an embeddable URL for a Google Drive folder (grid view). */
+function toFolderEmbedUrl(url: string): string | null {
+  const m = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (!m?.[1]) return null;
+  return `https://drive.google.com/embeddedfolderview?id=${m[1]}#grid`;
+}
+
+/** Skeleton shimmer shown while an iframe is loading. */
+function IframeSkeleton() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 animate-pulse">
+      <div className="w-12 h-12 rounded-xl bg-gray-700" />
+      <div className="h-3 w-32 rounded bg-gray-700" />
+      <div className="h-2 w-24 rounded bg-gray-800" />
+    </div>
+  );
+}
+
+/** Renders a Google Drive file/folder as an embedded iframe preview with a
+ *  small "Open in Drive" fallback link. Forces a full remount + skeleton
+ *  whenever the URL changes so stale content never lingers. */
+function DrivePreview({ url, label }: { url: string; label?: string }) {
+  const [loaded, setLoaded] = useState(false);
+
+  // Reset loaded state whenever the URL changes so the skeleton reappears
+  useEffect(() => { setLoaded(false); }, [url]);
+
+  const viewUrl = toViewUrl(url);
+
+  // Folders — use the embedded folder grid view
+  if (isDriveFolder(url)) {
+    const folderEmbedUrl = toFolderEmbedUrl(url);
+
+    return (
+      <div className="relative w-full h-full flex flex-col">
+        {!loaded && <IframeSkeleton />}
+        {folderEmbedUrl ? (
+          <iframe
+            key={folderEmbedUrl}
+            src={folderEmbedUrl}
+            className="flex-1 w-full border-0 bg-white rounded-lg"
+            style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+            sandbox="allow-scripts allow-same-origin allow-popups"
+            onLoad={() => setLoaded(true)}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+            <FolderOpen className="w-12 h-12 text-blue-400" />
+            <p className="text-sm text-gray-400">{label ?? 'Google Drive Folder'}</p>
+          </div>
+        )}
+        <a
+          href={viewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Open in Drive
+        </a>
+      </div>
+    );
+  }
+
+  // File — embed preview iframe
+  const previewUrl = toPreviewUrl(url);
+  return (
+    <div className="relative w-full h-full flex flex-col">
+      {!loaded && <IframeSkeleton />}
+      <iframe
+        key={previewUrl}
+        src={previewUrl}
+        className="flex-1 w-full border-0"
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+        allow="autoplay; encrypted-media"
+        allowFullScreen
+        sandbox="allow-scripts allow-same-origin allow-popups"
+        onLoad={() => setLoaded(true)}
+      />
+      <a
+        href={viewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-colors"
+      >
+        <ExternalLink className="w-3 h-3" />
+        Open in Drive
+      </a>
+    </div>
+  );
+}
+
+/* ── Per-item media renderer ───────────────────────────────────────── */
+
+/** Renders a single content item (image / video / drive) with a
+ *  fade-in + skeleton so nothing lingers when switching tickets. */
+function MediaItem({ item, description }: { item: ContentItemData; description: string }) {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setLoaded(false); }, [item.url]);
+
+  const isGdrive = item.sourceType === 'gdrive';
+  const isImage = item.fileType === 'image' || (!item.fileType && !isGdrive && !!item.url.match(/\.(jpg|jpeg|png|gif|webp)/i));
+
+  if (isGdrive) {
+    return <DrivePreview url={item.url} label={item.fileName ?? undefined} />;
+  }
+
+  if (isImage) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        {!loaded && <IframeSkeleton />}
+        <img
+          key={item.url}
+          src={item.url}
+          alt={item.fileName || description}
+          className="max-w-full max-h-full object-contain"
+          style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+          onLoad={() => setLoaded(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full flex items-center justify-center">
+      {!loaded && <IframeSkeleton />}
+      <video
+        key={item.url}
+        src={item.url}
+        controls
+        className="max-w-full max-h-full rounded-lg"
+        preload="metadata"
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+        onLoadedMetadata={() => setLoaded(true)}
+      />
+    </div>
+  );
+}
 
 interface ContentViewerProps {
   ticket?: QueueTicket;
@@ -30,13 +207,7 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
       <div className="h-full flex flex-col bg-brand-off-white dark:bg-gray-800 border-b border-brand-mid-pink/20 overflow-hidden">
         {/* Main viewer */}
         <div className="flex-1 relative flex items-center justify-center overflow-hidden min-h-0">
-          {isGdrive ? (
-            <iframe src={item.url} className="w-full h-full" allow="autoplay" title="Google Drive Content" />
-          ) : isImage ? (
-            <img src={item.url} alt={item.fileName || ticket.description} className="max-w-full max-h-full object-contain" />
-          ) : (
-            <video src={item.url} controls className="max-w-full max-h-full rounded-lg" preload="metadata" />
-          )}
+          <MediaItem item={item} description={ticket.description} />
 
           {/* Item badge */}
           <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-lg text-white text-xs flex items-center gap-1.5">
@@ -134,11 +305,7 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
       {hasContent ? (
         <>
           {isGoogleDrive ? (
-            <div className="w-full h-full flex items-center justify-center p-4">
-              <div className="w-full h-full max-w-6xl max-h-[80vh] flex items-center justify-center">
-                <iframe src={contentUrl || ''} className="w-full h-full rounded-lg shadow-xl" allow="autoplay" title="Google Drive Content" />
-              </div>
-            </div>
+            <DrivePreview url={contentUrl || ''} />
           ) : isVideo ? (
             <video src={contentUrl || ''} controls className="max-w-full max-h-full rounded-lg shadow-xl" preload="metadata">
               Your browser does not support the video tag.

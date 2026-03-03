@@ -78,8 +78,74 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { captionText } = body as { captionText: string };
+    const { captionText, isPosted } = body as { captionText?: string; isPosted?: boolean };
 
+    // ── Handle mark-as-posted action (separate from caption editing) ──
+    if (isPosted !== undefined && captionText === undefined) {
+      if (!canManageQueue(ctx.role)) {
+        return NextResponse.json(
+          { error: 'Forbidden: only managers can mark items as posted' },
+          { status: 403 },
+        );
+      }
+
+      const updated = await prisma.captionQueueContentItem.update({
+        where: { id: itemId },
+        data: {
+          isPosted,
+          postedAt: isPosted ? new Date() : null,
+          updatedAt: new Date(),
+        },
+      });
+
+      // Sync isPosted back to board item metadata so the board isn't stale
+      if (ticket.boardItemId) {
+        try {
+          const allItems = await prisma.captionQueueContentItem.findMany({
+            where: { ticketId: ticket.id },
+            orderBy: { sortOrder: 'asc' },
+            select: { id: true, url: true, fileName: true, captionText: true, captionStatus: true, requiresCaption: true, qaRejectionReason: true, isPosted: true },
+          });
+
+          const captionItems = allItems.map((ci) => ({
+            contentItemId: ci.id,
+            url: ci.url,
+            fileName: ci.fileName ?? null,
+            captionText: ci.captionText ?? null,
+            captionStatus: ci.captionStatus,
+            qaRejectionReason: ci.qaRejectionReason ?? null,
+            isPosted: ci.id === itemId ? isPosted : ci.isPosted,
+          }));
+
+          const boardItem = await prisma.boardItem.findUnique({
+            where: { id: ticket.boardItemId },
+            select: { metadata: true, columnId: true },
+          });
+          const prev = (boardItem?.metadata as Record<string, unknown>) ?? {};
+
+          await prisma.boardItem.update({
+            where: { id: ticket.boardItemId },
+            data: { metadata: { ...prev, captionItems }, updatedAt: new Date() },
+          });
+
+          if (boardItem?.columnId) {
+            const col = await prisma.boardColumn.findUnique({
+              where: { id: boardItem.columnId },
+              select: { boardId: true },
+            });
+            if (col?.boardId) {
+              await broadcastToBoard(col.boardId, ticket.boardItemId!);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to sync isPosted to board item:', e);
+        }
+      }
+
+      return NextResponse.json({ item: updated });
+    }
+
+    // ── Caption text update ──
     // Determine new per-item captionStatus:
     // - If the item was 'approved', don't allow further edits
     // - If the item was 'not_required', don't allow edits
@@ -98,14 +164,15 @@ export async function PATCH(
       );
     }
 
-    const newItemStatus = captionText?.trim()
+    const resolvedCaptionText = captionText ?? '';
+    const newItemStatus = resolvedCaptionText?.trim()
       ? (currentItemStatus === 'rejected' || currentItemStatus === 'pending' ? 'in_progress' : currentItemStatus)
       : currentItemStatus;
 
     const updated = await prisma.captionQueueContentItem.update({
       where: { id: itemId },
       data: {
-        captionText,
+        captionText: resolvedCaptionText,
         captionStatus: newItemStatus === 'pending' ? 'in_progress' : newItemStatus,
         updatedAt: new Date(),
       },
@@ -118,16 +185,17 @@ export async function PATCH(
         const allItems = await prisma.captionQueueContentItem.findMany({
           where: { ticketId: ticket.id },
           orderBy: { sortOrder: 'asc' },
-          select: { id: true, url: true, fileName: true, captionText: true, captionStatus: true, requiresCaption: true, qaRejectionReason: true },
+          select: { id: true, url: true, fileName: true, captionText: true, captionStatus: true, requiresCaption: true, qaRejectionReason: true, isPosted: true },
         });
 
         const captionItems = allItems.map((ci) => ({
           contentItemId: ci.id,
           url: ci.url,
           fileName: ci.fileName ?? null,
-          captionText: ci.id === itemId ? captionText : (ci.captionText ?? null),
+          captionText: ci.id === itemId ? resolvedCaptionText : (ci.captionText ?? null),
           captionStatus: ci.id === itemId ? updated.captionStatus : ci.captionStatus,
           qaRejectionReason: ci.qaRejectionReason ?? null,
+          isPosted: ci.isPosted,
         }));
 
         // Only consider items that require captions

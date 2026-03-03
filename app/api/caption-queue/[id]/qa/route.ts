@@ -81,13 +81,6 @@ export async function PATCH(
       );
     }
 
-    if (action === 'reject' && !reason) {
-      return NextResponse.json(
-        { error: 'reason is required when rejecting' },
-        { status: 400 },
-      );
-    }
-
     // Fetch ticket with content items
     const ticket = await prisma.captionQueueTicket.findUnique({
       where: { id },

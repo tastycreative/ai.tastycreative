@@ -136,9 +136,13 @@ export async function GET(_request: NextRequest) {
 
     const enrichedItems = items.map(item => ({
       ...item,
+      // Prefer the board-item metadata value (most up-to-date after QA actions);
+      // fall back to the ticket's own DB column so the reason is never lost.
       qaRejectionReason: item.boardItemId
-        ? ((boardMetaMap.get(item.boardItemId)?.qaRejectionReason as string | null) ?? null)
-        : null,
+        ? ((boardMetaMap.get(item.boardItemId)?.qaRejectionReason as string | null)
+            ?? item.qaRejectionReason
+            ?? null)
+        : (item.qaRejectionReason ?? null),
     }));
 
     return NextResponse.json({ items: enrichedItems });

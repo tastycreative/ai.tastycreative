@@ -49,6 +49,8 @@ export interface CaptionQueueItem {
   contentSourceType?: string | null;
   sortOrder?: number;
   boardItemId?: string | null;
+  /** 'wall_post' (default) or 'otp_ptr' */
+  workflowType?: string | null;
   /** Creators assigned to this ticket */
   assignees: CaptionQueueAssignee[];
   /** Individual content pieces, each with its own caption */
@@ -108,9 +110,10 @@ export function useCaptionQueue() {
     queryKey: ['caption-queue', user?.id],
     queryFn: fetchCaptionQueue,
     enabled: !!user,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 0, // always re-fetch so new tickets appear immediately on mount
     gcTime: 1000 * 60 * 5, // 5 minutes
-    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     // Order is handled server-side (personal per-user sort via CaptionQueueUserOrder).
     // Do not re-sort here so that the server's order is respected and optimistic
     // drag-and-drop reorders are rendered immediately without being reversed.
@@ -484,6 +487,141 @@ export function useRepushRejected() {
 
   return useMutation({
     mutationFn: performRepushRejected,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+    },
+  });
+}
+
+// ─── Mark Item as Posted ─────────────────────────────────────────────
+
+async function performMarkItemPosted(input: {
+  itemId: string;
+  isPosted: boolean;
+}): Promise<{ item: { id: string; isPosted: boolean; postedAt: string | null } }> {
+  const response = await fetch(`/api/caption-queue/items/${input.itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isPosted: input.isPosted }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update posted status');
+  }
+  return response.json();
+}
+
+/**
+ * Toggle the isPosted flag on a single CaptionQueueContentItem.
+ * Persists to DB and syncs back to the linked board item metadata.
+ * Manager+ only.
+ */
+export function useMarkItemPosted() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: performMarkItemPosted,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+    },
+  });
+}
+
+// ─── Push OTP/PTR board item to Caption Workspace ────────────────────
+
+export interface PushOtpPtrToCaptionInput {
+  boardItemId: string;
+  assignedCreatorClerkIds?: string[];
+  urgency?: 'urgent' | 'high' | 'medium' | 'low';
+  releaseDate?: string;
+  description?: string;
+}
+
+async function pushOtpPtrToCaptionWorkspace(
+  input: PushOtpPtrToCaptionInput,
+): Promise<{
+  item: CaptionQueueItem;
+  boardItemId: string;
+  otpPtrCaptionStatus: string;
+  driveLink: string | null;
+  driveLinkType: 'folder' | 'file' | null;
+}> {
+  const response = await fetch('/api/caption-queue/from-otp-ptr-item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to push OTP/PTR to Caption Workspace');
+  }
+  return response.json();
+}
+
+/**
+ * Push an OTP/PTR board item to the Caption Workspace.
+ * Creates a single-caption CaptionQueueTicket (workflowType='otp_ptr').
+ * The drive link in the board item metadata is stored as context; captioners
+ * write ONE caption for the whole ticket.
+ */
+export function usePushOtpPtrToCaptionWorkspace() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: pushOtpPtrToCaptionWorkspace,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({
+        queryKey: ['boardItems', 'detail', variables.boardItemId],
+      });
+    },
+  });
+}
+
+// ─── OTP/PTR QA Approve / Reject ─────────────────────────────────────
+
+export interface OtpPtrQAActionInput {
+  ticketId: string;
+  action: 'approve' | 'reject' | 'revoke_approval';
+  reason?: string;
+}
+
+async function performOtpPtrQAAction(
+  input: OtpPtrQAActionInput,
+): Promise<{
+  item: CaptionQueueItem;
+  action: string;
+  otpPtrCaptionStatus: string;
+  reason?: string;
+}> {
+  const response = await fetch(`/api/caption-queue/${input.ticketId}/qa/otp-ptr`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: input.action, reason: input.reason }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to process OTP/PTR QA action');
+  }
+  return response.json();
+}
+
+/**
+ * Approve or reject an OTP/PTR caption ticket.
+ * - approve → ticket completed, otpPtrCaptionStatus = APPROVED, caption locked
+ * - reject  → ticket in_revision, otpPtrCaptionStatus = NEEDS_REVISION, reason attached
+ */
+export function useOtpPtrQAAction() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: performOtpPtrQAAction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['boardItems'] });

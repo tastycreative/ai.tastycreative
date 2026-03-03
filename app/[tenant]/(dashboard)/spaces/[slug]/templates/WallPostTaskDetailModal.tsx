@@ -40,7 +40,7 @@ import {
   useBoardItemHistory,
   useBoardItemMedia,
 } from '@/lib/hooks/useBoardItems.query';
-import { usePushToCaptionWorkspace, useQAAction, useQAItemAction, useRepushRejected } from '@/lib/hooks/useCaptionQueue.query';
+import { usePushToCaptionWorkspace, useQAAction, useQAItemAction, useRepushRejected, useMarkItemPosted } from '@/lib/hooks/useCaptionQueue.query';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
 import {
   WALL_POST_STATUS,
@@ -431,13 +431,13 @@ function MediaCard({
                 <button
                   type="button"
                   onClick={() => {
-                    if (onReject && itemRejectReason.trim()) {
+                    if (onReject) {
                       onReject(itemRejectReason.trim());
                       setItemRejectReason('');
                       setShowItemReject(false);
                     }
                   }}
-                  disabled={isActioning || !itemRejectReason.trim()}
+                  disabled={isActioning}
                   className="px-3 py-1 rounded-lg text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
                 >
                   {isActioning ? 'Sending...' : 'Send'}
@@ -640,6 +640,7 @@ export function WallPostTaskDetailModal({
   const qaActionMutation = useQAAction();
   const qaItemActionMutation = useQAItemAction();
   const repushRejectedMutation = useRepushRejected();
+  const markItemPostedMutation = useMarkItemPosted();
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [actioningItemId, setActioningItemId] = useState<string | null>(null);
@@ -792,10 +793,7 @@ export function WallPostTaskDetailModal({
   };
 
   const handleQAReject = () => {
-    if (!captionTicketId || !rejectReason.trim()) {
-      toast.error('Please provide a reason for rejection');
-      return;
-    }
+    if (!captionTicketId) return;
     qaActionMutation.mutate(
       { ticketId: captionTicketId, action: 'reject', reason: rejectReason.trim() },
       {
@@ -934,21 +932,37 @@ export function WallPostTaskDetailModal({
   /* ── Mark item as Posted ─────────────────────────── */
 
   const handleMarkPosted = (mediaItem: MediaWithCaption, posted: boolean) => {
-    // Update the matching CaptionItem entry in metadata (match by contentItemId or url)
+    // Optimistic local update so the UI responds immediately
     const updatedCaptionItems = captionItems.map((ci) => {
       const isMatch =
         (mediaItem.contentItemId && ci.contentItemId === mediaItem.contentItemId) ||
         ci.url === mediaItem.url;
       return isMatch ? { ...ci, isPosted: posted } : ci;
     });
-    onUpdate({
-      ...task,
-      metadata: { ...meta, captionItems: updatedCaptionItems },
-    });
-    toast.success(
-      posted
-        ? `Item ${mediaItem.index + 1} marked as Posted`
-        : `Item ${mediaItem.index + 1} unmarked`,
+    onUpdate({ ...task, metadata: { ...meta, captionItems: updatedCaptionItems } });
+
+    if (!mediaItem.contentItemId) {
+      // No DB record to update — local-only (edge case before ticket was created)
+      toast.success(posted ? `Item ${mediaItem.index + 1} marked as Posted` : `Item ${mediaItem.index + 1} unmarked`);
+      return;
+    }
+
+    markItemPostedMutation.mutate(
+      { itemId: mediaItem.contentItemId, isPosted: posted },
+      {
+        onSuccess: () => {
+          toast.success(
+            posted
+              ? `Item ${mediaItem.index + 1} marked as Posted`
+              : `Item ${mediaItem.index + 1} unmarked`,
+          );
+        },
+        onError: (error) => {
+          // Revert the optimistic update on failure
+          onUpdate({ ...task, metadata: { ...meta, captionItems } });
+          toast.error(error.message || 'Failed to update posted status');
+        },
+      },
     );
   };
 
@@ -1285,7 +1299,7 @@ export function WallPostTaskDetailModal({
                       <button
                         type="button"
                         onClick={handleQAReject}
-                        disabled={qaActionMutation.isPending || !rejectReason.trim()}
+                        disabled={qaActionMutation.isPending}
                         className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {qaActionMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
@@ -1541,7 +1555,7 @@ export function WallPostTaskDetailModal({
                             <button
                               type="button"
                               onClick={handleQAReject}
-                              disabled={qaActionMutation.isPending || !rejectReason.trim()}
+                              disabled={qaActionMutation.isPending}
                               className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
                             >
                               {qaActionMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}

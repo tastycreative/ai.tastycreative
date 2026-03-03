@@ -1191,6 +1191,10 @@ model CaptionQueueTicket {
   originalFileName  String?
   sortOrder         Int?
   boardItemId       String?
+  /// Differentiates caption workflows: 'wall_post' (per-item captions) vs 'otp_ptr' (single ticket-level caption)
+  workflowType      String?                  @default("wall_post")
+  /// Ticket-level QA rejection reason — populated when a Manager rejects an OTP/PTR ticket
+  qaRejectionReason String?
   organization      Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   assignees         CaptionQueueAssignee[]
   contentItems      CaptionQueueContentItem[]
@@ -1231,6 +1235,10 @@ model CaptionQueueContentItem {
   qaApprovedAt     DateTime?
   qaApprovedBy     String?
   revisionCount    Int                @default(0)
+
+  // ── Posting tracking ──
+  isPosted         Boolean            @default(false)
+  postedAt         DateTime?
 
   ticket           CaptionQueueTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   revisions        CaptionRevisionHistory[]

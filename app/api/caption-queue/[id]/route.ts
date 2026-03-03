@@ -4,6 +4,7 @@ import { prisma } from '@/lib/database';
 import { canManageQueue, canViewQueue, isCreatorRole, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import { captionStatusToWallPostStatus } from '@/lib/wall-post-status';
+import { captionStatusToOtpPtrStatus } from '@/lib/otp-ptr-caption-status';
 
 async function resolveUserContext(clerkId: string) {
   const user = await prisma.user.findUnique({
@@ -43,6 +44,7 @@ async function syncCaptionToBoardItem(
   status: string | null | undefined,
   ticketId?: string,
   captionItems?: CaptionItemSync[],
+  workflowType?: string | null,
 ) {
   if (!boardItemId) return;
   try {
@@ -72,6 +74,11 @@ async function syncCaptionToBoardItem(
       select: { metadata: true, column: { select: { boardId: true } } },
     });
     const prev = (existing?.metadata as Record<string, unknown>) ?? {};
+
+    // Determine the effective workflowType — prefer the passed arg, fall back to what's already in metadata
+    const effectiveWorkflowType =
+      workflowType ?? (prev.captionTicketId ? null : null);
+
     const updatedMeta: Record<string, unknown> = {
       ...prev,
       ...(resolvedCaptionText !== undefined ? { captionText: resolvedCaptionText } : {}),
@@ -81,10 +88,15 @@ async function syncCaptionToBoardItem(
           : status === 'pending_qa' ? 'pending_qa'
           : status,
       } : {}),
-      // Sync wallPostStatus from caption ticket status
-      ...(status !== undefined ? (() => {
+      // For wall_post workflow: sync wallPostStatus
+      ...(status !== undefined && effectiveWorkflowType !== 'otp_ptr' ? (() => {
         const wps = captionStatusToWallPostStatus(status ?? '');
         return wps ? { wallPostStatus: wps } : {};
+      })() : {}),
+      // For otp_ptr workflow: sync otpPtrCaptionStatus
+      ...(status !== undefined && effectiveWorkflowType === 'otp_ptr' ? (() => {
+        const ops = captionStatusToOtpPtrStatus(status ?? '');
+        return ops ? { otpPtrCaptionStatus: ops } : {};
       })() : {}),
       // Sync per-item caption statuses when provided
       ...(captionItems !== undefined ? { captionItems } : {}),
@@ -282,6 +294,7 @@ export async function PATCH(
         'status' in safeBody ? (safeBody.status as string | null) : undefined,
         id,
         syncCaptionItems,
+        item.workflowType,
       );
 
       return NextResponse.json({ item: updatedItem });
@@ -314,6 +327,7 @@ export async function PATCH(
       'status' in safeBody ? (safeBody.status as string | null) : undefined,
       id,
       syncCaptionItems,
+      item.workflowType,
     );
 
     return NextResponse.json({ item: updatedItem });

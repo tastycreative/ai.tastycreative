@@ -151,10 +151,13 @@ export default function CaptionWorkspace() {
         hour12: true
       }),
       description: item.description,
-      driveLink: item.contentSourceType === 'gdrive' ? item.contentUrl || 'https://drive.google.com/...' : 'https://drive.google.com/...',
-      videoUrl: item.contentSourceType === 'upload' ? (item.contentUrl || null) : null,
+      driveLink: item.workflowType === 'otp_ptr'
+        ? (item.contentItems?.[0]?.url || item.contentUrl || 'https://drive.google.com/...')
+        : (item.contentSourceType === 'gdrive' ? item.contentUrl || 'https://drive.google.com/...' : 'https://drive.google.com/...'),
+      videoUrl: item.workflowType === 'otp_ptr' ? null : (item.contentSourceType === 'upload' ? (item.contentUrl || null) : null),
       contentUrl: item.contentUrl,
-      contentSourceType: item.contentSourceType as 'upload' | 'gdrive' | null,
+      // OTP/PTR tickets store the Drive link on the first content item, not at ticket level
+      contentSourceType: (item.workflowType === 'otp_ptr' ? 'gdrive' : item.contentSourceType) as 'upload' | 'gdrive' | null,
       contentItems: (item.contentItems || []).map(ci => ({
         id: ci.id,
         url: ci.url,
@@ -173,6 +176,7 @@ export default function CaptionWorkspace() {
         revisionCount: ci.revisionCount ?? 0,
       })),
       qaRejectionReason: item.qaRejectionReason ?? null,
+      workflowType: item.workflowType ?? null,
     })) || [],
   [queueData]);
 
@@ -201,8 +205,12 @@ export default function CaptionWorkspace() {
     setCaptionDrafts(prev => {
       const newDrafts = { ...prev };
       queueData.forEach(item => {
-        // Legacy single-caption tickets
+        // Legacy single-caption tickets (no content items)
         if (!item.contentItems?.length && !newDrafts[item.id] && item.captionText) {
+          newDrafts[item.id] = item.captionText;
+        }
+        // OTP/PTR: ticket-level caption stored in captionText (content items are display-only)
+        if (item.workflowType === 'otp_ptr' && !newDrafts[item.id] && item.captionText) {
           newDrafts[item.id] = item.captionText;
         }
         // Per-item captions
@@ -279,6 +287,15 @@ export default function CaptionWorkspace() {
     ? ['approved', 'not_required'].includes(currentItem.captionStatus)
     : false;
 
+  // ── OTP/PTR single-caption mode ──────────────────────────────────────
+  // OTP/PTR tickets require ONE caption at ticket level (not per-item).
+  // We override the per-item signals so the workspace behaves like a legacy
+  // single-caption ticket: no item navigation, editor always unlocked.
+  const isOtpPtr = selectedTicketData?.workflowType === 'otp_ptr';
+  const effectiveCurrentItem     = isOtpPtr ? null : currentItem;
+  const effectiveHasMultipleItems = isOtpPtr ? false : hasMultipleItems;
+  const effectiveIsLocked         = isOtpPtr ? false : isCurrentItemLocked;
+
   // Auto-navigate to first actionable item when selecting a ticket
   // (skip approved items so the captioner lands on work that needs doing)
   useEffect(() => {
@@ -291,7 +308,7 @@ export default function CaptionWorkspace() {
   }, [selectedTicketData?.id, actionableItemIndices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const captionDraftKey = selectedTicketData
-    ? (currentItem ? `${selectedTicketData.id}:${currentItem.id}` : selectedTicketData.id)
+    ? (effectiveCurrentItem ? `${selectedTicketData.id}:${effectiveCurrentItem.id}` : selectedTicketData.id)
     : '';
 
   // Current caption (item-aware)
@@ -311,16 +328,16 @@ export default function CaptionWorkspace() {
     if (!selectedTicketData) return;
 
     // Flush current item draft before switching
-    if (currentItem && captionDraftKey) {
+    if (effectiveCurrentItem && captionDraftKey) {
       const draftText = captionDrafts[captionDraftKey];
       if (draftText && draftText.length > 0) {
         // Fire-and-forget — navigation is instant, save runs in background
-        updateItemCaptionMutation.mutate({ itemId: currentItem.id, captionText: draftText });
+        updateItemCaptionMutation.mutate({ itemId: effectiveCurrentItem.id, captionText: draftText });
       }
     }
 
     setSelectedItemIndices(prev => ({ ...prev, [selectedTicketData.id]: itemIndex }));
-  }, [selectedTicketData, currentItem, captionDraftKey, captionDrafts, updateItemCaptionMutation]);
+  }, [selectedTicketData, effectiveCurrentItem, captionDraftKey, captionDrafts, updateItemCaptionMutation]);
 
   // Check if current slot has a draft
   const hasDraft = !!captionDraftKey && (captionDrafts[captionDraftKey]?.length ?? 0) > 0;
@@ -329,15 +346,15 @@ export default function CaptionWorkspace() {
   const handleSaveDraft = useCallback(async (captionText: string) => {
     if (!selectedTicketData || !queueData) return;
     
-    if (currentItem) {
+    if (effectiveCurrentItem) {
       // Save to the specific content item
-      await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
+      await updateItemCaptionMutation.mutateAsync({ itemId: effectiveCurrentItem.id, captionText });
     } else {
-      // Legacy: save to ticket's captionText field
+      // Legacy single-caption ticket OR OTP/PTR: save to ticket's captionText field
       const ticketId = selectedTicketData.id;
       await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'draft' } });
     }
-  }, [selectedTicketData, queueData, currentItem, updateItemCaptionMutation, updateQueueMutation]);
+  }, [selectedTicketData, queueData, effectiveCurrentItem, updateItemCaptionMutation, updateQueueMutation]);
 
   // Submit ALL items at once — saves every in-memory draft and marks the ticket pending_qa.
   // Empty items are allowed through: we only save items that have text in draft.
@@ -393,9 +410,27 @@ export default function CaptionWorkspace() {
     // Use the ticket ID directly from selectedTicketData — never derive via array index
     const ticketId = selectedTicketData.id;
 
-    if (currentItem) {
+    // OTP/PTR: single ticket-level caption — save + move to pending_qa immediately
+    if (isOtpPtr) {
+      await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText, status: 'pending_qa' } });
+      setCaptionDrafts(prev => {
+        const next = { ...prev };
+        delete next[ticketId];
+        return next;
+      });
+      // Guaranteed real-time update — don't depend solely on Ably delivering the event.
+      // Invalidate caption-queue so queue count & ticket list refresh immediately,
+      // and board-items so the OTP/PTR modal status flips to AWAITING_APPROVAL.
+      queryClient.invalidateQueries({ queryKey: ['caption-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['board-items'] });
+      toast.success('Caption submitted for QA approval ✓');
+      setSelectedTicket(0);
+      return;
+    }
+
+    if (effectiveCurrentItem) {
       // Save the item caption
-      await updateItemCaptionMutation.mutateAsync({ itemId: currentItem.id, captionText });
+      await updateItemCaptionMutation.mutateAsync({ itemId: effectiveCurrentItem.id, captionText });
       // Clear this item's draft
       setCaptionDrafts(prev => {
         const next = { ...prev };
@@ -457,7 +492,7 @@ export default function CaptionWorkspace() {
       toast.success('Caption submitted! Ticket moved to QA ✓');
       setSelectedTicket(0);
     }
-  }, [selectedTicketData, queueData, currentItem, currentItemIndex, captionDraftKey,
+  }, [selectedTicketData, queueData, isOtpPtr, effectiveCurrentItem, currentItemIndex, captionDraftKey,
       actionableItemIndices, updateItemCaptionMutation, updateQueueMutation]);
 
   // Handle queue reorder (local state update)
@@ -660,9 +695,35 @@ export default function CaptionWorkspace() {
 
         {/* Center Panel: Content Viewer + Editor with Resizable */}
         <div className="flex flex-col h-full overflow-hidden">
+          {/* OTP/PTR: rejection banner — shown when PGT Team sent the caption back */}
+          {isOtpPtr && selectedTicketData?.status === 'in_revision' && (
+            <div className="flex items-start gap-2.5 px-3 py-2 bg-red-500/10 border-b border-red-500/30 text-[11px] shrink-0">
+              <svg className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <span className="font-semibold text-red-400">Needs Revision — </span>
+                <span className="text-red-300">
+                  {selectedTicketData?.qaRejectionReason
+                    ? selectedTicketData.qaRejectionReason
+                    : 'PGT Team has sent this caption back for revision. Please update and resubmit.'}
+                </span>
+              </div>
+            </div>
+          )}
+          {/* OTP/PTR single-caption mode indicator */}
+          {isOtpPtr && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-blue/10 border-b border-brand-blue/20 text-[11px] font-medium text-brand-blue dark:text-brand-blue shrink-0">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              OTP/PTR — Write one caption for the Drive content below, then submit for PGT Team approval.
+            </div>
+          )}
           <ResizablePanel initialHeight={40} minHeight={25} maxHeight={65}>
             <ErrorBoundary componentName="Content Viewer">
               <ContentViewer
+                key={queue[selectedTicket]?.id ?? 'empty'}
                 ticket={queue[selectedTicket]}
                 selectedItemIndex={currentItemIndex}
                 onSelectItem={handleSelectItem}
@@ -676,15 +737,15 @@ export default function CaptionWorkspace() {
                 restrictedWordsFound={restrictedWordsFound}
                 isDraft={hasDraft}
                 ticketId={captionDraftKey || selectedTicketData?.id}
-                onSaveDraft={isCurrentItemLocked ? undefined : handleSaveDraft}
-                onSubmit={isCurrentItemLocked ? undefined : handleSubmitCaption}
-                onSubmitAll={isCurrentItemLocked || !hasMultipleItems ? undefined : handleSubmitAll}
-                currentItemIndex={hasMultipleItems ? currentItemIndex : undefined}
-                totalItems={hasMultipleItems ? (selectedTicketData?.contentItems.length ?? 0) : undefined}
-                actionableCount={hasMultipleItems ? actionableItemIndices.length : undefined}
-                qaRejectionReason={currentItem?.qaRejectionReason ?? selectedTicketData?.qaRejectionReason}
-                itemCaptionStatus={currentItem?.captionStatus}
-                isLocked={isCurrentItemLocked}
+                onSaveDraft={effectiveIsLocked ? undefined : handleSaveDraft}
+                onSubmit={effectiveIsLocked ? undefined : handleSubmitCaption}
+                onSubmitAll={effectiveIsLocked || !effectiveHasMultipleItems ? undefined : handleSubmitAll}
+                currentItemIndex={effectiveHasMultipleItems ? currentItemIndex : undefined}
+                totalItems={effectiveHasMultipleItems ? (selectedTicketData?.contentItems.length ?? 0) : undefined}
+                actionableCount={effectiveHasMultipleItems ? actionableItemIndices.length : undefined}
+                qaRejectionReason={effectiveCurrentItem?.qaRejectionReason ?? selectedTicketData?.qaRejectionReason}
+                itemCaptionStatus={effectiveCurrentItem?.captionStatus}
+                isLocked={effectiveIsLocked}
               />
             </ErrorBoundary>
           </ResizablePanel>

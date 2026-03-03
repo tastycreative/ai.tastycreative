@@ -130,7 +130,7 @@ const QueueItem = memo(function QueueItem({
               PARTIAL
             </span>
           )}
-          {ticket.qaRejectionReason && ticket.status !== 'partially_approved' && (
+          {(ticket.status === 'in_revision' || ticket.qaRejectionReason) && ticket.status !== 'partially_approved' && (
             <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded text-[10px] font-bold flex items-center gap-0.5">
               <AlertCircle size={9} />
               REVISION

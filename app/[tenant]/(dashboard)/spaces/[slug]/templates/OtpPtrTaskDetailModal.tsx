@@ -37,11 +37,19 @@ import { SelectField } from '../../board/SelectField';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
+import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
 import {
   useBoardItemComments,
   useAddComment,
   useBoardItemHistory,
 } from '@/lib/hooks/useBoardItems.query';
+import {
+  useOtpPtrQAAction,
+} from '@/lib/hooks/useCaptionQueue.query';
+import {
+  OTP_PTR_CAPTION_STATUS,
+  OTP_PTR_STATUS_CONFIG,
+} from '@/lib/otp-ptr-caption-status';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -379,6 +387,12 @@ export function OtpPtrTaskDetailModal({
   const gameType = (meta.gameType as string) ?? '';
   const gifUrl = (meta.gifUrl as string) ?? '';
 
+  // Caption Workspace integration
+  const captionTicketId = (meta.captionTicketId as string) ?? null;
+  const otpPtrCaptionStatus: string = (meta.otpPtrCaptionStatus as string) ?? OTP_PTR_CAPTION_STATUS.PENDING_CAPTION;
+  /** Caption text written by the captioner in Caption Workspace */
+  const workspaceCaptionText = (meta.captionText as string) ?? '';
+
   const tier = pricingCategory || pricingTier;
 
   const [notesDraft, setNotesDraft] = useState(fulfillmentNotes);
@@ -386,6 +400,12 @@ export function OtpPtrTaskDetailModal({
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
   /* ── API hooks ───────────────────────────────────────── */
+
+  const { canManageQueue } = useOrgRole();
+  const otpPtrQAMutation = useOtpPtrQAAction();
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const { data: commentsData, isLoading: commentsLoading } =
     useBoardItemComments(spaceId, boardId, task.id, isOpen);
@@ -760,62 +780,184 @@ export function OtpPtrTaskDetailModal({
 
                 {/* PGT Team */}
                 <GlowCard icon={FileText} title="PGT Team" iconColorClass="bg-amber-400/10 text-amber-400">
-                  <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
-                      Caption
-                    </span>
-                    <div className="group/caption">
-                      {editingCaption ? (
-                        <div>
-                          <textarea
-                            ref={captionRef}
-                            value={captionDraft}
-                            onChange={(e) => setCaptionDraft(e.target.value)}
-                            rows={4}
-                            placeholder="PGT caption text..."
-                            className="w-full rounded-lg border border-brand-light-pink/25 bg-white/[0.03] px-3.5 py-2.5 text-sm text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/30 resize-none transition-shadow"
-                          />
-                          <div className="flex items-center gap-2 mt-2.5">
-                            <button
-                              type="button"
-                              onClick={saveCaption}
-                              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-110"
-                              style={{
-                                background:
-                                  'linear-gradient(135deg, #E1518E, #EC67A1)',
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCaptionDraft(caption);
-                                setEditingCaption(false);
-                              }}
-                              className="px-4 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
+                  <div className="space-y-4">
+
+                    {/* ── Caption Status Banner ─────────────────────── */}
+                    {(() => {
+                      const cfg = OTP_PTR_STATUS_CONFIG[otpPtrCaptionStatus] ?? OTP_PTR_STATUS_CONFIG[OTP_PTR_CAPTION_STATUS.PENDING_CAPTION];
+                      return (
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${cfg.bgColor} ${cfg.color} border-current/20 text-xs font-semibold`}>
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dotColor}`} />
+                          {cfg.label}
+                          {captionTicketId && (
+                            <span className="ml-auto text-[10px] font-normal opacity-60">Ticket linked</span>
+                          )}
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setEditingCaption(true)}
-                          className="flex items-start gap-2 w-full text-left"
+                      );
+                    })()}
+
+                    {/* ── Drive Link (context) ──────────────────────── */}
+                    {driveLink && (
+                      <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">Drive Content</span>
+                        <a
+                          href={driveLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs text-brand-blue hover:text-brand-blue/80 transition-colors"
                         >
-                          <p className="text-sm text-gray-300 whitespace-pre-wrap flex-1 leading-relaxed">
-                            {caption || (
-                              <span className="text-gray-600 italic">
-                                Click to add caption...
-                              </span>
-                            )}
-                          </p>
-                          <Pencil className="h-3.5 w-3.5 text-gray-600 opacity-0 group-hover/caption:opacity-100 transition-opacity shrink-0 mt-0.5" />
-                        </button>
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          <span className="underline underline-offset-2 break-all">{driveLink.length > 60 ? driveLink.slice(0, 57) + '…' : driveLink}</span>
+                        </a>
+                      </div>
+                    )}
+
+                    {/* ── Caption written by Caption Workspace ─────── */}
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">Caption</span>
+                      {workspaceCaptionText ? (
+                        <p className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-white/[0.03] border border-white/[0.06] rounded-lg px-3.5 py-2.5">
+                          {workspaceCaptionText}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-600 italic">
+                          {otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.PENDING_CAPTION
+                            ? 'Not yet pushed to Caption Workspace.'
+                            : otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.IN_CAPTION
+                            ? 'Captioner is working on it…'
+                            : 'No caption written yet.'}
+                        </p>
                       )}
                     </div>
+
+                    {/* ── Rejection reason (NEEDS_REVISION) ────────── */}
+                    {otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.NEEDS_REVISION && (meta.qaRejectionReason as string) && (
+                      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/8 border border-red-500/20">
+                        <span className="h-4 w-4 shrink-0 mt-0.5 text-red-400">✕</span>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-red-400 mb-0.5">Rejection reason</p>
+                          <p className="text-xs text-red-300 whitespace-pre-wrap">{meta.qaRejectionReason as string}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── QA actions (Manager+, when AWAITING_APPROVAL) ── */}
+                    {canManageQueue && otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.AWAITING_APPROVAL && captionTicketId && (
+                      <div className="space-y-2">
+                        {showRejectInput ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              rows={3}
+                              placeholder="Reason for rejection (optional)…"
+                              className="w-full rounded-lg border border-red-500/30 bg-white/[0.03] px-3.5 py-2.5 text-sm text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30 resize-none"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={otpPtrQAMutation.isPending}
+                                onClick={async () => {
+                                  await otpPtrQAMutation.mutateAsync({
+                                    ticketId: captionTicketId,
+                                    action: 'reject',
+                                    reason: rejectReason.trim() || undefined,
+                                  });
+                                  setShowRejectInput(false);
+                                  setRejectReason('');
+                                  onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.NEEDS_REVISION } });
+                                }}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 transition-colors disabled:opacity-50"
+                              >
+                                {otpPtrQAMutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                                className="px-4 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={otpPtrQAMutation.isPending}
+                              onClick={async () => {
+                                await otpPtrQAMutation.mutateAsync({ ticketId: captionTicketId, action: 'approve' });
+                                onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.APPROVED } });
+                              }}
+                              className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-50"
+                              style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                            >
+                              {otpPtrQAMutation.isPending ? 'Processing…' : '✓ Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowRejectInput(true)}
+                              className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                            >
+                              ✕ Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Approved state ───────────────────────────── */}
+                    {otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.APPROVED && (
+                      <div className="space-y-2">
+                        {/* Revoke approval — manager+ only */}
+                        {canManageQueue && (
+                          confirmRevoke ? (
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/8 border border-amber-500/20 text-xs">
+                              <span className="text-amber-400 font-medium flex-1">
+                                Revoke approval and send back to QA?
+                              </span>
+                              <button
+                                className="px-2 py-1 rounded text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+                                disabled={otpPtrQAMutation.isPending}
+                                onClick={() => setConfirmRevoke(false)}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 font-semibold transition-colors disabled:opacity-50"
+                                disabled={otpPtrQAMutation.isPending}
+                                onClick={async () => {
+                                  if (!captionTicketId) return;
+                                  await otpPtrQAMutation.mutateAsync({
+                                    ticketId: captionTicketId,
+                                    action: 'revoke_approval',
+                                  });
+                                  onUpdate({
+                                    ...task,
+                                    metadata: {
+                                      ...meta,
+                                      otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.AWAITING_APPROVAL,
+                                      captionStatus: 'pending_qa',
+                                      qaRejectionReason: null,
+                                    },
+                                  });
+                                  setConfirmRevoke(false);
+                                }}
+                              >
+                                {otpPtrQAMutation.isPending ? 'Revoking…' : 'Confirm Revoke'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="w-full text-xs px-3 py-1.5 rounded-lg border border-amber-500/20 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                              onClick={() => setConfirmRevoke(true)}
+                            >
+                              Revoke Approval
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
                 </GlowCard>
 

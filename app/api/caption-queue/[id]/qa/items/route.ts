@@ -94,12 +94,6 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      if (item.action === 'reject' && !item.reason?.trim()) {
-        return NextResponse.json(
-          { error: `Rejection reason is required for item ${item.contentItemId}` },
-          { status: 400 },
-        );
-      }
     }
 
     // ── Load ticket + all content items ──

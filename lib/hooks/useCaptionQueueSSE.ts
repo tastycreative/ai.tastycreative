@@ -84,12 +84,16 @@ export function useCaptionQueueSSE(options?: UseCaptionQueueSSEOptions) {
         const newTicketPayload = msg.data as {
           senderClerkId?: string;
           assignedCreatorClerkIds?: string[];
+          workflowType?: string;
         };
-        // Only show the toast to creators who are explicitly assigned to the ticket.
-        // The submitter (owner/admin/manager) and other non-assigned org members are excluded.
+        const isOtpPtr = newTicketPayload.workflowType === 'otp_ptr';
         const isAssigned = newTicketPayload.assignedCreatorClerkIds?.includes(currentClerkId) ?? false;
-        if (isAssigned) {
-          toast.info('A new caption task was added to your queue', {
+        const isSelf = newTicketPayload.senderClerkId === currentClerkId;
+        // Show toast to:
+        //  • Any assigned creator (wall post flow)
+        //  • Anyone except the submitter themselves for OTP/PTR (auto-push, no explicit assignee)
+        if (isAssigned || (isOtpPtr && !isSelf)) {
+          toast.info('New caption task added to queue', {
             id: 'new-queue-ticket',
             duration: 4000,
           });
@@ -126,6 +130,14 @@ export function useCaptionQueueSSE(options?: UseCaptionQueueSSEOptions) {
 
       if (msg.name === 'TICKET_DELETED') {
         queryClient.invalidateQueries({ queryKey: ['caption-queue'] });
+      }
+
+      // Manager approved or rejected from the OTP/PTR board modal.
+      // Refresh caption-queue (status/rejection banner) AND board-items
+      // (so the board modal reflects the latest otpPtrCaptionStatus).
+      if (msg.name === 'TICKET_QA_ACTION') {
+        queryClient.invalidateQueries({ queryKey: ['caption-queue'] });
+        queryClient.invalidateQueries({ queryKey: ['board-items'] });
       }
     };
 
