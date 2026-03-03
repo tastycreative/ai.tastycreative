@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { google } from "googleapis";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { convertS3ToCdnUrl } from "@/lib/cdnUtils";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -132,8 +133,9 @@ export async function POST(request: NextRequest) {
           })
         );
 
-        // Generate S3 URL
-        const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`;
+        // Generate S3 URL and convert to CDN URL
+        const s3UrlRaw = `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`;
+        const s3Url = convertS3ToCdnUrl(s3UrlRaw);
 
         // Determine file type (image or video)
         const fileType = mimeType.startsWith("video/") ? "video" : "image";

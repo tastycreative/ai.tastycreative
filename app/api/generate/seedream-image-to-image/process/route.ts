@@ -402,7 +402,9 @@ export async function POST(request: NextRequest) {
           }),
         );
 
-        const publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
+        // Generate public URL via CDN
+        const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
+        const publicUrl = convertS3ToCdnUrl(s3Url);
 
         const [width, height] = (item.size || size || '2048x2048')
           .split('x')

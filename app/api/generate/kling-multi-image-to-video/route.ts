@@ -59,8 +59,10 @@ async function uploadImageToS3(imageBuffer: Buffer, filename: string, userId: st
   });
 
   await s3Client.send(uploadCommand);
-  
-  const imageUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+
+  // Generate S3 URL and convert to CDN URL
+  const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+  const imageUrl = convertS3ToCdnUrl(s3Url);
   return imageUrl;
 }
 
@@ -87,7 +89,9 @@ async function uploadVideoToS3(videoBuffer: Buffer, filename: string, userId: st
 
   await s3Client.send(uploadCommand);
 
-  const videoUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+  // Generate S3 URL and convert to CDN URL
+  const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
+  const videoUrl = convertS3ToCdnUrl(s3Url);
   return videoUrl;
 }
 
