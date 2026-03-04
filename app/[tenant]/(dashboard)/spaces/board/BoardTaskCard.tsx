@@ -24,6 +24,8 @@ export interface BoardTaskCardProps {
   index: number;
   onClick?: (task: BoardTask) => void;
   onTitleUpdate?: (task: BoardTask, newTitle: string) => void;
+  columnTitle?: string;
+  onMarkFinal?: (taskId: string) => void;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {

@@ -1,6 +1,6 @@
 export { BoardTaskCard, type BoardTask, type BoardTaskCardProps } from './BoardTaskCard';
 export { BoardColumn, type BoardColumnData } from './BoardColumn';
-export { BoardLayout, type BoardTab, type BoardFilters } from './BoardLayout';
+export { BoardLayout, type BoardTab, type BoardFilters, type SortOption } from './BoardLayout';
 export { TaskDetailModal } from './TaskDetailModal';
 export { EditableField } from './EditableField';
 export { SelectField } from './SelectField';

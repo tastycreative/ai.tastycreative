@@ -1564,6 +1564,7 @@ model BoardItem {
   comments       BoardItemComment[]
   history        BoardItemHistory[]
   media          BoardItemMedia[]
+  galleryItem    gallery_items?
   column         BoardColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1914,6 +1915,7 @@ model gallery_items {
   pricingAmount    Decimal?      @db.Decimal(10, 2)
   modelId          String?
   pipelineItemId   String?       @unique
+  boardItemId      String?       @unique
   captionUsed      String?
   revenue          Decimal       @default(0) @db.Decimal(12, 2)
   salesCount       Int           @default(0)
@@ -1927,6 +1929,7 @@ model gallery_items {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   createdBy        String?
+  boardItem        BoardItem?    @relation(fields: [boardItemId], references: [id])
   model            of_models?    @relation(fields: [modelId], references: [id])
   organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

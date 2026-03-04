@@ -387,6 +387,8 @@ export function OtpPtrTaskDetailModal({
   const caption = (meta.caption as string) ?? '';
   const gameType = (meta.gameType as string) ?? '';
   const gifUrl = (meta.gifUrl as string) ?? '';
+  const gameNotes = (meta.gameNotes as string) ?? '';
+  const originalPollReference = (meta.originalPollReference as string) ?? '';
 
   // Caption Workspace integration
   const captionTicketId = (meta.captionTicketId as string) ?? null;
@@ -998,8 +1000,34 @@ export function OtpPtrTaskDetailModal({
                         </a>
                       )}
                     </div>
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
+                        Game Notes
+                      </span>
+                      <EditableField
+                        value={gameNotes}
+                        placeholder="Notes for the flyer team..."
+                        onSave={(v) => updateMeta({ gameNotes: v })}
+                      />
+                    </div>
                   </div>
                 </GlowCard>
+
+                {/* PPV/Bundle Poll Reference */}
+                {(contentStyle.toLowerCase() === 'ppv' || contentStyle.toLowerCase() === 'bundle') && (
+                  <GlowCard icon={Film} title="PPV/Bundle Details" iconColorClass="bg-purple-400/10 text-purple-400">
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 block mb-1.5">
+                        Original Poll Reference
+                      </span>
+                      <EditableField
+                        value={originalPollReference}
+                        placeholder="Reference to original poll..."
+                        onSave={(v) => updateMeta({ originalPollReference: v })}
+                      />
+                    </div>
+                  </GlowCard>
+                )}
 
                 {/* Description */}
                 <GlowCard icon={Info} title="Description" iconColorClass="bg-brand-light-pink/10 text-brand-light-pink">
@@ -1861,6 +1889,22 @@ export function OtpPtrTaskDetailModal({
                   </span>
                 </a>
               )}
+            </SidebarField>
+
+            <SidebarField label="Game Notes">
+              <EditableField
+                value={gameNotes}
+                placeholder="Notes for team..."
+                onSave={(v) => updateMeta({ gameNotes: v })}
+              />
+            </SidebarField>
+
+            <SidebarField label="Poll Reference">
+              <EditableField
+                value={originalPollReference}
+                placeholder="Original poll ref..."
+                onSave={(v) => updateMeta({ originalPollReference: v })}
+              />
             </SidebarField>
 
             {/* Tags summary in sidebar */}

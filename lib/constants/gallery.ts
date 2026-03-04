@@ -49,6 +49,7 @@ export type GalleryPlatform = (typeof GALLERY_PLATFORMS)[number];
  */
 export const GALLERY_ORIGINS = [
   "pipeline", // Created through Content Flow pipeline
+  "board", // Created from board item (Mark as Final)
   "manual", // Manually entered
   "import", // Imported from external source
   "migration", // Migrated from another system
