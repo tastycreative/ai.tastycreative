@@ -253,7 +253,7 @@ export const SearchableDropdown = memo(function SearchableDropdown({
                   const isActive = idx === activeIndex;
                   return (
                     <button
-                      key={option}
+                      key={`${option}-${idx}`}
                       type="button"
                       data-option
                       role="option"

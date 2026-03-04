@@ -17,6 +17,8 @@ import {
   DollarSign,
   CheckCircle2,
   CircleX,
+  BadgeCheck,
+  Loader2,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import type { BoardTask } from '../../board';
@@ -26,6 +28,8 @@ interface OtpPtrTaskCardProps {
   index: number;
   onClick?: (task: BoardTask) => void;
   onTitleUpdate?: (task: BoardTask, newTitle: string) => void;
+  columnTitle?: string;
+  onMarkFinal?: (taskId: string) => void;
 }
 
 /* ── Content style badge config ─────────────────────────────── */
@@ -102,11 +106,14 @@ function timeAgo(dateStr: string): string {
 
 /* ── Card component ─────────────────────────────────────────── */
 
-export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate }: OtpPtrTaskCardProps) {
+export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate, columnTitle, onMarkFinal }: OtpPtrTaskCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
+  const [markingFinal, setMarkingFinal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
+
+  const isReadyToDeploy = columnTitle?.toLowerCase().includes('ready to deploy') ?? false;
 
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
 
@@ -270,6 +277,27 @@ export function OtpPtrTaskCard({ task, index, onClick, onTitleUpdate }: OtpPtrTa
                 <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 line-clamp-2 mb-2">
                   {task.description}
                 </p>
+              )}
+
+              {/* Mark as Final button — only in "Ready to Deploy" column */}
+              {isReadyToDeploy && onMarkFinal && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMarkingFinal(true);
+                    onMarkFinal(task.id);
+                  }}
+                  disabled={markingFinal}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 px-2 py-1.5 text-[11px] font-semibold transition-colors mb-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {markingFinal ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <BadgeCheck className="h-3.5 w-3.5" />
+                  )}
+                  {markingFinal ? 'Posting...' : 'Mark as Final'}
+                </button>
               )}
 
               {/* Divider */}

@@ -13,7 +13,8 @@ import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
-import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText } from 'lucide-react';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText, Gamepad2, DollarSign } from 'lucide-react';
+import type { ContentStyleFields } from './ContentStyleSelector';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useQuery } from '@tanstack/react-query';
 import type { UseFormWatch } from 'react-hook-form';
@@ -63,6 +64,16 @@ export const SubmissionForm = memo(function SubmissionForm({
   const [selectedSpaces, setSelectedSpaces] = useState<Map<string, Space>>(new Map());
   const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined);
   const [contentStyle, setContentStyle] = useState<string>('normal');
+  const [styleFields, setStyleFields] = useState<ContentStyleFields>({
+    gameType: '',
+    gifUrl: '',
+    gameNotes: '',
+    originalPollReference: '',
+  });
+
+  const handleStyleFieldsChange = useCallback((fields: Partial<ContentStyleFields>) => {
+    setStyleFields((prev) => ({ ...prev, ...fields }));
+  }, []);
 
   const {
     register,
@@ -225,6 +236,16 @@ export const SubmissionForm = memo(function SubmissionForm({
         metadata: {
           submissionType: data.submissionType,
           contentStyle,
+          // Game-specific fields
+          ...(contentStyle === 'game' ? {
+            gameType: styleFields.gameType || undefined,
+            gifUrl: styleFields.gifUrl || undefined,
+            gameNotes: styleFields.gameNotes || undefined,
+          } : {}),
+          // PPV/Bundle-specific fields
+          ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
+            originalPollReference: styleFields.originalPollReference || undefined,
+          } : {}),
           pricingCategory: data.pricingCategory,
           pageType: (meta as Record<string, unknown>).pageType || 'ALL_PAGES',
           contentType: data.contentType,
@@ -284,6 +305,16 @@ export const SubmissionForm = memo(function SubmissionForm({
           metadata: {
             ...meta,
             contentStyle,
+            // Game-specific fields
+            ...(contentStyle === 'game' ? {
+              gameType: styleFields.gameType || undefined,
+              gifUrl: styleFields.gifUrl || undefined,
+              gameNotes: styleFields.gameNotes || undefined,
+            } : {}),
+            // PPV/Bundle-specific fields
+            ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
+              originalPollReference: styleFields.originalPollReference || undefined,
+            } : {}),
             boardItemId: primaryItem.itemId,
             targetSpaces: createdItems.map((i) => ({ spaceId: i.spaceId, boardId: i.boardId, itemId: i.itemId })),
             submitStatus: 'SUBMITTED',
@@ -453,7 +484,15 @@ export const SubmissionForm = memo(function SubmissionForm({
           allowStepNavigation={true}
         />
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          onKeyDown={(e) => {
+            // Prevent Enter key from auto-submitting when not on the final step
+            if (e.key === 'Enter' && currentStep < steps.length - 1 && !(e.target instanceof HTMLTextAreaElement)) {
+              e.preventDefault();
+            }
+          }}
+        >
           {/* Step Content — CSS transitions instead of spring physics */}
           <div
             key={currentStepInfo?.id}
@@ -482,6 +521,8 @@ export const SubmissionForm = memo(function SubmissionForm({
                     value={contentStyle}
                     onChange={setContentStyle}
                     submissionType={submissionType === 'OTP_PTR' ? 'otp' : 'ptr'}
+                    styleFields={styleFields}
+                    onStyleFieldsChange={handleStyleFieldsChange}
                   />
                 </StepContent>
               )}
@@ -521,6 +562,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                     spaceId={primarySpace?.id}
                     pendingFilesCount={pendingFiles.length}
                     contentStyle={contentStyle}
+                    styleFields={styleFields}
                   />
                 </StepContent>
               )}
@@ -744,6 +786,7 @@ const ReviewStep = memo(function ReviewStep({
   spaceId,
   pendingFilesCount,
   contentStyle,
+  styleFields,
 }: {
   selectedSpaces: Space[];
   submissionType: string;
@@ -753,6 +796,7 @@ const ReviewStep = memo(function ReviewStep({
   spaceId?: string;
   pendingFilesCount: number;
   contentStyle: string;
+  styleFields: ContentStyleFields;
 }) {
   const { data: spaceMembers } = useSpaceMembers(spaceId);
   const { data: orgMembers } = useQuery({
@@ -863,6 +907,46 @@ const ReviewStep = memo(function ReviewStep({
               <p className="text-xs text-zinc-500 mb-1">Content Style</p>
               <p className="text-white font-medium capitalize">{contentStyle}</p>
             </div>
+            {/* Game-specific review fields */}
+            {contentStyle === 'game' && (styleFields.gameType || styleFields.gifUrl || styleFields.gameNotes) && (
+              <div className="col-span-2 bg-orange-500/5 border border-orange-500/20 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Gamepad2 className="w-3.5 h-3.5 text-orange-400" />
+                  <p className="text-xs font-medium text-orange-400">Game Post Details</p>
+                </div>
+                {styleFields.gameType && (
+                  <div>
+                    <p className="text-xs text-zinc-500">Game Type</p>
+                    <p className="text-white text-sm">{styleFields.gameType}</p>
+                  </div>
+                )}
+                {styleFields.gifUrl && (
+                  <div>
+                    <p className="text-xs text-zinc-500">GIF URL</p>
+                    <p className="text-brand-blue text-sm truncate">{styleFields.gifUrl}</p>
+                  </div>
+                )}
+                {styleFields.gameNotes && (
+                  <div>
+                    <p className="text-xs text-zinc-500">Notes</p>
+                    <p className="text-white text-sm">{styleFields.gameNotes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* PPV/Bundle-specific review fields */}
+            {(contentStyle === 'ppv' || contentStyle === 'bundle') && styleFields.originalPollReference && (
+              <div className="col-span-2 bg-purple-500/5 border border-purple-500/20 rounded-lg p-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <DollarSign className="w-3.5 h-3.5 text-purple-400" />
+                  <p className="text-xs font-medium text-purple-400">PPV/Bundle Details</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Original Poll Reference</p>
+                  <p className="text-white text-sm">{styleFields.originalPollReference}</p>
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-xs text-zinc-500 mb-1">Pricing Tier</p>
               <p className="text-white font-medium">

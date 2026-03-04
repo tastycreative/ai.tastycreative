@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { DragDropContext } from '@hello-pangea/dnd';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSpaceBySlug, useUpdateSpace } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
@@ -83,9 +84,44 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const { data: orgMembers = [] } = useOrgMembers();
   const { currentOrganization } = useOrganization();
   const updateSpaceMutation = useUpdateSpace(space?.id ?? '');
+  const queryClient = useQueryClient();
   const config = TEMPLATE_CONFIG[space!.templateType];
   const { DetailModal, CardComponent } = config;
   const boardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Drag-to-scroll state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragState = useRef({ startX: 0, scrollLeft: 0, hasMoved: false });
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Only grab-scroll on the board background / column headers, not on task cards (handled by dnd)
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-rfd-draggable-id]') || target.closest('button') || target.closest('a') || target.closest('input')) return;
+
+    const container = boardContainerRef.current;
+    if (!container) return;
+
+    setIsDragging(true);
+    dragState.current = { startX: e.clientX, scrollLeft: container.scrollLeft, hasMoved: false };
+    container.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const container = boardContainerRef.current;
+    if (!container) return;
+
+    const dx = e.clientX - dragState.current.startX;
+    if (Math.abs(dx) > 3) dragState.current.hasMoved = true;
+    container.scrollLeft = dragState.current.scrollLeft - dx;
+  }, [isDragging]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    const container = boardContainerRef.current;
+    if (container) container.releasePointerCapture(e.pointerId);
+  }, [isDragging]);
 
   // Get current user's role in the space
   const currentMember = members.find((m) => m.user.clerkId === user?.id);
@@ -103,6 +139,31 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const handleSpaceNameUpdate = async (newName: string) => {
     await updateSpaceMutation.mutateAsync({ name: newName });
   };
+
+  const defaultBoard = space?.boards?.[0];
+
+  // Handler for "Mark as Final" — moves item to Posted + creates gallery entry
+  const handleMarkFinal = useCallback(
+    async (taskId: string) => {
+      if (!space?.id || !defaultBoard?.id) return;
+      try {
+        const res = await fetch(
+          `/api/spaces/${space.id}/boards/${defaultBoard.id}/items/${taskId}/mark-final`,
+          { method: 'POST' },
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error('Mark as final failed:', data.error);
+          return;
+        }
+        // Invalidate board items to refresh the board
+        queryClient.invalidateQueries({ queryKey: ['board-items'] });
+      } catch (err) {
+        console.error('Mark as final error:', err);
+      }
+    },
+    [space?.id, defaultBoard?.id, queryClient],
+  );
 
   const {
     boardData,
@@ -132,6 +193,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
     ),
   ).sort();
 
+  const totalTaskCount = Object.keys(effectiveTasks).length;
+
   return (
     <>
       <BoardLayout
@@ -145,6 +208,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
         defaultTab="board"
         columns={boardData?.columns.map((c) => ({ id: c.id, name: c.name })) ?? []}
         assignees={uniqueAssignees}
+        totalTaskCount={totalTaskCount}
+        currentUserId={user?.id}
       >
         {(activeTab, filters) => {
           // Any non-board tab → placeholder
@@ -175,13 +240,20 @@ function TemplateBoardView({ slug }: { slug: string }) {
           return (
             <div
               ref={boardContainerRef}
-              className="rounded-2xl border border-gray-200 dark:border-brand-mid-pink/15 bg-gray-100/50 dark:bg-gray-950/40 p-3 sm:p-4 overflow-x-auto"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className={`rounded-2xl border border-gray-200 dark:border-brand-mid-pink/15 bg-gray-100/50 dark:bg-gray-950/40 p-3 sm:p-4 overflow-x-auto select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
             >
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className="flex gap-3 sm:gap-4 min-w-max items-stretch">
                   {effectiveColumnOrder.map((colId) => {
                     const col = effectiveColumns[colId];
                     if (!col) return null;
+
+                    // Hide columns toggled off in Columns picker
+                    if (filters.hiddenColumns.has(colId)) return null;
 
                     // Apply filters
                     const colTasks = col.taskIds
@@ -213,6 +285,11 @@ function TemplateBoardView({ slug }: { slug: string }) {
                           return false;
                         }
 
+                        // My tasks filter
+                        if (filters.myTasksOnly && t.assignee !== user?.id) {
+                          return false;
+                        }
+
                         return true;
                       });
 
@@ -226,6 +303,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onTaskTitleUpdate={handleTitleUpdate}
                         onColumnTitleUpdate={handleColumnTitleUpdate}
                         onColumnColorUpdate={handleColumnColorUpdate}
+                        onMarkFinal={handleMarkFinal}
                         CardComponent={CardComponent}
                       />
                     );
