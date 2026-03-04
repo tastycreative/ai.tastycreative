@@ -348,6 +348,19 @@ export default function KlingMultiImageToVideo() {
                 ).slice(0, 20);
                 return uniqueHistory;
               });
+            } else {
+              // If no matching videos found and job is older than 30 minutes, force-fail it
+              const jobAgeMs = Date.now() - activeJob.startedAt;
+              if (jobAgeMs > 30 * 60 * 1000) {
+                console.log('⚠️ Stale Kling Multi I2V job timed out, force-marking as failed');
+                updateJob(activeJob.jobId, {
+                  status: 'failed',
+                  progress: 0,
+                  message: 'Generation timed out or failed during a previous session',
+                  error: 'Job timed out',
+                  completedAt: Date.now(),
+                });
+              }
             }
           }
         } catch (error) {
@@ -859,7 +872,7 @@ export default function KlingMultiImageToVideo() {
             progress: Math.min(90, attempts * 2),
             stage: "processing",
             message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
-            generationType: "image-to-video",
+            generationType: "kling-multi-image-to-video",
             jobId: localTaskId,
           });
 
@@ -875,12 +888,20 @@ export default function KlingMultiImageToVideo() {
           const data = await response.json();
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
+            updateJob(localTaskId, {
+              status: 'completed',
+              progress: 100,
+              stage: 'completed',
+              message: 'Video generation completed!',
+              results: data.videos,
+              completedAt: Date.now(),
+            });
             updateGlobalProgress({
               isGenerating: false,
               progress: 100,
               stage: "completed",
               message: "Video generation completed!",
-              generationType: "image-to-video",
+              generationType: "kling-multi-image-to-video",
               jobId: localTaskId,
             });
             setGeneratedVideos(data.videos);
@@ -892,12 +913,20 @@ export default function KlingMultiImageToVideo() {
           }
 
           if (data.status === "succeed" && data.videoUrl) {
+            updateJob(localTaskId, {
+              status: 'completed',
+              progress: 100,
+              stage: 'completed',
+              message: 'Video generation completed!',
+              results: [data.videoUrl],
+              completedAt: Date.now(),
+            });
             updateGlobalProgress({
               isGenerating: false,
               progress: 100,
               stage: "completed",
               message: "Video generation completed!",
-              generationType: "image-to-video",
+              generationType: "kling-multi-image-to-video",
               jobId: localTaskId,
             });
             setGeneratedVideos([{
@@ -943,7 +972,7 @@ export default function KlingMultiImageToVideo() {
             progress: 0,
             stage: "failed",
             message: err.message || "Generation failed",
-            generationType: "image-to-video",
+            generationType: "kling-multi-image-to-video",
             jobId: localTaskId,
           });
           setPollingStatus("");
@@ -1083,6 +1112,14 @@ export default function KlingMultiImageToVideo() {
           results: data.videos,
           completedAt: Date.now(),
         });
+        updateGlobalProgress({
+          isGenerating: false,
+          progress: 100,
+          stage: 'completed',
+          message: 'Generation completed!',
+          generationType: 'kling-multi-image-to-video',
+          jobId: localTaskId,
+        });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
         loadGenerationHistory();
@@ -1101,8 +1138,17 @@ export default function KlingMultiImageToVideo() {
         error: err.message,
         completedAt: Date.now(),
       });
+      updateGlobalProgress({
+        isGenerating: false,
+        progress: 0,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        generationType: 'kling-multi-image-to-video',
+        jobId: localTaskId,
+      });
       setPollingStatus("");
       setIsGenerating(false);
+      setTimeout(() => clearGlobalProgress(), 3000);
     }
   };
 

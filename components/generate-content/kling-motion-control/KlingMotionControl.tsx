@@ -435,6 +435,19 @@ export default function KlingMotionControl() {
                 ).slice(0, 20);
                 return uniqueHistory;
               });
+            } else {
+              // If no matching videos found and job is older than 30 minutes, force-fail it
+              const jobAgeMs = Date.now() - activeJob.startedAt;
+              if (jobAgeMs > 30 * 60 * 1000) {
+                console.log('\u26a0\ufe0f Stale Kling Motion Control job timed out, force-marking as failed');
+                updateJob(activeJob.jobId, {
+                  status: 'failed',
+                  progress: 0,
+                  message: 'Generation timed out or failed during a previous session',
+                  error: 'Job timed out',
+                  completedAt: Date.now(),
+                });
+              }
             }
           }
         } catch (error) {
@@ -990,7 +1003,7 @@ export default function KlingMotionControl() {
             progress: Math.min(90, Math.floor((attempts / maxAttempts) * 85)),
             stage: "processing",
             message: `Generating video... ${minutes}m ${seconds}s`,
-            generationType: "image-to-video",
+            generationType: "kling-motion-control",
             jobId: localTaskId,
           });
 
@@ -1019,12 +1032,20 @@ export default function KlingMotionControl() {
           console.log(`[Kling Motion Control] Poll attempt ${attempts}/${maxAttempts} - Status: ${lastKnownStatus}`);
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
+            updateJob(localTaskId, {
+              status: 'completed',
+              progress: 100,
+              stage: 'completed',
+              message: 'Video generation completed!',
+              results: data.videos,
+              completedAt: Date.now(),
+            });
             updateGlobalProgress({
               isGenerating: false,
               progress: 100,
               stage: "completed",
               message: "Video generation completed!",
-              generationType: "image-to-video",
+              generationType: "kling-motion-control",
               jobId: localTaskId,
             });
             setGeneratedVideos(data.videos);
@@ -1073,7 +1094,7 @@ export default function KlingMotionControl() {
             progress: 0,
             stage: "failed",
             message: err.message || "Generation failed",
-            generationType: "image-to-video",
+            generationType: "kling-motion-control",
             jobId: localTaskId,
           });
           setPollingStatus("");
@@ -1313,6 +1334,14 @@ export default function KlingMotionControl() {
           results: data.videos,
           completedAt: Date.now(),
         });
+        updateGlobalProgress({
+          isGenerating: false,
+          progress: 100,
+          stage: 'completed',
+          message: 'Generation completed!',
+          generationType: 'kling-motion-control',
+          jobId: localTaskId,
+        });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
         loadGenerationHistory();
@@ -1331,8 +1360,17 @@ export default function KlingMotionControl() {
         error: err.message,
         completedAt: Date.now(),
       });
+      updateGlobalProgress({
+        isGenerating: false,
+        progress: 0,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        generationType: 'kling-motion-control',
+        jobId: localTaskId,
+      });
       setPollingStatus("");
       setIsGenerating(false);
+      setTimeout(() => clearGlobalProgress(), 3000);
     }
   };
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
+import { saveCaptionFromOtpPtr } from '@/lib/caption-bank-sync';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -205,6 +206,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (historyEntries.length > 0) {
         await prisma.boardItemHistory.createMany({ data: historyEntries });
+      }
+    }
+
+    // ── Auto-save caption to Caption Bank when item moves to "Posted" column ──
+    if (data.columnId !== undefined && current) {
+      const oldColumnId = current.columnId;
+      const newColumnId = data.columnId as string;
+
+      if (oldColumnId !== newColumnId) {
+        try {
+          // Resolve the new column name
+          const newColumn = await prisma.boardColumn.findUnique({
+            where: { id: newColumnId },
+            select: { name: true },
+          });
+
+          if (newColumn?.name?.toLowerCase() === 'posted') {
+            const itemMeta = (updated.metadata as Record<string, unknown>) ?? {};
+            await saveCaptionFromOtpPtr({
+              boardItemId: itemId,
+              metadata: itemMeta,
+              clerkId: userId,
+            });
+          }
+        } catch (e) {
+          // Non-blocking: don't fail the column move
+          console.error('[caption-bank-sync] Failed to auto-save caption on column move:', e);
+        }
       }
     }
 

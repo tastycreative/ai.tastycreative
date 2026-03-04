@@ -275,6 +275,10 @@ export function useUpdateBoardItem(spaceId: string, boardId: string) {
       queryClient.invalidateQueries({
         queryKey: boardItemKeys.history(vars.itemId),
       });
+      // When a board item is moved to "Posted" column, a caption may be auto-saved
+      if (vars.columnId !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['model-captions'] });
+      }
     },
   });
 }

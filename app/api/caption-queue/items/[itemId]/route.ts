@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { canManageQueue, canViewQueue, isCreatorRole, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
+import { saveCaptionFromWallPost } from '@/lib/caption-bank-sync';
 
 async function resolveUserContext(clerkId: string) {
   const user = await prisma.user.findUnique({
@@ -137,8 +138,53 @@ export async function PATCH(
               await broadcastToBoard(col.boardId, ticket.boardItemId!);
             }
           }
+
+          // ── Auto-save caption to Caption Bank when marking as posted ──
+          if (isPosted) {
+            // Prefer DB captionText; fall back to the synced metadata captionItems entry
+            const metaCaptionItems = (prev.captionItems as Array<{ contentItemId?: string; captionText?: string | null }> | undefined) ?? [];
+            const metaEntry = metaCaptionItems.find((ci) => ci.contentItemId === itemId);
+            const boardItemCaptionText = metaEntry?.captionText ?? null;
+
+            try {
+              await saveCaptionFromWallPost({
+                contentItemId: itemId,
+                captionText: contentItem.captionText ?? null,
+                boardItemCaptionText,
+                ticket: {
+                  id: ticket.id,
+                  profileId: ticket.profileId,
+                  modelName: ticket.modelName,
+                  boardItemId: ticket.boardItemId,
+                  organizationId: ticket.organizationId,
+                },
+                clerkId,
+              });
+            } catch (e) {
+              // Non-blocking: don't fail the mark-as-posted action
+              console.error('[caption-bank-sync] Failed to auto-save caption:', e);
+            }
+          }
         } catch (e) {
           console.error('Failed to sync isPosted to board item:', e);
+        }
+      } else if (isPosted) {
+        // No boardItemId — still try to save caption using DB captionText only
+        try {
+          await saveCaptionFromWallPost({
+            contentItemId: itemId,
+            captionText: contentItem.captionText ?? null,
+            ticket: {
+              id: ticket.id,
+              profileId: ticket.profileId,
+              modelName: ticket.modelName,
+              boardItemId: ticket.boardItemId,
+              organizationId: ticket.organizationId,
+            },
+            clerkId,
+          });
+        } catch (e) {
+          console.error('[caption-bank-sync] Failed to auto-save caption (no boardItemId):', e);
         }
       }
 

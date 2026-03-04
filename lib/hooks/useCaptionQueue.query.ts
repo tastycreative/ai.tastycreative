@@ -526,6 +526,8 @@ export function useMarkItemPosted() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      // Refresh Caption Bank so newly auto-saved captions appear immediately
+      queryClient.invalidateQueries({ queryKey: ['model-captions'] });
     },
   });
 }

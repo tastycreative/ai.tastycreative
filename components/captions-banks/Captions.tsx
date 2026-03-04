@@ -85,13 +85,13 @@ interface InstagramProfile {
   };
 }
 
-export function Captions() {
+export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) {
   // Use global profile selector
   const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
   const { user: clerkUser } = useUser();
   
   const [captions, setCaptions] = useState<Caption[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(masterMode ? "all" : "");
   const profiles = useMemo(() => 
     [...globalProfiles].sort((a, b) => 
       (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
@@ -202,15 +202,17 @@ export function Captions() {
   const types = captionTypes;
   const banks = captionBanks;
 
-  // Sync with global profile selector
+  // Sync with global profile selector (only when NOT in master mode)
   useEffect(() => {
+    if (masterMode) return;
     if (globalProfileId && globalProfileId !== selectedProfileId) {
       setSelectedProfileId(globalProfileId);
     }
-  }, [globalProfileId]);
+  }, [globalProfileId, masterMode]);
 
-  // Listen for profile changes from global selector
+  // Listen for profile changes from global selector (only when NOT in master mode)
   useEffect(() => {
+    if (masterMode) return;
     const handleProfileChange = (event: CustomEvent<{ profileId: string }>) => {
       const newProfileId = event.detail.profileId;
       if (newProfileId && newProfileId !== selectedProfileId) {
@@ -220,7 +222,7 @@ export function Captions() {
 
     window.addEventListener('profileChanged', handleProfileChange as EventListener);
     return () => window.removeEventListener('profileChanged', handleProfileChange as EventListener);
-  }, [selectedProfileId]);
+  }, [selectedProfileId, masterMode]);
 
   // Fetch captions when profile changes
   useEffect(() => {
@@ -827,7 +829,7 @@ export function Captions() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
               <h1 className="text-3xl font-bold text-sidebar-foreground tracking-tight flex items-center gap-3">
-                Caption Bank
+                {masterMode ? "Master Caption Bank" : "Caption Bank"}
                 {isAllProfiles && (
                   <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 rounded-full text-sm font-medium text-pink-600 dark:text-pink-400 flex items-center gap-1">
                     <Users className="w-4 h-4" />
@@ -843,7 +845,9 @@ export function Captions() {
               </h1>
               <p className="mt-1 text-header-muted">
                 {isAllProfiles 
-                  ? "Viewing captions from all profiles"
+                  ? masterMode
+                    ? "Central bank for all model/profile captions across your workspace"
+                    : "Viewing captions from all profiles"
                   : isSharedProfile
                     ? <>Viewing captions for <span className="text-[#EC67A1] font-medium">{selectedProfile?.name}</span> {getSharedProfileOwnerName && <span className="text-[#5DC3F8]">(shared by {getSharedProfileOwnerName})</span>}</>
                     : <>Manage captions for <span className="text-[#EC67A1] font-medium">{selectedProfile?.name}</span></>
@@ -911,7 +915,10 @@ export function Captions() {
           <div className="mb-6 bg-gradient-to-r from-pink-50 via-violet-50 to-blue-50 dark:from-pink-900/20 dark:via-violet-900/20 dark:to-blue-900/20 border border-pink-200 dark:border-pink-800 rounded-xl p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-pink-500 flex-shrink-0" />
             <p className="text-sm text-sidebar-foreground">
-              <span className="font-medium text-pink-600 dark:text-pink-400">All Profiles Mode:</span> Viewing captions from all profiles. Select a specific profile to add, edit, or delete captions.
+              {masterMode
+                ? <><span className="font-medium text-pink-600 dark:text-pink-400">Master Caption Bank:</span> Showing captions from all profiles. Use the <span className="font-medium">Filter by Profile</span> dropdown above to drill into a specific model and enable add/edit/delete.</>
+                : <><span className="font-medium text-pink-600 dark:text-pink-400">All Profiles Mode:</span> Viewing captions from all profiles. Select a specific profile to add, edit, or delete captions.</>
+              }
             </p>
           </div>
         )}
@@ -1072,7 +1079,20 @@ export function Captions() {
           {/* Expanded Filters */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${masterMode ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+                {masterMode && (
+                  <div>
+                    <label className="block text-xs font-semibold text-header-muted uppercase tracking-wider mb-2">Profile</label>
+                    <select
+                      value={selectedProfileId}
+                      onChange={(e) => setSelectedProfileId(e.target.value)}
+                      className="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#EC67A1]"
+                    >
+                      <option value="all">All Profiles</option>
+                      {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-header-muted uppercase tracking-wider mb-2">Category</label>
                   <select

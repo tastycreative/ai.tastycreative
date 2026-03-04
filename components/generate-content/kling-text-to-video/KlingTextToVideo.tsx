@@ -322,6 +322,19 @@ export default function KlingTextToVideo() {
                 ).slice(0, 20);
                 return uniqueHistory;
               });
+            } else {
+              // If no matching videos found and job is older than 30 minutes, force-fail it
+              const jobAgeMs = Date.now() - activeJob.startedAt;
+              if (jobAgeMs > 30 * 60 * 1000) {
+                console.log('⚠️ Stale Kling T2V job timed out, force-marking as failed');
+                updateJob(activeJob.jobId, {
+                  status: 'failed',
+                  progress: 0,
+                  message: 'Generation timed out or failed during a previous session',
+                  error: 'Job timed out',
+                  completedAt: Date.now(),
+                });
+              }
             }
           }
         } catch (error) {
@@ -600,8 +613,14 @@ export default function KlingTextToVideo() {
             progress: Math.min(90, attempts * 2),
             stage: 'processing',
             message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
-            status: 'processing',
-            elapsedTime: elapsedSeconds * 1000,
+          });
+          updateGlobalProgress({
+            isGenerating: true,
+            progress: Math.min(90, attempts * 2),
+            stage: 'processing',
+            message: `Generating video... ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`,
+            generationType: 'kling-text-to-video',
+            jobId: localTaskId,
           });
 
           const response = await apiClient?.get(
@@ -623,6 +642,14 @@ export default function KlingTextToVideo() {
               message: 'Video generation completed!',
               results: data.videos,
               completedAt: Date.now(),
+            });
+            updateGlobalProgress({
+              isGenerating: false,
+              progress: 100,
+              stage: 'completed',
+              message: 'Video generation completed!',
+              generationType: 'kling-text-to-video',
+              jobId: localTaskId,
             });
             setGeneratedVideos(data.videos);
             setPollingStatus("");
@@ -661,8 +688,17 @@ export default function KlingTextToVideo() {
             error: err.message,
             completedAt: Date.now(),
           });
+          updateGlobalProgress({
+            isGenerating: false,
+            progress: 0,
+            stage: 'failed',
+            message: err.message || 'Generation failed',
+            generationType: 'kling-text-to-video',
+            jobId: localTaskId,
+          });
           setPollingStatus("");
           setIsGenerating(false);
+          setTimeout(() => clearGlobalProgress(), 3000);
           reject(err);
         }
       };
@@ -843,6 +879,14 @@ export default function KlingTextToVideo() {
           results: data.videos,
           completedAt: Date.now(),
         });
+        updateGlobalProgress({
+          isGenerating: false,
+          progress: 100,
+          stage: 'completed',
+          message: 'Generation completed!',
+          generationType: 'kling-text-to-video',
+          jobId: localTaskId,
+        });
         setGeneratedVideos(data.videos);
         setPollingStatus("");
         loadGenerationHistory();
@@ -861,8 +905,17 @@ export default function KlingTextToVideo() {
         error: err.message,
         completedAt: Date.now(),
       });
+      updateGlobalProgress({
+        isGenerating: false,
+        progress: 0,
+        stage: 'failed',
+        message: err.message || 'Generation failed',
+        generationType: 'kling-text-to-video',
+        jobId: localTaskId,
+      });
       setPollingStatus("");
       setIsGenerating(false);
+      setTimeout(() => clearGlobalProgress(), 3000);
     }
   };
 
