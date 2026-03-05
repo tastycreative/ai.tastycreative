@@ -1071,17 +1071,17 @@ model VaultFolderShare {
 }
 
 model VaultItem {
-  id        String      @id @default(cuid())
-  clerkId   String
-  profileId String
-  folderId  String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  awsS3Key  String
-  awsS3Url  String
-  fileName  String
-  fileSize  Int
-  fileType  String
+  id                  String      @id @default(cuid())
+  clerkId             String
+  profileId           String
+  folderId            String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  awsS3Key            String
+  awsS3Url            String
+  fileName            String
+  fileSize            Int
+  fileType            String
   metadata            Json?
   deletedAt           DateTime?
   deletedFromFolderId String?
@@ -1098,34 +1098,34 @@ model VaultItem {
 }
 
 model Caption {
-  id                   String                 @id @default(cuid())
-  clerkId              String
-  profileId            String
-  caption              String
-  captionCategory      String
-  captionTypes         String
-  captionBanks         String
-  usageCount           Int                    @default(0)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  cooldownDays         Int                    @default(7)
-  isFavorite           Boolean                @default(false)
-  lastUsedAt           DateTime?
-  notes                String?
-  tags                 String?
-  originalModelName    String?
-  totalRevenue         Decimal                @default(0) @db.Decimal(10, 2)
-  /// Source workflow that auto-saved this caption: 'wall_post' | 'otp_ptr' | null (manual)
-  sourceType           String?
+  id                  String                 @id @default(cuid())
+  clerkId             String
+  profileId           String
+  caption             String
+  captionCategory     String
+  captionTypes        String
+  captionBanks        String
+  usageCount          Int                    @default(0)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  cooldownDays        Int                    @default(7)
+  isFavorite          Boolean                @default(false)
+  lastUsedAt          DateTime?
+  notes               String?
+  tags                String?
+  originalModelName   String?
+  totalRevenue        Decimal                @default(0) @db.Decimal(10, 2)
   /// Board item ID that this caption originated from
-  sourceBoardItemId    String?
+  sourceBoardItemId   String?
   /// Content item ID (CaptionQueueContentItem) — unique per wall-post item to prevent duplicates
-  sourceContentItemId  String?                @unique
+  sourceContentItemId String?                @unique
   /// Caption queue ticket ID — unique per OTP/PTR ticket to prevent duplicates
-  sourceTicketId       String?                @unique
-  contentTypes         CaptionToContentType[]
-  messageTypes         CaptionToMessageType[]
-  profile              InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  sourceTicketId      String?                @unique
+  /// Source workflow that auto-saved this caption: 'wall_post' | 'otp_ptr' | null (manual)
+  sourceType          String?
+  contentTypes        CaptionToContentType[]
+  messageTypes        CaptionToMessageType[]
+  profile             InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([profileId])
@@ -1211,6 +1211,10 @@ model CaptionQueueTicket {
   qaRejectionReason String?
   /// Differentiates caption workflows: 'wall_post' (per-item captions) vs 'otp_ptr' (single ticket-level caption)
   workflowType      String?                   @default("wall_post")
+  /// clerkId of the creator actively working on this ticket (claim system)
+  claimedBy         String?
+  /// Timestamp when the claim was made — used to compute 30-min TTL expiry
+  claimedAt         DateTime?
   assignees         CaptionQueueAssignee[]
   contentItems      CaptionQueueContentItem[]
   organization      Organization?             @relation(fields: [organizationId], references: [id])
@@ -1225,6 +1229,7 @@ model CaptionQueueTicket {
   @@index([clerkId, sortOrder])
   @@index([organizationId, status])
   @@index([boardItemId])
+  @@index([claimedBy])
   @@map("caption_queue_tickets")
 }
 

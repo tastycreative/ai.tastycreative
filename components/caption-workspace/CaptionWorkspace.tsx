@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import QueuePanel from './QueuePanel';
 import ContentViewer from './ContentViewer';
@@ -11,8 +12,9 @@ import ReferencePanel from './ReferencePanel';
 import { CaptionWorkspaceSkeleton } from './Skeletons';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { QueueTicket, ModelContext, TopCaption, formatPageStrategy } from './types';
-import { useCaptionQueue, useUpdateQueueItem, useUpdateContentItemCaption } from '@/lib/hooks/useCaptionQueue.query';
+import { useCaptionQueue, useUpdateQueueItem, useUpdateContentItemCaption, useClaimTicket, useExtendClaim } from '@/lib/hooks/useCaptionQueue.query';
 import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
+import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
 import { useCaptionQueueSSE, type RemoteCaptionUpdate } from '@/lib/hooks/useCaptionQueueSSE';
 const ResizablePanel = memo(function ResizablePanel({ 
   children, 
@@ -91,6 +93,7 @@ export default function CaptionWorkspace() {
   const [selectedTicket, setSelectedTicket] = useState(0);
   const [activeTab, setActiveTab] = useState<'context' | 'reference'>('context');
   const [searchQuery, setSearchQuery] = useState('');
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   
   // Caption drafts stored by "ticketId" (legacy) or "ticketId:itemId" (multi-item)
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
@@ -106,7 +109,14 @@ export default function CaptionWorkspace() {
   const { data: queueData, isLoading, error } = useCaptionQueue();
   const updateQueueMutation = useUpdateQueueItem();
   const updateItemCaptionMutation = useUpdateContentItemCaption();
+  const claimMutation = useClaimTicket();
+  const extendClaimMutation = useExtendClaim();
   const queryClient = useQueryClient();
+
+  // Current user + role context (needed for isAssignedToMe and claim logic)
+  const { user } = useUser();
+  const { isCreator } = useOrgRole();
+  const currentClerkId = user?.id ?? '';
 
   // Real-time: when another org member saves a caption, push it into our
   // local draft state — unless the current user typed in that ticket within
@@ -156,7 +166,6 @@ export default function CaptionWorkspace() {
         : (item.contentSourceType === 'gdrive' ? item.contentUrl || 'https://drive.google.com/...' : 'https://drive.google.com/...'),
       videoUrl: item.workflowType === 'otp_ptr' ? null : (item.contentSourceType === 'upload' ? (item.contentUrl || null) : null),
       contentUrl: item.contentUrl,
-      // OTP/PTR tickets store the Drive link on the first content item, not at ticket level
       contentSourceType: (item.workflowType === 'otp_ptr' ? 'gdrive' : item.contentSourceType) as 'upload' | 'gdrive' | null,
       contentItems: (item.contentItems || []).map(ci => ({
         id: ci.id,
@@ -177,8 +186,12 @@ export default function CaptionWorkspace() {
       })),
       qaRejectionReason: item.qaRejectionReason ?? null,
       workflowType: item.workflowType ?? null,
+      claimedBy: item.claimedBy ?? null,
+      claimedAt: item.claimedAt ?? null,
+      claimedByUser: item.claimedByUser ?? null,
+      isAssignedToMe: item.assignees?.some((a) => a.clerkId === currentClerkId) ?? false,
     })) || [],
-  [queueData]);
+  [queueData, currentClerkId]);
 
   // Filter queue based on search
   const queue = useMemo(() => {
@@ -507,6 +520,38 @@ export default function CaptionWorkspace() {
     }
   }, [selectedTicket]);
 
+  // ── Claim handler ─────────────────────────────────────────────────────
+  const handleClaimTicket = useCallback((ticketId: string) => {
+    setClaimingId(ticketId);
+    claimMutation.mutate(ticketId, {
+      onSuccess: () => {
+        toast.success('Ticket claimed — it\'s now in your queue');
+        // Auto-select the newly claimed ticket
+        const idx = queue.findIndex((t) => t.id === ticketId);
+        if (idx >= 0) setSelectedTicket(idx);
+      },
+      onError: (err) => {
+        const msg = err.message === 'ALREADY_CLAIMED'
+          ? 'Another creator just claimed that ticket'
+          : 'Failed to claim ticket';
+        toast.error(msg);
+      },
+      onSettled: () => setClaimingId(null),
+    });
+  }, [claimMutation, queue]);
+
+  // ── Heartbeat: extend claim TTL while actively editing ───────────────
+  // Fires every 5 minutes when the selected ticket is claimed by the current user.
+  useEffect(() => {
+    const ticket = selectedTicketData;
+    if (!ticket?.claimedBy || ticket.claimedBy !== currentClerkId) return;
+    const interval = setInterval(() => {
+      extendClaimMutation.mutate(ticket.id);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicketData?.id, selectedTicketData?.claimedBy, currentClerkId]);
+
   // Transform profile data to ModelContext
   const modelContext: ModelContext = useMemo(() => {
     if (!profileData || !selectedTicketData) {
@@ -689,6 +734,10 @@ export default function CaptionWorkspace() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onReorder={handleQueueReorder}
+              currentClerkId={currentClerkId}
+              isCreator={isCreator}
+              onClaimTicket={handleClaimTicket}
+              isClaimingId={claimingId}
             />
           </ErrorBoundary>
         </div>

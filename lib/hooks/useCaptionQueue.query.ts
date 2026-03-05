@@ -57,6 +57,17 @@ export interface CaptionQueueItem {
   contentItems: CaptionQueueContentItem[];
   /** Reason left by QA when the ticket was rejected (null if never rejected) */
   qaRejectionReason?: string | null;
+  /** clerkId of the creator who has claimed this ticket, or null */
+  claimedBy?: string | null;
+  /** ISO timestamp of when the claim was made — TTL is 30 min */
+  claimedAt?: string | null;
+  /** Basic display info of the claimer (populated by the GET route for manager visibility) */
+  claimedByUser?: {
+    clerkId: string;
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string | null;
+  } | null;
 }
 
 
@@ -627,6 +638,96 @@ export function useOtpPtrQAAction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+    },
+  });
+}
+
+// ─── Ticket Claim / Unclaim / Heartbeat ──────────────────────────────
+
+/**
+ * Atomically claim an unassigned ticket so only one creator works on it at a time.
+ * Returns 409 if another user already holds a valid (non-expired) claim.
+ * Performs an optimistic update so the UI responds instantly.
+ */
+export function useClaimTicket() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: async (ticketId: string) => {
+      const res = await fetch(`/api/caption-queue/${ticketId}/claim`, { method: 'POST' });
+      if (res.status === 409) throw new Error('ALREADY_CLAIMED');
+      if (!res.ok) throw new Error('Failed to claim ticket');
+      return res.json();
+    },
+    onMutate: async (ticketId) => {
+      await queryClient.cancelQueries({ queryKey: ['caption-queue', user?.id] });
+      const previous = queryClient.getQueryData<CaptionQueueItem[]>(['caption-queue', user?.id]);
+      queryClient.setQueryData<CaptionQueueItem[]>(['caption-queue', user?.id], (old) =>
+        old?.map((item) =>
+          item.id === ticketId
+            ? { ...item, claimedBy: user?.id ?? null, claimedAt: new Date().toISOString() }
+            : item,
+        ) ?? [],
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['caption-queue', user?.id], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+    },
+  });
+}
+
+/**
+ * Release a claim so other creators can pick up the ticket.
+ */
+export function useUnclaimTicket() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: async (ticketId: string) => {
+      const res = await fetch(`/api/caption-queue/${ticketId}/claim`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to release claim');
+      return res.json();
+    },
+    onMutate: async (ticketId) => {
+      await queryClient.cancelQueries({ queryKey: ['caption-queue', user?.id] });
+      const previous = queryClient.getQueryData<CaptionQueueItem[]>(['caption-queue', user?.id]);
+      queryClient.setQueryData<CaptionQueueItem[]>(['caption-queue', user?.id], (old) =>
+        old?.map((item) =>
+          item.id === ticketId ? { ...item, claimedBy: null, claimedAt: null } : item,
+        ) ?? [],
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['caption-queue', user?.id], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+    },
+  });
+}
+
+/**
+ * Heartbeat — extend the 30-min TTL on an active claim.
+ * Call this every ~5 minutes while the creator is actively editing.
+ * Silent: no cache update needed (claimedAt is not shown in the UI).
+ */
+export function useExtendClaim() {
+  return useMutation({
+    mutationFn: async (ticketId: string) => {
+      const res = await fetch(`/api/caption-queue/${ticketId}/claim`, { method: 'PATCH' });
+      if (!res.ok) throw new Error('Failed to extend claim');
+      return res.json();
     },
   });
 }

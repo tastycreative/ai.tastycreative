@@ -14,6 +14,9 @@ import {
   FileText,
   Clock,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
   PanelRightOpen,
   PanelRightClose,
   CheckCircle2,
@@ -585,6 +588,10 @@ export function WallPostTaskDetailModal({
   const boardId = space?.boards?.[0]?.id;
 
   const [activeTab, setActiveTab] = useState<ModalTab>('description');
+  const [selectedItemIndex, setSelectedItemIndex] = useState(0);
+  const [photoFilterTab, setPhotoFilterTab] = useState<'all' | 'pending' | 'submitted' | 'approved' | 'rejected' | 'posted'>('all');
+  const [showItemRejectInput, setShowItemRejectInput] = useState(false);
+  const [itemRejectReason, setItemRejectReason] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -695,6 +702,29 @@ export function WallPostTaskDetailModal({
       }),
     [mediaData, captionItems],
   );
+
+  const photoFilterCounts = useMemo(() => {
+    const counts = { all: mediaWithCaptions.length, pending: 0, submitted: 0, approved: 0, rejected: 0, posted: 0 };
+    mediaWithCaptions.forEach((m) => {
+      if (m.isPosted) counts.posted++;
+      if (m.captionStatus === 'approved') counts.approved++;
+      if (m.captionStatus === 'submitted') counts.submitted++;
+      if (m.captionStatus === 'rejected') counts.rejected++;
+      if (!m.captionStatus || ['pending', 'in_progress', 'not_required'].includes(m.captionStatus)) counts.pending++;
+    });
+    return counts;
+  }, [mediaWithCaptions]);
+
+  const filteredPhotoItems = useMemo(() => {
+    if (photoFilterTab === 'all') return mediaWithCaptions;
+    return mediaWithCaptions.filter((m) => {
+      if (photoFilterTab === 'posted') return m.isPosted;
+      if (photoFilterTab === 'approved') return m.captionStatus === 'approved';
+      if (photoFilterTab === 'submitted') return m.captionStatus === 'submitted';
+      if (photoFilterTab === 'rejected') return m.captionStatus === 'rejected';
+      return !m.captionStatus || ['pending', 'in_progress', 'not_required'].includes(m.captionStatus ?? '');
+    });
+  }, [mediaWithCaptions, photoFilterTab]);
 
   const comments: TaskComment[] = useMemo(() => {
     if (!commentsData?.comments) return [];
@@ -1024,6 +1054,7 @@ export function WallPostTaskDetailModal({
   const switchTab = (tab: ModalTab) => {
     setActiveTab(tab);
     setSidebarOpen(tab === 'description');
+    if (tab === 'photos') { setSelectedItemIndex(0); setShowItemRejectInput(false); setItemRejectReason(''); }
   };
 
   const TABS: { id: ModalTab; label: string; icon: LucideIcon }[] = [
@@ -1435,16 +1466,24 @@ export function WallPostTaskDetailModal({
             {activeTab === 'photos' && (
               mediaLoading ? (
                 /* Loading skeleton */
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="rounded-xl overflow-hidden">
-                      <div className="aspect-3/2 bg-white/4" />
-                      <div className="p-3 space-y-1.5">
-                        <div className="h-3 bg-white/4 rounded w-4/5" />
-                        <div className="h-3 bg-white/4 rounded w-3/5" />
-                      </div>
+                <div className="flex gap-0 h-[520px] animate-pulse rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div className="flex-1" style={{ background: 'rgba(255,255,255,0.015)' }} />
+                  <div className="w-[268px] shrink-0 p-2.5 space-y-1" style={{ borderLeft: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)' }}>
+                    <div className="flex gap-1.5 mb-3">
+                      {[40, 54, 36, 48].map((w, i) => (
+                        <div key={i} className="h-5 rounded-md bg-white/[0.04]" style={{ width: w }} />
+                      ))}
                     </div>
-                  ))}
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
+                        <div className="h-9 w-9 rounded-lg shrink-0 bg-white/[0.04]" />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-2 rounded bg-white/[0.04] w-3/5" />
+                          <div className="h-1.5 rounded bg-white/[0.03] w-2/5" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : mediaWithCaptions.length === 0 ? (
                 /* Empty state */
@@ -1461,82 +1500,24 @@ export function WallPostTaskDetailModal({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {/* ── Caption status summary ── */}
-                  {(() => {
-                    const counts = { approved: 0, submitted: 0, rejected: 0, in_progress: 0, pending: 0, not_required: 0 };
-                    mediaWithCaptions.forEach((m) => {
-                      const s = m.captionStatus ?? 'pending';
-                      if (s in counts) counts[s as keyof typeof counts]++;
-                    });
-                    return (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {counts.approved > 0 && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span className="font-bold">{counts.approved}</span> Approved
-                          </span>
-                        )}
-                        {counts.submitted > 0 && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                            <Clock className="h-3 w-3" />
-                            <span className="font-bold">{counts.submitted}</span> Pending QA
-                          </span>
-                        )}
-                        {counts.rejected > 0 && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-red-500/10 text-red-400 border-red-500/20">
-                            <XCircle className="h-3 w-3" />
-                            <span className="font-bold">{counts.rejected}</span> Revision
-                          </span>
-                        )}
-                        {counts.in_progress > 0 && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-brand-blue/10 text-brand-blue border-brand-blue/20">
-                            <span className="font-bold">{counts.in_progress}</span> In Progress
-                          </span>
-                        )}
-                        {(counts.pending > 0) && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-white/4 text-gray-400 border-white/6">
-                            <span className="font-bold">{counts.pending}</span> Pending
-                          </span>
-                        )}
-                        <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold border bg-white/4 text-gray-400 border-white/6">
-                          <ImageIcon className="h-3 w-3" />
-                          <span className="font-bold">{mediaWithCaptions.length}</span> Total
-                        </span>
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── Bulk QA actions bar ── */}
+                <div className="space-y-3">
+                  {/* Bulk QA actions bar */}
                   {canQA && (wallPostStatus === WALL_POST_STATUS.FOR_QA || wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED) && (
-                    <div
-                      className="rounded-xl px-4 py-3 flex flex-col gap-3"
-                      style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
-                    >
+                    <div className="rounded-xl px-4 py-3 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11px] font-semibold text-gray-400">
-                          {wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED
-                            ? 'Partially approved — some items need revision'
-                            : 'Awaiting QA review'}
+                          {wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED ? 'Partially approved — some items need revision' : 'Awaiting QA review'}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleQAApprove}
-                            disabled={qaActionMutation.isPending}
+                          <button type="button" onClick={handleQAApprove} disabled={qaActionMutation.isPending}
                             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
-                            style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
-                          >
+                            style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
                             {qaActionMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
                             Approve All
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowRejectInput((v) => !v)}
-                            disabled={qaActionMutation.isPending}
+                          <button type="button" onClick={() => setShowRejectInput((v) => !v)} disabled={qaActionMutation.isPending}
                             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97] disabled:opacity-50"
-                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}
-                          >
+                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
                             <RotateCcw className="h-3 w-3" />
                             Reject All
                           </button>
@@ -1544,27 +1525,16 @@ export function WallPostTaskDetailModal({
                       </div>
                       {showRejectInput && (
                         <div className="space-y-2">
-                          <textarea
-                            value={rejectReason}
-                            onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder="Explain why the captions need revision..."
-                            rows={2}
-                            className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-3 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none"
-                          />
+                          <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Explain why the captions need revision..." rows={2}
+                            className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-3 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none" />
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleQAReject}
-                              disabled={qaActionMutation.isPending}
-                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
-                            >
+                            <button type="button" onClick={handleQAReject} disabled={qaActionMutation.isPending}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">
                               {qaActionMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
-                              className="px-3 py-1.5 rounded-lg text-[11px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
-                            >
+                            <button type="button" onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                              className="px-3 py-1.5 rounded-lg text-[11px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors">
                               Cancel
                             </button>
                           </div>
@@ -1573,72 +1543,247 @@ export function WallPostTaskDetailModal({
                     </div>
                   )}
 
-                  {/* ── Re-push rejected items banner ── */}
+                  {/* Re-push rejected items banner */}
                   {canQA && wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED && (() => {
-                    const rejCount = mediaWithCaptions.filter(
-                      (m) => m.captionStatus === 'rejected',
-                    ).length;
+                    const rejCount = mediaWithCaptions.filter((m) => m.captionStatus === 'rejected').length;
                     if (rejCount === 0) return null;
                     return (
-                      <div
-                        className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
-                        style={{ background: 'rgba(93,195,248,0.06)', border: '1px solid rgba(93,195,248,0.18)' }}
-                      >
+                      <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+                        style={{ background: 'rgba(93,195,248,0.06)', border: '1px solid rgba(93,195,248,0.18)' }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <RotateCcw className="h-3.5 w-3.5 text-brand-blue shrink-0" />
                           <span className="text-[11px] font-semibold text-brand-blue truncate">
                             {rejCount} rejected item{rejCount > 1 ? 's' : ''} ready to re-push
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleRepushRejected}
-                          disabled={repushRejectedMutation.isPending}
+                        <button type="button" onClick={handleRepushRejected} disabled={repushRejectedMutation.isPending}
                           className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[11px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                          style={{
-                            background: 'linear-gradient(135deg, #5DC3F8 0%, #4BA8D8 100%)',
-                            boxShadow: '0 2px 12px rgba(93,195,248,0.25)',
-                          }}
-                        >
-                          {repushRejectedMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <ArrowRight className="h-3 w-3" />
-                          )}
+                          style={{ background: 'linear-gradient(135deg, #5DC3F8 0%, #4BA8D8 100%)', boxShadow: '0 2px 12px rgba(93,195,248,0.25)' }}>
+                          {repushRejectedMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
                           Re-push to Caption Workspace
                         </button>
                       </div>
                     );
                   })()}
 
-                  {/* ── Completed banner ── */}
+                  {/* Completed banner */}
                   {wallPostStatus === WALL_POST_STATUS.COMPLETED && (
-                    <div
-                      className="flex items-center gap-2 rounded-xl px-4 py-3"
-                      style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}
-                    >
+                    <div className="flex items-center gap-2 rounded-xl px-4 py-3"
+                      style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
                       <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
                       <span className="text-[12px] font-semibold text-emerald-400">All captions QA Approved</span>
                     </div>
                   )}
 
-                  {/* ── Media grid ── */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {mediaWithCaptions.map((m) => (
-                      <MediaCard
-                        key={m.id}
-                        media={m}
-                        wallPostStatus={wallPostStatus}
-                        captionStatus={captionStatus}
-                        canQA={canQA}
-                        onApprove={() => handleItemApprove(m)}
-                        onReject={(reason) => handleItemReject(m, reason)}
-                        onRevert={() => handleItemRevert(m)}
-                        onMarkPosted={(posted) => handleMarkPosted(m, posted)}
-                        isActioning={actioningItemId === m.id}
-                      />
-                    ))}
-                  </div>
+                  {/* ── Split viewer: large preview + compact list ── */}
+                  {(() => {
+                    const selectedItem = mediaWithCaptions[selectedItemIndex] ?? mediaWithCaptions[0];
+                    if (!selectedItem) return null;
+                    const svIsVideo = selectedItem.type?.startsWith('video/');
+                    const svHasCaption = !!selectedItem.captionText;
+                    const svItemStatus = selectedItem.captionStatus;
+                    const svIsApproved = svItemStatus === 'approved';
+                    const svIsRejected = svItemStatus === 'rejected';
+                    const svIsSubmitted = svItemStatus === 'submitted';
+                    const svIsPosted = selectedItem.isPosted;
+                    const svIsActioning = actioningItemId === selectedItem.id;
+                    const svShowQA = canQA && svIsSubmitted && !svIsApproved;
+                    const svBadge = captionStatusBadge(captionStatus, wallPostStatus, svHasCaption, svItemStatus, svIsPosted);
+                    return (
+                      <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)', minHeight: 460 }}>
+                        {/* Left panel — large preview + detail */}
+                        <div className="flex flex-col flex-1 min-w-0" style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+                          {/* Media preview */}
+                          <div className="relative bg-black/50 flex items-center justify-center overflow-hidden" style={{ minHeight: 200, maxHeight: 340 }}>
+                            {svIsVideo ? (
+                              <video src={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
+                                loading="lazy" decoding="async" className="max-w-full max-h-[340px] w-auto h-auto object-contain" />
+                            )}
+                            {selectedItemIndex > 0 && (
+                              <button type="button" onClick={() => setSelectedItemIndex((i) => i - 1)}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-8 w-8 rounded-full backdrop-blur-sm transition-all hover:scale-110 active:scale-95"
+                                style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                                <ChevronLeft className="h-4 w-4 text-white/80" />
+                              </button>
+                            )}
+                            {selectedItemIndex < mediaWithCaptions.length - 1 && (
+                              <button type="button" onClick={() => setSelectedItemIndex((i) => i + 1)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-8 w-8 rounded-full backdrop-blur-sm transition-all hover:scale-110 active:scale-95"
+                                style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                                <ChevronRight className="h-4 w-4 text-white/80" />
+                              </button>
+                            )}
+                            <div className="absolute top-3 left-3 pointer-events-none">
+                              <span className="inline-flex items-center rounded-md px-2.5 py-1 text-[10px] font-bold text-white/90 backdrop-blur-sm"
+                                style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                {selectedItem.index + 1} / {mediaWithCaptions.length}
+                              </span>
+                            </div>
+                            <a href={selectedItem.url} target="_blank" rel="noopener noreferrer"
+                              className="absolute top-3 right-3 flex items-center justify-center h-7 w-7 rounded-lg backdrop-blur-sm transition-all hover:scale-110 hover:bg-white/[0.12]"
+                              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}
+                              onClick={(e) => e.stopPropagation()}>
+                              <ExternalLink className="h-3.5 w-3.5 text-white/60" />
+                            </a>
+                          </div>
+                          {/* Detail panel */}
+                          <div className="px-4 py-3 space-y-2.5 overflow-y-auto custom-scrollbar" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.015)', maxHeight: 320 }}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {svBadge && (
+                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold border ${svBadge.className}`}>
+                                  {svBadge.label}
+                                </span>
+                              )}
+                              {selectedItem.name && (
+                                <span className="text-[10px] text-gray-500 truncate max-w-[260px]">{selectedItem.name}</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-600 block mb-1">Caption</span>
+                              {svHasCaption ? (
+                                <p className="text-[12px] text-gray-200 leading-relaxed whitespace-pre-wrap">{selectedItem.captionText}</p>
+                              ) : (
+                                <p className="text-[11px] text-gray-600 italic">No caption yet</p>
+                              )}
+                            </div>
+                            {svIsRejected && selectedItem.qaRejectionReason && (
+                              <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-2"
+                                style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                                <RotateCcw className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />
+                                <p className="text-[11px] text-red-300 leading-relaxed">{selectedItem.qaRejectionReason}</p>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {svShowQA && !showItemRejectInput && (
+                                <button type="button" onClick={() => handleItemApprove(selectedItem)} disabled={svIsActioning}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
+                                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                  Approve
+                                </button>
+                              )}
+                              {svShowQA && !showItemRejectInput && (
+                                <button type="button" onClick={() => setShowItemRejectInput(true)} disabled={svIsActioning}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97] disabled:opacity-50"
+                                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                                  <XCircle className="h-3 w-3" />
+                                  Reject
+                                </button>
+                              )}
+                              {svIsApproved && (
+                                <button type="button" onClick={() => handleMarkPosted(selectedItem, !svIsPosted)} disabled={svIsActioning}
+                                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50 ${svIsPosted ? 'text-violet-300 hover:bg-violet-500/20' : 'text-violet-400 hover:bg-violet-500/15'}`}
+                                  style={{ background: svIsPosted ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.08)', border: svIsPosted ? '1px solid rgba(139,92,246,0.35)' : '1px solid rgba(139,92,246,0.18)' }}>
+                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : svIsPosted ? <CheckCircle2 className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
+                                  {svIsPosted ? 'Posted ✓ (undo)' : 'Mark as Posted'}
+                                </button>
+                              )}
+                              {canQA && (svIsApproved || svIsRejected) && !svIsPosted && (
+                                <button type="button" onClick={() => handleItemRevert(selectedItem)} disabled={svIsActioning}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-amber-400 transition-all hover:bg-amber-500/15 active:scale-[0.97] disabled:opacity-50"
+                                  style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
+                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                                  Undo {svIsApproved ? 'Approval' : 'Rejection'}
+                                </button>
+                              )}
+                            </div>
+                            {showItemRejectInput && (
+                              <div className="space-y-2">
+                                <textarea value={itemRejectReason} onChange={(e) => setItemRejectReason(e.target.value)}
+                                  placeholder="Rejection reason..." rows={2}
+                                  className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-2.5 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none" />
+                                <div className="flex items-center gap-1.5">
+                                  <button type="button" disabled={svIsActioning}
+                                    onClick={() => { handleItemReject(selectedItem, itemRejectReason.trim()); setItemRejectReason(''); setShowItemRejectInput(false); }}
+                                    className="px-3 py-1 rounded-lg text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">
+                                    {svIsActioning ? 'Sending...' : 'Send'}
+                                  </button>
+                                  <button type="button" onClick={() => { setShowItemRejectInput(false); setItemRejectReason(''); }}
+                                    className="px-3 py-1 rounded-lg text-[10px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right panel — filter tabs + compact scrollable list */}
+                        <div className="w-[268px] flex flex-col shrink-0">
+                          <div className="px-2.5 pt-2.5 pb-2 flex gap-1 flex-wrap"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.25)' }}>
+                            {[
+                              { key: 'all' as const, label: 'All', count: photoFilterCounts.all },
+                              { key: 'pending' as const, label: 'Pending', count: photoFilterCounts.pending },
+                              { key: 'submitted' as const, label: 'QA', count: photoFilterCounts.submitted },
+                              { key: 'approved' as const, label: 'Ready', count: photoFilterCounts.approved },
+                              { key: 'posted' as const, label: 'Posted', count: photoFilterCounts.posted },
+                              { key: 'rejected' as const, label: 'Rejected', count: photoFilterCounts.rejected },
+                            ].filter((t) => t.key === 'all' || t.count > 0).map((t) => (
+                              <button key={t.key} type="button" onClick={() => setPhotoFilterTab(t.key)}
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold transition-all ${photoFilterTab === t.key ? 'text-brand-off-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                style={photoFilterTab === t.key
+                                  ? { background: 'rgba(247,116,185,0.15)', border: '1px solid rgba(247,116,185,0.28)' }
+                                  : { background: 'transparent', border: '1px solid transparent' }}>
+                                {t.label}
+                                <span className={`rounded px-1 text-[9px] font-bold ${photoFilterTab === t.key ? 'text-brand-light-pink' : 'text-gray-600'}`}>
+                                  {t.count}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: 420 }}>
+                            {filteredPhotoItems.length === 0 ? (
+                              <div className="flex items-center justify-center py-8">
+                                <p className="text-[11px] text-gray-600 italic">No items</p>
+                              </div>
+                            ) : filteredPhotoItems.map((m) => {
+                              const isSelected = selectedItemIndex === m.index;
+                              const mIsVideo = m.type?.startsWith('video/');
+                              const dotColor = m.isPosted ? 'bg-violet-400'
+                                : m.captionStatus === 'approved' ? 'bg-emerald-400'
+                                : m.captionStatus === 'submitted' ? 'bg-amber-400'
+                                : m.captionStatus === 'rejected' ? 'bg-red-400' : 'bg-gray-600';
+                              const mBadge = captionStatusBadge(captionStatus, wallPostStatus, !!m.captionText, m.captionStatus, m.isPosted);
+                              return (
+                                <button key={m.id} type="button" onClick={() => { setSelectedItemIndex(m.index); setShowItemRejectInput(false); setItemRejectReason(''); }}
+                                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-left transition-colors ${isSelected ? '' : 'hover:bg-white/[0.03]'}`}
+                                  style={isSelected
+                                    ? { background: 'rgba(247,116,185,0.07)', borderLeft: '2px solid rgba(247,116,185,0.5)' }
+                                    : { borderLeft: '2px solid transparent' }}>
+                                  <div className="relative h-9 w-9 rounded-lg overflow-hidden shrink-0"
+                                    style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                    {mIsVideo ? (
+                                      <div className="h-full w-full flex items-center justify-center">
+                                        <span className="text-[7px] text-gray-400 font-bold tracking-wider">VID</span>
+                                      </div>
+                                    ) : (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={m.url} alt={`${m.index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                                    )}
+                                    <span className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full border border-black/30 ${dotColor}`} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="block text-[11px] font-medium text-gray-300 truncate leading-tight">
+                                      {m.name ? m.name : `Photo ${m.index + 1}`}
+                                    </span>
+                                    {mBadge && (
+                                      <span className={`inline-flex items-center rounded px-1.5 py-px text-[9px] font-semibold border mt-0.5 ${mBadge.className}`}>
+                                        {mBadge.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Activity Feed */}
                   <div className="mt-2">

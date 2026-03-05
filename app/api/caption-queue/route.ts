@@ -84,11 +84,30 @@ export async function GET(_request: NextRequest) {
 
     let whereClause: Record<string, unknown>;
 
+    const CLAIM_TTL_MS = 30 * 60 * 1000; // 30 minutes — must match claim/route.ts
+    const expiredBefore = new Date(Date.now() - CLAIM_TTL_MS);
+
     if (isCreatorRole(ctx.role)) {
-      // CREATORs only see tickets explicitly assigned to them
+      // CREATORs see three buckets:
+      //  1. Explicitly assigned to them
+      //  2. Unassigned + unclaimed (or claim expired) — the "available pool"
+      //  3. Their own active claims
       whereClause = {
         organizationId: ctx.organizationId,
-        assignees: { some: { clerkId } },
+        OR: [
+          // Bucket 1: explicitly assigned
+          { assignees: { some: { clerkId } } },
+          // Bucket 2: available pool — no assignees AND no active claim from anyone else
+          {
+            assignees: { none: {} },
+            OR: [
+              { claimedBy: null },
+              { claimedAt: { lt: expiredBefore } },
+            ],
+          },
+          // Bucket 3: claimed by this creator
+          { claimedBy: clerkId },
+        ],
       };
     } else {
       // OWNER / ADMIN / MANAGER see all org tickets
@@ -134,6 +153,16 @@ export async function GET(_request: NextRequest) {
       boardItemMeta.map(b => [b.id, (b.metadata ?? {}) as Record<string, unknown>])
     );
 
+    // Batch-fetch display info for any active claimers so managers/admins can see who's working on a ticket
+    const claimedBySet = [...new Set(items.map(i => i.claimedBy).filter(Boolean) as string[])];
+    const claimerUsers = claimedBySet.length > 0
+      ? await prisma.user.findMany({
+          where: { clerkId: { in: claimedBySet } },
+          select: { clerkId: true, firstName: true, lastName: true, imageUrl: true },
+        })
+      : [];
+    const claimerMap = new Map(claimerUsers.map(u => [u.clerkId, u]));
+
     const enrichedItems = items.map(item => ({
       ...item,
       // Prefer the board-item metadata value (most up-to-date after QA actions);
@@ -143,6 +172,9 @@ export async function GET(_request: NextRequest) {
             ?? item.qaRejectionReason
             ?? null)
         : (item.qaRejectionReason ?? null),
+      claimedByUser: item.claimedBy
+        ? (claimerMap.get(item.claimedBy) ?? null)
+        : null,
     }));
 
     return NextResponse.json({ items: enrichedItems });

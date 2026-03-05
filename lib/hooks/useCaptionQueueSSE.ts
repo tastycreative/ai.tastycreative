@@ -139,6 +139,20 @@ export function useCaptionQueueSSE(options?: UseCaptionQueueSSEOptions) {
         queryClient.invalidateQueries({ queryKey: ['caption-queue'] });
         queryClient.invalidateQueries({ queryKey: ['board-items'] });
       }
+
+      // A creator claimed an available ticket — remove it from other creators' pools.
+      // A ticket was released — return it to the available pool for everyone.
+      if (msg.name === 'TICKET_CLAIMED' || msg.name === 'TICKET_UNCLAIMED') {
+        queryClient.invalidateQueries({ queryKey: ['caption-queue'] });
+        const payload = msg.data as { ticketId?: string; claimedBy?: string; senderClerkId?: string };
+        const isSelf = payload.senderClerkId === currentClerkId;
+        if (!isSelf && msg.name === 'TICKET_CLAIMED') {
+          toast.info('A ticket was just claimed by another creator', {
+            id: `claimed-${payload.ticketId}`,
+            duration: 3000,
+          });
+        }
+      }
     };
 
     channel.subscribe(handler);

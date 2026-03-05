@@ -40,6 +40,18 @@ export interface QueueTicket {
   qaRejectionReason?: string | null;
   /** 'wall_post' (default) or 'otp_ptr' – determines single-caption vs per-item workflow */
   workflowType?: string | null;
+  /** clerkId of the creator who has claimed this ticket, or null if unclaimed */
+  claimedBy?: string | null;
+  /** ISO timestamp of when the claim was made (for TTL check in the UI) */
+  claimedAt?: string | null;
+  /** Basic display info of the claimer — populated for manager/admin/owner view */
+  claimedByUser?: {
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string | null;
+  } | null;
+  /** Whether the current user is explicitly assigned to this ticket (set at mapping time in CaptionWorkspace) */
+  isAssignedToMe?: boolean;
 }
 
 export interface ModelContext {
