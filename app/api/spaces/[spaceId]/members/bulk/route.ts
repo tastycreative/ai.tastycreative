@@ -15,7 +15,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { spaceId } = await params;
 
-    // Check if current user has permission to add members (must be OWNER or ADMIN)
+    // Check if current user has permission to add members
+    // User must be either:
+    // 1. OWNER or ADMIN of the space itself, OR
+    // 2. OWNER or ADMIN of the organization that owns the space
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { id: true },
@@ -25,7 +28,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const membership = await prisma.workspaceMember.findFirst({
+    // Get the workspace to check organization ownership
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: spaceId },
+      select: { organizationId: true },
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'Space not found' }, { status: 404 });
+    }
+
+    // Check if user is OWNER or ADMIN of the space
+    const spaceMembership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId: spaceId,
         userId: user.id,
@@ -33,7 +47,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
-    if (!membership) {
+    // Check if user is OWNER or ADMIN of the organization
+    const orgMembership = await prisma.teamMember.findFirst({
+      where: {
+        organizationId: workspace.organizationId,
+        userId: user.id,
+        role: { in: ['OWNER', 'ADMIN'] },
+      },
+    });
+
+    // User must have permission from either space or organization level
+    if (!spaceMembership && !orgMembership) {
       return NextResponse.json(
         { error: 'You do not have permission to add members to this space' },
         { status: 403 }

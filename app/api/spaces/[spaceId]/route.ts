@@ -83,7 +83,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const membership = await prisma.workspaceMember.findFirst({
+    // Get the workspace to check organization ownership
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: spaceId },
+      select: { organizationId: true },
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'Space not found' }, { status: 404 });
+    }
+
+    // Check if user is OWNER or ADMIN of the space
+    const spaceMembership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId: spaceId,
         userId: user.id,
@@ -91,7 +102,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     });
 
-    if (!membership) {
+    // Check if user is OWNER or ADMIN of the organization
+    const orgMembership = await prisma.teamMember.findFirst({
+      where: {
+        organizationId: workspace.organizationId,
+        userId: user.id,
+        role: { in: ['OWNER', 'ADMIN'] },
+      },
+    });
+
+    // User must have permission from either space or organization level
+    if (!spaceMembership && !orgMembership) {
       return NextResponse.json(
         { error: 'You do not have permission to update this space' },
         { status: 403 }

@@ -36,6 +36,34 @@ export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
   }
 }
 
+interface SendBatchEmailParams {
+  bcc: string[];
+  subject: string;
+  html: string;
+  text?: string;
+}
+
+export async function sendBatchEmail({ bcc, subject, html, text }: SendBatchEmailParams) {
+  if (bcc.length === 0) return { success: true, messageId: null };
+
+  try {
+    const info = await transporter.sendMail({
+      from: `${process.env.EMAIL_FROM} <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER,
+      bcc: bcc.join(', '),
+      subject,
+      html,
+      text: text || html.replace(/<[^>]*>/g, ''),
+    });
+
+    console.log('Batch email sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending batch email:', error);
+    return { success: false, error };
+  }
+}
+
 interface InviteEmailParams {
   to: string;
   organizationName: string;

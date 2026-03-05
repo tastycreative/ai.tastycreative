@@ -2,12 +2,13 @@
 
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Settings, Users, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Settings, Users, Bell, Loader2, Sparkles } from 'lucide-react';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 
 const NAV_ITEMS = [
   { id: 'details', label: 'Details', icon: Settings, segment: 'details' },
   { id: 'access', label: 'Access', icon: Users, segment: 'access' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, segment: 'notifications' },
 ];
 
 export default function SpaceSettingsLayout({
