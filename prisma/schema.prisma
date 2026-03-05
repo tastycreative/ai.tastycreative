@@ -2353,6 +2353,7 @@ enum NotificationType {
   POST_APPROVED
   POST_REJECTED
   SYSTEM
+  BOARD_MOVE
 }
 
 enum PostType {

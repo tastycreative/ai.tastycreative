@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
 import { saveCaptionFromOtpPtr } from '@/lib/caption-bank-sync';
+import { sendBoardMoveNotification } from '@/lib/board-move-notification';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -76,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { boardId, itemId } = await params;
+    const { spaceId, boardId, itemId } = await params;
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
@@ -235,6 +236,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           console.error('[caption-bank-sync] Failed to auto-save caption on column move:', e);
         }
       }
+    }
+
+    // ── Fire-and-forget board move notification ──
+    if (data.columnId !== undefined && current && current.columnId !== data.columnId) {
+      // Resolve column names for the notification
+      const notifColumns = await prisma.boardColumn.findMany({
+        where: { id: { in: [current.columnId, data.columnId as string] } },
+        select: { id: true, name: true },
+      });
+      const notifColMap = Object.fromEntries(notifColumns.map((c) => [c.id, c.name]));
+
+      sendBoardMoveNotification({
+        boardId,
+        itemId,
+        itemTitle: updated.title,
+        itemNo: updated.itemNo,
+        oldColumnId: current.columnId,
+        oldColumnName: notifColMap[current.columnId] ?? current.columnId,
+        newColumnId: data.columnId as string,
+        newColumnName: notifColMap[data.columnId as string] ?? (data.columnId as string),
+        movedByUserId: userId,
+        assigneeId: updated.assigneeId,
+        createdBy: updated.createdBy,
+        spaceId,
+      }).catch((e) => console.error('[board-move-notification]', e));
     }
 
     const senderTab = req.headers.get('x-tab-id') ?? undefined;
