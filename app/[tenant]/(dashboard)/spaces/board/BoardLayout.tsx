@@ -218,9 +218,9 @@ export function BoardLayout({
 
   // Tab icon mapping
   const tabIcons: Record<string, React.ReactNode> = {
-    summary: <FileText className="h-3.5 w-3.5" />,
-    board: <LayoutGrid className="h-3.5 w-3.5" />,
-    financials: <BarChart3 className="h-3.5 w-3.5" />,
+    summary: <FileText className="h-4 w-4" />,
+    board: <LayoutGrid className="h-4 w-4" />,
+    financials: <BarChart3 className="h-4 w-4" />,
   };
 
   return (
@@ -237,13 +237,13 @@ export function BoardLayout({
               onBlur={handleNameSave}
               onKeyDown={handleNameKeyDown}
               disabled={isUpdating}
-              className="text-lg font-bold text-gray-900 dark:text-brand-off-white bg-transparent border-b-2 border-brand-light-pink focus:outline-none focus:border-brand-mid-pink transition-colors leading-snug"
+              className="text-xl font-bold text-gray-900 dark:text-brand-off-white bg-transparent border-b-2 border-brand-light-pink focus:outline-none focus:border-brand-mid-pink transition-colors leading-snug"
             />
           ) : (
             <h2
               onClick={handleNameClick}
               className={[
-                'text-lg font-bold text-gray-900 dark:text-brand-off-white truncate leading-snug',
+                'text-xl font-bold text-gray-900 dark:text-brand-off-white truncate leading-snug',
                 canAccessSettings && 'cursor-pointer hover:text-brand-light-pink transition-colors',
               ].join(' ')}
               title={canAccessSettings ? 'Click to edit' : undefined}
@@ -281,7 +281,7 @@ export function BoardLayout({
           )}
         </div>
 
-        <span className="shrink-0 inline-flex items-center rounded-full bg-brand-dark-pink/10 dark:bg-brand-dark-pink/15 text-brand-dark-pink dark:text-brand-light-pink px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+        <span className="shrink-0 inline-flex items-center rounded-full bg-brand-dark-pink/10 dark:bg-brand-dark-pink/15 text-brand-dark-pink dark:text-brand-light-pink px-3 py-1 text-xs font-semibold uppercase tracking-wide">
           {templateLabel}
         </span>
       </div>
@@ -299,7 +299,7 @@ export function BoardLayout({
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
                 className={[
-                  'relative inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold transition-all duration-150',
+                  'relative inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
                   isActive
                     ? 'text-brand-light-pink'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
@@ -321,13 +321,13 @@ export function BoardLayout({
         <div className="flex items-center gap-2 rounded-b-xl border border-t-0 border-gray-200/60 dark:border-brand-mid-pink/10 bg-gradient-to-b from-gray-50/80 to-white/60 dark:from-gray-900/60 dark:to-gray-950/40 backdrop-blur-sm px-3 py-2">
           {/* Search */}
           <div className="relative flex-1 min-w-0 max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks..."
-              className="w-full rounded-lg bg-gray-100/80 dark:bg-gray-800/60 border-0 pl-8 pr-7 py-1.5 text-xs text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/50 transition-shadow"
+              className="w-full rounded-lg bg-gray-100/80 dark:bg-gray-800/60 border-0 pl-8 pr-7 py-2 text-sm text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/50 transition-shadow"
             />
             {searchQuery && (
               <button
@@ -354,7 +354,7 @@ export function BoardLayout({
                 setShowPriorityDropdown(false);
                 setShowColumnsDropdown(false);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors"
             >
               {sortLabels[sortBy]}
               <ChevronDown className="h-3 w-3 opacity-50" />
@@ -404,7 +404,7 @@ export function BoardLayout({
               type="button"
               onClick={() => setMyTasksOnly(!myTasksOnly)}
               className={[
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
                 myTasksOnly
                   ? 'bg-brand-light-pink/15 text-brand-light-pink'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60',
@@ -424,7 +424,7 @@ export function BoardLayout({
                 if (filtersOpen) closeAllDropdowns();
               }}
               className={[
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
                 filtersOpen || hasActiveFilters
                   ? 'bg-brand-light-pink/15 text-brand-light-pink'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60',
@@ -433,7 +433,7 @@ export function BoardLayout({
               <SlidersHorizontal className="h-3 w-3" />
               <span className="hidden sm:inline">Filters</span>
               {activeFilterCount > 0 && (
-                <span className="h-4 min-w-4 rounded-full bg-brand-light-pink text-white text-[9px] font-bold flex items-center justify-center px-1">
+                <span className="h-4.5 min-w-4.5 rounded-full bg-brand-light-pink text-white text-[10px] font-bold flex items-center justify-center px-1">
                   {activeFilterCount}
                 </span>
               )}
@@ -446,7 +446,7 @@ export function BoardLayout({
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters</span>
                     {hasActiveFilters && (
-                      <button type="button" onClick={clearFilters} className="text-[10px] font-medium text-brand-light-pink hover:text-brand-mid-pink transition-colors">
+                      <button type="button" onClick={clearFilters} className="text-[11px] font-medium text-brand-light-pink hover:text-brand-mid-pink transition-colors">
                         Clear all
                       </button>
                     )}
@@ -454,13 +454,13 @@ export function BoardLayout({
 
                   {/* Status */}
                   <div>
-                    <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Status</label>
+                    <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Status</label>
                     <div className="flex flex-wrap gap-1">
                       <button
                         type="button"
                         onClick={() => setStatusFilter(null)}
                         className={[
-                          'rounded-md px-2 py-1 text-[10px] font-medium transition-colors',
+                          'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                           !statusFilter
                             ? 'bg-brand-light-pink/15 text-brand-light-pink'
                             : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -474,7 +474,7 @@ export function BoardLayout({
                           type="button"
                           onClick={() => setStatusFilter(statusFilter === col.id ? null : col.id)}
                           className={[
-                            'rounded-md px-2 py-1 text-[10px] font-medium transition-colors truncate max-w-[100px]',
+                            'rounded-md px-2 py-1 text-[11px] font-medium transition-colors truncate max-w-[100px]',
                             statusFilter === col.id
                               ? 'bg-brand-light-pink/15 text-brand-light-pink'
                               : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -489,13 +489,13 @@ export function BoardLayout({
 
                   {/* Priority */}
                   <div>
-                    <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Priority</label>
+                    <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Priority</label>
                     <div className="flex flex-wrap gap-1">
                       <button
                         type="button"
                         onClick={() => setPriorityFilter(null)}
                         className={[
-                          'rounded-md px-2 py-1 text-[10px] font-medium transition-colors',
+                          'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                           !priorityFilter
                             ? 'bg-brand-light-pink/15 text-brand-light-pink'
                             : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -509,7 +509,7 @@ export function BoardLayout({
                           type="button"
                           onClick={() => setPriorityFilter(priorityFilter === p ? null : p)}
                           className={[
-                            'rounded-md px-2 py-1 text-[10px] font-medium transition-colors',
+                            'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                             priorityFilter === p
                               ? p === 'High' ? 'bg-red-500/15 text-red-400' : p === 'Medium' ? 'bg-yellow-500/15 text-yellow-500' : 'bg-emerald-500/15 text-emerald-400'
                               : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -524,13 +524,13 @@ export function BoardLayout({
                   {/* Assignee */}
                   {assignees.length > 0 && (
                     <div>
-                      <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Assignee</label>
+                      <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Assignee</label>
                       <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto">
                         <button
                           type="button"
                           onClick={() => setAssigneeFilter(null)}
                           className={[
-                            'rounded-md px-2 py-1 text-[10px] font-medium transition-colors',
+                            'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                             !assigneeFilter
                               ? 'bg-brand-light-pink/15 text-brand-light-pink'
                               : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -544,7 +544,7 @@ export function BoardLayout({
                             type="button"
                             onClick={() => setAssigneeFilter(assigneeFilter === a ? null : a)}
                             className={[
-                              'rounded-md px-2 py-1 text-[10px] font-medium transition-colors truncate max-w-[120px]',
+                              'rounded-md px-2 py-1 text-[11px] font-medium transition-colors truncate max-w-[120px]',
                               assigneeFilter === a
                                 ? 'bg-brand-light-pink/15 text-brand-light-pink'
                                 : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
@@ -572,7 +572,7 @@ export function BoardLayout({
                 setFiltersOpen(false);
               }}
               className={[
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
                 showColumnsDropdown
                   ? 'bg-brand-light-pink/15 text-brand-light-pink'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60',
@@ -584,7 +584,7 @@ export function BoardLayout({
             {showColumnsDropdown && (
               <div className="absolute right-0 top-full mt-1.5 z-20 min-w-[180px] rounded-xl border border-gray-200 dark:border-brand-mid-pink/20 bg-white dark:bg-gray-900 shadow-xl overflow-hidden">
                 <div className="p-2 space-y-0.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-2 py-1 block">Show / Hide</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-2 py-1 block">Show / Hide</span>
                   {columns.map((col) => (
                     <label key={col.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-pointer transition-colors">
                       <input
@@ -612,7 +612,7 @@ export function BoardLayout({
           <div className="h-5 w-px bg-gray-200 dark:bg-brand-mid-pink/15 shrink-0" />
 
           {/* Task count badge */}
-          <div className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 px-2.5 py-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+          <div className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 px-2.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">
             <Sparkles className="h-3 w-3 text-brand-light-pink" />
             <span className="tabular-nums">
               {displayedCount !== totalTaskCount ? (
