@@ -171,7 +171,7 @@ export function BoardColumn({
                     setEditingColumnTitle(false);
                   }
                 }}
-                className="flex-1 min-w-0 text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-brand-light-pink/50 rounded px-1.5 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/60"
+                className="flex-1 min-w-0 text-sm font-bold uppercase tracking-wider text-gray-600 dark:text-gray-200 bg-white dark:bg-gray-800 border border-brand-light-pink/50 rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/60"
               />
             ) : (
               <button
@@ -179,13 +179,13 @@ export function BoardColumn({
                 onClick={() => setEditingColumnTitle(true)}
                 className="flex-1 min-w-0 text-left group/coltitle flex items-center gap-1"
               >
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 truncate group-hover/coltitle:text-brand-light-pink transition-colors">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-gray-600 dark:text-gray-200 truncate group-hover/coltitle:text-brand-light-pink transition-colors">
                   {column.title}
                 </h4>
                 <Pencil className="h-3 w-3 text-gray-400 opacity-0 group-hover/coltitle:opacity-100 transition-opacity shrink-0" />
               </button>
             )}
-            <span className="inline-flex items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-semibold min-w-[20px] px-1.5 py-0.5 shrink-0">
+            <span className="inline-flex items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-300 text-xs font-semibold min-w-[22px] px-1.5 py-0.5 shrink-0">
               {tasks.length}
             </span>
           </div>
@@ -236,7 +236,7 @@ export function BoardColumn({
                     <button
                       type="button"
                       onClick={handleSubmit}
-                      className="px-2.5 py-1 rounded-lg bg-brand-light-pink text-white text-[11px] font-medium hover:bg-brand-mid-pink transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-brand-light-pink text-white text-xs font-medium hover:bg-brand-mid-pink transition-colors"
                     >
                       Create
                     </button>
@@ -268,7 +268,7 @@ export function BoardColumn({
               {provided.placeholder}
 
               {tasks.length === 0 && !isAdding && !snapshot.isDraggingOver && (
-                <div className="flex items-center justify-center h-20 text-[11px] text-gray-400 dark:text-gray-500">
+                <div className="flex items-center justify-center h-20 text-xs text-gray-400 dark:text-gray-500">
                   Drop tasks here
                 </div>
               )}
