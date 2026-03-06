@@ -488,7 +488,7 @@ export function OtpPtrTaskDetailModal({
     if (atIndex === -1) { setMentionQuery(null); return; }
     if (atIndex > 0 && !/\s/.test(textBeforeCursor[atIndex - 1])) { setMentionQuery(null); return; }
     const query = textBeforeCursor.slice(atIndex + 1);
-    if (query.includes('\n')) { setMentionQuery(null); return; }
+    if (query.includes(' ') || query.includes('\n')) { setMentionQuery(null); return; }
     setMentionQuery(query);
     setMentionStartIndex(atIndex);
     const ta = commentTextareaRef.current;

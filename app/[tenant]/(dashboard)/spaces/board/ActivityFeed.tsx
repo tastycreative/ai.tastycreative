@@ -127,8 +127,8 @@ export function ActivityFeed({
       }
 
       const query = textBeforeCursor.slice(atIndex + 1);
-      // Close dropdown if there's a space followed by another space (user moved on)
-      if (query.includes('\n')) {
+      // Close dropdown if user typed a space or newline (moved on from mention)
+      if (query.includes(' ') || query.includes('\n')) {
         setMentionQuery(null);
         return;
       }
