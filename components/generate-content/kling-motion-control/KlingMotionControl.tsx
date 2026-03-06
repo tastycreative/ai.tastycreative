@@ -195,6 +195,12 @@ interface GeneratedVideo {
   };
 }
 
+// Model options
+const MODEL_OPTIONS = [
+  { value: "kling-v2-6", label: "Kling v2.6", description: "Default model" },
+  { value: "kling-v3", label: "Kling v3", description: "Latest model" },
+] as const;
+
 // Mode options
 const MODE_OPTIONS = [
   { value: "std", label: "Standard", description: "Faster generation" },
@@ -228,6 +234,7 @@ export default function KlingMotionControl() {
 
   // Form state
   const [prompt, setPrompt] = useState("");
+  const [modelName, setModelName] = useState<"kling-v2-6" | "kling-v3">("kling-v2-6");
   const [mode, setMode] = useState<"std" | "pro">("std");
   const [characterOrientation, setCharacterOrientation] = useState<"image" | "video">("image");
   const [keepOriginalSound, setKeepOriginalSound] = useState(true); // API default is "yes"
@@ -1268,6 +1275,7 @@ export default function KlingMotionControl() {
       const payload: any = {
         imageUrl: imageS3Url,
         videoUrl: videoS3Url,
+        model_name: modelName,
         mode,
         character_orientation: characterOrientation,
         keep_original_sound: keepOriginalSound ? "yes" : "no",
@@ -1396,6 +1404,7 @@ export default function KlingMotionControl() {
   // Reset form
   const handleReset = async () => {
     setPrompt("");
+    setModelName("kling-v2-6");
     setMode("std");
     setCharacterOrientation("image");
     setKeepOriginalSound(true); // API default is "yes"
@@ -1798,6 +1807,32 @@ export default function KlingMotionControl() {
                       onClick={() => setCharacterOrientation(option.value as "image" | "video")}
                       className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
                         characterOrientation === option.value
+                          ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
+                          : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
+                      } disabled:opacity-50`}
+                      disabled={hasActiveGeneration}
+                    >
+                      <p className="text-xs font-semibold">{option.label}</p>
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Model Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#EC67A1]" />
+                  <label className="text-sm font-semibold text-sidebar-foreground">Model</label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {MODEL_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setModelName(option.value as "kling-v2-6" | "kling-v3")}
+                      className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
+                        modelName === option.value
                           ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-sidebar-foreground"
                           : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground"
                       } disabled:opacity-50`}

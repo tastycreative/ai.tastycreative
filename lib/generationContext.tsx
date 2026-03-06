@@ -39,6 +39,7 @@ export interface GenerationJob {
     numReferenceImages?: number;
     model?: string;
     mode?: string;
+    selectedModel?: string;
   };
   results?: any; // Store generated images/videos when job completes
 }

@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
     const videoUrl = body.videoUrl as string;
     const prompt = body.prompt as string | null;
     const mode = body.mode || "std";
+    const modelName = body.model_name || "kling-v2-6";
     const characterOrientation = body.character_orientation || "image";
     const keepOriginalSound = body.keep_original_sound || "no";
     const targetFolder = body.targetFolder as string | null;
@@ -140,6 +141,11 @@ export async function POST(request: NextRequest) {
 
     console.log(`💳 Credits deducted: ${creditResult.creditsDeducted}, Remaining: ${creditResult.remainingCredits}`);
 
+    // Validate model name
+    if (!["", "kling-v2-6", "kling-v3"].includes(modelName)) {
+      return NextResponse.json({ error: "Invalid model name" }, { status: 400 });
+    }
+
     // Validate mode
     if (!["std", "pro"].includes(mode)) {
       return NextResponse.json({ error: "Mode must be 'std' or 'pro'" }, { status: 400 });
@@ -152,6 +158,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare Kling API request payload
     const payload: any = {
+      model_name: modelName,
       image_url: imageUrl,
       video_url: videoUrl,
       character_orientation: characterOrientation,

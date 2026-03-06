@@ -1248,6 +1248,11 @@ export function VaultContent() {
   const [isMovingFolder, setIsMovingFolder] = useState(false);
   const [isRootDropZoneActive, setIsRootDropZoneActive] = useState(false);
 
+  // Move folder to another profile state
+  const [moveToProfileId, setMoveToProfileId] = useState<string | null>(null);
+  const [moveToProfileFolders, setMoveToProfileFolders] = useState<VaultFolder[]>([]);
+  const [loadingMoveToProfileFolders, setLoadingMoveToProfileFolders] = useState(false);
+
   // Context menu state
   const [contextMenuFolder, setContextMenuFolder] =
     useState<VaultFolder | null>(null);
@@ -1266,6 +1271,11 @@ export function VaultContent() {
   const [bulkMoveFolderDestinationId, setBulkMoveFolderDestinationId] =
     useState<string | null>(null);
   const [isBulkMovingFolders, setIsBulkMovingFolders] = useState(false);
+
+  // Bulk move to profile state
+  const [bulkMoveToProfileId, setBulkMoveToProfileId] = useState<string | null>(null);
+  const [bulkMoveToProfileFolders, setBulkMoveToProfileFolders] = useState<VaultFolder[]>([]);
+  const [loadingBulkMoveToProfileFolders, setLoadingBulkMoveToProfileFolders] = useState(false);
 
   // Track dragged folder metadata for reordering
   const draggedFolderRef = useRef<{
@@ -2722,8 +2732,84 @@ export function VaultContent() {
     if (folder.isDefault) return;
     setFolderToMove(folder);
     setMoveFolderDestinationId(null);
+    setMoveToProfileId(null);
+    setMoveToProfileFolders([]);
     setShowMoveFolderModal(true);
   }, []);
+
+  // Load folders for a target profile when moving to another profile
+  const loadTargetProfileFolders = useCallback(async (profileId: string) => {
+    setLoadingMoveToProfileFolders(true);
+    try {
+      const url = tenant
+        ? `/api/vault/folders?profileId=${profileId}&organizationSlug=${tenant}`
+        : `/api/vault/folders?profileId=${profileId}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load folders");
+      const data = await response.json();
+      setMoveToProfileFolders(data);
+    } catch (error) {
+      console.error("Error loading target profile folders:", error);
+      setMoveToProfileFolders([]);
+    } finally {
+      setLoadingMoveToProfileFolders(false);
+    }
+  }, [tenant]);
+
+  // Handle moving a folder to a different profile
+  const handleMoveFolderToProfile = useCallback(
+    async () => {
+      if (!folderToMove || !moveToProfileId) return;
+
+      setIsMovingFolder(true);
+      try {
+        const response = await fetch(`/api/vault/folders/${folderToMove.id}/move-to-profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetProfileId: moveToProfileId,
+            targetParentFolderId: moveFolderDestinationId,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to move folder to profile");
+        }
+
+        // If we were viewing the moved folder, deselect it
+        const descendantIds = getDescendantFolderIds(folderToMove.id, allFolders);
+        const removedIds = new Set([folderToMove.id, ...descendantIds]);
+        if (selectedFolderId && removedIds.has(selectedFolderId)) {
+          setSelectedFolderId(null);
+        }
+
+        setShowMoveFolderModal(false);
+        setFolderToMove(null);
+        setMoveFolderDestinationId(null);
+        setMoveToProfileId(null);
+        setMoveToProfileFolders([]);
+
+        // Fully reload folders and invalidate all cached vault items
+        // so both source and target profiles reflect the change
+        invalidateVaultItems.invalidateAll();
+        loadFolders();
+        loadAllFolders();
+
+        const targetProfile = profiles.find((p) => p.id === moveToProfileId);
+        showToast(
+          `Folder moved to ${targetProfile?.name || "another profile"} successfully`,
+          "success",
+        );
+      } catch (error: any) {
+        console.error("Error moving folder to profile:", error);
+        showToast(error.message || "Failed to move folder to profile", "error");
+      } finally {
+        setIsMovingFolder(false);
+      }
+    },
+    [folderToMove, moveToProfileId, moveFolderDestinationId, allFolders, getDescendantFolderIds, selectedFolderId, profiles, showToast, invalidateVaultItems],
+  );
 
   const handleMoveFolder = useCallback(
     async (sourceFolderId: string, destinationFolderId: string | null) => {
@@ -3110,63 +3196,114 @@ export function VaultContent() {
   const handleBulkMoveFolders = useCallback(async () => {
     if (selectedFolderIds.size === 0) return;
 
+    // Check if moving to a different profile
+    const isMovingToOtherProfile = !!bulkMoveToProfileId;
+
     setIsBulkMovingFolders(true);
     try {
-      const response = await fetch("/api/vault/folders/bulk-move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folderIds: Array.from(selectedFolderIds),
-          destinationParentId: bulkMoveFolderDestinationId,
-        }),
-      });
+      if (isMovingToOtherProfile) {
+        // Cross-profile bulk move
+        const response = await fetch("/api/vault/folders/bulk-move-to-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folderIds: Array.from(selectedFolderIds),
+            targetProfileId: bulkMoveToProfileId,
+            targetParentFolderId: bulkMoveFolderDestinationId,
+          }),
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to move folders to profile");
+        }
+
         const data = await response.json();
-        throw new Error(data.error || "Failed to move folders");
-      }
 
-      const data = await response.json();
+        setShowBulkMoveFoldersModal(false);
+        setBulkMoveFolderDestinationId(null);
+        setBulkMoveToProfileId(null);
+        setBulkMoveToProfileFolders([]);
+        setSelectedFolderIds(new Set());
+        setFolderSelectionMode(false);
 
-      // Update local state for successfully moved folders
-      const movedIds = new Set(
-        data.results
-          .filter((r: { folderId: string; success: boolean }) => r.success)
-          .map((r: { folderId: string }) => r.folderId),
-      );
+        // Fully reload folders and invalidate all cached items
+        invalidateVaultItems.invalidateAll();
+        loadFolders();
+        loadAllFolders();
 
-      const updateFolderParent = (list: VaultFolder[]) =>
-        list.map((f) =>
-          movedIds.has(f.id)
-            ? { ...f, parentId: bulkMoveFolderDestinationId }
-            : f,
-        );
-
-      setFolders(updateFolderParent);
-      setAllFolders(updateFolderParent);
-
-      // Expand destination so user sees moved folders
-      if (bulkMoveFolderDestinationId) {
-        setExpandedFolders(
-          (prev) => new Set([...prev, bulkMoveFolderDestinationId]),
-        );
-      }
-
-      setShowBulkMoveFoldersModal(false);
-      setBulkMoveFolderDestinationId(null);
-      setSelectedFolderIds(new Set());
-      setFolderSelectionMode(false);
-
-      if (data.failCount > 0) {
-        showToast(
-          `Moved ${data.successCount} folder(s), ${data.failCount} failed`,
-          "error",
-        );
+        if (data.failCount > 0) {
+          showToast(
+            `Moved ${data.successCount} folder(s) to profile, ${data.failCount} failed`,
+            "error",
+          );
+        } else {
+          const targetProfile = profiles.find((p) => p.id === bulkMoveToProfileId);
+          showToast(
+            `Moved ${data.successCount} folder(s) to ${targetProfile?.name || "another profile"} successfully`,
+            "success",
+          );
+        }
       } else {
-        showToast(
-          `Moved ${data.successCount} folder(s) successfully`,
-          "success",
+        // Same-profile bulk move (original behavior)
+        const response = await fetch("/api/vault/folders/bulk-move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folderIds: Array.from(selectedFolderIds),
+            destinationParentId: bulkMoveFolderDestinationId,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to move folders");
+        }
+
+        const data = await response.json();
+
+        // Update local state for successfully moved folders
+        const movedIds = new Set(
+          data.results
+            .filter((r: { folderId: string; success: boolean }) => r.success)
+            .map((r: { folderId: string }) => r.folderId),
         );
+
+        const updateFolderParent = (list: VaultFolder[]) =>
+          list.map((f) =>
+            movedIds.has(f.id)
+              ? { ...f, parentId: bulkMoveFolderDestinationId }
+              : f,
+          );
+
+        setFolders(updateFolderParent);
+        setAllFolders(updateFolderParent);
+
+        // Expand destination so user sees moved folders
+        if (bulkMoveFolderDestinationId) {
+          setExpandedFolders(
+            (prev) => new Set([...prev, bulkMoveFolderDestinationId]),
+          );
+        }
+
+        setShowBulkMoveFoldersModal(false);
+        setBulkMoveFolderDestinationId(null);
+        setBulkMoveToProfileId(null);
+        setBulkMoveToProfileFolders([]);
+        setSelectedFolderIds(new Set());
+        setFolderSelectionMode(false);
+
+        if (data.failCount > 0) {
+          showToast(
+            `Moved ${data.successCount} folder(s), ${data.failCount} failed`,
+            "error",
+          );
+        } else {
+          showToast(
+            `Moved ${data.successCount} folder(s) successfully`,
+            "success",
+          );
+        }
       }
     } catch (error: any) {
       console.error("Error bulk moving folders:", error);
@@ -3174,7 +3311,7 @@ export function VaultContent() {
     } finally {
       setIsBulkMovingFolders(false);
     }
-  }, [selectedFolderIds, bulkMoveFolderDestinationId, showToast]);
+  }, [selectedFolderIds, bulkMoveFolderDestinationId, bulkMoveToProfileId, profiles, showToast, invalidateVaultItems]);
 
   const startEditFolder = (folder: VaultFolder) => {
     if (folder.isDefault) return;
@@ -4801,6 +4938,8 @@ export function VaultContent() {
                 setShowMoveFolderModal(false);
                 setFolderToMove(null);
                 setMoveFolderDestinationId(null);
+                setMoveToProfileId(null);
+                setMoveToProfileFolders([]);
               }}
             />
             <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-[#EC67A1]/20">
@@ -4818,6 +4957,8 @@ export function VaultContent() {
                     setShowMoveFolderModal(false);
                     setFolderToMove(null);
                     setMoveFolderDestinationId(null);
+                    setMoveToProfileId(null);
+                    setMoveToProfileFolders([]);
                   }}
                   className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
@@ -4825,9 +4966,45 @@ export function VaultContent() {
                 </button>
               </div>
               <div className="p-4 sm:p-5 space-y-4">
+                {/* Profile selector */}
                 <div>
                   <label className="block text-sm font-medium text-sidebar-foreground mb-2">
-                    Destination
+                    Target Profile
+                  </label>
+                  <select
+                    value={moveToProfileId || ""}
+                    onChange={(e) => {
+                      const profileId = e.target.value || null;
+                      setMoveToProfileId(profileId);
+                      setMoveFolderDestinationId(null);
+                      if (profileId && profileId !== folderToMove.profileId) {
+                        loadTargetProfileFolders(profileId);
+                      } else {
+                        setMoveToProfileFolders([]);
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#5DC3F8]/50"
+                  >
+                    <option value="">
+                      Current profile ({profiles.find((p) => p.id === folderToMove.profileId)?.name || "Unknown"})
+                    </option>
+                    {profiles
+                      .filter((p) => p.id !== folderToMove.profileId)
+                      .map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                          {profile.instagramUsername
+                            ? ` (@${profile.instagramUsername})`
+                            : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Destination folder tree */}
+                <div>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">
+                    Destination Folder
                   </label>
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50">
                     {/* Root level option */}
@@ -4842,18 +5019,31 @@ export function VaultContent() {
                       <FolderOpen className="w-4 h-4 flex-shrink-0" />
                       <span className="font-medium">Root (top level)</span>
                     </button>
+
+                    {/* Loading state for other profile folders */}
+                    {loadingMoveToProfileFolders && (
+                      <div className="flex items-center justify-center gap-2 py-4 text-sm text-header-muted">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading folders...</span>
+                      </div>
+                    )}
+
                     {/* Folder tree for destination selection */}
-                    {(() => {
-                      const descendantIds = getDescendantFolderIds(
-                        folderToMove.id,
-                        allFolders,
-                      );
-                      const invalidIds = new Set([
-                        folderToMove.id,
-                        ...descendantIds,
-                      ]);
-                      // Also mark default folders as invalid
-                      allFolders.forEach((f) => {
+                    {!loadingMoveToProfileFolders && (() => {
+                      // Use target profile folders if moving to different profile, otherwise use current folders
+                      const isMovingToOtherProfile = moveToProfileId && moveToProfileId !== folderToMove.profileId;
+                      const folderSource = isMovingToOtherProfile
+                        ? moveToProfileFolders
+                        : allFolders;
+
+                      const descendantIds = isMovingToOtherProfile
+                        ? new Set<string>()
+                        : getDescendantFolderIds(folderToMove.id, allFolders);
+                      const invalidIds = isMovingToOtherProfile
+                        ? new Set<string>()
+                        : new Set([folderToMove.id, ...descendantIds]);
+                      // Mark default folders as invalid
+                      folderSource.forEach((f) => {
                         if (f.isDefault) invalidIds.add(f.id);
                       });
 
@@ -4864,7 +5054,7 @@ export function VaultContent() {
                         const isInvalid = invalidIds.has(folder.id);
                         const isSelected =
                           moveFolderDestinationId === folder.id;
-                        const children = allFolders
+                        const children = folderSource
                           .filter(
                             (f) => f.parentId === folder.id && !f.isDefault,
                           )
@@ -4893,12 +5083,12 @@ export function VaultContent() {
                                 <FolderClosed className="w-4 h-4 flex-shrink-0" />
                               )}
                               <span className="truncate">{folder.name}</span>
-                              {isInvalid && folder.id === folderToMove.id && (
+                              {!isMovingToOtherProfile && isInvalid && folder.id === folderToMove.id && (
                                 <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">
                                   (source)
                                 </span>
                               )}
-                              {isInvalid && folder.id !== folderToMove.id && (
+                              {!isMovingToOtherProfile && isInvalid && folder.id !== folderToMove.id && !folder.isDefault && (
                                 <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">
                                   (child)
                                 </span>
@@ -4912,9 +5102,11 @@ export function VaultContent() {
                         );
                       };
 
-                      // Render folders for selected profile, or all profiles
-                      const relevantFolders =
-                        selectedProfileId === "all"
+                      // When moving to another profile, show that profile's folders
+                      // When moving within same profile, show current profile's folders
+                      const relevantFolders = isMovingToOtherProfile
+                        ? folderSource
+                        : selectedProfileId === "all"
                           ? allFolders
                           : allFolders.filter(
                               (f) => f.profileId === folderToMove.profileId,
@@ -4923,18 +5115,40 @@ export function VaultContent() {
                         .filter((f) => !f.parentId && !f.isDefault)
                         .sort((a, b) => a.name.localeCompare(b.name));
 
+                      if (isMovingToOtherProfile && rootFolders.length === 0 && !loadingMoveToProfileFolders) {
+                        return (
+                          <div className="px-3 py-3 text-xs text-header-muted text-center">
+                            No folders in this profile. The folder will be placed at root level.
+                          </div>
+                        );
+                      }
+
                       return rootFolders.map((folder) =>
                         renderFolderOption(folder, 1),
                       );
                     })()}
                   </div>
                 </div>
+
+                {/* Info banner when moving to another profile */}
+                {moveToProfileId && moveToProfileId !== folderToMove.profileId && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      This will move the folder and all its contents (subfolders &amp; files) to{" "}
+                      <strong>{profiles.find((p) => p.id === moveToProfileId)?.name}</strong>.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
                       setShowMoveFolderModal(false);
                       setFolderToMove(null);
                       setMoveFolderDestinationId(null);
+                      setMoveToProfileId(null);
+                      setMoveToProfileFolders([]);
                     }}
                     className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors"
                   >
@@ -4942,7 +5156,10 @@ export function VaultContent() {
                   </button>
                   <button
                     onClick={() => {
-                      if (folderToMove) {
+                      if (!folderToMove) return;
+                      if (moveToProfileId && moveToProfileId !== folderToMove.profileId) {
+                        handleMoveFolderToProfile();
+                      } else {
                         handleMoveFolder(
                           folderToMove.id,
                           moveFolderDestinationId,
@@ -4951,7 +5168,7 @@ export function VaultContent() {
                     }}
                     disabled={
                       isMovingFolder ||
-                      moveFolderDestinationId === folderToMove.parentId
+                      (!moveToProfileId && moveFolderDestinationId === folderToMove.parentId)
                     }
                     className="flex-1 px-4 py-2.5 text-white bg-[#5DC3F8] hover:bg-[#4AB3E8] rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
@@ -4980,6 +5197,8 @@ export function VaultContent() {
               onClick={() => {
                 setShowBulkMoveFoldersModal(false);
                 setBulkMoveFolderDestinationId(null);
+                setBulkMoveToProfileId(null);
+                setBulkMoveToProfileFolders([]);
               }}
             />
             <div className="relative bg-white dark:bg-[#1a1625] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-[#EC67A1]/20">
@@ -4996,6 +5215,8 @@ export function VaultContent() {
                   onClick={() => {
                     setShowBulkMoveFoldersModal(false);
                     setBulkMoveFolderDestinationId(null);
+                    setBulkMoveToProfileId(null);
+                    setBulkMoveToProfileFolders([]);
                   }}
                   className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
@@ -5003,9 +5224,67 @@ export function VaultContent() {
                 </button>
               </div>
               <div className="p-4 sm:p-5 space-y-4">
+                {/* Profile selector for bulk move */}
                 <div>
                   <label className="block text-sm font-medium text-sidebar-foreground mb-2">
-                    Destination
+                    Target Profile
+                  </label>
+                  {(() => {
+                    // Find profiles of the selected folders
+                    const selectedFolderProfileIds = new Set(
+                      allFolders
+                        .filter((f) => selectedFolderIds.has(f.id))
+                        .map((f) => f.profileId),
+                    );
+                    const currentProfileName = selectedFolderProfileIds.size === 1
+                      ? profiles.find((p) => p.id === [...selectedFolderProfileIds][0])?.name || "Unknown"
+                      : "Multiple profiles";
+
+                    return (
+                      <select
+                        value={bulkMoveToProfileId || ""}
+                        onChange={(e) => {
+                          const profileId = e.target.value || null;
+                          setBulkMoveToProfileId(profileId);
+                          setBulkMoveFolderDestinationId(null);
+                          if (profileId) {
+                            setLoadingBulkMoveToProfileFolders(true);
+                            const url = tenant
+                              ? `/api/vault/folders?profileId=${profileId}&organizationSlug=${tenant}`
+                              : `/api/vault/folders?profileId=${profileId}`;
+                            fetch(url)
+                              .then((res) => res.json())
+                              .then((data) => setBulkMoveToProfileFolders(data))
+                              .catch(() => setBulkMoveToProfileFolders([]))
+                              .finally(() => setLoadingBulkMoveToProfileFolders(false));
+                          } else {
+                            setBulkMoveToProfileFolders([]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50 text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-[#5DC3F8]/50"
+                      >
+                        <option value="">
+                          Current profile ({currentProfileName})
+                        </option>
+                        {profiles
+                          .filter((p) => !selectedFolderProfileIds.has(p.id))
+                          .map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                              {profile.instagramUsername
+                                ? ` (@${profile.instagramUsername})`
+                                : ""}
+                            </option>
+                          ))}
+                      </select>
+                    );
+                  })()}
+                </div>
+
+                {/* Destination folder tree */}
+                <div>
+                  <label className="block text-sm font-medium text-sidebar-foreground mb-2">
+                    Destination Folder
                   </label>
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-[#EC67A1]/20 bg-zinc-50 dark:bg-zinc-800/50">
                     {/* Root level option */}
@@ -5020,20 +5299,33 @@ export function VaultContent() {
                       <FolderOpen className="w-4 h-4 flex-shrink-0" />
                       <span className="font-medium">Root (top level)</span>
                     </button>
+
+                    {/* Loading state for other profile folders */}
+                    {loadingBulkMoveToProfileFolders && (
+                      <div className="flex items-center justify-center gap-2 py-4 text-sm text-header-muted">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading folders...</span>
+                      </div>
+                    )}
+
                     {/* Folder tree for bulk move destination */}
-                    {(() => {
+                    {!loadingBulkMoveToProfileFolders && (() => {
+                      const isMovingToOtherProfile = !!bulkMoveToProfileId;
+                      const folderSource = isMovingToOtherProfile
+                        ? bulkMoveToProfileFolders
+                        : allFolders;
+
                       // Collect all descendants of every selected folder for circular prevention
                       const allInvalidIds = new Set<string>();
-                      selectedFolderIds.forEach((id) => {
-                        allInvalidIds.add(id);
-                        const descendants = getDescendantFolderIds(
-                          id,
-                          allFolders,
-                        );
-                        descendants.forEach((d) => allInvalidIds.add(d));
-                      });
+                      if (!isMovingToOtherProfile) {
+                        selectedFolderIds.forEach((id) => {
+                          allInvalidIds.add(id);
+                          const descendants = getDescendantFolderIds(id, allFolders);
+                          descendants.forEach((d) => allInvalidIds.add(d));
+                        });
+                      }
                       // Also mark default folders as invalid
-                      allFolders.forEach((f) => {
+                      folderSource.forEach((f) => {
                         if (f.isDefault) allInvalidIds.add(f.id);
                       });
 
@@ -5044,7 +5336,7 @@ export function VaultContent() {
                         const isInvalid = allInvalidIds.has(folder.id);
                         const isSelected =
                           bulkMoveFolderDestinationId === folder.id;
-                        const children = allFolders
+                        const children = folderSource
                           .filter(
                             (f) => f.parentId === folder.id && !f.isDefault,
                           )
@@ -5073,12 +5365,12 @@ export function VaultContent() {
                                 <FolderClosed className="w-4 h-4 flex-shrink-0" />
                               )}
                               <span className="truncate">{folder.name}</span>
-                              {selectedFolderIds.has(folder.id) && (
+                              {!isMovingToOtherProfile && selectedFolderIds.has(folder.id) && (
                                 <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">
                                   (selected)
                                 </span>
                               )}
-                              {isInvalid &&
+                              {!isMovingToOtherProfile && isInvalid &&
                                 !selectedFolderIds.has(folder.id) && (
                                   <span className="text-[10px] text-header-muted ml-auto flex-shrink-0">
                                     (child)
@@ -5093,18 +5385,31 @@ export function VaultContent() {
                         );
                       };
 
-                      // Only show folders for profiles that have selected folders
-                      const selectedProfileIds = new Set(
-                        allFolders
-                          .filter((f) => selectedFolderIds.has(f.id))
-                          .map((f) => f.profileId),
-                      );
-                      const relevantFolders = allFolders.filter((f) =>
-                        selectedProfileIds.has(f.profileId),
-                      );
+                      let relevantFolders: VaultFolder[];
+                      if (isMovingToOtherProfile) {
+                        relevantFolders = folderSource;
+                      } else {
+                        // Only show folders for profiles that have selected folders
+                        const selectedProfileIds = new Set(
+                          allFolders
+                            .filter((f) => selectedFolderIds.has(f.id))
+                            .map((f) => f.profileId),
+                        );
+                        relevantFolders = allFolders.filter((f) =>
+                          selectedProfileIds.has(f.profileId),
+                        );
+                      }
                       const rootFolders = relevantFolders
                         .filter((f) => !f.parentId && !f.isDefault)
                         .sort((a, b) => a.name.localeCompare(b.name));
+
+                      if (isMovingToOtherProfile && rootFolders.length === 0) {
+                        return (
+                          <div className="px-3 py-3 text-xs text-header-muted text-center">
+                            No folders in this profile. Folders will be placed at root level.
+                          </div>
+                        );
+                      }
 
                       return rootFolders.map((folder) =>
                         renderFolderOption(folder, 1),
@@ -5112,11 +5417,25 @@ export function VaultContent() {
                     })()}
                   </div>
                 </div>
+
+                {/* Info banner when moving to another profile */}
+                {bulkMoveToProfileId && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      This will move {selectedFolderIds.size} folder(s) and all their contents to{" "}
+                      <strong>{profiles.find((p) => p.id === bulkMoveToProfileId)?.name}</strong>.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
                       setShowBulkMoveFoldersModal(false);
                       setBulkMoveFolderDestinationId(null);
+                      setBulkMoveToProfileId(null);
+                      setBulkMoveToProfileFolders([]);
                     }}
                     className="flex-1 px-4 py-2.5 text-sidebar-foreground bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors"
                   >

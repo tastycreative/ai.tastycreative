@@ -168,12 +168,14 @@ interface GeneratedImage {
   profileName?: string;
   // Metadata for reuse functionality
   metadata?: {
-    resolution?: "2K" | "4K";
+    resolution?: "2K" | "3K" | "4K";
     aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
     watermark?: boolean;
     numReferenceImages?: number;
     referenceImageUrls?: string[];
     profileId?: string;
+    selectedModel?: string;
+    outputFormat?: string;
   };
 }
 
@@ -183,15 +185,16 @@ interface PromptTemplate {
   prompt: string;
   category: string;
   description: string;
-  resolution?: "2K" | "4K";
+  resolution?: "2K" | "3K" | "4K";
   aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
 }
 
 interface UserPreset {
   id: string;
   name: string;
-  resolution: "2K" | "4K";
+  resolution: "2K" | "3K" | "4K";
   aspectRatio: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+  selectedModel?: "4.5" | "5.0-lite";
   folderId?: string;
 }
 
@@ -223,7 +226,9 @@ export default function SeeDreamImageToImage() {
 
   // Form State
   const [prompt, setPrompt] = useState("");
-  const [selectedResolution, setSelectedResolution] = useState<"2K" | "4K">("2K");
+  const [selectedModel, setSelectedModel] = useState<"4.5" | "5.0-lite">("4.5");
+  const [outputFormat, setOutputFormat] = useState<"jpeg" | "png">("jpeg");
+  const [selectedResolution, setSelectedResolution] = useState<"2K" | "3K" | "4K">("2K");
   const [selectedRatio, setSelectedRatio] = useState<"1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9">("1:1");
   const [uploadedImages, setUploadedImages] = useState<Array<{ 
     id: string; 
@@ -506,6 +511,8 @@ export default function SeeDreamImageToImage() {
         if (settings.resolution) setSelectedResolution(settings.resolution);
         if (settings.aspectRatio) setSelectedRatio(settings.aspectRatio);
         if (settings.folderId) setTargetFolder(settings.folderId);
+        if (settings.selectedModel) setSelectedModel(settings.selectedModel);
+        if (settings.outputFormat) setOutputFormat(settings.outputFormat);
       } catch (e) {
         console.error('Failed to load saved I2I settings:', e);
       }
@@ -533,29 +540,38 @@ export default function SeeDreamImageToImage() {
     const settingsToSave = {
       resolution: selectedResolution,
       aspectRatio: selectedRatio,
-      folderId: targetFolder
+      folderId: targetFolder,
+      selectedModel: selectedModel,
+      outputFormat: outputFormat
     };
     
     const savedSettingsKey = `seedream-i2i-settings-${globalProfileId}`;
     localStorage.setItem(savedSettingsKey, JSON.stringify(settingsToSave));
-  }, [mounted, globalProfileId, selectedResolution, selectedRatio, targetFolder]);
+  }, [mounted, globalProfileId, selectedResolution, selectedRatio, targetFolder, selectedModel, outputFormat]);
 
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
 
   // Vault folders — managed by useVaultFolders (TanStack Query)
 
-  // Resolution and Ratio configurations
-  const resolutionRatios = {
+  // Model configurations
+  const MODEL_IDS = {
+    "4.5": "ep-20260103160511-gxx75",
+    "5.0-lite": "ep-20260306235242-vltzx",
+  } as const;
+
+  // Resolution and Ratio configurations per model
+  // Values from official BytePlus docs: https://docs.byteplus.com/en/docs/ModelArk/1824121
+  const resolutionRatiosV45: Record<"2K" | "4K", Record<string, string>> = {
     "2K": {
       "1:1": "2048x2048",
       "3:4": "1728x2304",
       "4:3": "2304x1728",
-      "16:9": "2560x1440",
-      "9:16": "1440x2560",
+      "16:9": "2848x1600",
+      "9:16": "1600x2848",
       "2:3": "1664x2496",
       "3:2": "2496x1664",
-      "21:9": "3024x1296",
+      "21:9": "3136x1344",
     },
     "4K": {
       "1:1": "4096x4096",
@@ -568,6 +584,35 @@ export default function SeeDreamImageToImage() {
       "21:9": "6240x2656",
     },
   };
+
+  // 5.0 LITE: Total pixels must be in [3,686,400 – 10,404,496], aspect ratio in [1/16, 16]
+  // Values from official BytePlus docs: https://docs.byteplus.com/en/docs/ModelArk/1824121
+  const resolutionRatiosV50Lite: Record<"2K" | "3K", Record<string, string>> = {
+    "2K": {
+      "1:1": "2048x2048",
+      "3:4": "1728x2304",
+      "4:3": "2304x1728",
+      "16:9": "2848x1600",
+      "9:16": "1600x2848",
+      "2:3": "1664x2496",
+      "3:2": "2496x1664",
+      "21:9": "3136x1344",
+    },
+    "3K": {
+      "1:1": "3072x3072",
+      "3:4": "2592x3456",
+      "4:3": "3456x2592",
+      "16:9": "4096x2304",
+      "9:16": "2304x4096",
+      "2:3": "2496x3744",
+      "3:2": "3744x2496",
+      "21:9": "4704x2016",
+    },
+  };
+
+  // Dynamically pick resolution options based on selected model
+  const resolutionRatios = selectedModel === "5.0-lite" ? resolutionRatiosV50Lite : resolutionRatiosV45;
+  const availableResolutions = selectedModel === "5.0-lite" ? ["2K", "3K"] as const : ["2K", "4K"] as const;
 
   const aspectRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"] as const;
 
@@ -630,7 +675,16 @@ export default function SeeDreamImageToImage() {
   ];
 
   // Get current size based on resolution and ratio
-  const currentSize = resolutionRatios[selectedResolution][selectedRatio];
+  const currentSize = (resolutionRatios as any)[selectedResolution]?.[selectedRatio] || "2048x2048";
+
+  // When model changes, ensure resolution is valid for the new model
+  useEffect(() => {
+    if (selectedModel === "5.0-lite" && selectedResolution === "4K") {
+      setSelectedResolution("3K");
+    } else if (selectedModel === "4.5" && selectedResolution === "3K") {
+      setSelectedResolution("4K");
+    }
+  }, [selectedModel, selectedResolution]);
 
   // Load generation history when apiClient is available or profile changes
 
@@ -839,6 +893,7 @@ export default function SeeDreamImageToImage() {
       name: presetName.trim(),
       resolution: selectedResolution,
       aspectRatio: selectedRatio,
+      selectedModel: selectedModel,
       folderId: targetFolder || undefined
     };
     
@@ -852,6 +907,7 @@ export default function SeeDreamImageToImage() {
   const loadPreset = (preset: UserPreset) => {
     setSelectedResolution(preset.resolution);
     setSelectedRatio(preset.aspectRatio);
+    if (preset.selectedModel) setSelectedModel(preset.selectedModel);
     if (preset.folderId) setTargetFolder(preset.folderId);
   };
 
@@ -1111,7 +1167,7 @@ export default function SeeDreamImageToImage() {
       generationType: "image-to-image",
       progress: 0,
       stage: "starting",
-      message: "Starting SeeDream 4.5 Image-to-Image generation...",
+      message: `Starting SeeDream ${selectedModel === "5.0-lite" ? "5.0 LITE" : "4.5"} Image-to-Image generation...`,
       status: "processing",
       startedAt: Date.now(),
       metadata: {
@@ -1120,6 +1176,7 @@ export default function SeeDreamImageToImage() {
         aspectRatio: selectedRatio,
         profileName: selectedProfile?.name,
         numReferenceImages: uploadedImages.length,
+        selectedModel: selectedModel,
       }
     });
     
@@ -1204,7 +1261,7 @@ export default function SeeDreamImageToImage() {
         isGenerating: true,
         progress: 0,
         stage: "starting",
-        message: "Starting SeeDream 4.5 Image-to-Image generation...",
+        message: `Starting SeeDream ${selectedModel === "5.0-lite" ? "5.0 LITE" : "4.5"} Image-to-Image generation...`,
         generationType: "image-to-image",
         jobId: taskId,
       });
@@ -1213,13 +1270,18 @@ export default function SeeDreamImageToImage() {
       // Prepare request payload
       const payload: any = {
         prompt: prompt.trim(),
-        model: "ep-20260103160511-gxx75",
+        model: MODEL_IDS[selectedModel],
         image: uploadedImages.length === 1 
           ? uploadedImages[0].base64 
           : uploadedImages.map(img => img.base64), // Array for multiple images, single string for one image
         watermark: false,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
-        size: currentSize,
+        // 5.0 LITE requires size as a label ("2K"/"3K") per official API spec — pixel dims cause
+        // sequential_image_generation to be silently ignored (returns 1 deterministic image).
+        // 4.5 uses pixel dimensions as before.
+        size: selectedModel === "5.0-lite" ? selectedResolution : currentSize,
+        // Always pass pixel dimensions separately so the route can store proper width/height
+        pixelDimensions: currentSize,
         // Include resolution and aspectRatio for metadata storage
         resolution: selectedResolution,
         aspectRatio: selectedRatio,
@@ -1227,6 +1289,11 @@ export default function SeeDreamImageToImage() {
         referenceImageUrls: referenceImageUrls,
         organizationSlug: tenant,
       };
+
+      // Add output_format for 5.0 LITE model
+      if (selectedModel === "5.0-lite") {
+        payload.output_format = outputFormat;
+      }
 
       // Get profileId from the selected folder
       const selectedFolder = vaultFolders.find(f => f.id === targetFolder);
@@ -1482,6 +1549,7 @@ export default function SeeDreamImageToImage() {
     setSelectedRatio("1:1");
     setMaxImages(1);
     setTargetFolder("");
+    setOutputFormat("jpeg");
     setError(null);
     setGeneratedImages([]);
     setUploadedImages([]);
@@ -1502,6 +1570,12 @@ export default function SeeDreamImageToImage() {
     }
     if (image.metadata?.aspectRatio) {
       setSelectedRatio(image.metadata.aspectRatio);
+    }
+    if (image.metadata?.selectedModel) {
+      setSelectedModel(image.metadata.selectedModel as "4.5" | "5.0-lite");
+    }
+    if (image.metadata?.outputFormat) {
+      setOutputFormat(image.metadata.outputFormat as "jpeg" | "png");
     }
 
     // Load reference images from URLs if available
@@ -1596,7 +1670,7 @@ export default function SeeDreamImageToImage() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-[#EC67A1]">Live Studio</p>
-                  <h1 className="text-3xl sm:text-4xl font-black text-sidebar-foreground">SeeDream 4.5 — Image to Image</h1>
+                  <h1 className="text-3xl sm:text-4xl font-black text-sidebar-foreground">SeeDream {selectedModel === "5.0-lite" ? "5.0 LITE" : "4.5"} — Image to Image</h1>
                 </div>
               </div>
               <CreditCostBadge variant="compact" />
@@ -1624,7 +1698,7 @@ export default function SeeDreamImageToImage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-500"><Download className="w-5 h-5" /></div>
                 <div>
                   <p className="text-xs text-header-muted">Output</p>
-                  <p className="text-sm font-semibold text-sidebar-foreground">2K/4K ready</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground">{selectedModel === "5.0-lite" ? "2K/3K" : "2K/4K"} ready</p>
                 </div>
               </div>
             </div>
@@ -2020,6 +2094,43 @@ export default function SeeDreamImageToImage() {
                 </div>
               )}
 
+              {/* Model Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#EC67A1]" />
+                  <p className="text-sm font-semibold text-sidebar-foreground">Model</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { key: "4.5" as const, label: "SeeDream 4.5", badge: "Stable" },
+                    { key: "5.0-lite" as const, label: "SeeDream 5.0", badge: "LITE" },
+                  ]).map((m) => (
+                    <button
+                      key={m.key}
+                      onClick={() => setSelectedModel(m.key)}
+                      className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                        selectedModel === m.key
+                          ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 shadow-lg shadow-[#EC67A1]/20"
+                          : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 hover:border-[#EC67A1]/40"
+                      }`}
+                      disabled={isGenerating}
+                    >
+                      <div>
+                        <p className="text-xs text-header-muted">Version</p>
+                        <p className="text-base font-semibold text-sidebar-foreground">{m.label}</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-1 text-[11px] font-semibold ${
+                        m.key === "5.0-lite"
+                          ? "bg-[#5DC3F8]/20 text-[#5DC3F8]"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-header-muted"
+                      }`}>
+                        {m.badge}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Resolution & Aspect Ratio Configuration */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between w-full group">
@@ -2039,10 +2150,10 @@ export default function SeeDreamImageToImage() {
                 <div className={`space-y-3 ${sectionsCollapsed.framing ? 'hidden lg:block' : ''}`}>
 
                 <div className="grid grid-cols-2 gap-3">
-                  {["2K", "4K"].map((res) => (
+                  {availableResolutions.map((res) => (
                     <button
                       key={res}
-                      onClick={() => setSelectedResolution(res as "2K" | "4K")}
+                      onClick={() => setSelectedResolution(res as "2K" | "3K" | "4K")}
                       className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
                         selectedResolution === res
                           ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 shadow-lg shadow-[#EC67A1]/20"
@@ -2089,6 +2200,29 @@ export default function SeeDreamImageToImage() {
                     <p className="text-lg font-semibold text-sidebar-foreground">{currentSize.split('x')[1]}</p>
                   </div>
                 </div>
+
+                {/* Output Format - Only for 5.0 LITE */}
+                {selectedModel === "5.0-lite" && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-header-muted">Output Format</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["jpeg", "png"] as const).map((fmt) => (
+                        <button
+                          key={fmt}
+                          onClick={() => setOutputFormat(fmt)}
+                          className={`rounded-xl border px-3 py-2 text-sm font-semibold uppercase transition ${
+                            outputFormat === fmt
+                              ? "border-[#EC67A1]/60 bg-[#EC67A1]/10 text-[#EC67A1] dark:text-[#F774B9] shadow-sm shadow-[#EC67A1]/20"
+                              : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/30 text-sidebar-foreground hover:border-[#EC67A1]/40"
+                          }`}
+                          disabled={isGenerating}
+                        >
+                          {fmt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Save as Preset Button */}
                 <button
