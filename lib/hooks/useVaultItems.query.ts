@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 
 export interface VaultItemMetadata {
@@ -238,10 +238,22 @@ export interface TrashItem extends VaultItem {
   originalFolderExists: boolean;
 }
 
-async function fetchTrashItems(profileId?: string | null): Promise<TrashItem[]> {
-  const url = profileId && profileId !== 'all'
-    ? `/api/vault/trash?profileId=${profileId}`
-    : '/api/vault/trash';
+async function fetchTrashItems({
+  profileId,
+  cursor,
+  limit = 50,
+}: {
+  profileId?: string | null;
+  cursor?: string;
+  limit?: number;
+}): Promise<{ items: TrashItem[]; nextCursor: string | null; hasNextPage: boolean; totalCount: number }> {
+  let url = profileId && profileId !== 'all'
+    ? `/api/vault/trash?profileId=${profileId}&limit=${limit}`
+    : `/api/vault/trash?limit=${limit}`;
+
+  if (cursor) {
+    url += `&cursor=${cursor}`;
+  }
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -249,24 +261,31 @@ async function fetchTrashItems(profileId?: string | null): Promise<TrashItem[]> 
   }
 
   const data = await response.json();
-  return data.map((item: any) => ({
-    ...item,
-    createdAt: new Date(item.createdAt),
-    updatedAt: new Date(item.updatedAt),
-    deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
-  }));
+  return {
+    items: data.items.map((item: any) => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+      deletedAt: item.deletedAt ? new Date(item.deletedAt) : null,
+    })),
+    nextCursor: data.nextCursor,
+    hasNextPage: data.hasNextPage,
+    totalCount: data.totalCount,
+  };
 }
 
 export function useTrashItems(profileId?: string | null) {
   const { user } = useUser();
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['vault', 'trash', profileId, user?.id],
-    queryFn: () => fetchTrashItems(profileId),
+    queryFn: ({ pageParam }) => fetchTrashItems({ profileId, cursor: pageParam, limit: 50 }),
     enabled: !!user,
     staleTime: 1000 * 60 * 2, // 2 minutes
     gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: false,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.hasNextPage ? lastPage.nextCursor : undefined,
   });
 }
 

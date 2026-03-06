@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/database';
 import { sendBatchEmail } from '@/lib/email';
+import { publishNotificationToUser } from '@/lib/ably-server';
 
 /* ------------------------------------------------------------------ */
 /*  In-memory debounce: suppress duplicate notifications per item      */
@@ -71,7 +72,11 @@ export async function sendBoardMoveNotification(params: BoardMoveNotificationPar
     where: { id: spaceId },
     select: {
       name: true,
+      slug: true,
+      key: true,
       config: true,
+      organizationId: true,
+      organization: { select: { slug: true } },
       members: {
         select: {
           userId: true,
@@ -145,6 +150,15 @@ export async function sendBoardMoveNotification(params: BoardMoveNotificationPar
 
   const spaceName = workspace.name;
   const displayTitle = itemNo ? `#${itemNo} ${itemTitle}` : itemTitle;
+
+  // Build task card link: /{tenant}/spaces/{slug}?task={key}-{itemNo}
+  const tenantSlug = workspace.organization?.slug;
+  const spaceKey = workspace.key;
+  const taskKey = spaceKey && itemNo ? `${spaceKey}-${itemNo}`.toLowerCase() : null;
+  const taskLink = tenantSlug && taskKey
+    ? `/${tenantSlug}/spaces/${workspace.slug}?task=${taskKey}`
+    : null;
+
   const timestamp = new Date().toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -152,6 +166,13 @@ export async function sendBoardMoveNotification(params: BoardMoveNotificationPar
     hour: 'numeric',
     minute: '2-digit',
   });
+
+  // Build full URL for email
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  const fullTaskLink = taskLink ? `${appUrl}${taskLink}` : null;
 
   // Send email
   if (emails.length > 0) {
@@ -162,6 +183,7 @@ export async function sendBoardMoveNotification(params: BoardMoveNotificationPar
       spaceName,
       moverName,
       timestamp,
+      taskLink: fullTaskLink,
     });
 
     await sendBatchEmail({
@@ -171,16 +193,39 @@ export async function sendBoardMoveNotification(params: BoardMoveNotificationPar
     });
   }
 
-  // Create in-app notifications
+  // Create in-app notifications and push via Ably
   if (recipientUsers.length > 0) {
-    await prisma.notification.createMany({
-      data: recipientUsers.map((u) => ({
-        userId: u.id,
-        type: 'BOARD_MOVE' as const,
-        title: `Item moved to ${newColumnName}`,
-        message: `${moverName} moved "${displayTitle}" from ${oldColumnName} to ${newColumnName} in ${spaceName}`,
-      })),
-    });
+    const notifTitle = `Item moved to ${newColumnName}`;
+    const notifMessage = `${moverName} moved "${displayTitle}" from ${oldColumnName} to ${newColumnName} in ${spaceName}`;
+    const now = new Date().toISOString();
+
+    // Create DB records
+    const created = await Promise.all(
+      recipientUsers.map((u) =>
+        prisma.notification.create({
+          data: {
+            userId: u.id,
+            organizationId: workspace.organizationId,
+            type: 'BOARD_MOVE',
+            title: notifTitle,
+            message: notifMessage,
+            link: taskLink,
+          },
+        }),
+      ),
+    );
+
+    // Push real-time Ably events to each recipient
+    for (let i = 0; i < recipientUsers.length; i++) {
+      publishNotificationToUser(recipientUsers[i].clerkId, {
+        id: created[i].id,
+        type: 'BOARD_MOVE',
+        title: notifTitle,
+        message: notifMessage,
+        link: taskLink,
+        createdAt: now,
+      }).catch(() => {}); // fire-and-forget
+    }
   }
 }
 
@@ -195,8 +240,9 @@ function buildEmailTemplate(params: {
   spaceName: string;
   moverName: string;
   timestamp: string;
+  taskLink: string | null;
 }): string {
-  const { displayTitle, oldColumnName, newColumnName, spaceName, moverName, timestamp } = params;
+  const { displayTitle, oldColumnName, newColumnName, spaceName, moverName, timestamp, taskLink } = params;
 
   return `
     <!DOCTYPE html>
@@ -251,9 +297,22 @@ function buildEmailTemplate(params: {
                       </tr>
                     </table>
 
-                    <p style="color: #999999; font-size: 13px; margin: 0;">
+                    <p style="color: #999999; font-size: 13px; margin: 0 0 24px 0;">
                       ${timestamp}
                     </p>
+
+                    ${taskLink ? `
+                    <!-- CTA Button -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td align="center">
+                          <a href="${taskLink}" style="display: inline-block; background: linear-gradient(135deg, #F774B9 0%, #5DC3F8 100%); color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 6px; font-size: 15px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            View Item
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    ` : ''}
                   </td>
                 </tr>
 

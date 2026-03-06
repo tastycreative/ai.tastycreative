@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
 /**
- * GET /api/notifications - Get notifications for current user
+ * GET /api/notifications - Get notifications for current user scoped to their active organization
  * Query params:
  *   - unreadOnly: boolean - Only return unread notifications
  *   - limit: number - Max notifications to return (default: 50)
@@ -15,10 +15,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user from database
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true, role: true }
+      select: { id: true, role: true, currentOrganizationId: true },
     });
 
     if (!user) {
@@ -29,9 +28,15 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50');
 
+    // Filter by current org (also include notifications with no org for backwards compat)
+    const orgFilter = user.currentOrganizationId
+      ? { OR: [{ organizationId: user.currentOrganizationId }, { organizationId: null }] }
+      : {};
+
     const notifications = await prisma.notification.findMany({
       where: {
         userId: user.id,
+        ...orgFilter,
         ...(unreadOnly && { read: false }),
       },
       orderBy: {
@@ -43,6 +48,7 @@ export async function GET(request: NextRequest) {
     const unreadCount = await prisma.notification.count({
       where: {
         userId: user.id,
+        ...orgFilter,
         read: false,
       },
     });
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching notifications:', error);
     return NextResponse.json(
       { error: 'Failed to fetch notifications' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -73,7 +79,7 @@ export async function PATCH(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true }
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!user) {
@@ -83,11 +89,16 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { notificationId, markAllRead } = body;
 
+    // Scope "mark all" to current org
+    const orgFilter = user.currentOrganizationId
+      ? { OR: [{ organizationId: user.currentOrganizationId }, { organizationId: null }] }
+      : {};
+
     if (markAllRead) {
-      // Mark all notifications as read
       await prisma.notification.updateMany({
         where: {
           userId: user.id,
+          ...orgFilter,
           read: false,
         },
         data: {
@@ -98,11 +109,10 @@ export async function PATCH(request: NextRequest) {
 
       return NextResponse.json({ success: true, message: 'All notifications marked as read' });
     } else if (notificationId) {
-      // Mark specific notification as read
       const notification = await prisma.notification.update({
         where: {
           id: notificationId,
-          userId: user.id, // Ensure user owns this notification
+          userId: user.id,
         },
         data: {
           read: true,
@@ -114,14 +124,14 @@ export async function PATCH(request: NextRequest) {
     } else {
       return NextResponse.json(
         { error: 'Must provide notificationId or markAllRead' },
-        { status: 400 }
+        { status: 400 },
       );
     }
   } catch (error) {
     console.error('Error updating notification:', error);
     return NextResponse.json(
       { error: 'Failed to update notification' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

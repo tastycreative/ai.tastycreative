@@ -1309,10 +1309,49 @@ export function VaultContent() {
 
   // Trash hooks
   const {
-    data: trashItems = [],
+    data: trashData,
     isLoading: loadingTrash,
     refetch: refetchTrash,
+    fetchNextPage: fetchNextTrashPage,
+    hasNextPage: hasNextTrashPage,
+    isFetchingNextPage: isFetchingNextTrashPage,
   } = useTrashItems(selectedProfileId);
+
+  // Flatten infinite query pages into single array and remove duplicates
+  const trashItems = useMemo(() => {
+    const allItems = trashData?.pages.flatMap(page => page.items) ?? [];
+    // Remove duplicates by ID
+    const uniqueItems = Array.from(
+      new Map(allItems.map(item => [item.id, item])).values()
+    );
+    return uniqueItems;
+  }, [trashData]);
+
+  // Get total count from first page
+  const trashTotalCount = useMemo(() => {
+    return trashData?.pages[0]?.totalCount ?? 0;
+  }, [trashData]);
+
+  // Intersection observer ref for infinite scroll
+  const trashLoadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!trashLoadMoreRef.current || !hasNextTrashPage || isFetchingNextTrashPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          fetchNextTrashPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(trashLoadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [hasNextTrashPage, isFetchingNextTrashPage, fetchNextTrashPage]);
+
   const restoreTrashMutation = useRestoreTrashItems();
   const permanentDeleteMutation = usePermanentlyDeleteTrashItems();
   const emptyTrashMutation = useEmptyTrash();
@@ -6513,9 +6552,9 @@ export function VaultContent() {
                       }`}
                     />
                     <span className="text-sm font-medium">Trash</span>
-                    {trashItems.length > 0 && (
+                    {trashTotalCount > 0 && (
                       <span className="ml-auto text-xs bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full">
-                        {trashItems.length}
+                        {trashTotalCount}
                       </span>
                     )}
                   </button>
@@ -7156,9 +7195,9 @@ export function VaultContent() {
                         Trash
                       </h2>
                       <p className="text-xs text-header-muted">
-                        {trashItems.length === 0
+                        {trashTotalCount === 0
                           ? "Trash is empty"
-                          : `${trashItems.length} item(s) - auto-deleted after 30 days`}
+                          : `${trashTotalCount} item(s) - auto-deleted after 30 days`}
                       </p>
                     </div>
                   </div>
@@ -7297,7 +7336,7 @@ export function VaultContent() {
                       <span className="text-xs text-header-muted">
                         {selectedTrashItems.size > 0
                           ? `${selectedTrashItems.size} of ${trashItems.length} selected`
-                          : `${trashItems.length} item(s) in trash`}
+                          : `${trashItems.length} of ${trashTotalCount} item(s) loaded`}
                       </span>
                     </div>
 
@@ -7430,6 +7469,19 @@ export function VaultContent() {
                         </div>
                       </div>
                     ))}
+
+                    {/* Infinite Scroll Trigger */}
+                    <div ref={trashLoadMoreRef} className="col-span-full h-4" />
+
+                    {/* Loading Indicator */}
+                    {isFetchingNextTrashPage && (
+                      <div className="col-span-full flex justify-center py-4">
+                        <div className="flex items-center gap-2 text-sm text-header-muted">
+                          <div className="w-4 h-4 border-2 border-header-muted border-t-transparent rounded-full animate-spin" />
+                          Loading more...
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -17,11 +17,18 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
+    const limit = parseInt(searchParams.get("limit") || "100");
+    const cursor = searchParams.get("cursor");
 
     // Build where clause for trashed items
     const whereClause: any = {
       deletedAt: { not: null },
     };
+
+    // Add cursor for pagination
+    if (cursor) {
+      whereClause.id = { lt: cursor };
+    }
 
     if (profileId && profileId !== "all") {
       // Verify access to this profile
@@ -61,6 +68,11 @@ export async function GET(request: NextRequest) {
       whereClause.OR = profileOrConditions;
     }
 
+    // Get total count
+    const totalCount = await prisma.vaultItem.count({
+      where: whereClause,
+    });
+
     const items = await prisma.vaultItem.findMany({
       where: whereClause,
       include: {
@@ -68,12 +80,18 @@ export async function GET(request: NextRequest) {
           select: { id: true, name: true, deletedAt: true },
         },
       },
-      orderBy: { deletedAt: "desc" },
+      orderBy: [{ deletedAt: "desc" }, { id: "desc" }],
+      take: limit + 1, // Fetch one extra to determine if there's a next page
     });
+
+    // Check if there's a next page
+    const hasNextPage = items.length > limit;
+    const paginatedItems = hasNextPage ? items.slice(0, limit) : items;
+    const nextCursor = hasNextPage ? paginatedItems[paginatedItems.length - 1].id : null;
 
     // Enrich items with days remaining info
     const now = new Date();
-    const enrichedItems = items.map((item) => {
+    const enrichedItems = paginatedItems.map((item) => {
       const deletedAt = item.deletedAt!;
       const daysSinceDeleted = Math.floor(
         (now.getTime() - deletedAt.getTime()) / (1000 * 60 * 60 * 24)
@@ -89,7 +107,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(enrichedItems);
+    return NextResponse.json({
+      items: enrichedItems,
+      nextCursor,
+      hasNextPage,
+      totalCount,
+    });
   } catch (error) {
     console.error("Error fetching trash items:", error);
     return NextResponse.json(

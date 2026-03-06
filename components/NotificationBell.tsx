@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Bell, Calendar, User, Image as ImageIcon, Video, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
+import { useNotificationRealtime } from '@/lib/hooks/useNotificationRealtime';
+import { useNotificationToast } from '@/components/NotificationToast';
 
 interface Notification {
   id: string;
@@ -60,6 +62,7 @@ export function NotificationBell() {
   const [hasProductionAccess, setHasProductionAccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'notifications' | 'tasks'>('notifications');
   const router = useRouter();
+  const params = useParams<{ tenant: string }>();
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -96,19 +99,47 @@ export function NotificationBell() {
     }
   };
 
-  //TODO: ably realtime notification
+  const { showToast, setOnRead, ToastContainer } = useNotificationToast();
 
-  // useEffect(() => {
-  //   fetchNotifications();
-  //   fetchProductionTasks();
-    
-  //   // Poll for new notifications and tasks every 10 seconds
-  //   const interval = setInterval(() => {
-  //     fetchNotifications();
-  //     fetchProductionTasks();
-  //   }, 10000);
-  //   return () => clearInterval(interval);
-  // }, []);
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchNotifications();
+    fetchProductionTasks();
+  }, []);
+
+  // Real-time Ably subscription — push new notifications to the top + show toast
+  const handleNewNotification = useCallback(
+    (incoming: { id: string; type: string; title: string; message: string; link?: string | null; createdAt: string }) => {
+      const newNotif: Notification = {
+        id: incoming.id,
+        type: incoming.type,
+        title: incoming.title,
+        message: incoming.message,
+        link: incoming.link ?? undefined,
+        read: false,
+        createdAt: incoming.createdAt,
+      };
+
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === newNotif.id)) return prev;
+        return [newNotif, ...prev].slice(0, 10);
+      });
+      setUnreadCount((prev) => prev + 1);
+
+      // Show popup toast in bottom-right
+      showToast({
+        id: incoming.id,
+        type: incoming.type,
+        title: incoming.title,
+        message: incoming.message,
+        link: incoming.link,
+        createdAt: incoming.createdAt,
+      });
+    },
+    [showToast],
+  );
+
+  useNotificationRealtime(handleNewNotification);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -117,7 +148,7 @@ export function NotificationBell() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId }),
       });
-      
+
       // Update local state
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, read: true, readAt: new Date().toISOString() } : n)
@@ -128,6 +159,11 @@ export function NotificationBell() {
     }
   };
 
+  // Wire toast click → mark as read in bell
+  useEffect(() => {
+    setOnRead((id: string) => { markAsRead(id); });
+  }, [setOnRead]);
+
   const markAllAsRead = async () => {
     try {
       await fetch('/api/notifications', {
@@ -135,7 +171,7 @@ export function NotificationBell() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),
       });
-      
+
       // Update local state
       setNotifications(prev =>
         prev.map(n => ({ ...n, read: true, readAt: new Date().toISOString() }))
@@ -150,7 +186,7 @@ export function NotificationBell() {
     if (!notification.read) {
       await markAsRead(notification.id);
     }
-    
+
     if (notification.link) {
       setIsOpen(false);
       router.push(notification.link);
@@ -161,7 +197,7 @@ export function NotificationBell() {
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (seconds < 60) return 'just now';
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -170,6 +206,26 @@ export function NotificationBell() {
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'POST_REMINDER': return '📸';
+      case 'POST_APPROVED': return '✅';
+      case 'POST_REJECTED': return '❌';
+      case 'BOARD_MOVE': return '📋';
+      default: return '📬';
+    }
+  };
+
+  const getNotificationIconBg = (type: string) => {
+    switch (type) {
+      case 'POST_REMINDER': return 'bg-indigo-100 dark:bg-indigo-900/30';
+      case 'POST_APPROVED': return 'bg-green-100 dark:bg-green-900/30';
+      case 'POST_REJECTED': return 'bg-red-100 dark:bg-red-900/30';
+      case 'BOARD_MOVE': return 'bg-blue-100 dark:bg-blue-900/30';
+      default: return 'bg-gray-100 dark:bg-gray-800';
+    }
   };
 
   const getStatusBadge = (status: ProductionTask['status']) => {
@@ -210,15 +266,17 @@ export function NotificationBell() {
   };
 
   // Calculate total urgent items
-  const urgentTasks = productionTasks.filter(task => 
-    task.status === 'PENDING' || 
-    task.status === 'IN_PROGRESS' || 
+  const urgentTasks = productionTasks.filter(task =>
+    task.status === 'PENDING' ||
+    task.status === 'IN_PROGRESS' ||
     isOverdue(task.deadline, task.status)
   );
-  
+
   const totalUnreadItems = unreadCount + (hasProductionAccess ? urgentTasks.length : 0);
 
   return (
+    <>
+    <ToastContainer />
     <div className="relative">
       {/* Bell Icon */}
       <button
@@ -247,7 +305,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          
+
           {/* Dropdown Panel */}
           <div className="absolute right-0 mt-2 w-96 bg-sidebar rounded-2xl shadow-2xl border border-sidebar-border z-20 max-h-[600px] overflow-hidden flex flex-col">
             {/* Header with Tabs */}
@@ -263,7 +321,7 @@ export function NotificationBell() {
                   </button>
                 )}
               </div>
-              
+
               {/* Tabs */}
               <div className="flex space-x-1 bg-sidebar-accent rounded-xl p-1 border border-sidebar-border">
                 <button
@@ -316,17 +374,9 @@ export function NotificationBell() {
                       >
                         <div className="flex items-start gap-3">
                           {/* Notification Icon */}
-                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                            notification.type === 'POST_REMINDER' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
-                            notification.type === 'POST_APPROVED' ? 'bg-green-100 dark:bg-green-900/30' :
-                            notification.type === 'POST_REJECTED' ? 'bg-red-100 dark:bg-red-900/30' :
-                            'bg-gray-100 dark:bg-gray-800'
-                          }`}>
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getNotificationIconBg(notification.type)}`}>
                             <span className="text-xl">
-                              {notification.type === 'POST_REMINDER' ? '📸' :
-                               notification.type === 'POST_APPROVED' ? '✅' :
-                               notification.type === 'POST_REJECTED' ? '❌' :
-                               '📬'}
+                              {getNotificationIcon(notification.type)}
                             </span>
                           </div>
 
@@ -382,8 +432,8 @@ export function NotificationBell() {
                   ) : (
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                       {productionTasks.map((task) => (
-                        <div 
-                          key={task.id} 
+                        <div
+                          key={task.id}
                           className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                         >
                           <div className="space-y-2">
@@ -391,14 +441,14 @@ export function NotificationBell() {
                               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{task.influencer}</h4>
                               {getStatusBadge(task.status)}
                             </div>
-                            
+
                             {isOverdue(task.deadline, task.status) && (
                               <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                                 <AlertCircle className="w-3 h-3 mr-1" />
                                 Overdue
                               </div>
                             )}
-                            
+
                             <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
                               <div className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
@@ -413,7 +463,7 @@ export function NotificationBell() {
                                 {task.videosGenerated}/{task.videosTarget}
                               </div>
                             </div>
-                            
+
                             {task.notes && (
                               <p className="text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded p-2">
                                 {task.notes}
@@ -429,16 +479,16 @@ export function NotificationBell() {
             </div>
 
             {/* Footer */}
-            {((activeTab === 'notifications' && notifications.length > 0) || 
+            {((activeTab === 'notifications' && notifications.length > 0) ||
               (activeTab === 'tasks' && productionTasks.length > 0)) && (
               <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-center">
                 <button
                   onClick={() => {
                     setIsOpen(false);
                     if (activeTab === 'notifications') {
-                      router.push('/dashboard/notifications');
+                      router.push(`/${params.tenant}/notifications`);
                     } else {
-                      router.push('/dashboard/admin');
+                      router.push(`/${params.tenant}/manager`);
                     }
                   }}
                   className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium"
@@ -451,5 +501,6 @@ export function NotificationBell() {
         </>
       )}
     </div>
+    </>
   );
 }

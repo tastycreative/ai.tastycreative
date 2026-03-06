@@ -56,6 +56,25 @@ export async function broadcastToBoard(
   }
 }
 
+/** Per-user notification channel for real-time in-app notifications. */
+export const notificationChannel = (clerkId: string) => `notifications:user:${clerkId}`;
+
+/**
+ * Publish a notification event to a specific user's notification channel.
+ * The NotificationBell component subscribes to this channel for real-time updates.
+ */
+export async function publishNotificationToUser(
+  clerkId: string,
+  notification: { id: string; type: string; title: string; message: string; link?: string | null; createdAt: string },
+): Promise<void> {
+  try {
+    const channel = getAblyRest().channels.get(notificationChannel(clerkId));
+    await channel.publish('notification:new', notification);
+  } catch (err) {
+    console.error('[Ably] Failed to publish notification event:', err);
+  }
+}
+
 /**
  * Publish a generation event directly to a specific user's channel.
  * Used by the /process worker to push progress and completion events.
