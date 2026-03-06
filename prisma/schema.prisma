@@ -1259,6 +1259,8 @@ model CaptionQueueContentItem {
   postedAt          DateTime?
   ticket            CaptionQueueTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   revisions         CaptionRevisionHistory[]
+  comments          ContentItemComment[]
+  history           ContentItemHistory[]
 
   @@index([ticketId])
   @@index([ticketId, captionStatus])
@@ -1280,6 +1282,39 @@ model CaptionRevisionHistory {
   @@index([contentItemId])
   @@index([contentItemId, revisionNumber])
   @@map("caption_revision_history")
+}
+
+/// Comments specific to individual content items (photos/videos)
+model ContentItemComment {
+  id            String                  @id @default(cuid())
+  contentItemId String
+  content       String
+  createdBy     String
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  contentItem   CaptionQueueContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([contentItemId])
+  @@index([createdBy])
+  @@index([contentItemId, createdAt])
+  @@map("content_item_comments")
+}
+
+/// History tracking for individual content items (photos/videos)
+model ContentItemHistory {
+  id            String                  @id @default(cuid())
+  contentItemId String
+  userId        String
+  action        String
+  field         String
+  oldValue      String?
+  newValue      String?
+  createdAt     DateTime                @default(now())
+  contentItem   CaptionQueueContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([contentItemId, createdAt])
+  @@index([userId])
+  @@map("content_item_history")
 }
 
 model CaptionQueueAssignee {
@@ -2361,6 +2396,7 @@ enum NotificationType {
   POST_REJECTED
   SYSTEM
   BOARD_MOVE
+  BOARD_COMMENT
 }
 
 enum PostType {

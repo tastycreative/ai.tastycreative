@@ -21,6 +21,7 @@ import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useBoardItemComments, useAddComment, useBoardItemHistory } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
@@ -68,6 +69,7 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
+  const { data: spaceMembers } = useSpaceMembers(spaceId);
 
   // Fetch real comments from API - only when modal is open
   const { data: commentsData, isLoading: commentsLoading } = useBoardItemComments(spaceId, boardId, task.id, isOpen);
@@ -202,6 +204,8 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
               history={history}
               onAddComment={handleAddComment}
               currentUserName={user?.firstName ?? user?.username ?? 'User'}
+              currentUserClerkId={user?.id}
+              members={spaceMembers}
               isLoading={commentsLoading}
             />
           </div>

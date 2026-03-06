@@ -33,7 +33,11 @@ import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
+import { MentionDropdown, type MentionDropdownHandle } from '../../board/MentionDropdown';
+import { CommentContent } from '../../board/CommentContent';
+import { extractMentionedClerkIds } from '@/lib/mention-utils';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
 import {
   useBoardItemComments,
@@ -298,6 +302,7 @@ export function OtpPtrTaskDetailModal({
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
+  const { data: spaceMembers } = useSpaceMembers(spaceId);
 
   const getMemberName = (id?: string) => {
     if (!id) return undefined;
@@ -313,6 +318,11 @@ export function OtpPtrTaskDetailModal({
   const [editingCaption, setEditingCaption] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [newComment, setNewComment] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartIndex, setMentionStartIndex] = useState(0);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionDropdownRef = useRef<MentionDropdownHandle>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
@@ -457,6 +467,53 @@ export function OtpPtrTaskDetailModal({
     if (!newComment.trim()) return;
     addCommentMutation.mutate(newComment.trim());
     setNewComment('');
+    setMentionQuery(null);
+  };
+
+  const mentionableMembers = spaceMembers?.filter((m) => m.user.clerkId !== user?.id) ?? [];
+  const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
+
+  function getMemberDisplayNameForMention(member: { user: { name: string | null; firstName: string | null; lastName: string | null; email: string } }) {
+    const u = member.user;
+    return u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email;
+  }
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNewComment(value);
+    if (!spaceMembers || spaceMembers.length === 0) return;
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    if (atIndex === -1) { setMentionQuery(null); return; }
+    if (atIndex > 0 && !/\s/.test(textBeforeCursor[atIndex - 1])) { setMentionQuery(null); return; }
+    const query = textBeforeCursor.slice(atIndex + 1);
+    if (query.includes('\n')) { setMentionQuery(null); return; }
+    setMentionQuery(query);
+    setMentionStartIndex(atIndex);
+    const ta = commentTextareaRef.current;
+    if (ta) setDropdownPosition({ top: ta.offsetHeight + 4, left: 0 });
+  };
+
+  const handleCommentMentionSelect = (member: (typeof mentionableMembers)[number]) => {
+    const displayName = getMemberDisplayNameForMention(member);
+    const mention = `@[${displayName}](${member.user.clerkId}) `;
+    const before = newComment.slice(0, mentionStartIndex);
+    const cursorPos = commentTextareaRef.current?.selectionStart ?? newComment.length;
+    const after = newComment.slice(cursorPos);
+    setNewComment(before + mention + after);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      const ta = commentTextareaRef.current;
+      if (ta) { ta.focus(); const pos = before.length + mention.length; ta.setSelectionRange(pos, pos); }
+    });
+  };
+
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionQuery !== null && mentionDropdownRef.current) {
+      if (mentionDropdownRef.current.handleKeyDown(e)) return;
+    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddComment();
   };
 
   const userInitial = user?.firstName?.charAt(0).toUpperCase() ?? user?.username?.charAt(0).toUpperCase() ?? 'U';
@@ -962,15 +1019,27 @@ export function OtpPtrTaskDetailModal({
                   <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue text-[11px] font-bold mt-0.5">
                     {userInitial}
                   </span>
-                  <div className="flex-1">
+                  <div className="flex-1 relative">
                     <textarea
+                      ref={commentTextareaRef}
                       value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddComment(); }}
+                      onChange={handleCommentChange}
+                      onKeyDown={handleCommentKeyDown}
                       rows={2}
-                      placeholder="Add a comment... (Cmd+Enter)"
+                      placeholder="Add a comment... Use @ to mention"
                       className="w-full rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 bg-white/[0.02] border border-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-mid-pink/30 resize-none"
                     />
+                    {mentionQuery !== null && mentionableMembers.length > 0 && (
+                      <MentionDropdown
+                        ref={mentionDropdownRef}
+                        members={mentionableMembers}
+                        query={mentionQuery}
+                        position={dropdownPosition}
+                        onSelect={handleCommentMentionSelect}
+                        onClose={() => setMentionQuery(null)}
+                        excludeClerkIds={alreadyMentionedIds}
+                      />
+                    )}
                     {newComment.trim() && (
                       <button type="button" onClick={handleAddComment} className="mt-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-brand-light-pink border border-brand-light-pink/20 hover:bg-brand-light-pink/[0.06] transition-colors">
                         Post
@@ -994,7 +1063,7 @@ export function OtpPtrTaskDetailModal({
                           <span className="text-[13px] font-medium text-gray-100">{c.author}</span>
                           <span className="text-[11px] text-gray-500">{formatDate(c.createdAt)}</span>
                         </div>
-                        <p className="text-[13px] text-gray-300 leading-relaxed">{c.content}</p>
+                        <p className="text-[13px] text-gray-300 leading-relaxed"><CommentContent content={c.content} /></p>
                       </div>
                     </div>
                   ))

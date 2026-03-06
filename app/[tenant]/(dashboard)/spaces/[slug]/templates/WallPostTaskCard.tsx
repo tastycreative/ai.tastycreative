@@ -24,6 +24,41 @@ export function WallPostTaskCard({
     ? (meta.hashtags as string[])
     : [];
 
+  // Calculate photo status counts from captionItems
+  const captionItems = Array.isArray(meta.captionItems)
+    ? (meta.captionItems as Array<{
+        captionStatus?: string | null;
+        captionText?: string | null;
+        isPosted?: boolean;
+      }>)
+    : [];
+
+  const statusCounts = captionItems.reduce(
+    (counts, item) => {
+      const hasCaption = !!item.captionText;
+
+      if (item.isPosted) {
+        counts.posted++;
+      } else if (item.captionStatus === 'approved') {
+        counts.approved++;
+      } else if (item.captionStatus === 'submitted') {
+        counts.submitted++;
+      } else if (item.captionStatus === 'rejected') {
+        counts.rejected++;
+      } else if (!hasCaption) {
+        // Awaiting caption: no caption text exists yet
+        counts.awaitingCaption++;
+      } else if (
+        !item.captionStatus ||
+        ['pending', 'in_progress', 'not_required'].includes(item.captionStatus)
+      ) {
+        counts.pending++;
+      }
+      return counts;
+    },
+    { pending: 0, submitted: 0, approved: 0, rejected: 0, posted: 0, awaitingCaption: 0 }
+  );
+
   useEffect(() => {
     setDraft(task.title);
   }, [task.title]);
@@ -150,33 +185,65 @@ export function WallPostTaskCard({
             )}
           </div>
 
-          {/* Photo status counts - Static for now */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex items-center gap-1">
-              <div className="h-2 w-2 rounded-full bg-amber-500" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                2
-              </span>
+          {/* Photo status counts - Dynamic */}
+          {captionItems.length > 0 && (
+            <div className="flex items-center gap-2 mb-2">
+              {/* Awaiting Caption */}
+              {statusCounts.awaitingCaption > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-gray-400" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.awaitingCaption}
+                  </span>
+                </div>
+              )}
+              {/* Pending */}
+              {statusCounts.pending > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-amber-500" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.pending}
+                  </span>
+                </div>
+              )}
+              {/* Submitted */}
+              {statusCounts.submitted > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-brand-blue" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.submitted}
+                  </span>
+                </div>
+              )}
+              {/* Approved */}
+              {statusCounts.approved > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.approved}
+                  </span>
+                </div>
+              )}
+              {/* Rejected */}
+              {statusCounts.rejected > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.rejected}
+                  </span>
+                </div>
+              )}
+              {/* Posted */}
+              {statusCounts.posted > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-purple-500" />
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                    {statusCounts.posted}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2 w-2 rounded-full bg-brand-blue" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                3
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                1
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                0
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Metadata row */}
           {scheduledDate && (

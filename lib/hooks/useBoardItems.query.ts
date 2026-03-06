@@ -372,6 +372,99 @@ export function useBoardItemHistory(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Content Item Comments & History                                   */
+/* ------------------------------------------------------------------ */
+
+const contentItemKeys = {
+  all: ['content-items'] as const,
+  comments: (contentItemId: string) => [...contentItemKeys.all, contentItemId, 'comments'] as const,
+  history: (contentItemId: string) => [...contentItemKeys.all, contentItemId, 'history'] as const,
+};
+
+async function fetchContentItemComments(contentItemId: string) {
+  const response = await fetch(`/api/content-items/${contentItemId}/comments`);
+  if (!response.ok) throw new Error('Failed to fetch content item comments');
+  return response.json();
+}
+
+async function fetchContentItemHistory(contentItemId: string) {
+  const response = await fetch(`/api/content-items/${contentItemId}/history`);
+  if (!response.ok) throw new Error('Failed to fetch content item history');
+  return response.json();
+}
+
+async function addContentItemComment(contentItemId: string, content: string) {
+  const response = await fetch(`/api/content-items/${contentItemId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok) throw new Error('Failed to add content item comment');
+  return response.json();
+}
+
+export function useContentItemComments(
+  contentItemId: string | undefined | null,
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: contentItemKeys.comments(contentItemId!),
+    queryFn: () => fetchContentItemComments(contentItemId!),
+    enabled: enabled && !!contentItemId,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useAddContentItemComment(contentItemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) => addContentItemComment(contentItemId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentItemKeys.comments(contentItemId),
+      });
+    },
+  });
+}
+
+export function useContentItemHistory(
+  contentItemId: string | undefined | null,
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: contentItemKeys.history(contentItemId!),
+    queryFn: () => fetchContentItemHistory(contentItemId!),
+    enabled: enabled && !!contentItemId,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Fetch comments for multiple content items
+async function fetchAllContentItemComments(contentItemIds: string[]) {
+  const results = await Promise.all(
+    contentItemIds.map(id => fetchContentItemComments(id).catch(() => ({ comments: [] })))
+  );
+
+  // Flatten all comments into a single array
+  return results.flatMap(result => result.comments || []);
+}
+
+export function useAllContentItemComments(
+  contentItemIds: string[],
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: [...contentItemKeys.all, 'all-comments', ...contentItemIds.sort()],
+    queryFn: () => fetchAllContentItemComments(contentItemIds),
+    enabled: enabled && contentItemIds.length > 0,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Column Creation                                                    */
 /* ------------------------------------------------------------------ */
 

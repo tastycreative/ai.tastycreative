@@ -37,11 +37,16 @@ import {
   type TaskHistoryEntry,
 } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import {
   useBoardItemComments,
   useAddComment,
   useBoardItemHistory,
   useBoardItemMedia,
+  useContentItemComments,
+  useAddContentItemComment,
+  useContentItemHistory,
+  useAllContentItemComments,
 } from '@/lib/hooks/useBoardItems.query';
 import { usePushToCaptionWorkspace, useQAAction, useQAItemAction, useRepushRejected, useMarkItemPosted } from '@/lib/hooks/useCaptionQueue.query';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
@@ -586,6 +591,7 @@ export function WallPostTaskDetailModal({
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
+  const { data: spaceMembers } = useSpaceMembers(spaceId);
 
   const [activeTab, setActiveTab] = useState<ModalTab>('description');
   const [selectedItemIndex, setSelectedItemIndex] = useState(0);
@@ -715,6 +721,34 @@ export function WallPostTaskDetailModal({
     return counts;
   }, [mediaWithCaptions]);
 
+  /* ── Per-photo activity feed hooks ────────────────────── */
+
+  const selectedItem = mediaWithCaptions[selectedItemIndex] ?? mediaWithCaptions[0];
+  const selectedContentItemId = selectedItem?.contentItemId;
+
+  // Get all content item IDs for fetching all comments
+  const allContentItemIds = useMemo(
+    () => mediaWithCaptions.map(m => m.contentItemId).filter((id): id is string => !!id),
+    [mediaWithCaptions]
+  );
+
+  // Fetch comments for the selected photo (Photos tab)
+  const { data: contentItemCommentsData, isLoading: contentItemCommentsLoading } =
+    useContentItemComments(selectedContentItemId, isOpen && activeTab === 'photos');
+
+  // Fetch all photo comments (Description tab)
+  const { data: allContentItemCommentsData } = useAllContentItemComments(
+    allContentItemIds,
+    isOpen && activeTab === 'description'
+  );
+
+  const addContentItemCommentMutation = useAddContentItemComment(selectedContentItemId || 'placeholder');
+
+  const { data: contentItemHistoryData } = useContentItemHistory(
+    selectedContentItemId,
+    isOpen && activeTab === 'photos'
+  );
+
   const filteredPhotoItems = useMemo(() => {
     if (photoFilterTab === 'all') return mediaWithCaptions;
     return mediaWithCaptions.filter((m) => {
@@ -759,6 +793,85 @@ export function WallPostTaskDetailModal({
 
   const handleAddComment = (content: string) => {
     addCommentMutation.mutate(content);
+  };
+
+  // Combined comments for Description tab (board-level + all photo comments)
+  const allComments: TaskComment[] = useMemo(() => {
+    const currentUserId = user?.id;
+    const boardComments = comments || [];
+
+    // Process all photo comments with photo info
+    const photoComments: TaskComment[] = (allContentItemCommentsData || []).map((c: any) => {
+      // Find which photo this comment belongs to
+      const photoIndex = mediaWithCaptions.findIndex(m => m.contentItemId === c.contentItemId);
+      const photo = mediaWithCaptions[photoIndex];
+
+      return {
+        id: c.id,
+        author:
+          c.createdBy === currentUserId
+            ? (user?.firstName ?? user?.username ?? 'You')
+            : c.author,
+        content: c.content,
+        createdAt: c.createdAt,
+        // Add photo context
+        photoContext: photo ? {
+          index: photoIndex + 1,
+          name: photo.name || `Photo ${photoIndex + 1}`,
+          url: photo.url,
+        } : undefined,
+      };
+    });
+
+    // Combine and sort by date (newest first)
+    return [...boardComments, ...photoComments].sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [comments, allContentItemCommentsData, user, mediaWithCaptions]);
+
+  const contentItemComments: TaskComment[] = useMemo(() => {
+    if (!contentItemCommentsData?.comments) return [];
+    const currentUserId = user?.id;
+    return contentItemCommentsData.comments.map((c: any) => ({
+      id: c.id,
+      author:
+        c.createdBy === currentUserId
+          ? (user?.firstName ?? user?.username ?? 'You')
+          : c.author,
+      content: c.content,
+      createdAt: c.createdAt,
+    }));
+  }, [contentItemCommentsData, user]);
+
+  const contentItemHistory: TaskHistoryEntry[] = useMemo(() => {
+    if (!contentItemHistoryData?.history) return [];
+    const currentUserId = user?.id;
+    return contentItemHistoryData.history.map((h: any) => ({
+      id: h.id,
+      action: h.action,
+      field: h.field,
+      oldValue: h.oldValue,
+      newValue: h.newValue,
+      changedBy:
+        h.userId === currentUserId
+          ? (user?.firstName ?? user?.username ?? 'You')
+          : h.userName,
+      changedAt: h.createdAt,
+    }));
+  }, [contentItemHistoryData, user]);
+
+  const handleAddContentItemComment = (content: string) => {
+    if (!selectedContentItemId) {
+      console.warn('Cannot add comment: no contentItemId for this photo');
+      return;
+    }
+    addContentItemCommentMutation.mutate(content);
+  };
+
+  const handlePhotoClick = (photoIndex: number) => {
+    setActiveTab('photos');
+    setSelectedItemIndex(photoIndex);
+    setSidebarOpen(false);
   };
 
   /* ── Push to Caption Workspace ──────────────────────── */
@@ -1447,16 +1560,19 @@ export function WallPostTaskDetailModal({
                   )}
                 </GlowCard>
 
-                {/* Activity Feed */}
+                {/* Activity Feed - Shows all comments (board + all photos) */}
                 <div className="mt-2">
                   <ActivityFeed
-                    comments={comments}
+                    comments={allComments}
                     history={history}
                     onAddComment={handleAddComment}
                     currentUserName={
                       user?.firstName ?? user?.username ?? 'User'
                     }
+                    currentUserClerkId={user?.id}
+                    members={spaceMembers}
                     isLoading={commentsLoading}
+                    onPhotoClick={handlePhotoClick}
                   />
                 </div>
               </>
@@ -1785,15 +1901,25 @@ export function WallPostTaskDetailModal({
                     );
                   })()}
 
-                  {/* Activity Feed */}
+                  {/* Activity Feed - Per Photo or Board Level */}
                   <div className="mt-2">
-                    <ActivityFeed
-                      comments={comments}
-                      history={history}
-                      onAddComment={handleAddComment}
-                      currentUserName={user?.firstName ?? user?.username ?? 'User'}
-                      isLoading={commentsLoading}
-                    />
+                    {selectedContentItemId ? (
+                      <ActivityFeed
+                        comments={contentItemComments}
+                        history={contentItemHistory}
+                        onAddComment={handleAddContentItemComment}
+                        currentUserName={user?.firstName ?? user?.username ?? 'User'}
+                        currentUserClerkId={user?.id}
+                        members={spaceMembers}
+                        isLoading={contentItemCommentsLoading}
+                      />
+                    ) : (
+                      <div className="rounded-lg px-4 py-3 text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <p className="text-[11px] text-gray-500 italic">
+                          Per-photo comments will be available after pushing to caption workspace
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )

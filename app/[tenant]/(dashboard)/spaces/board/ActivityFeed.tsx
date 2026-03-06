@@ -1,7 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { MessageSquare, History, ListTodo, Plus } from 'lucide-react';
+import type { SpaceMember } from '@/lib/hooks/useSpaceMembers.query';
+import { extractMentionedClerkIds } from '@/lib/mention-utils';
+import { MentionDropdown, type MentionDropdownHandle } from './MentionDropdown';
+import { CommentContent } from './CommentContent';
 
 type ActivityTab = 'all' | 'comments' | 'history';
 
@@ -10,6 +14,11 @@ export interface TaskComment {
   author: string;
   content: string;
   createdAt: string;
+  photoContext?: {
+    index: number;
+    name: string;
+    url: string;
+  };
 }
 
 export interface TaskHistoryEntry {
@@ -27,7 +36,10 @@ interface ActivityFeedProps {
   history: TaskHistoryEntry[];
   onAddComment: (content: string) => void;
   currentUserName?: string;
+  currentUserClerkId?: string;
+  members?: SpaceMember[];
   isLoading?: boolean;
+  onPhotoClick?: (photoIndex: number) => void;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -59,15 +71,125 @@ function formatDate(iso: string) {
   });
 }
 
-export function ActivityFeed({ comments, history, onAddComment, currentUserName, isLoading = false }: ActivityFeedProps) {
+function getMemberDisplayName(member: SpaceMember): string {
+  const u = member.user;
+  return u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email;
+}
+
+export function ActivityFeed({
+  comments,
+  history,
+  onAddComment,
+  currentUserName,
+  currentUserClerkId,
+  members,
+  isLoading = false,
+  onPhotoClick,
+}: ActivityFeedProps) {
   const [tab, setTab] = useState<ActivityTab>('all');
   const [newComment, setNewComment] = useState('');
+
+  // Mention state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartIndex, setMentionStartIndex] = useState<number>(0);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dropdownRef = useRef<MentionDropdownHandle>(null);
 
   const handleAdd = () => {
     if (!newComment.trim()) return;
     onAddComment(newComment.trim());
     setNewComment('');
+    setMentionQuery(null);
   };
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value;
+      setNewComment(value);
+
+      if (!members || members.length === 0) return;
+
+      const cursorPos = e.target.selectionStart;
+      // Look backward from cursor for an unmatched @
+      const textBeforeCursor = value.slice(0, cursorPos);
+      const atIndex = textBeforeCursor.lastIndexOf('@');
+
+      if (atIndex === -1) {
+        setMentionQuery(null);
+        return;
+      }
+
+      // @ must be at start or preceded by whitespace
+      if (atIndex > 0 && !/\s/.test(textBeforeCursor[atIndex - 1])) {
+        setMentionQuery(null);
+        return;
+      }
+
+      const query = textBeforeCursor.slice(atIndex + 1);
+      // Close dropdown if there's a space followed by another space (user moved on)
+      if (query.includes('\n')) {
+        setMentionQuery(null);
+        return;
+      }
+
+      setMentionQuery(query);
+      setMentionStartIndex(atIndex);
+
+      // Position dropdown below the textarea
+      const textarea = textareaRef.current;
+      if (textarea) {
+        setDropdownPosition({
+          top: textarea.offsetHeight + 4,
+          left: 0,
+        });
+      }
+    },
+    [members]
+  );
+
+  const handleMentionSelect = useCallback(
+    (member: SpaceMember) => {
+      const displayName = getMemberDisplayName(member);
+      const mention = `@[${displayName}](${member.user.clerkId}) `;
+      const before = newComment.slice(0, mentionStartIndex);
+      const cursorPos = textareaRef.current?.selectionStart ?? newComment.length;
+      const after = newComment.slice(cursorPos);
+      const updated = before + mention + after;
+
+      setNewComment(updated);
+      setMentionQuery(null);
+
+      // Refocus textarea and set cursor after mention
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          ta.focus();
+          const pos = before.length + mention.length;
+          ta.setSelectionRange(pos, pos);
+        }
+      });
+    },
+    [newComment, mentionStartIndex]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Delegate to dropdown first if open
+      if (mentionQuery !== null && dropdownRef.current) {
+        const handled = dropdownRef.current.handleKeyDown(e);
+        if (handled) return;
+      }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd();
+    },
+    [mentionQuery, handleAdd]
+  );
+
+  // Filter out current user from mentionable members
+  const mentionableMembers = members?.filter((m) => m.user.clerkId !== currentUserClerkId) ?? [];
+
+  // Track already-mentioned clerk IDs in the current comment
+  const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
 
   // Get the first letter of the current user's name for the avatar
   const userInitial = currentUserName?.charAt(0).toUpperCase() || 'U';
@@ -124,17 +246,27 @@ export function ActivityFeed({ comments, history, onAddComment, currentUserName,
           <span className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/15 text-brand-blue text-[10px] font-bold mt-0.5">
             {userInitial}
           </span>
-          <div className="flex-1">
+          <div className="flex-1 relative">
             <textarea
+              ref={textareaRef}
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd();
-              }}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
               rows={2}
-              placeholder="Add a comment..."
+              placeholder="Add a comment... Use @ to mention"
               className="w-full rounded-xl border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-3 py-2 text-xs text-gray-800 dark:text-brand-off-white placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/60 resize-none"
             />
+            {mentionQuery !== null && mentionableMembers.length > 0 && (
+              <MentionDropdown
+                ref={dropdownRef}
+                members={mentionableMembers}
+                query={mentionQuery}
+                position={dropdownPosition}
+                onSelect={handleMentionSelect}
+                onClose={() => setMentionQuery(null)}
+                excludeClerkIds={alreadyMentionedIds}
+              />
+            )}
             {newComment.trim() && (
               <button
                 type="button"
@@ -182,8 +314,21 @@ export function ActivityFeed({ comments, history, onAddComment, currentUserName,
                           {c.author}
                         </span>
                         <span className="text-[10px] text-gray-400">{formatDate(c.createdAt)}</span>
+                        {c.photoContext && (
+                          <button
+                            type="button"
+                            onClick={() => onPhotoClick?.(c.photoContext!.index - 1)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-brand-light-pink/10 text-brand-light-pink border border-brand-light-pink/20 hover:bg-brand-light-pink/20 transition-colors"
+                            title={`View ${c.photoContext.name}`}
+                          >
+                            <span>📷</span>
+                            <span>{c.photoContext.name}</span>
+                          </button>
+                        )}
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-300">{c.content}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        <CommentContent content={c.content} />
+                      </p>
                     </div>
                   </div>
                 );

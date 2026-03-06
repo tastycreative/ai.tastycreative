@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { publishBoardEvent } from '@/lib/ably';
-import { sendBoardCommentNotification } from '@/lib/board-comment-notification';
 
 type Params = {
-  params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
+  params: Promise<{ contentItemId: string }>;
 };
 
 /* ------------------------------------------------------------------ */
-/*  GET  .../items/:itemId/comments                                    */
+/*  GET  .../content-items/:contentItemId/comments                    */
 /* ------------------------------------------------------------------ */
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -17,10 +15,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { itemId } = await params;
+    const { contentItemId } = await params;
 
-    const comments = await prisma.boardItemComment.findMany({
-      where: { itemId },
+    const comments = await prisma.contentItemComment.findMany({
+      where: { contentItemId },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -51,16 +49,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
         createdBy: c.createdBy,
         author: userMap.get(c.createdBy) || 'Unknown User',
         createdAt: c.createdAt.toISOString(),
+        contentItemId: c.contentItemId,
       })),
     });
   } catch (error) {
-    console.error('Error fetching comments:', error);
+    console.error('Error fetching content item comments:', error);
     return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
   }
 }
 
 /* ------------------------------------------------------------------ */
-/*  POST .../items/:itemId/comments                                    */
+/*  POST .../content-items/:contentItemId/comments                    */
 /* ------------------------------------------------------------------ */
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -68,16 +67,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { spaceId, boardId, itemId } = await params;
+    const { contentItemId } = await params;
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body.content !== 'string' || !body.content.trim()) {
       return NextResponse.json({ error: 'Content is required.' }, { status: 400 });
     }
 
-    const comment = await prisma.boardItemComment.create({
+    const comment = await prisma.contentItemComment.create({
       data: {
-        itemId,
+        contentItemId,
         createdBy: userId,
         content: body.content.trim(),
       },
@@ -93,17 +92,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       ? `${user.firstName} ${user.lastName}`
       : user?.firstName || user?.lastName || user?.email || 'Unknown User';
 
-    const senderTab = req.headers.get('x-tab-id') ?? undefined;
-    publishBoardEvent(boardId, 'comment.created', { userId, entityId: itemId, tabId: senderTab });
-
-    // Fire-and-forget comment notification
-    sendBoardCommentNotification({
-      itemId,
-      spaceId,
-      commentContent: body.content.trim(),
-      commenterClerkId: userId,
-    }).catch((e) => console.error('[board-comment-notification]', e));
-
     return NextResponse.json(
       {
         id: comment.id,
@@ -111,11 +99,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         createdBy: comment.createdBy,
         author,
         createdAt: comment.createdAt.toISOString(),
+        contentItemId: comment.contentItemId,
       },
       { status: 201 },
     );
   } catch (error) {
-    console.error('Error adding comment:', error);
+    console.error('Error adding content item comment:', error);
     return NextResponse.json({ error: 'Failed to add comment' }, { status: 500 });
   }
 }
