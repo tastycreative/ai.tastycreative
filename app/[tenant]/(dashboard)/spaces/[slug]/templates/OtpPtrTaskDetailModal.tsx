@@ -326,6 +326,7 @@ export function OtpPtrTaskDetailModal({
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
+  const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
 
   /* ── Metadata ────────────────────────────────────────── */
 
@@ -471,7 +472,6 @@ export function OtpPtrTaskDetailModal({
   };
 
   const mentionableMembers = spaceMembers?.filter((m) => m.user.clerkId !== user?.id) ?? [];
-  const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
 
   function getMemberDisplayNameForMention(member: { user: { name: string | null; firstName: string | null; lastName: string | null; email: string } }) {
     const u = member.user;
