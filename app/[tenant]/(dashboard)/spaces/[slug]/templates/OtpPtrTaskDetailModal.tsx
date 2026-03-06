@@ -1029,7 +1029,7 @@ export function OtpPtrTaskDetailModal({
                       placeholder="Add a comment... Use @ to mention"
                       className="w-full rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 bg-white/[0.02] border border-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-mid-pink/30 resize-none"
                     />
-                    {mentionQuery !== null && mentionableMembers.length > 0 && (
+                    {mentionQuery !== null && (
                       <MentionDropdown
                         ref={mentionDropdownRef}
                         members={mentionableMembers}

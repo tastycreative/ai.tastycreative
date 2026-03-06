@@ -85,15 +85,17 @@ export const MentionDropdown = forwardRef<MentionDropdownHandle, MentionDropdown
       },
     }));
 
-    if (filtered.length === 0) return null;
-
     return (
       <div
         className="absolute z-50 w-64 max-h-52 overflow-y-auto rounded-xl border border-gray-200 dark:border-brand-mid-pink/20 bg-white dark:bg-gray-900 shadow-lg"
         style={{ top: position.top, left: position.left }}
         ref={listRef}
       >
-        {filtered.map((member, i) => (
+        {filtered.length === 0 ? (
+          <div className="px-3 py-3 text-xs text-gray-400 dark:text-gray-500 text-center">
+            No members found
+          </div>
+        ) : filtered.map((member, i) => (
           <button
             key={member.id}
             type="button"
@@ -116,6 +118,7 @@ export const MentionDropdown = forwardRef<MentionDropdownHandle, MentionDropdown
           </button>
         ))}
       </div>
+
     );
   }
 );

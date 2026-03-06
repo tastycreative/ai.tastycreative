@@ -256,7 +256,7 @@ export function ActivityFeed({
               placeholder="Add a comment... Use @ to mention"
               className="w-full rounded-xl border border-gray-200 dark:border-brand-mid-pink/20 bg-white/80 dark:bg-gray-900/60 px-3 py-2 text-xs text-gray-800 dark:text-brand-off-white placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light-pink/60 resize-none"
             />
-            {mentionQuery !== null && mentionableMembers.length > 0 && (
+            {mentionQuery !== null && (
               <MentionDropdown
                 ref={dropdownRef}
                 members={mentionableMembers}
