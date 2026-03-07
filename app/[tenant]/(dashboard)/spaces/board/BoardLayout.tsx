@@ -287,47 +287,46 @@ export function BoardLayout({
       </div>
 
       {/* ── Tabs + Filter toolbar — unified bar ───────────────── */}
-      <div className="relative rounded-t-xl overflow-hidden border border-b-0 border-gray-200/60 dark:border-brand-mid-pink/10 bg-gray-50/50 dark:bg-gray-900/40">
-        {/* Tab row */}
-        <div className="flex items-center gap-1 px-2 pt-1">
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTab;
-            const icon = tabIcons[tab.id];
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabChange(tab.id)}
-                className={[
-                  'relative inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
-                  isActive
-                    ? 'text-brand-light-pink'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
-                ].join(' ')}
-              >
-                {icon && <span className={isActive ? 'text-brand-light-pink' : 'opacity-40'}>{icon}</span>}
-                {tab.label}
-                {isActive && (
-                  <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-light-pink" />
-                )}
-              </button>
-            );
-          })}
+      <div className="relative rounded-t-xl overflow-hidden border border-b-0 border-gray-200/60 dark:border-[#2a3450]/40 bg-gray-50/50 dark:bg-[#0f1729]/60 backdrop-blur-sm">
+        {/* Tab row — pill-shaped segmented controls */}
+        <div className="flex items-center gap-1 px-3 py-2">
+          <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100/80 dark:bg-[#1a2237]/60 p-1 border border-gray-200/50 dark:border-[#2a3450]/50">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTab;
+              const icon = tabIcons[tab.id];
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={[
+                    'relative inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200',
+                    isActive
+                      ? 'bg-white dark:bg-[#2a3450]/80 text-brand-light-pink shadow-sm shadow-brand-light-pink/10 ring-1 ring-brand-light-pink/20'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-white/5',
+                  ].join(' ')}
+                >
+                  {icon && <span className={isActive ? 'text-brand-light-pink' : 'opacity-40'}>{icon}</span>}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* ── Filter toolbar ─────────────────────────────────────── */}
       <div className="relative mb-3 z-30" ref={toolbarRef}>
-        <div className="flex items-center gap-2 rounded-b-xl border border-t-0 border-gray-200/60 dark:border-brand-mid-pink/10 bg-gradient-to-b from-gray-50/80 to-white/60 dark:from-gray-900/60 dark:to-gray-950/40 backdrop-blur-sm px-3 py-2">
-          {/* Search */}
+        <div className="flex items-center gap-2 rounded-b-xl border border-t-0 border-gray-200/60 dark:border-[#2a3450]/40 bg-gradient-to-b from-gray-50/80 to-white/60 dark:from-[#0f1729]/80 dark:to-[#0f1729]/60 backdrop-blur-md px-3 py-2">
+          {/* Search — frosted glass effect */}
           <div className="relative flex-1 min-w-0 max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks..."
-              className="w-full rounded-lg bg-gray-100/80 dark:bg-gray-800/60 border-0 pl-8 pr-7 py-2 text-sm text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/50 transition-shadow"
+              className="w-full rounded-xl bg-gray-100/80 dark:bg-white/[0.04] backdrop-blur-sm border border-gray-200/60 dark:border-[#2a3450]/60 pl-9 pr-7 py-2 text-sm text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/40 focus-visible:border-brand-light-pink/30 transition-all shadow-inner shadow-black/[0.02] dark:shadow-black/10"
             />
             {searchQuery && (
               <button
@@ -611,12 +610,12 @@ export function BoardLayout({
           {/* Divider */}
           <div className="h-5 w-px bg-gray-200 dark:bg-brand-mid-pink/15 shrink-0" />
 
-          {/* Task count badge */}
-          <div className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 px-2.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">
-            <Sparkles className="h-3 w-3 text-brand-light-pink" />
+          {/* Task count badge — pink accent glow */}
+          <div className="inline-flex items-center gap-1.5 rounded-xl bg-brand-light-pink/10 dark:bg-brand-light-pink/[0.08] border border-brand-light-pink/20 px-2.5 py-1.5 text-xs font-semibold text-brand-light-pink shrink-0 shadow-sm shadow-brand-light-pink/5">
+            <Sparkles className="h-3 w-3" />
             <span className="tabular-nums">
               {displayedCount !== totalTaskCount ? (
-                <><span className="text-brand-light-pink">{displayedCount}</span> / {totalTaskCount}</>
+                <>{displayedCount} <span className="text-brand-light-pink/50">/</span> {totalTaskCount}</>
               ) : (
                 totalTaskCount
               )}

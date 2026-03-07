@@ -30,6 +30,7 @@ import { useContentTypeOptions, formatContentTypePrice, type ContentTypeOption }
 import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 import { useQuery } from '@tanstack/react-query';
 import { CONTENT_TAGS } from '@/lib/constants/contentTags';
+import { PlatformSelector } from './PlatformSelector';
 
 type SubmissionTemplateType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -342,6 +343,14 @@ export function ContentDetailsFields({
             </span>
             <div className="h-px w-8 bg-zinc-800" />
           </div>
+          {/* Platform Selector */}
+          <div className="mb-4">
+            <PlatformSelector
+              value={watch('platform') ?? ['onlyfans']}
+              onChange={(val) => setValue('platform', val, { shouldDirty: true })}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">

@@ -100,9 +100,24 @@ export async function POST(req: NextRequest, { params }: Params) {
       (meta.requestType as string) ||
       'CUSTOM';
 
-    // Look up model by name if provided
+    // Determine platform from metadata (array → mapped to gallery constants)
+    const PLATFORM_MAP: Record<string, string> = { onlyfans: 'OF', fansly: 'FANSLY' };
+    const platforms = Array.isArray(meta.platforms)
+      ? (meta.platforms as string[]).map((p: string) => PLATFORM_MAP[p] || p)
+      : ['OF'];
+    // Use first platform for the primary gallery entry
+    const platformStr = platforms[0] || 'OF';
+
+    // Look up model — verify modelId exists, fall back to name lookup
     let modelId: string | null = null;
-    if (meta.model && typeof meta.model === 'string') {
+    if (meta.modelId && typeof meta.modelId === 'string') {
+      const exists = await prisma.of_models.findUnique({
+        where: { id: meta.modelId as string },
+        select: { id: true },
+      });
+      modelId = exists?.id ?? null;
+    }
+    if (!modelId && meta.model && typeof meta.model === 'string') {
       const model = await prisma.of_models.findFirst({
         where: {
           name: { equals: meta.model as string, mode: 'insensitive' },
@@ -112,32 +127,43 @@ export async function POST(req: NextRequest, { params }: Params) {
       modelId = model?.id ?? null;
     }
 
-    // 6. Move item to "Posted" column and create gallery entry in a transaction
-    const [updatedItem, galleryItem] = await prisma.$transaction([
-      prisma.boardItem.update({
+    // 6. Move item to "Posted" column and create gallery entries in a transaction
+    const galleryBase = {
+      title: item.title,
+      contentType,
+      pricingAmount: meta.price != null && !isNaN(Number(meta.price)) ? Number(meta.price) : null,
+      captionUsed: (meta.caption as string) ?? null,
+      tags,
+      previewUrl: previewUrl || '/placeholder-gallery.png',
+      originalAssetUrl: (meta.driveLink as string) ?? null,
+      postedAt: new Date(),
+      origin: 'board',
+      sourceId: item.id,
+      organizationId: item.organizationId,
+      modelId,
+      createdBy: userId,
+    };
+
+    const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
+      const updated = await tx.boardItem.update({
         where: { id: itemId },
         data: { columnId: postedColumn.id },
-      }),
-      prisma.gallery_items.create({
-        data: {
-          title: item.title,
-          contentType,
-          platform: 'OF',
-          pricingAmount: meta.price != null ? Number(meta.price) : null,
-          captionUsed: (meta.caption as string) ?? null,
-          tags,
-          previewUrl: previewUrl || '/placeholder-gallery.png',
-          originalAssetUrl: (meta.driveLink as string) ?? null,
-          postedAt: new Date(),
-          origin: 'board',
-          sourceId: item.id,
-          boardItemId: item.id,
-          organizationId: item.organizationId,
-          modelId,
-          createdBy: userId,
-        },
-      }),
-    ]);
+      });
+
+      // Primary gallery entry (linked to board item)
+      const gallery = await tx.gallery_items.create({
+        data: { ...galleryBase, platform: platformStr, boardItemId: item.id },
+      });
+
+      // Additional gallery entries for extra platforms
+      for (const p of platforms.slice(1)) {
+        await tx.gallery_items.create({
+          data: { ...galleryBase, platform: p },
+        });
+      }
+
+      return { updatedItem: updated, galleryItem: gallery };
+    });
 
     // 7. Create history entry for the column move
     await prisma.boardItemHistory.create({
@@ -176,11 +202,13 @@ export async function POST(req: NextRequest, { params }: Params) {
         platform: galleryItem.platform,
         previewUrl: galleryItem.previewUrl,
       },
+      totalGalleryItems: platforms.length,
     });
   } catch (error) {
-    console.error('Error marking item as final:', error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('Error marking item as final:', err.message, err.stack);
     return NextResponse.json(
-      { error: 'Failed to mark item as final' },
+      { error: 'Failed to mark item as final', details: err.message },
       { status: 500 },
     );
   }

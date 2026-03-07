@@ -234,6 +234,8 @@ export const SubmissionForm = memo(function SubmissionForm({
         dueDate: rawDue ? new Date(rawDue).toISOString() : undefined,
         assigneeId: assigneeId || undefined,
         metadata: {
+          // Spread raw metadata first so explicit fields below take priority
+          ...meta,
           submissionType: data.submissionType,
           contentStyle,
           // Game-specific fields
@@ -253,9 +255,9 @@ export const SubmissionForm = memo(function SubmissionForm({
           contentTags: data.contentTags,
           internalModelTags: data.internalModelTags,
           externalCreatorTags: data.externalCreatorTags,
-          ...meta,
           // Hoist top-level form fields into metadata so board items can access them
           modelId: data.modelId ?? null,
+          platforms: data.platform ?? ['onlyfans'],
           // Wall post workflow: set initial status so it appears in Caption Workspace flow
           ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
         },
@@ -485,10 +487,10 @@ export const SubmissionForm = memo(function SubmissionForm({
         />
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={(e) => e.preventDefault()}
           onKeyDown={(e) => {
-            // Prevent Enter key from auto-submitting when not on the final step
-            if (e.key === 'Enter' && currentStep < steps.length - 1 && !(e.target instanceof HTMLTextAreaElement)) {
+            // Prevent Enter key from triggering any implicit form submission
+            if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
               e.preventDefault();
             }
           }}
@@ -611,7 +613,8 @@ export const SubmissionForm = memo(function SubmissionForm({
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit(onSubmit)}
                   disabled={isSubmitting || targetLoading || !hasTarget}
                   className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 hover:shadow-xl hover:shadow-brand-light-pink/30 active:scale-[0.97]"
                 >

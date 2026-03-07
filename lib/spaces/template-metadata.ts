@@ -208,8 +208,7 @@ export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
   { key: 'isPaid', label: 'Paid', type: 'boolean' },
   { key: 'fulfillmentNotes', label: 'Fulfillment Notes', type: 'textarea', placeholder: 'Delivery instructions...' },
   { key: 'caption', label: 'Caption', type: 'textarea', placeholder: 'PGT caption text...' },
-  { key: 'gameType', label: 'Game Type', type: 'text', placeholder: 'e.g. Wheel, Dice, Trivia...' },
-  { key: 'gifUrl', label: 'GIF URL', type: 'text', placeholder: 'https://...' },
+  // gameType, gifUrl, gameNotes — handled in Content Style step (ContentStyleSelector)
 ];
 
 /* ================================================================== */

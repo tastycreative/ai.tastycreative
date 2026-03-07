@@ -28,10 +28,10 @@ interface OtpPtrTaskCardProps {
   onMarkFinal?: (taskId: string) => void;
 }
 
-const TYPE_DOT: Record<string, string> = {
-  OTP: 'bg-brand-blue',
-  PTR: 'bg-brand-light-pink',
-  CUSTOM: 'bg-amber-400',
+const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
+  OTP: { bg: 'bg-blue-500/15 border-blue-500/25', text: 'text-blue-400' },
+  PTR: { bg: 'bg-brand-light-pink/15 border-brand-light-pink/25', text: 'text-brand-light-pink' },
+  CUSTOM: { bg: 'bg-amber-500/15 border-amber-500/25', text: 'text-amber-400' },
 };
 
 const STYLE_LABEL: Record<string, string> = {
@@ -40,6 +40,12 @@ const STYLE_LABEL: Record<string, string> = {
   POLL: 'Poll',
   BUNDLE: 'Bundle',
   NORMAL: '',
+};
+
+const PRIORITY_BORDER: Record<string, string> = {
+  High: 'border-l-red-400',
+  Medium: 'border-l-amber-400',
+  Low: 'border-l-emerald-400',
 };
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -106,6 +112,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   const isPaid = meta.isPaid as boolean | undefined;
   const model = (meta.model as string) ?? '';
   const buyer = (meta.buyer as string) ?? '';
+  const platforms = Array.isArray(meta.platforms) ? (meta.platforms as string[]) : [];
   const deadline = (meta.deadline as string) ?? '';
   const createdAt = typeof meta._createdAt === 'string' ? meta._createdAt : '';
   const captionStatus = (meta.otpPtrCaptionStatus as OtpPtrCaptionStatus) ?? null;
@@ -119,6 +126,8 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   })();
 
   const assigneeInitial = assigneeName?.charAt(0)?.toUpperCase() ?? null;
+  const typeBadge = TYPE_BADGE[requestType] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
+  const priorityBorder = PRIORITY_BORDER[task.priority ?? ''] ?? 'border-l-transparent';
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -130,43 +139,37 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
             {...provided.dragHandleProps}
             onClick={() => { if (!editing) onClick?.(task); }}
             className={[
-              'group/card relative rounded-lg cursor-pointer select-none',
-              'bg-white dark:bg-[#111016] border',
+              'group/card relative rounded-xl cursor-pointer select-none',
+              'border-l-[3px]',
+              priorityBorder,
+              'bg-white/[0.03] dark:bg-[#1a2237]/80 backdrop-blur-sm border border-[#2a3450]/60',
               snapshot.isDragging
-                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/50 ring-1 ring-brand-light-pink/20'
-                : 'border-gray-200 dark:border-white/[0.06] hover:border-gray-300 dark:hover:border-white/[0.12]',
-              'transition-colors duration-150',
+                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/50 ring-1 ring-brand-light-pink/20 scale-[1.02]'
+                : 'hover:bg-white/[0.06] dark:hover:bg-[#1a2237] hover:border-[#2a3450] hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5',
+              'transition-all duration-200',
             ].join(' ')}
           >
             <div className="px-3.5 pt-3 pb-2.5">
-              {/* Row 1: type dot + key + style + caption status */}
-              <div className="flex items-center gap-1.5 mb-2">
-                {requestType && (
-                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${TYPE_DOT[requestType] ?? 'bg-gray-400'}`} />
-                )}
-                <span className="text-xs font-mono font-semibold text-gray-500 dark:text-gray-400 tracking-wide">
-                  {task.taskKey}
+              {/* Row 1: ticket badge + style + caption status */}
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold tracking-wide ${typeBadge.bg} ${typeBadge.text}`}>
+                  <span className="font-mono">{task.taskKey}</span>
+                  {requestType && <span>{requestType}</span>}
                 </span>
-                {requestType && (
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    {requestType}
-                  </span>
-                )}
                 {styleLabel && (
-                  <>
-                    <span className="text-gray-300 dark:text-gray-600 text-[10px]">/</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{styleLabel}</span>
-                  </>
+                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5">
+                    {styleLabel}
+                  </span>
                 )}
 
                 <span className="flex-1" />
 
                 {captionStatus && OTP_PTR_STATUS_CONFIG[captionStatus] && (
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-semibold ${OTP_PTR_STATUS_CONFIG[captionStatus].color}`}
+                    className={`inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5 bg-white/5 border border-white/[0.06] ${OTP_PTR_STATUS_CONFIG[captionStatus].color}`}
                     title={OTP_PTR_STATUS_CONFIG[captionStatus].label}
                   >
-                    <span className={`h-2 w-2 rounded-full ${OTP_PTR_STATUS_CONFIG[captionStatus].dotColor}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${OTP_PTR_STATUS_CONFIG[captionStatus].dotColor}`} />
                     {OTP_PTR_STATUS_CONFIG[captionStatus].label}
                   </span>
                 )}
@@ -187,7 +190,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                       if (e.key === 'Enter') saveTitle();
                       if (e.key === 'Escape') { setDraft(task.title); setEditing(false); }
                     }}
-                    className="flex-1 min-w-0 rounded bg-transparent border border-brand-mid-pink/30 px-2 py-1 text-sm font-semibold text-gray-900 dark:text-white focus-visible:outline-none focus-visible:border-brand-light-pink/60"
+                    className="flex-1 min-w-0 rounded-lg bg-white/5 border border-brand-mid-pink/30 px-2 py-1 text-sm font-semibold text-gray-900 dark:text-white focus-visible:outline-none focus-visible:border-brand-light-pink/60"
                   />
                   <button type="button" onClick={saveTitle} className="p-0.5 text-brand-light-pink shrink-0">
                     <Check className="h-3.5 w-3.5" />
@@ -197,7 +200,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                   </button>
                 </div>
               ) : (
-                <p className="text-sm font-semibold leading-snug text-gray-900 dark:text-white mb-2 line-clamp-2">
+                <p className="text-[13px] font-bold leading-snug text-gray-900 dark:text-white mb-2 line-clamp-2">
                   {task.title}
                   <button
                     type="button"
@@ -209,24 +212,33 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                 </p>
               )}
 
-              {/* Row 3: Inline metadata — price, paid, buyer, model, deadline */}
-              <div className="flex items-center gap-2 flex-wrap text-xs text-gray-400 dark:text-gray-400 mb-2">
+              {/* Row 3: Price, paid status, buyer, model, deadline */}
+              <div className="flex items-center gap-2 flex-wrap text-xs mb-2.5">
                 {price != null && price > 0 && (
-                  <span className="font-bold text-emerald-500 dark:text-emerald-400">
+                  <span className="font-bold text-brand-light-pink">
                     ${price}
                   </span>
                 )}
                 {isPaid != null && (
-                  <span className={`font-semibold ${isPaid ? 'text-emerald-500' : 'text-red-400'}`}>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    isPaid
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                  }`}>
                     {isPaid ? 'paid' : 'unpaid'}
                   </span>
                 )}
                 {buyer && (
-                  <span className="truncate max-w-[90px]">@{buyer}</span>
+                  <span className="text-gray-500 dark:text-gray-500 truncate max-w-[90px]">@{buyer}</span>
                 )}
                 {model && (
-                  <span className="truncate max-w-[90px]">{model}</span>
+                  <span className="text-gray-500 dark:text-gray-500 truncate max-w-[90px]">{model}</span>
                 )}
+                {platforms.length > 0 && platforms.map((p) => (
+                  <span key={p} className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5 border border-white/[0.06]">
+                    {p === 'onlyfans' ? 'OF' : p === 'fansly' ? 'Fansly' : p}
+                  </span>
+                ))}
                 {dl && (
                   <span className={`font-semibold ${dl.urgent ? 'text-red-400' : 'text-amber-400'}`}>
                     {dl.text}
@@ -244,7 +256,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                     onMarkFinal(task.id);
                   }}
                   disabled={markingFinal}
-                  className="w-full flex items-center justify-center gap-1.5 rounded border border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] text-emerald-400 px-2.5 py-1.5 text-xs font-semibold transition-colors mb-2 disabled:opacity-40"
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] text-emerald-400 px-2.5 py-1.5 text-xs font-semibold transition-colors mb-2 disabled:opacity-40"
                 >
                   {markingFinal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
                   {markingFinal ? 'Posting...' : 'Mark as Final'}
@@ -252,15 +264,15 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
               )}
 
               {/* Footer: priority + timestamp + assignee */}
-              <div className="flex items-center gap-2.5 pt-2 border-t border-gray-100 dark:border-white/[0.06]">
+              <div className="flex items-center gap-2.5 pt-2.5 border-t border-white/[0.06]">
                 {task.priority && (
-                  <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-400 font-medium">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                     <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? ''}`} />
                     {task.priority}
                   </span>
                 )}
                 {createdAt && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 inline-flex items-center gap-1">
+                  <span className="text-[11px] text-gray-500 dark:text-gray-500 inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {timeAgo(createdAt)}
                   </span>
@@ -270,13 +282,13 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
 
                 {assigneeInitial ? (
                   <span
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-mid-pink/15 text-brand-mid-pink text-[11px] font-bold"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-light-pink/15 text-brand-light-pink text-[11px] font-bold ring-1 ring-brand-light-pink/20 group-hover/card:ring-brand-light-pink/40 transition-all"
                     title={assigneeName ?? undefined}
                   >
                     {assigneeInitial}
                   </span>
                 ) : (
-                  <User className="h-3.5 w-3.5 text-gray-400 dark:text-gray-600" />
+                  <User className="h-3.5 w-3.5 text-gray-500 dark:text-gray-600" />
                 )}
               </div>
             </div>
