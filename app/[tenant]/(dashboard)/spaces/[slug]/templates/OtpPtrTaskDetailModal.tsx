@@ -25,6 +25,7 @@ import {
   Users,
   Link2,
   ChevronDown,
+  Image as ImageIcon,
   type LucideIcon,
 } from 'lucide-react';
 // Note: All icons above are used across the component's sections and sidebar
@@ -43,6 +44,7 @@ import {
   useBoardItemComments,
   useAddComment,
   useBoardItemHistory,
+  useBoardItemMedia,
 } from '@/lib/hooks/useBoardItems.query';
 import {
   useOtpPtrQAAction,
@@ -344,12 +346,14 @@ export function OtpPtrTaskDetailModal({
   const pricingTier = (meta.pricingTier as string) ?? '';
   const pageType = (meta.pageType as string) ?? '';
   const contentType = (meta.contentType as string) ?? '';
-  const driveLink = (meta.driveLink as string) ?? '';
+  const rawDriveLink = (meta.driveLink as string) ?? '';
+  const driveLink = rawDriveLink && !rawDriveLink.startsWith('http') ? `https://${rawDriveLink}` : rawDriveLink;
   const contentLength = (meta.contentLength as string) ?? '';
   const contentCount = (meta.contentCount as string) ?? '';
   const externalCreatorTags = Array.isArray(meta.externalCreatorTags) ? (meta.externalCreatorTags as string[]) : [];
   const internalModelTags = Array.isArray(meta.internalModelTags) ? (meta.internalModelTags as string[]) : [];
   const contentTags = Array.isArray(meta.contentTags) ? (meta.contentTags as string[]) : [];
+  const platforms = Array.isArray(meta.platforms) ? (meta.platforms as string[]) : [];
   const caption = (meta.caption as string) ?? '';
   const gameType = (meta.gameType as string) ?? '';
   const gifUrl = (meta.gifUrl as string) ?? '';
@@ -378,6 +382,9 @@ export function OtpPtrTaskDetailModal({
   const addCommentMutation = useAddComment(spaceId ?? '', boardId ?? '', task.id);
   const { data: historyData, isLoading: historyLoading } =
     useBoardItemHistory(spaceId, boardId, task.id);
+  const { data: mediaData = [] } = useBoardItemMedia(
+    spaceId, boardId, task.id, isOpen,
+  );
 
   const comments = useMemo(() => {
     if (!commentsData?.comments) return [];
@@ -532,29 +539,37 @@ export function OtpPtrTaskDetailModal({
     <div
       className="fixed inset-0 z-9999 flex items-start justify-center overflow-y-auto py-8 px-4"
       onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
     >
       <div
-        className="relative w-full max-w-[1080px] rounded-xl shadow-2xl shadow-black/50 bg-[#0d0b14] border border-white/[0.06]"
+        className="relative w-full max-w-[1080px] rounded-2xl shadow-2xl shadow-black/60 bg-[#0d0b14] border border-white/[0.08] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Gradient header strip */}
+        <div className="h-1 w-full bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-light-pink/40" />
+
         {/* ═══ Header ════════════════════════════════════ */}
         <div className="px-6 pt-5 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               {/* Badge row */}
-              <div className="flex items-center gap-2.5 mb-3">
-                <span className="text-xs font-mono font-semibold text-gray-400 tracking-wide">
+              <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+                <span className="font-mono text-xs font-semibold text-gray-400 bg-white/[0.04] px-2 py-0.5 rounded-md border border-white/[0.06] tracking-wide">
                   {task.taskKey}
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-300">
-                  <span className={`h-2.5 w-2.5 rounded-full ${TYPE_DOT[requestType] ?? 'bg-gray-500'}`} />
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-2.5 py-0.5 border ${
+                  requestType === 'OTP'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/20'
+                    : requestType === 'PTR'
+                    ? 'bg-brand-light-pink/15 text-brand-light-pink border-brand-light-pink/20'
+                    : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                }`}>
                   {requestType}
                 </span>
-                <span className="text-xs text-gray-500">{columnTitle}</span>
+                <span className="text-[11px] text-gray-500 bg-white/[0.03] px-2 py-0.5 rounded-full">{columnTitle}</span>
                 {/* Caption status */}
-                <span className={`inline-flex items-center gap-1 text-xs font-medium ${captionCfg.color}`}>
-                  <span className={`h-2 w-2 rounded-full ${captionCfg.dotColor}`} />
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium rounded-full px-2.5 py-0.5 bg-white/[0.04] border border-white/[0.06] ${captionCfg.color}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${captionCfg.dotColor}`} />
                   {captionCfg.label}
                 </span>
               </div>
@@ -571,7 +586,7 @@ export function OtpPtrTaskDetailModal({
                       if (e.key === 'Enter') saveTitle();
                       if (e.key === 'Escape') { setTitleDraft(task.title); setEditingTitle(false); }
                     }}
-                    className="w-full text-xl font-semibold text-white bg-transparent border-b border-brand-mid-pink/40 focus-visible:outline-none focus-visible:border-brand-light-pink/60 pb-0.5 transition-colors"
+                    className="w-full text-2xl font-bold text-white bg-transparent border-b border-brand-mid-pink/40 focus-visible:outline-none focus-visible:border-brand-light-pink/60 pb-0.5 transition-colors tracking-tight"
                   />
                 ) : (
                   <button
@@ -579,7 +594,7 @@ export function OtpPtrTaskDetailModal({
                     onClick={() => setEditingTitle(true)}
                     className="flex items-center gap-2 w-full text-left"
                   >
-                    <h2 className="text-xl font-semibold text-white leading-snug">
+                    <h2 className="text-2xl font-bold text-white leading-snug tracking-tight">
                       {task.title}
                     </h2>
                     <Pencil className="h-3 w-3 text-gray-700 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
@@ -587,19 +602,37 @@ export function OtpPtrTaskDetailModal({
                 )}
               </div>
 
-              {/* Quick stats */}
-              {(buyer || model || deadline || price > 0) && (
-                <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-400">
-                  {buyer && <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{buyer}</span>}
-                  {model && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{model}</span>}
-                  {deadline && (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" />
-                      {new Date(deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {/* Quick stats — glassmorphism card */}
+              {(buyer || model || deadline || price > 0 || platforms.length > 0) && (
+                <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 rounded-xl bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] px-4 py-2.5">
+                  {price > 0 && (
+                    <span className="text-brand-light-pink font-bold text-sm">${price}</span>
+                  )}
+                  {(meta.isPaid as boolean) != null && (
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                      (meta.isPaid as boolean)
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                      {(meta.isPaid as boolean) ? 'PAID' : 'UNPAID'}
                     </span>
                   )}
-                  {price > 0 && (
-                    <span className="text-emerald-400 font-medium">${price}</span>
+                  {buyer && <span className="inline-flex items-center gap-1"><User className="h-3 w-3 text-gray-500" />@{buyer}</span>}
+                  {model && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3 text-gray-500" />{model}</span>}
+                  {platforms.length > 0 && platforms.map((p) => (
+                    <span key={p} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                      p === 'onlyfans'
+                        ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
+                        : 'bg-brand-light-pink/10 text-brand-light-pink border-brand-light-pink/20'
+                    }`}>
+                      {p === 'onlyfans' ? 'OF' : 'Fansly'}
+                    </span>
+                  ))}
+                  {deadline && (
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3 text-gray-500" />
+                      {new Date(deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
                   )}
                 </div>
               )}
@@ -609,37 +642,34 @@ export function OtpPtrTaskDetailModal({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors shrink-0"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors shrink-0"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* ═══ Tab Bar ═══════════════════════════════════ */}
-        <div className="px-6 border-b border-white/[0.06]">
-          <div className="flex items-center gap-0">
+        {/* ═══ Tab Bar — pill-shaped ═══════════════════ */}
+        <div className="px-6 py-2 border-b border-white/[0.06]">
+          <div className="inline-flex items-center gap-1 rounded-xl bg-white/[0.03] p-1 border border-white/[0.04]">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
                 className={[
-                  'relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
                   activeTab === t.id
-                    ? 'text-gray-100'
-                    : 'text-gray-500 hover:text-gray-300',
+                    ? 'bg-white/[0.06] text-white shadow-sm ring-1 ring-brand-light-pink/15'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]',
                 ].join(' ')}
               >
-                <t.icon className="h-3.5 w-3.5" />
+                <t.icon className={`h-3.5 w-3.5 ${activeTab === t.id ? 'text-brand-light-pink' : ''}`} />
                 {t.label}
                 {t.id === 'comments' && comments.length > 0 && (
-                  <span className="ml-0.5 text-[11px] font-bold text-brand-light-pink">
+                  <span className={`ml-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 ${activeTab === t.id ? 'bg-brand-light-pink/15 text-brand-light-pink' : 'bg-white/[0.06] text-gray-400'}`}>
                     {comments.length}
                   </span>
-                )}
-                {activeTab === t.id && (
-                  <span className="absolute inset-x-1 bottom-0 h-px bg-brand-mid-pink" />
                 )}
               </button>
             ))}
@@ -647,7 +677,7 @@ export function OtpPtrTaskDetailModal({
         </div>
 
         {/* ═══ Body ═════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px]">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px]">
           {/* ── Left: Tab Content ──────────────────────── */}
           <div className="px-6 py-5 min-h-[50vh] max-h-[62vh] overflow-y-auto custom-scrollbar border-r border-white/[0.04]">
 
@@ -845,6 +875,45 @@ export function OtpPtrTaskDetailModal({
                   </Section>
                 )}
 
+                {/* Attachments / Media */}
+                {mediaData.length > 0 && (
+                  <Section icon={ImageIcon} title={`Attachments (${mediaData.length})`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {mediaData.map((m) => {
+                        const isVideo = m.type?.startsWith('video/');
+                        return (
+                          <a
+                            key={m.id}
+                            href={m.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative aspect-square rounded-lg overflow-hidden bg-black/20 border border-white/[0.06] hover:border-brand-light-pink/30 transition-all"
+                          >
+                            {isVideo ? (
+                              <video
+                                src={m.url}
+                                className="h-full w-full object-cover"
+                                muted
+                                preload="metadata"
+                              />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={m.url}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ExternalLink className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </Section>
+                )}
+
                 {/* Description & Content */}
                 <Section icon={Info} title="Description & Content">
                   <div className="space-y-3">
@@ -856,25 +925,50 @@ export function OtpPtrTaskDetailModal({
                       <div><SideLabel>Count</SideLabel><EditableField value={contentCount} placeholder="Set count" onSave={(v) => updateMeta({ contentCount: v })} /></div>
                     </div>
 
-                    {price > 0 ? (
-                      <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
-                        <DollarSign className="h-4 w-4 text-emerald-500 shrink-0" />
-                        <span className="text-lg font-semibold text-emerald-400">${price}</span>
-                        <span className="flex-1" />
-                        <EditableField value={String(price)} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
+                    {/* Platforms */}
+                    <div className="pt-2 border-t border-white/[0.04]">
+                      <SideLabel>Platforms</SideLabel>
+                      <div className="flex items-center gap-2 mt-1">
+                        {(['onlyfans', 'fansly'] as const).map((p) => {
+                          const isActive = platforms.includes(p);
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => {
+                                const next = isActive
+                                  ? platforms.filter((x) => x !== p)
+                                  : [...platforms, p];
+                                if (next.length === 0) return;
+                                updateMeta({ platforms: next });
+                              }}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-all ${
+                                isActive
+                                  ? p === 'onlyfans'
+                                    ? 'bg-brand-blue/15 border-brand-blue/30 text-brand-blue'
+                                    : 'bg-brand-light-pink/15 border-brand-light-pink/30 text-brand-light-pink'
+                                  : 'bg-white/[0.03] border-white/[0.06] text-gray-500 hover:border-white/[0.12]'
+                              }`}
+                            >
+                              {p === 'onlyfans' ? 'OnlyFans' : 'Fansly'}
+                            </button>
+                          );
+                        })}
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
-                        <SideLabel>Price</SideLabel>
-                        <EditableField value="" placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
-                      </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
+                      <DollarSign className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="text-sm font-medium text-gray-400">Price</span>
+                      <span className="flex-1" />
+                      <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
+                    </div>
                   </div>
                 </Section>
 
                 {/* Drive Link */}
                 <Section icon={Link2} title="Google Drive">
-                  <EditableField value={driveLink} placeholder="Paste Drive link..." onSave={(v) => updateMeta({ driveLink: v })} />
+                  <EditableField value={rawDriveLink} placeholder="Paste Drive link..." onSave={(v) => updateMeta({ driveLink: v })} />
                   {driveLink && (
                     <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-brand-blue hover:underline mt-1.5">
                       <ExternalLink className="h-3 w-3" />Open in Drive
@@ -1072,13 +1166,18 @@ export function OtpPtrTaskDetailModal({
             )}
           </div>
 
-          {/* ═══ Right Sidebar ═══════════════════════════ */}
-          <div className="px-4 py-4 max-h-[62vh] overflow-y-auto custom-scrollbar">
+          {/* ═══ Right Sidebar — Properties ═══════════════ */}
+          <div className="px-4 py-4 max-h-[62vh] overflow-y-auto custom-scrollbar bg-white/[0.01]">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Properties</h3>
+
             <SideRow label="Status">
-              <span className="text-xs text-gray-200">{columnTitle}</span>
+              <span className="flex items-center gap-1.5 text-xs text-gray-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-light-pink" />
+                {columnTitle}
+              </span>
             </SideRow>
 
-            <div className="grid grid-cols-2 gap-2 py-2 border-b border-white/[0.03]">
+            <div className="grid grid-cols-2 gap-2 py-2 border-b border-white/[0.04]">
               <div>
                 <SideLabel>Type</SideLabel>
                 <SelectField
@@ -1103,10 +1202,10 @@ export function OtpPtrTaskDetailModal({
               <button
                 type="button"
                 onClick={() => updateMeta({ isPaid: !isPaid })}
-                className={`w-full flex items-center gap-2 rounded px-2.5 py-1.5 text-xs font-medium transition-colors border ${
+                className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium transition-all border ${
                   isPaid
-                    ? 'bg-emerald-500/[0.06] border-emerald-500/20 text-emerald-400'
-                    : 'bg-red-500/[0.06] border-red-500/20 text-red-400'
+                    ? 'bg-emerald-500/[0.08] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/[0.12]'
+                    : 'bg-red-500/[0.08] border-red-500/20 text-red-400 hover:bg-red-500/[0.12]'
                 }`}
               >
                 <CreditCard className="h-3 w-3 shrink-0" />
@@ -1143,7 +1242,7 @@ export function OtpPtrTaskDetailModal({
               <SideRow label="Deliverables">
                 <div className="flex flex-wrap gap-1">
                   {deliverables.map((d) => (
-                    <span key={d} className="text-xs text-brand-blue">{d}</span>
+                    <span key={d} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded px-1.5 py-0.5 border border-brand-blue/15">{d}</span>
                   ))}
                 </div>
               </SideRow>
@@ -1152,15 +1251,16 @@ export function OtpPtrTaskDetailModal({
             {(externalCreatorTags.length > 0 || internalModelTags.length > 0) && (
               <SideRow label="People">
                 <div className="flex flex-wrap gap-1">
-                  {externalCreatorTags.map((t) => <span key={`e-${t}`} className="text-xs text-brand-light-pink">{t}</span>)}
-                  {internalModelTags.map((t) => <span key={`i-${t}`} className="text-xs text-brand-blue">{t}</span>)}
+                  {externalCreatorTags.map((t) => <span key={`e-${t}`} className="text-[11px] font-medium text-brand-light-pink bg-brand-light-pink/10 rounded px-1.5 py-0.5 border border-brand-light-pink/15">{t}</span>)}
+                  {internalModelTags.map((t) => <span key={`i-${t}`} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded px-1.5 py-0.5 border border-brand-blue/15">{t}</span>)}
                 </div>
               </SideRow>
             )}
 
             {driveLink && (
               <SideRow label="Drive">
-                <a href={driveLink} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline break-all">
+                <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline break-all">
+                  <ExternalLink className="h-3 w-3 shrink-0" />
                   {driveLink.length > 30 ? driveLink.slice(0, 27) + '...' : driveLink}
                 </a>
               </SideRow>

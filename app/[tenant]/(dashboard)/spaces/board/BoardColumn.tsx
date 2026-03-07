@@ -119,10 +119,10 @@ export function BoardColumn({
   };
 
   return (
-    <div className="w-[280px] shrink-0 flex flex-col">
-      <div className="rounded-2xl bg-gray-50/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-brand-mid-pink/20 shadow-sm flex flex-col overflow-hidden h-full">
+    <div className="w-[290px] shrink-0 flex flex-col">
+      <div className="rounded-2xl bg-gray-50/90 dark:bg-[#1a2237]/30 border border-gray-200/80 dark:border-[#2a3450]/50 backdrop-blur-sm shadow-sm flex flex-col overflow-hidden h-full">
         {/* Column header */}
-        <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-brand-mid-pink/15 bg-white/60 dark:bg-gray-900/50">
+        <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-[#2a3450]/60 bg-white/60 dark:bg-[#1a2237]/40">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Color picker */}
             <div className="relative" ref={colorPickerRef}>
@@ -185,7 +185,7 @@ export function BoardColumn({
                 <Pencil className="h-3 w-3 text-gray-400 opacity-0 group-hover/coltitle:opacity-100 transition-opacity shrink-0" />
               </button>
             )}
-            <span className="inline-flex items-center justify-center rounded-full bg-gray-200/70 dark:bg-gray-800 text-gray-500 dark:text-gray-300 text-xs font-semibold min-w-[22px] px-1.5 py-0.5 shrink-0">
+            <span className="inline-flex items-center justify-center rounded-full bg-gray-200/70 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400 text-[11px] font-semibold min-w-[22px] px-1.5 py-0.5 shrink-0 border border-transparent dark:border-white/[0.04]">
               {tasks.length}
             </span>
           </div>

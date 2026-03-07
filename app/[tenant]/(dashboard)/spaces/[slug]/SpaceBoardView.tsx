@@ -244,7 +244,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
-              className={`rounded-2xl border border-gray-200 dark:border-brand-mid-pink/15 bg-gray-100/50 dark:bg-gray-950/40 p-3 sm:p-4 overflow-x-auto select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              className={`rounded-2xl border border-gray-200 dark:border-[#2a3450]/40 bg-gray-100/50 dark:bg-[#0f1729]/50 p-3 sm:p-4 overflow-x-auto select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
             >
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className="flex gap-3 sm:gap-4 min-w-max items-stretch">
