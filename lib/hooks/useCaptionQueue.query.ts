@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
+import { useRealtimeFallbackInterval } from './useConnectionStatus';
 
 export interface CaptionQueueAssignee {
   clerkId: string;
@@ -116,6 +117,7 @@ async function reorderQueueItems(items: Array<{ id: string; sortOrder: number }>
 
 export function useCaptionQueue() {
   const { user } = useUser();
+  const refetchInterval = useRealtimeFallbackInterval();
 
   return useQuery({
     queryKey: ['caption-queue', user?.id],
@@ -125,6 +127,7 @@ export function useCaptionQueue() {
     gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    refetchInterval, // polls every 30s when Ably is disconnected, disabled when connected
     // Order is handled server-side (personal per-user sort via CaptionQueueUserOrder).
     // Do not re-sort here so that the server's order is respected and optimistic
     // drag-and-drop reorders are rendered immediately without being reversed.
@@ -729,5 +732,6 @@ export function useExtendClaim() {
       if (!res.ok) throw new Error('Failed to extend claim');
       return res.json();
     },
+    retry: 1,
   });
 }

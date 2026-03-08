@@ -56,6 +56,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressDropdown } from "@/components/GlobalProgressDropdown";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ConnectionStatusIndicator } from "@/components/ui/ConnectionStatusIndicator";
 import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -146,6 +147,18 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/my-influencers`,
           icon: Users,
         },
+        // Page Tracker - visible to OWNER, ADMIN, MANAGER
+        ...(currentOrganization?.role === "OWNER" ||
+        currentOrganization?.role === "ADMIN" ||
+        currentOrganization?.role === "MANAGER"
+          ? [
+              {
+                name: "Schedulers Tracker",
+                href: `/${tenant}/page-tracker`,
+                icon: BarChart3,
+              },
+            ]
+          : []),
         ...(permissions.hasContentTab
           ? [
               {
@@ -1825,6 +1838,7 @@ export default function DashboardLayout({
               </svg>
             </button>
             <div className="flex items-center gap-2">
+              <ConnectionStatusIndicator />
               <NotificationBell />
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#EC67A1] to-[#F774B9] flex items-center justify-center ring-2 ring-[#EC67A1]/20">
                 <span className="text-white text-xs font-bold">{initials}</span>
@@ -1848,6 +1862,8 @@ export default function DashboardLayout({
 
                 {/* Right Side - Compact Controls */}
                 <div className="hidden lg:flex items-center gap-3">
+                  {/* Connection Status */}
+                  <ConnectionStatusIndicator />
                   {/* Notification */}
                   <NotificationBell />
 

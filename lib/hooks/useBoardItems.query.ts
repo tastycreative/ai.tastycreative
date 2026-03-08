@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tabId } from './useBoardRealtime';
+import { useRealtimeFallbackInterval } from './useConnectionStatus';
 
 /* ------------------------------------------------------------------ */
 /*  Types (matching actual schema fields)                              */
@@ -207,12 +208,15 @@ export function useBoardItems(
   spaceId: string | undefined,
   boardId: string | undefined,
 ) {
+  const refetchInterval = useRealtimeFallbackInterval();
+
   return useQuery({
     queryKey: boardItemKeys.list(boardId!),
     queryFn: () => fetchBoardItems(spaceId!, boardId!),
     enabled: !!spaceId && !!boardId,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false,
+    refetchInterval, // polls every 30s when Ably is disconnected
   });
 }
 
@@ -349,7 +353,31 @@ export function useAddComment(
   return useMutation({
     mutationFn: (content: string) =>
       addComment(spaceId, boardId, itemId, content),
-    onSuccess: () => {
+    onMutate: async (content: string) => {
+      const key = boardItemKeys.comments(itemId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<{ comments: BoardItemComment[] }>(key);
+      // Optimistic insert — shows the comment immediately
+      queryClient.setQueryData<{ comments: BoardItemComment[] }>(key, (old) => ({
+        comments: [
+          {
+            id: `optimistic-${Date.now()}`,
+            content,
+            createdBy: 'self',
+            author: 'You',
+            createdAt: new Date().toISOString(),
+          },
+          ...(old?.comments ?? []),
+        ],
+      }));
+      return { previous };
+    },
+    onError: (_err, _content, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(boardItemKeys.comments(itemId), context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: boardItemKeys.comments(itemId),
       });
@@ -420,7 +448,30 @@ export function useAddContentItemComment(contentItemId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (content: string) => addContentItemComment(contentItemId, content),
-    onSuccess: () => {
+    onMutate: async (content: string) => {
+      const key = contentItemKeys.comments(contentItemId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData(key);
+      queryClient.setQueryData<{ comments: BoardItemComment[] }>(key, (old) => ({
+        comments: [
+          {
+            id: `optimistic-${Date.now()}`,
+            content,
+            createdBy: 'self',
+            author: 'You',
+            createdAt: new Date().toISOString(),
+          },
+          ...(old?.comments ?? []),
+        ],
+      }));
+      return { previous };
+    },
+    onError: (_err, _content, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(contentItemKeys.comments(contentItemId), context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: contentItemKeys.comments(contentItemId),
       });

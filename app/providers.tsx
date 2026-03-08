@@ -1,10 +1,11 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { httpBatchLink } from '@trpc/client';
 import { useState } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
+import { toast } from 'sonner';
 import { trpc } from '../lib/trpc-client';
 import { ThemeProvider } from '../components/providers/theme-provider';
 import { GenerationProvider } from '../lib/generationContext';
@@ -22,6 +23,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
         staleTime: 5 * 60 * 1000, // 5 minutes
       },
     },
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        // Skip if the mutation already has its own onError handler
+        if (mutation.options.onError) return;
+        const message = error instanceof Error ? error.message : 'Something went wrong';
+        toast.error(message);
+      },
+    }),
   }));
 
   const [trpcClient] = useState(() =>

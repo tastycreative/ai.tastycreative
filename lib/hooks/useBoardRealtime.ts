@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Ably from 'ably';
 import { boardItemKeys } from './useBoardItems.query';
+import { setConnectionState } from './useConnectionStatus';
 
 // Unique ID per browser tab — used to skip events published by this tab
 const tabId = typeof crypto !== 'undefined'
@@ -26,12 +27,19 @@ function getAblyClient(): Ably.Realtime {
 
     sharedClient.connection.on('connected', () => {
       console.log('[ably] connected');
+      setConnectionState('connected');
     });
     sharedClient.connection.on('disconnected', () => {
       console.log('[ably] disconnected — will auto-retry');
+      setConnectionState('reconnecting');
+    });
+    sharedClient.connection.on('suspended', () => {
+      console.log('[ably] suspended — extended disconnect');
+      setConnectionState('disconnected');
     });
     sharedClient.connection.on('failed', (err) => {
       console.error('[ably] connection failed:', err);
+      setConnectionState('disconnected');
     });
   }
   return sharedClient;
@@ -86,11 +94,13 @@ export function useBoardRealtime(boardId: string | undefined, openItemId?: strin
 
     channel.subscribe(listener);
 
-    // Re-attach channel if connection recovers
+    // Re-attach channel if connection recovers and refetch stale data
     const onConnected = () => {
       if (channel.state !== 'attached') {
         channel.attach().catch(() => {});
       }
+      // Full refetch on reconnect to catch events missed during disconnect
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.list(boardId) });
     };
     client.connection.on('connected', onConnected);
 

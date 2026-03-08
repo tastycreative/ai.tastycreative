@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Send, AlertTriangle, Save, Loader2, AlertCircle, Lock, CheckCircle2 } from 'lucide-react';
+import { Send, AlertTriangle, Save, Loader2, AlertCircle, Lock, CheckCircle2, Cloud, CloudOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModelContext } from './types';
 
@@ -30,6 +30,8 @@ interface CaptionEditorProps {
   itemCaptionStatus?: string;
   /** Whether this item is locked (approved / not_required) — makes editor read-only */
   isLocked?: boolean;
+  /** Auto-save state from parent — shown as a status indicator */
+  autoSaveState?: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 const MAX_CAPTION_LENGTH = 2200;
@@ -119,6 +121,7 @@ function CaptionEditorComponent({
   qaRejectionReason,
   itemCaptionStatus,
   isLocked = false,
+  autoSaveState = 'idle',
 }: CaptionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -212,6 +215,19 @@ function CaptionEditorComponent({
           <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded text-[10px] font-medium">
             <Lock size={10} />
             Read-only
+          </span>
+        )}
+
+        {/* Auto-save indicator */}
+        {!isLocked && autoSaveState !== 'idle' && (
+          <span className={`ml-auto flex items-center gap-1 text-[10px] font-medium transition-opacity ${
+            autoSaveState === 'saving' ? 'text-gray-400 dark:text-gray-500' :
+            autoSaveState === 'saved' ? 'text-emerald-500 dark:text-emerald-400' :
+            'text-red-400 dark:text-red-400'
+          }`}>
+            {autoSaveState === 'saving' && <><Loader2 size={10} className="animate-spin" />Saving…</>}
+            {autoSaveState === 'saved' && <><Cloud size={10} />Saved</>}
+            {autoSaveState === 'error' && <><CloudOff size={10} />Save failed</>}
           </span>
         )}
       </div>

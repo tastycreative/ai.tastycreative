@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
+import { AlertTriangle } from 'lucide-react';
 import QueuePanel from './QueuePanel';
 import ContentViewer from './ContentViewer';
 import CaptionEditor from './CaptionEditor';
@@ -104,6 +105,11 @@ export default function CaptionWorkspace() {
   // Per-ticket timestamp of the last local keystroke — used to avoid overwriting
   // text the current user is actively typing with a real-time SSE update from another user.
   const lastLocalEditRef = useRef<Record<string, number>>({});
+
+  // Auto-save state: 'idle' | 'saving' | 'saved' | 'error'
+  const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedLabelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch real queue data
   const { data: queueData, isLoading, error } = useCaptionQueue();
@@ -369,6 +375,51 @@ export default function CaptionWorkspace() {
     }
   }, [selectedTicketData, queueData, effectiveCurrentItem, updateItemCaptionMutation, updateQueueMutation]);
 
+  // ── Auto-save: debounced 3-second save after typing stops ────────────
+  useEffect(() => {
+    if (!captionDraftKey || !selectedTicketData || effectiveIsLocked) return;
+    const text = captionDrafts[captionDraftKey];
+    if (text === undefined || text.length === 0) return;
+
+    // Don't auto-save if the server caption already matches
+    const rawTicket = queueData?.[originalIndex];
+    const serverCaption = effectiveCurrentItem?.captionText
+      ?? (isOtpPtr ? rawTicket?.captionText : null)
+      ?? '';
+    if (text === serverCaption) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setAutoSaveState('saving');
+      try {
+        if (effectiveCurrentItem) {
+          await updateItemCaptionMutation.mutateAsync({ itemId: effectiveCurrentItem.id, captionText: text });
+        } else {
+          const ticketId = selectedTicketData.id;
+          await updateQueueMutation.mutateAsync({ id: ticketId, data: { captionText: text, status: 'draft' } });
+        }
+        setAutoSaveState('saved');
+        // Show "Saved" for 3 seconds then return to idle
+        if (savedLabelTimerRef.current) clearTimeout(savedLabelTimerRef.current);
+        savedLabelTimerRef.current = setTimeout(() => setAutoSaveState('idle'), 3000);
+      } catch {
+        setAutoSaveState('error');
+      }
+    }, 3000);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captionDrafts[captionDraftKey ?? '']]);
+
+  // Reset auto-save state when switching tickets/items
+  useEffect(() => {
+    setAutoSaveState('idle');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (savedLabelTimerRef.current) clearTimeout(savedLabelTimerRef.current);
+  }, [captionDraftKey]);
+
   // Submit ALL items at once — saves every in-memory draft and marks the ticket pending_qa.
   // Empty items are allowed through: we only save items that have text in draft.
   const handleSubmitAll = useCallback(async () => {
@@ -542,11 +593,24 @@ export default function CaptionWorkspace() {
 
   // ── Heartbeat: extend claim TTL while actively editing ───────────────
   // Fires every 5 minutes when the selected ticket is claimed by the current user.
+  const [claimWarning, setClaimWarning] = useState(false);
   useEffect(() => {
     const ticket = selectedTicketData;
-    if (!ticket?.claimedBy || ticket.claimedBy !== currentClerkId) return;
+    if (!ticket?.claimedBy || ticket.claimedBy !== currentClerkId) {
+      setClaimWarning(false);
+      return;
+    }
     const interval = setInterval(() => {
-      extendClaimMutation.mutate(ticket.id);
+      extendClaimMutation.mutate(ticket.id, {
+        onSuccess: () => setClaimWarning(false),
+        onError: () => {
+          setClaimWarning(true);
+          toast.warning('Could not extend your claim — save your work soon', {
+            id: 'claim-warning',
+            duration: 10000,
+          });
+        },
+      });
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -769,6 +833,13 @@ export default function CaptionWorkspace() {
               OTP/PTR — Write one caption for the Drive content below, then submit for PGT Team approval.
             </div>
           )}
+          {/* Claim expiry warning banner */}
+          {claimWarning && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/30 text-[11px] font-medium text-amber-400 shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              Your claim may expire soon — save your work
+            </div>
+          )}
           <ResizablePanel initialHeight={40} minHeight={25} maxHeight={65}>
             <ErrorBoundary componentName="Content Viewer">
               <ContentViewer
@@ -795,6 +866,7 @@ export default function CaptionWorkspace() {
                 qaRejectionReason={effectiveCurrentItem?.qaRejectionReason ?? selectedTicketData?.qaRejectionReason}
                 itemCaptionStatus={effectiveCurrentItem?.captionStatus}
                 isLocked={effectiveIsLocked}
+                autoSaveState={autoSaveState}
               />
             </ErrorBoundary>
           </ResizablePanel>

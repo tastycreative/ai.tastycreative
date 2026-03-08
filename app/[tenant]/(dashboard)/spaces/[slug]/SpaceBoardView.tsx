@@ -10,6 +10,7 @@ import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import { useUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
+import { BoardSkeleton } from '@/components/ui/BoardSkeleton';
 import {
   BoardLayout,
   BoardColumn,
@@ -38,14 +39,7 @@ export function SpaceBoardView({ slug }: SpaceBoardViewProps) {
   }, [isLoading, space, router, params.tenant]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-brand-light-pink" />
-        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-          Loading space...
-        </span>
-      </div>
-    );
+    return <BoardSkeleton />;
   }
 
   if (!space) {
@@ -238,14 +232,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
           }
 
           if (itemsLoading) {
-            return (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-5 w-5 animate-spin text-brand-light-pink" />
-                <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                  Loading board...
-                </span>
-              </div>
-            );
+            return <BoardSkeleton />;
           }
 
           const query = filters.searchQuery.toLowerCase();
