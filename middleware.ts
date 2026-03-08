@@ -49,6 +49,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/onboarding-invitations/validate(.*)', // ✅ Public token validation endpoint
   '/api/onboarding-public(.*)', // ✅ Public onboarding draft endpoints (token-based)
   '/api/upload/profile-image(.*)', // ✅ Profile image upload (handles own auth via token or session)
+  '/api/spaces/(.*)/webhook/(.*)', // ✅ Space webhook endpoints (authenticated via x-webhook-secret header)
 ]);
 
 // ✅ Special handling for API routes that need custom auth
