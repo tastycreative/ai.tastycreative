@@ -2,10 +2,11 @@
 
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Settings, Users, Bell, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Settings, Users, Bell, Loader2, Sparkles, Webhook } from 'lucide-react';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
+import { useMemo } from 'react';
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { id: 'details', label: 'Details', icon: Settings, segment: 'details' },
   { id: 'access', label: 'Access', icon: Users, segment: 'access' },
   { id: 'notifications', label: 'Notifications', icon: Bell, segment: 'notifications' },
@@ -23,8 +24,16 @@ export default function SpaceSettingsLayout({
   const basePath = `/${params.tenant}/spaces/${params.slug}/settings`;
   const spacePath = `/${params.tenant}/spaces/${params.slug}`;
 
+  const navItems = useMemo(() => {
+    const items = [...BASE_NAV_ITEMS];
+    if (space?.templateType === 'MODEL_ONBOARDING') {
+      items.push({ id: 'webhook', label: 'Webhook', icon: Webhook, segment: 'webhook' });
+    }
+    return items;
+  }, [space?.templateType]);
+
   // Determine active segment from pathname
-  const activeSegment = NAV_ITEMS.find((item) =>
+  const activeSegment = navItems.find((item) =>
     pathname.includes(`/settings/${item.segment}`),
   )?.id ?? 'details';
 
@@ -84,7 +93,7 @@ export default function SpaceSettingsLayout({
 
         {/* Nav items */}
         <nav className="flex-1 px-6 py-4 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = activeSegment === item.id;
             return (
               <Link

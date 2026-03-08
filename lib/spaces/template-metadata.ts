@@ -234,6 +234,8 @@ export interface ModelOnboardingItemMetadata {
   tags: string[];
   checklist: ChecklistItem[];
   checklistProgress: number;
+  /** Dynamic key-value pairs from external sources (e.g. Google Sheet / webhook) */
+  fields: Record<string, string>;
 }
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
@@ -255,6 +257,7 @@ export const MODEL_ONBOARDING_METADATA_DEFAULTS: ModelOnboardingItemMetadata = {
   tags: [],
   checklist: DEFAULT_CHECKLIST,
   checklistProgress: 0,
+  fields: {},
 };
 
 export const MODEL_ONBOARDING_METADATA_FIELDS: MetadataFieldDescriptor[] = [

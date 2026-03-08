@@ -21,6 +21,7 @@ import {
   GripVertical,
   Trash2,
   UserPlus,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -56,7 +57,7 @@ interface Props {
   onUpdate: (updated: BoardTask) => void;
 }
 
-type ModalTab = 'details' | 'history' | 'comments';
+type ModalTab = 'details' | 'formdata' | 'history' | 'comments';
 
 /* ── Constants ───────────────────────────────────────────── */
 
@@ -320,6 +321,13 @@ export function ModelOnboardingTaskDetailModal({
   const checklist: ChecklistItem[] = Array.isArray(meta.checklist) ? (meta.checklist as ChecklistItem[]) : [];
   const checklistProgress = computeProgress(checklist);
   const completedCount = checklist.filter((c) => c.completed).length;
+  const dynamicFields = (meta.fields && typeof meta.fields === 'object' && !Array.isArray(meta.fields))
+    ? (meta.fields as Record<string, string>)
+    : {};
+  // Preserve original column order from Google Sheet; fall back to Object.keys
+  const fieldOrder: string[] = Array.isArray(meta.fieldOrder)
+    ? (meta.fieldOrder as string[]).filter((k) => k in dynamicFields)
+    : Object.keys(dynamicFields);
 
   const [notesDraft, setNotesDraft] = useState(notes);
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
@@ -517,8 +525,11 @@ export function ModelOnboardingTaskDetailModal({
 
   const userInitial = user?.firstName?.charAt(0).toUpperCase() ?? user?.username?.charAt(0).toUpperCase() ?? 'U';
 
+  const hasDynamicFields = Object.keys(dynamicFields).length > 0;
+
   const TABS: { id: ModalTab; label: string; icon: LucideIcon }[] = [
     { id: 'details', label: 'Details', icon: Info },
+    ...(hasDynamicFields ? [{ id: 'formdata' as ModalTab, label: 'Form Data', icon: FileText }] : []),
     { id: 'history', label: 'History', icon: Clock },
     { id: 'comments', label: 'Comments', icon: MessageSquare },
   ];
@@ -869,6 +880,25 @@ export function ModelOnboardingTaskDetailModal({
               </>
             )}
 
+            {/* ── Form Data Tab ─────────────────────────── */}
+            {activeTab === 'formdata' && (
+              <div className="space-y-3">
+                {fieldOrder.map((key) => (
+                  <div key={key} className="py-2 border-b border-white/[0.04] last:border-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 mb-1">
+                      {key}
+                    </div>
+                    <p className="text-[13px] text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
+                      {dynamicFields[key] || <span className="text-gray-600 italic">—</span>}
+                    </p>
+                  </div>
+                ))}
+                {fieldOrder.length === 0 && (
+                  <EmptyState icon={FileText} text="No form data available." />
+                )}
+              </div>
+            )}
+
             {/* ── History Tab ────────────────────────────── */}
             {activeTab === 'history' && (
               <div>
@@ -1018,6 +1048,21 @@ export function ModelOnboardingTaskDetailModal({
                 <div className="flex flex-wrap gap-1">
                   {tags.map((t) => <span key={t} className="text-xs text-brand-blue">{t}</span>)}
                 </div>
+              </SideRow>
+            )}
+
+            {meta.source === 'webhook' && (
+              <SideRow label="Source">
+                <span className="inline-flex items-center gap-1 text-xs text-brand-blue">
+                  <FileText className="h-3 w-3" />
+                  Webhook
+                </span>
+              </SideRow>
+            )}
+
+            {Object.keys(dynamicFields).length > 0 && (
+              <SideRow label="Form Fields">
+                <span className="text-xs text-gray-400">{Object.keys(dynamicFields).length} fields</span>
               </SideRow>
             )}
           </div>
