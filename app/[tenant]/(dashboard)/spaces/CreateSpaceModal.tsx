@@ -23,6 +23,7 @@ import {
   Megaphone,
   Lock,
   Globe,
+  UserPlus,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -125,6 +126,15 @@ const TEMPLATES: TemplateOption[] = [
       'Manage one-time purchase and pay-to-receive request workflows. Track requests from submission through fulfillment with clear status visibility for the entire team.',
     icon: Zap,
   },
+  {
+    id: 'MODEL_ONBOARDING',
+    name: 'Model Onboarding Board',
+    abbr: 'MO',
+    description: 'Structured onboarding checklist for new models.',
+    details:
+      'Track every step of bringing a new model onboard — from collecting info and verifying identity to setting up accounts and scheduling first content. Includes a built-in checklist with progress tracking.',
+    icon: UserPlus,
+  },
 ];
 
 const DEFAULT_WORK_TYPES: WorkType[] = [
@@ -151,10 +161,19 @@ const SEXTING_SETS_STATUSES: StatusItem[] = [
   { id: 'completed', name: 'Completed', color: 'green' },
 ];
 
+const MODEL_ONBOARDING_STATUSES: StatusItem[] = [
+  { id: 'not-started', name: 'Not Started', color: 'blue' },
+  { id: 'in-progress', name: 'In Progress', color: 'amber' },
+  { id: 'review', name: 'Review', color: 'purple' },
+  { id: 'completed', name: 'Completed', color: 'green' },
+];
+
 function getDefaultStatusesForTemplate(templateType: SpaceTemplateType): StatusItem[] {
   switch (templateType) {
     case 'SEXTING_SETS':
       return SEXTING_SETS_STATUSES;
+    case 'MODEL_ONBOARDING':
+      return MODEL_ONBOARDING_STATUSES;
     default:
       return DEFAULT_STATUSES;
   }

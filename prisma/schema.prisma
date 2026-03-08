@@ -2650,6 +2650,7 @@ enum SpaceTemplateType {
   WALL_POST
   SEXTING_SETS
   OTP_PTR
+  MODEL_ONBOARDING
 }
 
 enum BoardItemType {
