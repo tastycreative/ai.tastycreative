@@ -19,6 +19,7 @@ import {
 } from '../board';
 import { useSpaceBoard } from './useSpaceBoard';
 import { TEMPLATE_CONFIG } from './templates/template-config';
+import { MODEL_ONBOARDING_METADATA_DEFAULTS } from '@/lib/spaces/template-metadata';
 
 interface SpaceBoardViewProps {
   slug: string;
@@ -184,6 +185,18 @@ function TemplateBoardView({ slug }: { slug: string }) {
     closeTaskModal,
   } = useSpaceBoard({ space, itemToTask: config.itemToTask });
 
+  // Wrap handleAddTask to inject default metadata for MODEL_ONBOARDING
+  const handleAddTaskWithDefaults = useCallback(
+    (columnId: string, title: string) => {
+      if (space?.templateType === 'MODEL_ONBOARDING') {
+        handleAddTask(columnId, title, { ...MODEL_ONBOARDING_METADATA_DEFAULTS });
+      } else {
+        handleAddTask(columnId, title);
+      }
+    },
+    [handleAddTask, space?.templateType],
+  );
+
   // Extract unique assignees from all tasks (resolve IDs to display names)
   const uniqueAssignees = Array.from(
     new Set(
@@ -298,7 +311,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         key={col.id}
                         column={col}
                         tasks={colTasks}
-                        onAddTask={handleAddTask}
+                        onAddTask={handleAddTaskWithDefaults}
                         onTaskClick={handleTaskClick}
                         onTaskTitleUpdate={handleTitleUpdate}
                         onColumnTitleUpdate={handleColumnTitleUpdate}

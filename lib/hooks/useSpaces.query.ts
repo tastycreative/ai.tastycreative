@@ -7,7 +7,7 @@ import { useUser } from '@clerk/nextjs';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR';
+export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR' | 'MODEL_ONBOARDING';
 export type SpaceAccess = 'OPEN' | 'PRIVATE';
 
 export type SpaceRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER';

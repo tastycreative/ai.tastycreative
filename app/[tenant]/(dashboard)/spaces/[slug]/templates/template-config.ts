@@ -57,6 +57,29 @@ const sextingSetsItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string):
   };
 };
 
+const modelOnboardingItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): BoardTask => {
+  const meta = (item.metadata ?? {}) as Record<string, unknown>;
+  const checklist = Array.isArray(meta.checklist) ? (meta.checklist as { completed: boolean }[]) : [];
+  const total = checklist.length;
+  const done = checklist.filter((c) => c.completed).length;
+  const progressTag = total > 0 ? `${done}/${total}` : undefined;
+  return {
+    id: item.id,
+    taskKey: spaceKey ? `${spaceKey}-${item.itemNo}` : item.id.slice(-6).toUpperCase(),
+    title: item.title,
+    description: (item.description as string) ?? undefined,
+    assignee: (item.assigneeId as string) ?? undefined,
+    priority: undefined,
+    tags: [
+      ...(meta.platform ? [meta.platform as string] : []),
+      ...(progressTag ? [progressTag] : []),
+      ...(Array.isArray(meta.tags) ? (meta.tags as string[]) : []),
+    ],
+    dueDate: item.dueDate ?? undefined,
+    metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },
+  };
+};
+
 const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): BoardTask => {
   const meta = (item.metadata ?? {}) as Record<string, unknown>;
   const priceTag = meta.price ? `$${meta.price}` : undefined;
@@ -103,6 +126,8 @@ import { SextingSetsTaskDetailModal } from './SextingSetsTaskDetailModal';
 import { OtpPtrTaskDetailModal } from './OtpPtrTaskDetailModal';
 import { OtpPtrTaskCard } from './OtpPtrTaskCard';
 import { WallPostTaskCard } from './WallPostTaskCard';
+import { ModelOnboardingTaskDetailModal } from './ModelOnboardingTaskDetailModal';
+import { ModelOnboardingTaskCard } from './ModelOnboardingTaskCard';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -146,5 +171,15 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     itemToTask: otpPtrItemToTask,
     DetailModal: OtpPtrTaskDetailModal,
     CardComponent: OtpPtrTaskCard,
+  },
+  MODEL_ONBOARDING: {
+    label: 'Model Onboarding',
+    tabs: [
+      { id: 'summary', label: 'Summary' },
+      { id: 'board', label: 'Board' },
+    ],
+    itemToTask: modelOnboardingItemToTask,
+    DetailModal: ModelOnboardingTaskDetailModal,
+    CardComponent: ModelOnboardingTaskCard,
   },
 };

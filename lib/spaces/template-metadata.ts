@@ -16,7 +16,7 @@
 /*  Shared helpers                                                     */
 /* ================================================================== */
 
-export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR';
+export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR' | 'MODEL_ONBOARDING';
 
 export type FieldType =
   | 'text'
@@ -212,6 +212,64 @@ export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
 ];
 
 /* ================================================================== */
+/*  MODEL ONBOARDING                                                   */
+/* ================================================================== */
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  completedBy?: string;
+  completedAt?: string;
+  order: number;
+  notes?: string;
+}
+
+export interface ModelOnboardingItemMetadata {
+  modelName: string;
+  socialHandles: string[];
+  notes: string;
+  platform: string;
+  tags: string[];
+  checklist: ChecklistItem[];
+  checklistProgress: number;
+}
+
+const DEFAULT_CHECKLIST: ChecklistItem[] = [
+  { id: 'step-1', text: 'Collect model information & photos', completed: false, order: 0 },
+  { id: 'step-2', text: 'Verify identity documents', completed: false, order: 1 },
+  { id: 'step-3', text: 'Sign contract & agreements', completed: false, order: 2 },
+  { id: 'step-4', text: 'Set up platform accounts', completed: false, order: 3 },
+  { id: 'step-5', text: 'Upload initial content', completed: false, order: 4 },
+  { id: 'step-6', text: 'Configure pricing & tiers', completed: false, order: 5 },
+  { id: 'step-7', text: 'Team introductions', completed: false, order: 6 },
+  { id: 'step-8', text: 'Schedule first content calendar', completed: false, order: 7 },
+];
+
+export const MODEL_ONBOARDING_METADATA_DEFAULTS: ModelOnboardingItemMetadata = {
+  modelName: '',
+  socialHandles: [],
+  notes: '',
+  platform: '',
+  tags: [],
+  checklist: DEFAULT_CHECKLIST,
+  checklistProgress: 0,
+};
+
+export const MODEL_ONBOARDING_METADATA_FIELDS: MetadataFieldDescriptor[] = [
+  { key: 'modelName', label: 'Model Name', type: 'text', required: true, placeholder: 'Full name or stage name' },
+  { key: 'socialHandles', label: 'Social Handles', type: 'tags', placeholder: '@handle' },
+  { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Additional notes...' },
+  {
+    key: 'platform',
+    label: 'Platform',
+    type: 'select',
+    options: ['onlyfans', 'fansly', 'instagram', 'twitter', 'tiktok', 'other'],
+  },
+  { key: 'tags', label: 'Tags', type: 'tags', placeholder: 'e.g. new-model, priority' },
+];
+
+/* ================================================================== */
 /*  Registry — look up by template type                                */
 /* ================================================================== */
 
@@ -219,7 +277,8 @@ export type AnyItemMetadata =
   | KanbanItemMetadata
   | WallPostItemMetadata
   | SextingSetsItemMetadata
-  | OtpPtrItemMetadata;
+  | OtpPtrItemMetadata
+  | ModelOnboardingItemMetadata;
 
 interface TemplateMetadataEntry<T> {
   defaults: T;
@@ -231,6 +290,7 @@ const REGISTRY: Record<SpaceTemplateType, TemplateMetadataEntry<AnyItemMetadata>
   WALL_POST: { defaults: WALL_POST_METADATA_DEFAULTS, fields: WALL_POST_METADATA_FIELDS },
   SEXTING_SETS: { defaults: SEXTING_SETS_METADATA_DEFAULTS, fields: SEXTING_SETS_METADATA_FIELDS },
   OTP_PTR: { defaults: OTP_PTR_METADATA_DEFAULTS, fields: OTP_PTR_METADATA_FIELDS },
+  MODEL_ONBOARDING: { defaults: MODEL_ONBOARDING_METADATA_DEFAULTS, fields: MODEL_ONBOARDING_METADATA_FIELDS },
 };
 
 /** Get the default metadata for a given template type. */

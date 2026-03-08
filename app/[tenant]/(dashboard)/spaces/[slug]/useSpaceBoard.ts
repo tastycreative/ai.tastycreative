@@ -223,7 +223,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
   );
 
   const handleAddTask = useCallback(
-    (columnId: string, title: string) => {
+    (columnId: string, title: string, metadata?: Record<string, unknown>) => {
       // Create optimistic task immediately
       const tempId = `temp-${Date.now()}`;
       const optimisticTask: BoardTask = {
@@ -231,6 +231,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
         taskKey: 'CREATING...',
         title,
         priority: 'Medium',
+        metadata,
       };
 
       // Add to local state immediately
@@ -249,7 +250,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
 
       // Perform actual mutation in background
       createItemMutation.mutate(
-        { title, columnId },
+        { title, columnId, metadata },
         {
           onSuccess: () => {
             // Clear local state to show real data from server
