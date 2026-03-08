@@ -239,6 +239,19 @@ export function SpaceWebhookSettings({ slug }: Props) {
             </p>
 
             <div className="space-y-4">
+              {/* How it works */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  How it works
+                </p>
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                  <p>Send a POST request to the webhook URL with the form/sheet data.</p>
+                  <p>The data can be sent as a JSON object or a JSON string — both work.</p>
+                  <p>All fields will appear in the <span className="font-medium text-gray-500 dark:text-gray-300">Form Data</span> tab of the task, in the same order they were sent.</p>
+                  <p>If a <span className="font-mono text-[11px] text-gray-500 dark:text-gray-300">Full Name</span> or <span className="font-mono text-[11px] text-gray-500 dark:text-gray-300">Model Name</span> field is found, it will auto-fill the task title and model name.</p>
+                </div>
+              </div>
+
               {/* Headers */}
               <div>
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -259,14 +272,23 @@ export function SpaceWebhookSettings({ slug }: Props) {
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Request Body
                 </p>
-                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs font-mono text-gray-600 dark:text-gray-400 space-y-0.5">
-                  <p><span className="text-brand-dark-pink dark:text-brand-light-pink">title</span> <span className="text-gray-400">(string, required)</span> — Task title</p>
-                  <p><span className="text-brand-dark-pink dark:text-brand-light-pink">fields</span> <span className="text-gray-400">(object)</span> — Key-value pairs from your form/sheet</p>
-                  <p className="pl-3 text-gray-500">Keys = column headers, values = responses</p>
-                  <p className="pl-3 text-gray-500">Any fields added will auto-appear in the task</p>
-                  <p className="mt-1"><span className="text-gray-500 dark:text-gray-400">tags</span> <span className="text-gray-400">(string[], optional)</span> — Tags</p>
-                  <p><span className="text-gray-500 dark:text-gray-400">notes</span> <span className="text-gray-400">(string, optional)</span> — Additional notes</p>
-                </div>
+                <pre className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-600 dark:text-gray-400 font-mono overflow-x-auto whitespace-pre">{`{
+  "title": "New Model Onboarding - Jane Doe",
+  "fields": {
+    "Full Name": "Jane Doe",
+    "Model Name?": "JD",
+    "Email address": "jane@example.com",
+    "When is your Birthday?": "01/09/1994",
+    "Height:": "5'6",
+    "Weight:": 138,
+    "What is your OnlyFans Free Profile?": "https://onlyfans.com/janedoe",
+    "What is your Instagram @?": "@janedoe",
+    "What is your Twitter @?": "@janedoe"
+  }
+}`}</pre>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
+                  <span className="font-medium">title</span> is optional — auto-derived from Full Name if omitted. <span className="font-medium">fields</span> accepts an object or a JSON string.
+                </p>
               </div>
 
               {/* Response */}
@@ -279,7 +301,7 @@ export function SpaceWebhookSettings({ slug }: Props) {
                 </div>
               </div>
 
-              {/* Curl example */}
+              {/* Example */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -306,6 +328,13 @@ export function SpaceWebhookSettings({ slug }: Props) {
                 <pre className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-600 dark:text-gray-400 font-mono overflow-x-auto whitespace-pre">
                   {curlExample}
                 </pre>
+              </div>
+
+              {/* n8n tip */}
+              <div className="bg-brand-blue/5 dark:bg-brand-blue/10 border border-brand-blue/15 rounded-lg px-3 py-2.5">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  <span className="font-medium text-brand-blue">n8n tip:</span> In your HTTP Request node, set the <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[11px]">fields</code> value to an expression like <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[11px]">{`{{ JSON.stringify($json) }}`}</code> to send the entire row as a JSON string — the webhook will parse it automatically.
+                </p>
               </div>
             </div>
           </div>
