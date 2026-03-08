@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
       maxMembers: organization.customMaxMembers || organization.subscriptionPlan?.maxMembers || 1,
       maxProfiles: organization.customMaxProfiles || organization.subscriptionPlan?.maxProfiles || 1,
       maxWorkspaces: organization.customMaxWorkspaces || organization.subscriptionPlan?.maxWorkspaces || 0,
-      maxStorageGB: organization.customMaxStorageGB || organization.subscriptionPlan?.maxStorageGB || 5,
+      maxStorageGB: (organization.customMaxStorageGB || organization.subscriptionPlan?.maxStorageGB || 5) + (organization.additionalStorageGB ?? 0),
       monthlyCredits: organization.customMonthlyCredits || organization.subscriptionPlan?.monthlyCredits || 100,
       currentStorageGB: organization.currentStorageGB,
       creditsUsedThisMonth: organization.creditsUsedThisMonth,
