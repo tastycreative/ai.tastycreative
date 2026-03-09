@@ -65,6 +65,7 @@ export interface ModelContext {
   emojis: string[];
   restrictions: string[];
   wordingToAvoid: string[];
+  operatorNotes: string;
 }
 
 // Helper function to format page strategy

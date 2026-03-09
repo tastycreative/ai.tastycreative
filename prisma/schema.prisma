@@ -52,9 +52,9 @@ model User {
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
   teamMemberships          TeamMember[]
+  trackerActivityLogs      TrackerActivityLog[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
-  trackerActivityLogs      TrackerActivityLog[]
   workspace_members        WorkspaceMember[]
 
   @@index([currentOrganizationId])
@@ -537,10 +537,10 @@ model InstagramProfile {
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   organization           Organization?         @relation(fields: [organizationId], references: [id])
+  trackerEntry           PageTrackerEntry?
   assignments            ProfileAssignment[]
   groupMemberships       ProfileGroupMember[]
   profilePins            ProfilePin[]
-  trackerEntry           PageTrackerEntry?
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -1456,11 +1456,11 @@ model Organization {
   notifications                 Notification[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
-  members                       TeamMember[]
-  trackerConfig                 TrackerConfig?
   trackerEntries                PageTrackerEntry[]
-  trackerTeams                  TrackerTeam[]
+  members                       TeamMember[]
   trackerActivityLogs           TrackerActivityLog[]
+  trackerConfig                 TrackerConfig?
+  trackerTeams                  TrackerTeam[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
 
@@ -2330,6 +2330,75 @@ model ProfileAssignment {
   @@map("profile_assignments")
 }
 
+model TrackerTeam {
+  id             String             @id @default(cuid())
+  name           String
+  color          String?
+  order          Int                @default(0)
+  organizationId String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  entries        PageTrackerEntry[]
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("tracker_teams")
+}
+
+model PageTrackerEntry {
+  id             String           @id @default(cuid())
+  profileId      String           @unique
+  teamId         String?
+  platformType   String?
+  managingSystem String?
+  trackerStatus  String           @default("ACTIVE")
+  notes          String?
+  organizationId String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  team           TrackerTeam?     @relation(fields: [teamId], references: [id])
+
+  @@index([teamId])
+  @@index([organizationId])
+  @@index([trackerStatus])
+  @@index([organizationId, teamId])
+  @@map("page_tracker_entries")
+}
+
+model TrackerConfig {
+  id              String       @id @default(cuid())
+  organizationId  String       @unique
+  customStatuses  String[]     @default([])
+  customPlatforms String[]     @default([])
+  customSystems   String[]     @default([])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("tracker_configs")
+}
+
+model TrackerActivityLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  action         String
+  entityType     String
+  entityId       String?
+  entityName     String?
+  details        String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("tracker_activity_logs")
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -2672,75 +2741,4 @@ enum BoardItemPriority {
   MEDIUM
   HIGH
   URGENT
-}
-
-// ─── Page Tracker Models ────────────────────────────────────────────────────
-
-model TrackerTeam {
-  id             String             @id @default(cuid())
-  name           String
-  color          String?
-  order          Int                @default(0)
-  organizationId String
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  entries        PageTrackerEntry[]
-
-  @@unique([organizationId, name])
-  @@index([organizationId])
-  @@map("tracker_teams")
-}
-
-model PageTrackerEntry {
-  id             String       @id @default(cuid())
-  profileId      String       @unique
-  teamId         String?
-  platformType   String?
-  managingSystem String?
-  trackerStatus  String       @default("ACTIVE")
-  notes          String?
-  organizationId String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  team           TrackerTeam?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([teamId])
-  @@index([organizationId])
-  @@index([trackerStatus])
-  @@index([organizationId, teamId])
-  @@map("page_tracker_entries")
-}
-
-model TrackerConfig {
-  id              String   @id @default(cuid())
-  organizationId  String   @unique
-  customStatuses  String[] @default([])
-  customPlatforms String[] @default([])
-  customSystems   String[] @default([])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@map("tracker_configs")
-}
-
-model TrackerActivityLog {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  action         String
-  entityType     String
-  entityId       String?
-  entityName     String?
-  details        String?
-  createdAt      DateTime @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([userId])
-  @@map("tracker_activity_logs")
 }

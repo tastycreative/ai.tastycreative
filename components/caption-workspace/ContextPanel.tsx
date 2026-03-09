@@ -156,6 +156,18 @@ function ContextPanelComponent({ modelContext, onAddToCaption }: ContextPanelPro
         </div>
       )}
 
+      {/* Operator Notes */}
+      {modelContext.operatorNotes && (
+        <div className="mb-5">
+          <div className="text-[10px] font-semibold text-brand-blue uppercase tracking-wide mb-2">
+            Operator Notes
+          </div>
+          <div className="p-3 bg-brand-blue/5 dark:bg-brand-blue/10 border border-brand-blue/20 rounded-xl text-sm leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            {modelContext.operatorNotes}
+          </div>
+        </div>
+      )}
+
       {/* Restrictions */}
       {(modelContext.restrictions.length > 0 || modelContext.wordingToAvoid.length > 0) && (
         <div>

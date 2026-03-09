@@ -240,6 +240,7 @@ interface ModelBible {
   dayChatter?: string;
   nightChatter?: string;
   internalNotes?: string;
+  captionOperatorNotes?: string;
   restrictions?: {
     contentLimitations?: string;
     wallRestrictions?: string;
@@ -3283,6 +3284,10 @@ export default function ModelProfilePage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesForm, setNotesForm] = useState("");
 
+  const [editingCaptionNotes, setEditingCaptionNotes] = useState(false);
+  const [savingCaptionNotes, setSavingCaptionNotes] = useState(false);
+  const [captionNotesForm, setCaptionNotesForm] = useState("");
+
   const tenant = params.tenant as string;
   const profileId = params.profileId as string;
 
@@ -4291,6 +4296,47 @@ export default function ModelProfilePage() {
   const handleCancelNotes = () => {
     setNotesForm(profile?.modelBible?.internalNotes || "");
     setEditingNotes(false);
+  };
+
+  const handleEditCaptionNotes = () => {
+    setCaptionNotesForm(profile?.modelBible?.captionOperatorNotes || "");
+    setEditingCaptionNotes(true);
+  };
+
+  const handleSaveCaptionNotes = async () => {
+    if (!apiClient || !profile) return;
+
+    setSavingCaptionNotes(true);
+
+    try {
+      const updatedBible = {
+        ...profile.modelBible,
+        captionOperatorNotes: captionNotesForm,
+      };
+
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          modelBible: updatedBible,
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to save caption operator notes");
+
+      setProfile({ ...profile, modelBible: updatedBible });
+      setEditingCaptionNotes(false);
+      toast.success("Caption operator notes updated!");
+    } catch (error) {
+      console.error("Error saving caption operator notes:", error);
+      toast.error("Failed to save caption operator notes");
+    } finally {
+      setSavingCaptionNotes(false);
+    }
+  };
+
+  const handleCancelCaptionNotes = () => {
+    setCaptionNotesForm(profile?.modelBible?.captionOperatorNotes || "");
+    setEditingCaptionNotes(false);
   };
 
   const handleEditProfileBasics = () => {
@@ -6246,10 +6292,78 @@ export default function ModelProfilePage() {
           )}
 
           {activeTab === "captions" && profile && (
-            <ModelCaptionBank
-              profileId={profileId}
-              profileName={profile.name}
-            />
+            <div className="space-y-6">
+              {/* Operator Notes for Captioners */}
+              <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <MessageSquare size={14} className="text-brand-light-pink" />
+                      Operator Notes for Captioners
+                    </h3>
+                    <p className="text-[11px] text-[#71717a] mt-1">
+                      Tips and guidance visible to captioners in the Caption Workspace — e.g. what style works best, tone preferences, things to highlight.
+                    </p>
+                  </div>
+                  {!editingCaptionNotes ? (
+                    <button
+                      onClick={handleEditCaptionNotes}
+                      className="px-3 py-1.5 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors flex items-center gap-2"
+                    >
+                      <Edit2 size={12} />
+                      Edit
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCancelCaptionNotes}
+                        disabled={savingCaptionNotes}
+                        className="px-3 py-1.5 bg-[#27272a] rounded-lg text-[#a1a1aa] text-xs hover:bg-[#3f3f46] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveCaptionNotes}
+                        disabled={savingCaptionNotes}
+                        className="px-3 py-1.5 bg-[#3b82f6] rounded-lg text-white text-xs hover:bg-[#2563eb] transition-colors flex items-center gap-2"
+                      >
+                        {savingCaptionNotes ? (
+                          <>Saving...</>
+                        ) : (
+                          <>
+                            <Save size={12} />
+                            Save
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingCaptionNotes ? (
+                  <textarea
+                    value={captionNotesForm}
+                    onChange={(e) => setCaptionNotesForm(e.target.value)}
+                    placeholder="e.g. This model converts best with playful, teasing captions. Avoid overly aggressive language. Use lots of emojis. Her fans respond well to GFE-style messaging..."
+                    rows={5}
+                    className="w-full px-3 py-2.5 bg-[#0c0c0f] border border-[#27272a] rounded-lg text-sm text-white placeholder:text-[#52525b] focus:ring-1 focus:ring-brand-mid-pink focus:border-brand-mid-pink outline-none resize-none"
+                  />
+                ) : (
+                  <div className="text-sm text-[#a1a1aa] whitespace-pre-wrap bg-[#0c0c0f] rounded-lg p-4 border border-[#27272a] min-h-[60px]">
+                    {profile.modelBible?.captionOperatorNotes || (
+                      <span className="text-[#52525b] italic">
+                        No operator notes yet. Add tips to help captioners write better captions for this model.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <ModelCaptionBank
+                profileId={profileId}
+                profileName={profile.name}
+              />
+            </div>
           )}
 
           {activeTab === "gallery" && (

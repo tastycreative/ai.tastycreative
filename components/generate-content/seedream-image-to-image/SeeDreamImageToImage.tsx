@@ -1268,12 +1268,17 @@ export default function SeeDreamImageToImage() {
 
 
       // Prepare request payload
+      // Use S3 URLs instead of base64 when available to keep the payload small
+      // (base64-encoded images can easily exceed platform body size limits)
+      const resolveImage = (img: typeof uploadedImages[0]) =>
+        savedReferenceUrls.get(img.id) || img.url || img.base64;
+
       const payload: any = {
         prompt: prompt.trim(),
         model: MODEL_IDS[selectedModel],
         image: uploadedImages.length === 1 
-          ? uploadedImages[0].base64 
-          : uploadedImages.map(img => img.base64), // Array for multiple images, single string for one image
+          ? resolveImage(uploadedImages[0]) 
+          : uploadedImages.map(resolveImage),
         watermark: false,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         // 5.0 LITE requires size as a label ("2K"/"3K") per official API spec — pixel dims cause

@@ -397,6 +397,7 @@ export default function KlingMotionControl() {
 
   // Initial data load
   // Check for stale active jobs and try to complete them from history
+  // Also resume polling for any pending tasks saved in localStorage
   useEffect(() => {
     if (!mounted || !apiClient) return;
 
@@ -443,9 +444,9 @@ export default function KlingMotionControl() {
                 return uniqueHistory;
               });
             } else {
-              // If no matching videos found and job is older than 30 minutes, force-fail it
+              // If no matching videos found and job is older than 45 minutes, force-fail it
               const jobAgeMs = Date.now() - activeJob.startedAt;
-              if (jobAgeMs > 30 * 60 * 1000) {
+              if (jobAgeMs > 45 * 60 * 1000) {
                 console.log('\u26a0\ufe0f Stale Kling Motion Control job timed out, force-marking as failed');
                 updateJob(activeJob.jobId, {
                   status: 'failed',
@@ -459,6 +460,34 @@ export default function KlingMotionControl() {
           }
         } catch (error) {
           console.error('Failed to check for completed Kling Motion Control generation:', error);
+        }
+      }
+
+      // Resume polling for pending tasks saved in localStorage (e.g. after page navigation)
+      if (!isGenerating) {
+        try {
+          const pendingRaw = localStorage.getItem('kling-mc-pending-task');
+          if (pendingRaw) {
+            const pending = JSON.parse(pendingRaw);
+            const ageMs = Date.now() - pending.startedAt;
+            // Only resume if task is less than 45 minutes old
+            if (ageMs < 45 * 60 * 1000) {
+              console.log('[Kling Motion Control] Resuming polling for pending task:', pending.taskId);
+              setIsGenerating(true);
+              setCurrentTaskId(pending.taskId);
+              // Clear from localStorage first so we don't double-resume
+              localStorage.removeItem('kling-mc-pending-task');
+              pollTaskStatus(pending.taskId, pending.localTaskId).catch(() => {
+                // Error handled inside pollTaskStatus
+              });
+            } else {
+              // Task too old, clean up
+              localStorage.removeItem('kling-mc-pending-task');
+            }
+          }
+        } catch (e) {
+          // localStorage may be unavailable or data corrupt
+          try { localStorage.removeItem('kling-mc-pending-task'); } catch (_) {}
         }
       }
     };
@@ -988,11 +1017,35 @@ export default function KlingMotionControl() {
     setShowVideoReferenceBankSelector(false);
   };
 
+  // Save/clear pending task in localStorage for recovery across page navigations
+  const savePendingTask = useCallback((taskId: string, localTaskId: string) => {
+    try {
+      localStorage.setItem('kling-mc-pending-task', JSON.stringify({
+        taskId,
+        localTaskId,
+        startedAt: Date.now(),
+      }));
+    } catch (e) {
+      // localStorage may be unavailable
+    }
+  }, []);
+
+  const clearPendingTask = useCallback(() => {
+    try {
+      localStorage.removeItem('kling-mc-pending-task');
+    } catch (e) {
+      // localStorage may be unavailable
+    }
+  }, []);
+
   // Poll for task status
   const pollTaskStatus = useCallback((taskId: string, localTaskId: string) => {
-    const maxAttempts = 240; // 20 minutes (240 × 5s) - Kling AI can take longer for complex videos
+    const maxAttempts = 480; // 40 minutes (480 × 5s) - Kling AI can take a while for complex videos
     let attempts = 0;
     let lastKnownStatus = "unknown";
+
+    // Persist task so polling can resume if user navigates away
+    savePendingTask(taskId, localTaskId);
 
     return new Promise<void>((resolve, reject) => {
       const poll = async () => {
@@ -1039,6 +1092,7 @@ export default function KlingMotionControl() {
           console.log(`[Kling Motion Control] Poll attempt ${attempts}/${maxAttempts} - Status: ${lastKnownStatus}`);
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
+            clearPendingTask();
             updateJob(localTaskId, {
               status: 'completed',
               progress: 100,
@@ -1068,6 +1122,7 @@ export default function KlingMotionControl() {
           }
 
           if (data.status === "failed") {
+            clearPendingTask();
             throw new Error(data.error || "Video generation failed");
           }
 
@@ -1076,11 +1131,26 @@ export default function KlingMotionControl() {
               setTimeout(poll, 5000);
               return;
             }
-            // Timeout with informative message
-            throw new Error(
-              `Video generation timed out after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
-              `Last status: ${lastKnownStatus}. The video may still be processing - check your history in a few minutes.`
+            // Timeout — transition to background recovery instead of hard error
+            clearPendingTask();
+            console.warn(`[Kling Motion Control] Polling timed out after ${Math.floor(maxAttempts * 5 / 60)} minutes. Task ${taskId} may still be processing.`);
+            setPollingStatus("");
+            setIsGenerating(false);
+            setCurrentTaskId(null);
+            setError(
+              `Video is still processing after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
+              `It will appear in your history automatically once ready. You can also click the refresh button to check.`
             );
+            updateGlobalProgress({
+              isGenerating: false,
+              progress: 0,
+              stage: "idle",
+              message: "",
+              generationType: "kling-motion-control",
+              jobId: localTaskId,
+            });
+            resolve();
+            return;
           }
 
           // Handle unexpected status
@@ -1089,12 +1159,27 @@ export default function KlingMotionControl() {
             return;
           }
 
-          throw new Error(
-            `Video generation timed out after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
-            `Last status: ${lastKnownStatus}. Please try again or contact support if the issue persists.`
+          clearPendingTask();
+          setPollingStatus("");
+          setIsGenerating(false);
+          setCurrentTaskId(null);
+          setError(
+            `Video is still processing after ${Math.floor(maxAttempts * 5 / 60)} minutes. ` +
+            `It will appear in your history automatically once ready. You can also click the refresh button to check.`
           );
+          updateGlobalProgress({
+            isGenerating: false,
+            progress: 0,
+            stage: "idle",
+            message: "",
+            generationType: "kling-motion-control",
+            jobId: localTaskId,
+          });
+          resolve();
+          return;
         } catch (err: any) {
           console.error("[Kling Motion Control] Polling error:", err);
+          clearPendingTask();
           setError(err.message || "Failed to check generation status");
           updateGlobalProgress({
             isGenerating: false,
@@ -1114,7 +1199,7 @@ export default function KlingMotionControl() {
 
       poll();
     });
-  }, [updateGlobalProgress, clearGlobalProgress, clearImage, clearVideo, loadGenerationHistory]);
+  }, [updateGlobalProgress, clearGlobalProgress, clearImage, clearVideo, loadGenerationHistory, savePendingTask, clearPendingTask]);
 
   // Upload file directly to S3 using presigned URL
   const uploadFileToS3 = async (file: File, fileType: 'image' | 'video'): Promise<string> => {

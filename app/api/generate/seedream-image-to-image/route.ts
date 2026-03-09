@@ -127,11 +127,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve image inputs: the client may send S3 URLs instead of base64 to keep
+    // the request payload small. Download any URL-based images server-side and
+    // convert them to data-URL strings that the BytePlus API expects.
+    const resolveImageInput = async (input: string): Promise<string> => {
+      // Already a data URL or raw base64 — pass through
+      if (input.startsWith('data:') || !input.startsWith('http')) {
+        return input;
+      }
+      // It's a URL — download and convert to data URL
+      console.log('📥 Downloading reference image from URL for BytePlus...');
+      const imgResponse = await fetch(input);
+      if (!imgResponse.ok) {
+        throw new Error(`Failed to download reference image: ${imgResponse.statusText}`);
+      }
+      const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await imgResponse.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      return `data:${contentType};base64,${base64}`;
+    };
+
+    let resolvedImage: string | string[];
+    if (Array.isArray(image)) {
+      resolvedImage = await Promise.all(image.map(resolveImageInput));
+      console.log(`Resolved ${resolvedImage.length} images (${resolvedImage.map(i => i.startsWith('data:') ? 'base64' : 'unknown').join(', ')})`);
+    } else {
+      resolvedImage = await resolveImageInput(image);
+    }
+
     // Prepare BytePlus API request payload
     const payload: any = {
       model,
       prompt,
-      image, // Pass as-is (single string or array)
+      image: resolvedImage,
       watermark,
       size,
       response_format: "url", // Required explicitly for batch generation per official docs
@@ -143,8 +171,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Log image count if array
-    if (Array.isArray(image)) {
-      console.log(`Processing ${image.length} images (1 primary + ${image.length - 1} reference)`);
+    if (Array.isArray(resolvedImage)) {
+      console.log(`Processing ${resolvedImage.length} images (1 primary + ${resolvedImage.length - 1} reference)`);
     }
 
     // Add sequential image generation config if batch size > 1

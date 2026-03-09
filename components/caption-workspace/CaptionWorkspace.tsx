@@ -630,6 +630,7 @@ export default function CaptionWorkspace() {
         emojis: [],
         restrictions: [],
         wordingToAvoid: [],
+        operatorNotes: '',
       };
     }
 
@@ -651,6 +652,7 @@ export default function CaptionWorkspace() {
         ...(bible.restrictions?.customsToAvoid ? [bible.restrictions.customsToAvoid] : []),
       ].filter(Boolean),
       wordingToAvoid: bible.restrictions?.wordingToAvoid || [],
+      operatorNotes: bible.captionOperatorNotes || '',
     };
   }, [profileData, selectedTicketData]);
 
