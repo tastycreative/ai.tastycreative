@@ -28,6 +28,7 @@ export interface ModelBible {
   eyes?: string;
   bodyType?: string;
   tattoosPiercings?: string;
+  captionOperatorNotes?: string;
 }
 
 export interface InstagramProfileDetail {
