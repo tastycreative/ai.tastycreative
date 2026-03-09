@@ -746,7 +746,7 @@ export function ModelOnboardingTaskDetailModal({
                     </div>
                   </div>
 
-                  {/* Checklist items with drag-and-drop */}
+                  {/* Checklist items with drag-and-drop. */}
                   <DragDropContext onDragEnd={handleChecklistDragEnd}>
                     <Droppable droppableId="checklist">
                       {(provided) => (
