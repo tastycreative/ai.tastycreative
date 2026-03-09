@@ -43,8 +43,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         organizationId: true,
         templateType: true,
         key: true,
+        slug: true,
         config: true,
         isActive: true,
+        organization: { select: { slug: true } },
         boards: {
           orderBy: { position: 'asc' },
           take: 1,
@@ -248,8 +250,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       ? `${workspace.key}-${nextItemNo}`.toLowerCase()
       : undefined;
 
+    const baseUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
+    const orgSlug = workspace.organization?.slug;
+    const taskUrl = orgSlug && taskKey
+      ? `${baseUrl}/${orgSlug}/spaces/${workspace.slug}?task=${taskKey}`
+      : undefined;
+
     return NextResponse.json(
-      { success: true, id: item.id, taskKey, itemNo: nextItemNo },
+      { success: true, id: item.id, taskKey, itemNo: nextItemNo, taskUrl },
       { status: 201 },
     );
   } catch (error: unknown) {
