@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Draggable } from '@hello-pangea/dnd';
-import { Pencil, Check, X, User } from 'lucide-react';
+import { Pencil, Check, X, User, Trash2 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import type { BoardTask } from '../../board';
 
@@ -12,6 +12,7 @@ interface ModelOnboardingTaskCardProps {
   index: number;
   onClick?: (task: BoardTask) => void;
   onTitleUpdate?: (task: BoardTask, newTitle: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
@@ -19,6 +20,7 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
   index,
   onClick,
   onTitleUpdate,
+  onDelete,
 }: ModelOnboardingTaskCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -82,6 +84,21 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
                   </span>
                 )}
                 <span className="flex-1" />
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+                        onDelete(task.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                    title="Delete task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Row 2: Title */}

@@ -21,6 +21,7 @@ interface BoardColumnProps {
   onColumnTitleUpdate?: (columnId: string, newTitle: string) => void;
   onColumnColorUpdate?: (columnId: string, newColor: string) => void;
   onMarkFinal?: (taskId: string) => void;
+  onTaskDelete?: (taskId: string) => void;
   CardComponent?: ComponentType<BoardTaskCardProps>;
 }
 
@@ -55,6 +56,7 @@ export function BoardColumn({
   onColumnTitleUpdate,
   onColumnColorUpdate,
   onMarkFinal,
+  onTaskDelete,
   CardComponent,
 }: BoardColumnProps) {
   const Card = CardComponent ?? BoardTaskCard;
@@ -263,6 +265,7 @@ export function BoardColumn({
                   onTitleUpdate={onTaskTitleUpdate}
                   columnTitle={column.title}
                   onMarkFinal={onMarkFinal}
+                  onDelete={onTaskDelete}
                 />
               ))}
               {provided.placeholder}

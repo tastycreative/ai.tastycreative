@@ -237,7 +237,7 @@ export interface ModelOnboardingItemMetadata {
   fields: Record<string, string>;
 }
 
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
+export const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: 'step-1', text: 'Collect model information & photos', completed: false, order: 0 },
   { id: 'step-2', text: 'Verify identity documents', completed: false, order: 1 },
   { id: 'step-3', text: 'Sign contract & agreements', completed: false, order: 2 },
@@ -247,6 +247,31 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: 'step-7', text: 'Team introductions', completed: false, order: 6 },
   { id: 'step-8', text: 'Schedule first content calendar', completed: false, order: 7 },
 ];
+
+/**
+ * Returns the checklist items to use for a new task.
+ * Reads custom checklist from spaceConfig.checklist.items if available,
+ * otherwise falls back to the hardcoded DEFAULT_CHECKLIST.
+ * Always returns fresh copies with completed: false.
+ */
+export function getDefaultChecklist(
+  spaceConfig?: Record<string, unknown> | null,
+): ChecklistItem[] {
+  const checklist = (spaceConfig?.checklist as Record<string, unknown> | undefined);
+  const items = checklist?.items as ChecklistItem[] | undefined;
+
+  if (Array.isArray(items) && items.length > 0) {
+    return items.map((item, idx) => ({
+      ...item,
+      completed: false,
+      completedBy: undefined,
+      completedAt: undefined,
+      order: idx,
+    }));
+  }
+
+  return DEFAULT_CHECKLIST.map((item) => ({ ...item, completed: false }));
+}
 
 export const MODEL_ONBOARDING_METADATA_DEFAULTS: ModelOnboardingItemMetadata = {
   modelName: '',

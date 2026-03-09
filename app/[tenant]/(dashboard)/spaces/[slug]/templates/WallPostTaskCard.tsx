@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Draggable } from "@hello-pangea/dnd";
-import { Pencil, Check, X, Calendar, AtSign } from "lucide-react";
+import { Pencil, Check, X, Calendar, AtSign, Trash2 } from "lucide-react";
 import type { BoardTaskCardProps } from "../../board/BoardTaskCard";
 
 export function WallPostTaskCard({
@@ -11,6 +11,7 @@ export function WallPostTaskCard({
   index,
   onClick,
   onTitleUpdate,
+  onDelete,
 }: BoardTaskCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -107,10 +108,27 @@ export function WallPostTaskCard({
               : "shadow-sm border-gray-200 dark:border-brand-mid-pink/20 hover:shadow-md hover:border-brand-light-pink/50",
           ].join(" ")}
         >
-          {/* Task key */}
-          <span className="text-[10px] font-semibold tracking-wide text-brand-blue/80 dark:text-brand-blue/70 mb-1 block">
-            {task.taskKey}
-          </span>
+          {/* Task key and delete button */}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold tracking-wide text-brand-blue/80 dark:text-brand-blue/70">
+              {task.taskKey}
+            </span>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+                    onDelete(task.id);
+                  }
+                }}
+                className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                title="Delete task"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
 
           {/* Title */}
           {editing ? (

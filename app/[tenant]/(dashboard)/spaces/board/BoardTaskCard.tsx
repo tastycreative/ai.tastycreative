@@ -26,6 +26,7 @@ export interface BoardTaskCardProps {
   onTitleUpdate?: (task: BoardTask, newTitle: string) => void;
   columnTitle?: string;
   onMarkFinal?: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {

@@ -8,6 +8,7 @@ import {
   useBoardItems,
   useCreateBoardItem,
   useUpdateBoardItem,
+  useDeleteBoardItem,
   useCreateColumn,
   useUpdateColumn,
   type BoardItem,
@@ -74,6 +75,10 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     defaultBoard?.id ?? '',
   );
   const updateItemMutation = useUpdateBoardItem(
+    space?.id ?? '',
+    defaultBoard?.id ?? '',
+  );
+  const deleteItemMutation = useDeleteBoardItem(
     space?.id ?? '',
     defaultBoard?.id ?? '',
   );
@@ -394,6 +399,36 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     }
   }, [searchParams, tasksMap, findColumnForTask, router, selectedTask]);
 
+  const handleDeleteTask = useCallback(
+    (taskId: string) => {
+      // Optimistically remove from local state
+      setLocalTasks((prev) => {
+        const updated = { ...(prev ?? effectiveTasks) };
+        delete updated[taskId];
+        return updated;
+      });
+      setLocalColumns((prev) => {
+        const updated = { ...(prev ?? effectiveColumns) };
+        Object.keys(updated).forEach((colId) => {
+          updated[colId] = {
+            ...updated[colId],
+            taskIds: updated[colId].taskIds.filter((id) => id !== taskId),
+          };
+        });
+        return updated;
+      });
+
+      // Close modal if the deleted task is currently open
+      if (selectedTask?.id === taskId) {
+        closeTaskModal();
+      }
+
+      // Trigger server deletion
+      deleteItemMutation.mutate(taskId);
+    },
+    [effectiveTasks, effectiveColumns, selectedTask, deleteItemMutation, closeTaskModal],
+  );
+
   return {
     boardData,
     itemsLoading,
@@ -410,6 +445,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
+    handleDeleteTask,
     closeTaskModal,
   };
 }

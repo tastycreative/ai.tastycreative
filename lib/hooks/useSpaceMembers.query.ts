@@ -87,6 +87,22 @@ async function addMembersBulk(
   return res.json();
 }
 
+async function transferOwnership(
+  spaceId: string,
+  newOwnerId: string,
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/spaces/${spaceId}/transfer-ownership`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newOwnerId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || 'Failed to transfer ownership');
+  }
+  return res.json();
+}
+
 /* ------------------------------------------------------------------ */
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
@@ -129,6 +145,18 @@ export function useAddSpaceMembers(spaceId: string) {
       addMembersBulk(spaceId, userIds, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: spaceMemberKeys.list(spaceId) });
+    },
+  });
+}
+
+export function useTransferOwnership(spaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (newOwnerId: string) => transferOwnership(spaceId, newOwnerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceMemberKeys.list(spaceId) });
+      // Also invalidate space queries to refresh owner info
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
     },
   });
 }

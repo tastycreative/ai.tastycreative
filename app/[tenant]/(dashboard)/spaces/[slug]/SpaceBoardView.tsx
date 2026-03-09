@@ -20,7 +20,7 @@ import {
 } from '../board';
 import { useSpaceBoard } from './useSpaceBoard';
 import { TEMPLATE_CONFIG } from './templates/template-config';
-import { MODEL_ONBOARDING_METADATA_DEFAULTS } from '@/lib/spaces/template-metadata';
+import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
 
 interface SpaceBoardViewProps {
   slug: string;
@@ -176,6 +176,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
     handleTaskClick,
     handleTaskUpdate,
     handleTitleUpdate,
+    handleDeleteTask,
     closeTaskModal,
   } = useSpaceBoard({ space, itemToTask: config.itemToTask });
 
@@ -183,12 +184,16 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const handleAddTaskWithDefaults = useCallback(
     (columnId: string, title: string) => {
       if (space?.templateType === 'MODEL_ONBOARDING') {
-        handleAddTask(columnId, title, { ...MODEL_ONBOARDING_METADATA_DEFAULTS });
+        const spaceConfig = (space?.config as Record<string, unknown>) ?? null;
+        handleAddTask(columnId, title, {
+          ...MODEL_ONBOARDING_METADATA_DEFAULTS,
+          checklist: getDefaultChecklist(spaceConfig),
+        });
       } else {
         handleAddTask(columnId, title);
       }
     },
-    [handleAddTask, space?.templateType],
+    [handleAddTask, space?.templateType, space?.config],
   );
 
   // Extract unique assignees from all tasks (resolve IDs to display names)
@@ -304,6 +309,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onColumnTitleUpdate={handleColumnTitleUpdate}
                         onColumnColorUpdate={handleColumnColorUpdate}
                         onMarkFinal={handleMarkFinal}
+                        onTaskDelete={handleDeleteTask}
                         CardComponent={CardComponent}
                       />
                     );

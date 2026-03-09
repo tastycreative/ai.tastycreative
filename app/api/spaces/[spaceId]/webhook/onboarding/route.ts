@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
-import { MODEL_ONBOARDING_METADATA_DEFAULTS } from '@/lib/spaces/template-metadata';
+import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
 
 type Params = { params: Promise<{ spaceId: string }> };
 
@@ -174,6 +174,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Build metadata
     const metadata = {
       ...MODEL_ONBOARDING_METADATA_DEFAULTS,
+      checklist: getDefaultChecklist(config),
       modelName,
       platform,
       socialHandles: Array.isArray(body.socialHandles) ? body.socialHandles : [],

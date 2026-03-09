@@ -2,7 +2,7 @@
 
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Settings, Users, Bell, Loader2, Sparkles, Webhook } from 'lucide-react';
+import { ArrowLeft, Settings, Users, Bell, Loader2, Sparkles, Webhook, ClipboardList } from 'lucide-react';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useMemo } from 'react';
 
@@ -27,6 +27,7 @@ export default function SpaceSettingsLayout({
   const navItems = useMemo(() => {
     const items = [...BASE_NAV_ITEMS];
     if (space?.templateType === 'MODEL_ONBOARDING') {
+      items.push({ id: 'checklist', label: 'Checklist', icon: ClipboardList, segment: 'checklist' });
       items.push({ id: 'webhook', label: 'Webhook', icon: Webhook, segment: 'webhook' });
     }
     return items;
