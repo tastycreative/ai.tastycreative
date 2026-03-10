@@ -26,6 +26,8 @@ import {
   Link2,
   ChevronDown,
   Image as ImageIcon,
+  Settings,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 // Note: All icons above are used across the component's sections and sidebar
@@ -65,7 +67,7 @@ interface Props {
   onUpdate: (updated: BoardTask) => void;
 }
 
-type ModalTab = 'details' | 'history' | 'comments';
+type ModalTab = 'details' | 'workflow' | 'history' | 'comments';
 
 /* ── Constants ───────────────────────────────────────────── */
 
@@ -159,27 +161,27 @@ function Section({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="mb-1">
+    <div className="mb-0.5">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center w-full gap-2 py-2.5 text-left group/section"
+        className="flex items-center w-full gap-2.5 py-2.5 px-1 text-left group/section hover:bg-white/[0.02] rounded-lg transition-colors"
       >
         <Icon className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-        <span className="text-[13px] font-semibold text-gray-200 tracking-wide flex-1 uppercase">
+        <span className="text-[11px] font-semibold text-gray-400 tracking-[0.08em] flex-1 uppercase">
           {title}
         </span>
         {badge}
         <ChevronDown
-          className={`h-3 w-3 text-gray-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`h-3 w-3 text-gray-600 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className="pb-3 pl-5.5">
+        <div className="pb-3 pl-6 pr-1">
           {children}
         </div>
       )}
-      <div className="border-t border-white/[0.04]" />
+      <div className="border-t border-white/[0.04] mx-1" />
     </div>
   );
 }
@@ -188,7 +190,7 @@ function Section({
 
 function SideLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400 mb-1">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 mb-1">
       {children}
     </div>
   );
@@ -196,9 +198,9 @@ function SideLabel({ children }: { children: React.ReactNode }) {
 
 function SideRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="py-2 border-b border-white/[0.03] last:border-0">
+    <div className="py-2.5 border-b border-white/[0.04] last:border-0">
       <SideLabel>{label}</SideLabel>
-      <div>{children}</div>
+      <div className="mt-0.5">{children}</div>
     </div>
   );
 }
@@ -250,12 +252,12 @@ function TagInput({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onAdd(); } }}
         placeholder={placeholder}
-        className="flex-1 rounded px-2 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 bg-white/[0.03] border border-white/[0.06] focus-visible:outline-none focus-visible:border-brand-mid-pink/30"
+        className="flex-1 rounded-lg px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 bg-white/[0.03] border border-white/[0.06] focus-visible:outline-none focus-visible:border-brand-mid-pink/30 transition-colors"
       />
       <button
         type="button"
         onClick={onAdd}
-        className="p-1 rounded text-gray-500 hover:text-brand-light-pink transition-colors"
+        className="p-1.5 rounded-lg text-gray-500 hover:text-brand-light-pink hover:bg-white/[0.04] transition-all"
       >
         <Plus className="h-3 w-3" />
       </button>
@@ -278,7 +280,7 @@ function RemovableTag({
     blue: 'bg-brand-blue/8 text-brand-blue border-brand-blue/12',
   };
   return (
-    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium border ${colors[variant]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium border ${colors[variant]}`}>
       {children}
       <button type="button" onClick={onRemove} className="opacity-50 hover:opacity-100 transition-opacity">
         <X className="h-2.5 w-2.5" />
@@ -527,6 +529,7 @@ export function OtpPtrTaskDetailModal({
 
   const TABS: { id: ModalTab; label: string; icon: LucideIcon }[] = [
     { id: 'details', label: 'Details', icon: Info },
+    { id: 'workflow', label: 'Workflow', icon: Workflow },
     { id: 'history', label: 'History', icon: Clock },
     { id: 'comments', label: 'Comments', icon: MessageSquare },
   ];
@@ -539,36 +542,38 @@ export function OtpPtrTaskDetailModal({
     <div
       className="fixed inset-0 z-9999 flex items-start justify-center overflow-y-auto py-8 px-4"
       onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+      style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)' }}
     >
       <div
-        className="relative w-full max-w-[1080px] rounded-2xl shadow-2xl shadow-black/60 bg-[#0d0b14] border border-white/[0.08] overflow-hidden"
+        className="relative w-full max-w-5xl rounded-2xl shadow-2xl shadow-black/60 bg-[#0f1729]/95 backdrop-blur-xl border border-white/[0.08] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Gradient header strip */}
-        <div className="h-1 w-full bg-gradient-to-r from-brand-light-pink via-brand-mid-pink to-brand-light-pink/40" />
+        {/* Pink gradient top strip */}
+        <div className="h-[3px] w-full bg-gradient-to-r from-brand-dark-pink via-brand-light-pink to-brand-mid-pink/40" />
 
         {/* ═══ Header ════════════════════════════════════ */}
         <div className="px-6 pt-5 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               {/* Badge row */}
-              <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-                <span className="font-mono text-xs font-semibold text-gray-400 bg-white/[0.04] px-2 py-0.5 rounded-md border border-white/[0.06] tracking-wide">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="font-mono text-[11px] font-semibold text-gray-300 bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.08] tracking-wide">
                   {task.taskKey}
                 </span>
-                <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-2.5 py-0.5 border ${
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-2.5 py-1 ${
                   requestType === 'OTP'
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/20'
+                    ? 'bg-brand-blue/15 text-brand-blue'
                     : requestType === 'PTR'
-                    ? 'bg-brand-light-pink/15 text-brand-light-pink border-brand-light-pink/20'
-                    : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                    ? 'bg-brand-light-pink/15 text-brand-light-pink'
+                    : 'bg-amber-500/15 text-amber-400'
                 }`}>
                   {requestType}
                 </span>
-                <span className="text-[11px] text-gray-500 bg-white/[0.03] px-2 py-0.5 rounded-full">{columnTitle}</span>
+                <span className="text-[11px] text-gray-500 bg-white/[0.04] px-2.5 py-1 rounded-full">
+                  {columnTitle}
+                </span>
                 {/* Caption status */}
-                <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium rounded-full px-2.5 py-0.5 bg-white/[0.04] border border-white/[0.06] ${captionCfg.color}`}>
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium rounded-full px-2.5 py-1 bg-white/[0.04] ${captionCfg.color}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${captionCfg.dotColor}`} />
                   {captionCfg.label}
                 </span>
@@ -586,7 +591,7 @@ export function OtpPtrTaskDetailModal({
                       if (e.key === 'Enter') saveTitle();
                       if (e.key === 'Escape') { setTitleDraft(task.title); setEditingTitle(false); }
                     }}
-                    className="w-full text-2xl font-bold text-white bg-transparent border-b border-brand-mid-pink/40 focus-visible:outline-none focus-visible:border-brand-light-pink/60 pb-0.5 transition-colors tracking-tight"
+                    className="w-full text-[22px] font-bold text-white bg-transparent border-b border-brand-mid-pink/40 focus-visible:outline-none focus-visible:border-brand-light-pink/60 pb-0.5 transition-colors tracking-tight"
                   />
                 ) : (
                   <button
@@ -594,7 +599,7 @@ export function OtpPtrTaskDetailModal({
                     onClick={() => setEditingTitle(true)}
                     className="flex items-center gap-2 w-full text-left"
                   >
-                    <h2 className="text-2xl font-bold text-white leading-snug tracking-tight">
+                    <h2 className="text-[22px] font-bold text-white leading-snug tracking-tight">
                       {task.title}
                     </h2>
                     <Pencil className="h-3 w-3 text-gray-700 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
@@ -602,66 +607,80 @@ export function OtpPtrTaskDetailModal({
                 )}
               </div>
 
-              {/* Quick stats — glassmorphism card */}
+              {/* Quick info bar */}
               {(buyer || model || deadline || price > 0 || platforms.length > 0) && (
-                <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 rounded-xl bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] px-4 py-2.5">
+                <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 rounded-xl bg-[#1a2237]/80 border border-white/[0.06] px-4 py-2.5">
                   {price > 0 && (
                     <span className="text-brand-light-pink font-bold text-sm">${price}</span>
                   )}
                   {(meta.isPaid as boolean) != null && (
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                       (meta.isPaid as boolean)
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        ? 'bg-emerald-500/12 text-emerald-400'
+                        : 'bg-red-500/12 text-red-400'
                     }`}>
                       {(meta.isPaid as boolean) ? 'PAID' : 'UNPAID'}
                     </span>
                   )}
-                  {buyer && <span className="inline-flex items-center gap-1"><User className="h-3 w-3 text-gray-500" />@{buyer}</span>}
-                  {model && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3 text-gray-500" />{model}</span>}
+                  {model && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <User className="h-3 w-3 text-gray-500" />
+                      <span className="text-gray-300">{model}</span>
+                    </span>
+                  )}
                   {platforms.length > 0 && platforms.map((p) => (
-                    <span key={p} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    <span key={p} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                       p === 'onlyfans'
-                        ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
-                        : 'bg-brand-light-pink/10 text-brand-light-pink border-brand-light-pink/20'
+                        ? 'bg-brand-blue/12 text-brand-blue'
+                        : 'bg-brand-light-pink/12 text-brand-light-pink'
                     }`}>
                       {p === 'onlyfans' ? 'OF' : 'Fansly'}
                     </span>
                   ))}
                   {deadline && (
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5">
                       <CalendarDays className="h-3 w-3 text-gray-500" />
-                      {new Date(deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      <span className="text-gray-300">{new Date(deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                     </span>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Close */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors shrink-0"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/* Top-right actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditingTitle(true)}
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold text-white bg-brand-light-pink/90 hover:bg-brand-light-pink transition-all duration-200"
+              >
+                <Pencil className="h-3 w-3" />
+                Edit Task
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-all duration-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ═══ Tab Bar — pill-shaped ═══════════════════ */}
-        <div className="px-6 py-2 border-b border-white/[0.06]">
-          <div className="inline-flex items-center gap-1 rounded-xl bg-white/[0.03] p-1 border border-white/[0.04]">
+        {/* ═══ Tab Bar ═══════════════════════════════════ */}
+        <div className="px-6 border-b border-white/[0.06]">
+          <div className="flex items-center gap-0.5">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
                 className={[
-                  'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                  'relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all duration-200',
                   activeTab === t.id
-                    ? 'bg-white/[0.06] text-white shadow-sm ring-1 ring-brand-light-pink/15'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]',
+                    ? 'text-white'
+                    : 'text-gray-500 hover:text-gray-300',
                 ].join(' ')}
               >
                 <t.icon className={`h-3.5 w-3.5 ${activeTab === t.id ? 'text-brand-light-pink' : ''}`} />
@@ -671,13 +690,17 @@ export function OtpPtrTaskDetailModal({
                     {comments.length}
                   </span>
                 )}
+                {/* Active indicator */}
+                {activeTab === t.id && (
+                  <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-brand-light-pink rounded-full" />
+                )}
               </button>
             ))}
           </div>
         </div>
 
         {/* ═══ Body ═════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px]">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px]">
           {/* ── Left: Tab Content ──────────────────────── */}
           <div className="px-6 py-5 min-h-[50vh] max-h-[62vh] overflow-y-auto custom-scrollbar border-r border-white/[0.04]">
 
@@ -721,11 +744,150 @@ export function OtpPtrTaskDetailModal({
                   </div>
                 </Section>
 
+                {/* Description & Content */}
+                <Section icon={FileText} title="Description & Content">
+                  <div className="space-y-3">
+                    <EditableField value={task.description ?? ''} placeholder="Add description..." onSave={(v) => onUpdate({ ...task, description: v || undefined })} />
+
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-2 pt-2 border-t border-white/[0.04]">
+                      <div><SideLabel>Content Type</SideLabel><EditableField value={contentType} placeholder="Set type" onSave={(v) => updateMeta({ contentType: v })} /></div>
+                      <div><SideLabel>Length</SideLabel><EditableField value={contentLength} placeholder="Set length" onSave={(v) => updateMeta({ contentLength: v })} /></div>
+                      <div><SideLabel>Count</SideLabel><EditableField value={contentCount} placeholder="Set count" onSave={(v) => updateMeta({ contentCount: v })} /></div>
+                    </div>
+
+                    {/* Platforms */}
+                    <div className="pt-2 border-t border-white/[0.04]">
+                      <SideLabel>Platforms</SideLabel>
+                      <div className="flex items-center gap-2 mt-1">
+                        {(['onlyfans', 'fansly'] as const).map((p) => {
+                          const isActive = platforms.includes(p);
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => {
+                                const next = isActive
+                                  ? platforms.filter((x) => x !== p)
+                                  : [...platforms, p];
+                                if (next.length === 0) return;
+                                updateMeta({ platforms: next });
+                              }}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-all duration-200 ${
+                                isActive
+                                  ? p === 'onlyfans'
+                                    ? 'bg-brand-blue/15 border-brand-blue/30 text-brand-blue'
+                                    : 'bg-brand-light-pink/15 border-brand-light-pink/30 text-brand-light-pink'
+                                  : 'bg-white/[0.03] border-white/[0.06] text-gray-500 hover:border-white/[0.12]'
+                              }`}
+                            >
+                              {p === 'onlyfans' ? 'OnlyFans' : 'Fansly'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
+                      <DollarSign className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="text-sm font-medium text-gray-400">Price</span>
+                      <span className="flex-1" />
+                      <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Drive Link */}
+                <Section icon={Link2} title="Google Drive">
+                  <EditableField value={rawDriveLink} placeholder="Paste Drive link..." onSave={(v) => updateMeta({ driveLink: v })} />
+                  {driveLink && (
+                    <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-brand-blue hover:underline mt-1.5">
+                      <ExternalLink className="h-3 w-3" />Open in Drive
+                    </a>
+                  )}
+                </Section>
+
+                {/* Notes */}
+                <Section icon={ClipboardList} title="Notes">
+                  <div className="group/notes">
+                    {editingNotes ? (
+                      <div>
+                        <textarea
+                          ref={notesRef}
+                          value={notesDraft}
+                          onChange={(e) => setNotesDraft(e.target.value)}
+                          rows={4}
+                          placeholder="Delivery instructions, special requests..."
+                          className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-mid-pink/30 resize-none"
+                        />
+                        <div className="flex items-center gap-2 mt-2">
+                          <button type="button" onClick={saveNotes} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-light-pink/80 hover:bg-brand-light-pink transition-colors">
+                            Save
+                          </button>
+                          <button type="button" onClick={() => { setNotesDraft(fulfillmentNotes); setEditingNotes(false); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setEditingNotes(true)} className="flex items-start gap-2 w-full text-left">
+                        <p className="text-[13px] text-gray-400 whitespace-pre-wrap flex-1 leading-relaxed">
+                          {fulfillmentNotes || <span className="text-gray-600 italic">Click to add notes...</span>}
+                        </p>
+                        <Pencil className="h-3 w-3 text-gray-700 opacity-0 group-hover/notes:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                      </button>
+                    )}
+                  </div>
+                </Section>
+
+                {/* Tags */}
+                <Section icon={Tag} title="Tags">
+                  <div className="space-y-3">
+                    <div>
+                      <SideLabel>External Creators</SideLabel>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {externalCreatorTags.map((t) => <RemovableTag key={t} variant="pink" onRemove={() => removeFromArray('externalCreatorTags', t)}>{t}</RemovableTag>)}
+                      </div>
+                      <TagInput value={getTagInput('externalCreatorTags')} onChange={(v) => setTagInput('externalCreatorTags', v)} onAdd={() => addToArray('externalCreatorTags', getTagInput('externalCreatorTags'))} placeholder="Add creator..." />
+                    </div>
+                    <div>
+                      <SideLabel>Internal Models</SideLabel>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {internalModelTags.map((t) => <RemovableTag key={t} variant="blue" onRemove={() => removeFromArray('internalModelTags', t)}>{t}</RemovableTag>)}
+                      </div>
+                      <TagInput value={getTagInput('internalModelTags')} onChange={(v) => setTagInput('internalModelTags', v)} onAdd={() => addToArray('internalModelTags', getTagInput('internalModelTags'))} placeholder="Add model..." />
+                    </div>
+                    <div>
+                      <SideLabel>Content Tags</SideLabel>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {contentTags.map((t) => <RemovableTag key={t} onRemove={() => removeFromArray('contentTags', t)}>{t}</RemovableTag>)}
+                      </div>
+                      <TagInput value={getTagInput('contentTags')} onChange={(v) => setTagInput('contentTags', v)} onAdd={() => addToArray('contentTags', getTagInput('contentTags'))} placeholder="Add tag..." />
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Timestamps */}
+                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                    {typeof meta.createdAt === 'string' && (
+                      <div><SideLabel>Created</SideLabel><span className="text-gray-400">{formatFullDate(meta.createdAt)}</span></div>
+                    )}
+                    {typeof meta.updatedAt === 'string' && (
+                      <div><SideLabel>Updated</SideLabel><span className="text-gray-400">{formatFullDate(meta.updatedAt)}</span></div>
+                    )}
+                  </div>
+                </Section>
+              </>
+            )}
+
+            {/* ── Workflow Tab ─────────────────────────────── */}
+            {activeTab === 'workflow' && (
+              <>
                 {/* PGT Team */}
                 <Section icon={FileText} title="PGT Team">
                   <div className="space-y-3">
                     {/* Caption Status */}
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${captionCfg.bgColor} ${captionCfg.color}`}>
+                    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium ${captionCfg.bgColor} ${captionCfg.color}`}>
                       <span className={`h-2 w-2 rounded-full shrink-0 ${captionCfg.dotColor}`} />
                       {captionCfg.label}
                       {captionTicketId && <span className="ml-auto text-[10px] opacity-50">Ticket linked</span>}
@@ -868,6 +1030,7 @@ export function OtpPtrTaskDetailModal({
                   </div>
                 </Section>
 
+                {/* PPV/Bundle Details */}
                 {(contentStyle.toLowerCase() === 'ppv' || contentStyle.toLowerCase() === 'bundle') && (
                   <Section icon={Film} title="PPV/Bundle Details">
                     <SideLabel>Original Poll Reference</SideLabel>
@@ -887,7 +1050,7 @@ export function OtpPtrTaskDetailModal({
                             href={m.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group relative aspect-square rounded-lg overflow-hidden bg-black/20 border border-white/[0.06] hover:border-brand-light-pink/30 transition-all"
+                            className="group relative aspect-square rounded-lg overflow-hidden bg-black/20 border border-white/[0.06] hover:border-brand-light-pink/30 transition-all duration-200"
                           >
                             {isVideo ? (
                               <video
@@ -914,101 +1077,6 @@ export function OtpPtrTaskDetailModal({
                   </Section>
                 )}
 
-                {/* Description & Content */}
-                <Section icon={Info} title="Description & Content">
-                  <div className="space-y-3">
-                    <EditableField value={task.description ?? ''} placeholder="Add description..." onSave={(v) => onUpdate({ ...task, description: v || undefined })} />
-
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-2 pt-2 border-t border-white/[0.04]">
-                      <div><SideLabel>Content Type</SideLabel><EditableField value={contentType} placeholder="Set type" onSave={(v) => updateMeta({ contentType: v })} /></div>
-                      <div><SideLabel>Length</SideLabel><EditableField value={contentLength} placeholder="Set length" onSave={(v) => updateMeta({ contentLength: v })} /></div>
-                      <div><SideLabel>Count</SideLabel><EditableField value={contentCount} placeholder="Set count" onSave={(v) => updateMeta({ contentCount: v })} /></div>
-                    </div>
-
-                    {/* Platforms */}
-                    <div className="pt-2 border-t border-white/[0.04]">
-                      <SideLabel>Platforms</SideLabel>
-                      <div className="flex items-center gap-2 mt-1">
-                        {(['onlyfans', 'fansly'] as const).map((p) => {
-                          const isActive = platforms.includes(p);
-                          return (
-                            <button
-                              key={p}
-                              type="button"
-                              onClick={() => {
-                                const next = isActive
-                                  ? platforms.filter((x) => x !== p)
-                                  : [...platforms, p];
-                                if (next.length === 0) return;
-                                updateMeta({ platforms: next });
-                              }}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-all ${
-                                isActive
-                                  ? p === 'onlyfans'
-                                    ? 'bg-brand-blue/15 border-brand-blue/30 text-brand-blue'
-                                    : 'bg-brand-light-pink/15 border-brand-light-pink/30 text-brand-light-pink'
-                                  : 'bg-white/[0.03] border-white/[0.06] text-gray-500 hover:border-white/[0.12]'
-                              }`}
-                            >
-                              {p === 'onlyfans' ? 'OnlyFans' : 'Fansly'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-2 border-t border-white/[0.04]">
-                      <DollarSign className="h-4 w-4 text-emerald-500 shrink-0" />
-                      <span className="text-sm font-medium text-gray-400">Price</span>
-                      <span className="flex-1" />
-                      <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
-                    </div>
-                  </div>
-                </Section>
-
-                {/* Drive Link */}
-                <Section icon={Link2} title="Google Drive">
-                  <EditableField value={rawDriveLink} placeholder="Paste Drive link..." onSave={(v) => updateMeta({ driveLink: v })} />
-                  {driveLink && (
-                    <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-brand-blue hover:underline mt-1.5">
-                      <ExternalLink className="h-3 w-3" />Open in Drive
-                    </a>
-                  )}
-                </Section>
-
-                {/* Notes */}
-                <Section icon={ClipboardList} title="Notes">
-                  <div className="group/notes">
-                    {editingNotes ? (
-                      <div>
-                        <textarea
-                          ref={notesRef}
-                          value={notesDraft}
-                          onChange={(e) => setNotesDraft(e.target.value)}
-                          rows={4}
-                          placeholder="Delivery instructions, special requests..."
-                          className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-mid-pink/30 resize-none"
-                        />
-                        <div className="flex items-center gap-2 mt-2">
-                          <button type="button" onClick={saveNotes} className="px-3 py-1 rounded-lg text-xs font-semibold text-brand-light-pink border border-brand-light-pink/20 hover:bg-brand-light-pink/[0.06] transition-colors">
-                            Save
-                          </button>
-                          <button type="button" onClick={() => { setNotesDraft(fulfillmentNotes); setEditingNotes(false); }} className="px-3 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors">
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => setEditingNotes(true)} className="flex items-start gap-2 w-full text-left">
-                        <p className="text-[13px] text-gray-400 whitespace-pre-wrap flex-1 leading-relaxed">
-                          {fulfillmentNotes || <span className="text-gray-600 italic">Click to add notes...</span>}
-                        </p>
-                        <Pencil className="h-3 w-3 text-gray-700 opacity-0 group-hover/notes:opacity-100 transition-opacity shrink-0 mt-0.5" />
-                      </button>
-                    )}
-                  </div>
-                </Section>
-
                 {/* Deliverables */}
                 <Section
                   icon={Package}
@@ -1030,45 +1098,6 @@ export function OtpPtrTaskDetailModal({
                   )}
                   {deliverables.length === 0 && <p className="text-xs text-gray-600 italic mb-2">None</p>}
                   <TagInput value={getTagInput('deliverables')} onChange={(v) => setTagInput('deliverables', v)} onAdd={() => addToArray('deliverables', getTagInput('deliverables'))} placeholder="Add deliverable..." />
-                </Section>
-
-                {/* Tags */}
-                <Section icon={Tag} title="Tags">
-                  <div className="space-y-3">
-                    <div>
-                      <SideLabel>External Creators</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {externalCreatorTags.map((t) => <RemovableTag key={t} variant="pink" onRemove={() => removeFromArray('externalCreatorTags', t)}>{t}</RemovableTag>)}
-                      </div>
-                      <TagInput value={getTagInput('externalCreatorTags')} onChange={(v) => setTagInput('externalCreatorTags', v)} onAdd={() => addToArray('externalCreatorTags', getTagInput('externalCreatorTags'))} placeholder="Add creator..." />
-                    </div>
-                    <div>
-                      <SideLabel>Internal Models</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {internalModelTags.map((t) => <RemovableTag key={t} variant="blue" onRemove={() => removeFromArray('internalModelTags', t)}>{t}</RemovableTag>)}
-                      </div>
-                      <TagInput value={getTagInput('internalModelTags')} onChange={(v) => setTagInput('internalModelTags', v)} onAdd={() => addToArray('internalModelTags', getTagInput('internalModelTags'))} placeholder="Add model..." />
-                    </div>
-                    <div>
-                      <SideLabel>Content Tags</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {contentTags.map((t) => <RemovableTag key={t} onRemove={() => removeFromArray('contentTags', t)}>{t}</RemovableTag>)}
-                      </div>
-                      <TagInput value={getTagInput('contentTags')} onChange={(v) => setTagInput('contentTags', v)} onAdd={() => addToArray('contentTags', getTagInput('contentTags'))} placeholder="Add tag..." />
-                    </div>
-                  </div>
-                </Section>
-
-                {/* Metadata */}
-                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                    {typeof meta.createdAt === 'string' && (
-                      <div><SideLabel>Created</SideLabel><span className="text-gray-400">{formatFullDate(meta.createdAt)}</span></div>
-                    )}
-                    {typeof meta.updatedAt === 'string' && (
-                      <div><SideLabel>Updated</SideLabel><span className="text-gray-400">{formatFullDate(meta.updatedAt)}</span></div>
-                    )}
-                  </div>
                 </Section>
               </>
             )}
@@ -1135,7 +1164,7 @@ export function OtpPtrTaskDetailModal({
                       />
                     )}
                     {newComment.trim() && (
-                      <button type="button" onClick={handleAddComment} className="mt-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-brand-light-pink border border-brand-light-pink/20 hover:bg-brand-light-pink/[0.06] transition-colors">
+                      <button type="button" onClick={handleAddComment} className="mt-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-light-pink/80 hover:bg-brand-light-pink transition-colors">
                         Post
                       </button>
                     )}
@@ -1167,17 +1196,34 @@ export function OtpPtrTaskDetailModal({
           </div>
 
           {/* ═══ Right Sidebar — Properties ═══════════════ */}
-          <div className="px-4 py-4 max-h-[62vh] overflow-y-auto custom-scrollbar bg-white/[0.01]">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-3">Properties</h3>
+          <div className="px-4 py-4 max-h-[62vh] overflow-y-auto custom-scrollbar bg-[#111827]/50">
+            <div className="flex items-center gap-2 mb-3">
+              <Settings className="h-3.5 w-3.5 text-gray-500" />
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-400">Properties</h3>
+            </div>
 
             <SideRow label="Status">
-              <span className="flex items-center gap-1.5 text-xs text-gray-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-light-pink" />
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
+                <span className="h-2 w-2 rounded-full bg-brand-light-pink" />
                 {columnTitle}
               </span>
             </SideRow>
 
-            <div className="grid grid-cols-2 gap-2 py-2 border-b border-white/[0.04]">
+            <SideRow label="Priority">
+              <SelectField
+                value={task.priority ?? 'Medium'}
+                options={['Low', 'Medium', 'High']}
+                onSave={(v) => onUpdate({ ...task, priority: v as BoardTask['priority'] })}
+                renderOption={(v) => (
+                  <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${PRIORITY_PILL[v] ?? 'text-gray-300'}`}>
+                    <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[v] ?? ''}`} />
+                    {v}
+                  </span>
+                )}
+              />
+            </SideRow>
+
+            <div className="grid grid-cols-2 gap-2 py-2.5 border-b border-white/[0.04]">
               <div>
                 <SideLabel>Type</SideLabel>
                 <SelectField
@@ -1185,8 +1231,8 @@ export function OtpPtrTaskDetailModal({
                   options={REQUEST_TYPE_OPTIONS}
                   onSave={(v) => updateMeta({ requestType: v })}
                   renderOption={(v) => (
-                    <span className="flex items-center gap-1.5 text-xs text-gray-200">
-                      <span className={`h-1.5 w-1.5 rounded-full ${TYPE_DOT[v] ?? 'bg-gray-500'}`} />
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
+                      <span className={`h-2 w-2 rounded-full ${TYPE_DOT[v] ?? 'bg-gray-500'}`} />
                       {v}
                     </span>
                   )}
@@ -1202,47 +1248,59 @@ export function OtpPtrTaskDetailModal({
               <button
                 type="button"
                 onClick={() => updateMeta({ isPaid: !isPaid })}
-                className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium transition-all border ${
+                className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold transition-all duration-200 border ${
                   isPaid
                     ? 'bg-emerald-500/[0.08] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/[0.12]'
                     : 'bg-red-500/[0.08] border-red-500/20 text-red-400 hover:bg-red-500/[0.12]'
                 }`}
               >
-                <CreditCard className="h-3 w-3 shrink-0" />
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1 text-left">{isPaid ? 'Paid' : 'Unpaid'}</span>
-                <span className={`h-1.5 w-1.5 rounded-full ${isPaid ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <span className={`h-2 w-2 rounded-full ${isPaid ? 'bg-emerald-400' : 'bg-red-400'}`} />
               </button>
             </SideRow>
 
             <SideRow label="Tier">
-              <EditableField value={tier} placeholder="Set tier" onSave={(v) => updateMeta({ pricingCategory: v, pricingTier: v })} />
+              <span className="text-sm font-semibold text-brand-off-white">
+                <EditableField value={tier} placeholder="Set tier" onSave={(v) => updateMeta({ pricingCategory: v, pricingTier: v })} />
+              </span>
             </SideRow>
 
             <SideRow label="Page Type">
-              <EditableField value={pageType} placeholder="Set page type" onSave={(v) => updateMeta({ pageType: v })} />
+              <span className="text-sm font-semibold text-brand-off-white">
+                <EditableField value={pageType} placeholder="Set page type" onSave={(v) => updateMeta({ pageType: v })} />
+              </span>
             </SideRow>
 
             <SideRow label="Model">
-              <EditableField value={model} placeholder="Model name" onSave={(v) => updateMeta({ model: v })} />
+              <span className="text-sm font-semibold text-brand-off-white">
+                <EditableField value={model} placeholder="Model name" onSave={(v) => updateMeta({ model: v })} />
+              </span>
             </SideRow>
 
             <SideRow label="Buyer">
-              <EditableField value={buyer} placeholder="@username" onSave={(v) => updateMeta({ buyer: v })} />
+              <span className="text-sm font-semibold text-brand-off-white">
+                <EditableField value={buyer} placeholder="@username" onSave={(v) => updateMeta({ buyer: v })} />
+              </span>
             </SideRow>
 
             <SideRow label="Price">
-              <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
+              <span className="text-sm font-semibold text-brand-light-pink">
+                <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
+              </span>
             </SideRow>
 
             <SideRow label="Deadline">
-              <EditableField value={deadline} type="date" placeholder="Not set" onSave={(v) => updateMeta({ deadline: v })} />
+              <span className="text-sm font-semibold text-brand-off-white">
+                <EditableField value={deadline} type="date" placeholder="Not set" onSave={(v) => updateMeta({ deadline: v })} />
+              </span>
             </SideRow>
 
             {deliverables.length > 0 && (
               <SideRow label="Deliverables">
                 <div className="flex flex-wrap gap-1">
                   {deliverables.map((d) => (
-                    <span key={d} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded px-1.5 py-0.5 border border-brand-blue/15">{d}</span>
+                    <span key={d} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded-md px-1.5 py-0.5 border border-brand-blue/15">{d}</span>
                   ))}
                 </div>
               </SideRow>
@@ -1251,8 +1309,8 @@ export function OtpPtrTaskDetailModal({
             {(externalCreatorTags.length > 0 || internalModelTags.length > 0) && (
               <SideRow label="People">
                 <div className="flex flex-wrap gap-1">
-                  {externalCreatorTags.map((t) => <span key={`e-${t}`} className="text-[11px] font-medium text-brand-light-pink bg-brand-light-pink/10 rounded px-1.5 py-0.5 border border-brand-light-pink/15">{t}</span>)}
-                  {internalModelTags.map((t) => <span key={`i-${t}`} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded px-1.5 py-0.5 border border-brand-blue/15">{t}</span>)}
+                  {externalCreatorTags.map((t) => <span key={`e-${t}`} className="text-[11px] font-medium text-brand-light-pink bg-brand-light-pink/10 rounded-md px-1.5 py-0.5 border border-brand-light-pink/15">{t}</span>)}
+                  {internalModelTags.map((t) => <span key={`i-${t}`} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded-md px-1.5 py-0.5 border border-brand-blue/15">{t}</span>)}
                 </div>
               </SideRow>
             )}
@@ -1264,6 +1322,28 @@ export function OtpPtrTaskDetailModal({
                   {driveLink.length > 30 ? driveLink.slice(0, 27) + '...' : driveLink}
                 </a>
               </SideRow>
+            )}
+
+            {/* Created / Updated footer */}
+            {(typeof meta.createdAt === 'string' || typeof meta.updatedAt === 'string') && (
+              <div className="mt-4 pt-3 border-t border-white/[0.06]">
+                {typeof meta.createdAt === 'string' && (
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1.5">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.04] text-[8px] font-bold text-gray-500 shrink-0">
+                      {(getMemberName(task.assignee) ?? 'U').charAt(0).toUpperCase()}
+                    </span>
+                    Created {formatDate(meta.createdAt)}
+                  </div>
+                )}
+                {typeof meta.updatedAt === 'string' && (
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.04] text-[8px] font-bold text-gray-500 shrink-0">
+                      {(getMemberName(task.assignee) ?? 'U').charAt(0).toUpperCase()}
+                    </span>
+                    Updated {formatDate(meta.updatedAt)}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
