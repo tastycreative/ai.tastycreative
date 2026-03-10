@@ -54,6 +54,8 @@ import {
   WALL_POST_STATUS,
   WALL_POST_STATUS_CONFIG,
   type WallPostStatus,
+  deriveTicketStatus,
+  captionStatusToWallPostStatus,
 } from '@/lib/wall-post-status';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -656,7 +658,6 @@ export function WallPostTaskDetailModal({
   const markItemPostedMutation = useMarkItemPosted();
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
-  const [actioningItemId, setActioningItemId] = useState<string | null>(null);
 
   /* ── Map raw media → WallPostPhoto ─────────────────── */
 
@@ -973,9 +974,51 @@ export function WallPostTaskDetailModal({
 
   /* ── Per-item QA Approve / Reject ───────────────────── */
 
+  /** Apply an optimistic captionStatus change and derive new ticket/wall-post status */
+  const applyOptimisticItemStatus = (
+    mediaItem: MediaWithCaption,
+    newStatus: string,
+    extraFields?: Partial<CaptionItem>,
+  ) => {
+    const updatedCaptionItems = captionItems.map((ci) => {
+      const isMatch =
+        (mediaItem.contentItemId && ci.contentItemId === mediaItem.contentItemId) ||
+        ci.url === mediaItem.url;
+      return isMatch ? { ...ci, captionStatus: newStatus, ...extraFields } : ci;
+    });
+    const allStatuses = updatedCaptionItems.map((ci) => ci.captionStatus || 'pending');
+    const newTicketStatus = deriveTicketStatus(allStatuses);
+    const newWallPostStatus = captionStatusToWallPostStatus(newTicketStatus) || meta.wallPostStatus;
+    onUpdate({
+      ...task,
+      metadata: {
+        ...meta,
+        captionItems: updatedCaptionItems,
+        captionStatus: newTicketStatus,
+        wallPostStatus: newWallPostStatus,
+      },
+    });
+    return { prevCaptionItems: captionItems, prevMeta: { ...meta } };
+  };
+
+  /** Rollback to previous metadata on API failure */
+  const rollbackOptimistic = (prev: { prevCaptionItems: CaptionItem[]; prevMeta: Record<string, unknown> }) => {
+    onUpdate({
+      ...task,
+      metadata: {
+        ...prev.prevMeta,
+        captionItems: prev.prevCaptionItems,
+      },
+    });
+  };
+
   const handleItemApprove = (mediaItem: MediaWithCaption) => {
     if (!captionTicketId || !mediaItem.contentItemId) return;
-    setActioningItemId(mediaItem.id);
+    // Optimistic: instantly show as approved
+    const prev = applyOptimisticItemStatus(mediaItem, 'approved', {
+      qaRejectionReason: null,
+    });
+    toast.success(`Item ${mediaItem.index + 1} approved`);
     qaItemActionMutation.mutate(
       {
         ticketId: captionTicketId,
@@ -983,9 +1026,7 @@ export function WallPostTaskDetailModal({
       },
       {
         onSuccess: (data) => {
-          toast.success(`Item ${mediaItem.index + 1} approved`);
-          setActioningItemId(null);
-          // Update local metadata with the new caption items + status
+          // Reconcile with server truth
           if (data.captionItems) {
             onUpdate({
               ...task,
@@ -999,7 +1040,7 @@ export function WallPostTaskDetailModal({
           }
         },
         onError: (error) => {
-          setActioningItemId(null);
+          rollbackOptimistic(prev);
           toast.error(error.message || 'Failed to approve item');
         },
       },
@@ -1008,7 +1049,11 @@ export function WallPostTaskDetailModal({
 
   const handleItemReject = (mediaItem: MediaWithCaption, reason: string) => {
     if (!captionTicketId || !mediaItem.contentItemId) return;
-    setActioningItemId(mediaItem.id);
+    // Optimistic: instantly show as rejected
+    const prev = applyOptimisticItemStatus(mediaItem, 'rejected', {
+      qaRejectionReason: reason,
+    });
+    toast.info(`Item ${mediaItem.index + 1} rejected`);
     qaItemActionMutation.mutate(
       {
         ticketId: captionTicketId,
@@ -1016,8 +1061,6 @@ export function WallPostTaskDetailModal({
       },
       {
         onSuccess: (data) => {
-          toast.info(`Item ${mediaItem.index + 1} rejected`);
-          setActioningItemId(null);
           if (data.captionItems) {
             onUpdate({
               ...task,
@@ -1031,7 +1074,7 @@ export function WallPostTaskDetailModal({
           }
         },
         onError: (error) => {
-          setActioningItemId(null);
+          rollbackOptimistic(prev);
           toast.error(error.message || 'Failed to reject item');
         },
       },
@@ -1042,7 +1085,11 @@ export function WallPostTaskDetailModal({
 
   const handleItemRevert = (mediaItem: MediaWithCaption) => {
     if (!captionTicketId || !mediaItem.contentItemId) return;
-    setActioningItemId(mediaItem.id);
+    // Optimistic: instantly show as submitted (pending QA)
+    const prev = applyOptimisticItemStatus(mediaItem, 'submitted', {
+      qaRejectionReason: null,
+    });
+    toast.success(`Item ${mediaItem.index + 1} reverted to Pending QA`);
     qaItemActionMutation.mutate(
       {
         ticketId: captionTicketId,
@@ -1050,8 +1097,6 @@ export function WallPostTaskDetailModal({
       },
       {
         onSuccess: (data) => {
-          toast.success(`Item ${mediaItem.index + 1} reverted to Pending QA`);
-          setActioningItemId(null);
           if (data.captionItems) {
             onUpdate({
               ...task,
@@ -1065,7 +1110,7 @@ export function WallPostTaskDetailModal({
           }
         },
         onError: (error) => {
-          setActioningItemId(null);
+          rollbackOptimistic(prev);
           toast.error(error.message || 'Failed to revert item');
         },
       },
@@ -1702,7 +1747,6 @@ export function WallPostTaskDetailModal({
                     const svIsRejected = svItemStatus === 'rejected';
                     const svIsSubmitted = svItemStatus === 'submitted';
                     const svIsPosted = selectedItem.isPosted;
-                    const svIsActioning = actioningItemId === selectedItem.id;
                     const svShowQA = canQA && svIsSubmitted && !svIsApproved;
                     const svBadge = captionStatusBadge(captionStatus, wallPostStatus, svHasCaption, svItemStatus, svIsPosted);
                     return (
@@ -1774,34 +1818,34 @@ export function WallPostTaskDetailModal({
                             )}
                             <div className="flex items-center gap-2 flex-wrap">
                               {svShowQA && !showItemRejectInput && (
-                                <button type="button" onClick={() => handleItemApprove(selectedItem)} disabled={svIsActioning}
-                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
+                                <button type="button" onClick={() => handleItemApprove(selectedItem)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
                                   style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
-                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                  <CheckCircle2 className="h-3 w-3" />
                                   Approve
                                 </button>
                               )}
                               {svShowQA && !showItemRejectInput && (
-                                <button type="button" onClick={() => setShowItemRejectInput(true)} disabled={svIsActioning}
-                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97] disabled:opacity-50"
+                                <button type="button" onClick={() => setShowItemRejectInput(true)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-red-400 transition-all hover:bg-red-500/20 active:scale-[0.97]"
                                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
                                   <XCircle className="h-3 w-3" />
                                   Reject
                                 </button>
                               )}
                               {svIsApproved && (
-                                <button type="button" onClick={() => handleMarkPosted(selectedItem, !svIsPosted)} disabled={svIsActioning}
-                                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50 ${svIsPosted ? 'text-violet-300 hover:bg-violet-500/20' : 'text-violet-400 hover:bg-violet-500/15'}`}
+                                <button type="button" onClick={() => handleMarkPosted(selectedItem, !svIsPosted)}
+                                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-all active:scale-[0.97] ${svIsPosted ? 'text-violet-300 hover:bg-violet-500/20' : 'text-violet-400 hover:bg-violet-500/15'}`}
                                   style={{ background: svIsPosted ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.08)', border: svIsPosted ? '1px solid rgba(139,92,246,0.35)' : '1px solid rgba(139,92,246,0.18)' }}>
-                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : svIsPosted ? <CheckCircle2 className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
+                                  {svIsPosted ? <CheckCircle2 className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
                                   {svIsPosted ? 'Posted ✓ (undo)' : 'Mark as Posted'}
                                 </button>
                               )}
                               {canQA && (svIsApproved || svIsRejected) && !svIsPosted && (
-                                <button type="button" onClick={() => handleItemRevert(selectedItem)} disabled={svIsActioning}
-                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-amber-400 transition-all hover:bg-amber-500/15 active:scale-[0.97] disabled:opacity-50"
+                                <button type="button" onClick={() => handleItemRevert(selectedItem)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold text-amber-400 transition-all hover:bg-amber-500/15 active:scale-[0.97]"
                                   style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
-                                  {svIsActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                                  <RotateCcw className="h-3 w-3" />
                                   Undo {svIsApproved ? 'Approval' : 'Rejection'}
                                 </button>
                               )}
@@ -1812,10 +1856,10 @@ export function WallPostTaskDetailModal({
                                   placeholder="Rejection reason..." rows={2}
                                   className="w-full rounded-lg border border-red-500/25 bg-white/[0.03] px-2.5 py-2 text-[11px] text-brand-off-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none" />
                                 <div className="flex items-center gap-1.5">
-                                  <button type="button" disabled={svIsActioning}
+                                  <button type="button"
                                     onClick={() => { handleItemReject(selectedItem, itemRejectReason.trim()); setItemRejectReason(''); setShowItemRejectInput(false); }}
-                                    className="px-3 py-1 rounded-lg text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">
-                                    {svIsActioning ? 'Sending...' : 'Send'}
+                                    className="px-3 py-1 rounded-lg text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
+                                    Send
                                   </button>
                                   <button type="button" onClick={() => { setShowItemRejectInput(false); setItemRejectReason(''); }}
                                     className="px-3 py-1 rounded-lg text-[10px] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors">

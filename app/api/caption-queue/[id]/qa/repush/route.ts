@@ -140,6 +140,7 @@ export async function POST(
               qaApprovedAt: true,
               qaApprovedBy: true,
               revisionCount: true,
+              isPosted: true,
             },
           },
         },
@@ -162,6 +163,7 @@ export async function POST(
             captionText: ci.captionText ?? null,
             captionStatus: ci.captionStatus,
             qaRejectionReason: ci.qaRejectionReason ?? null,
+            isPosted: ci.isPosted,
           }));
 
           const updatedMeta: Record<string, unknown> = {
@@ -215,6 +217,7 @@ export async function POST(
       captionText: ci.captionText ?? null,
       captionStatus: ci.captionStatus,
       qaRejectionReason: ci.qaRejectionReason ?? null,
+      isPosted: ci.isPosted,
     }));
 
     return NextResponse.json({

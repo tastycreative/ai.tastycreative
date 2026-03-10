@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useState, useEffect } from 'react';
-import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck, FolderOpen } from 'lucide-react';
+import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck, FolderOpen, RefreshCw } from 'lucide-react';
 import { QueueTicket, ContentItemData } from './types';
 
 /* ── Google Drive helpers ──────────────────────────────────────────── */
@@ -40,6 +40,14 @@ function isDriveFolder(url: string): boolean {
   return url.includes('/folders/');
 }
 
+/** Build a proxy stream URL that bypasses Google Drive's preview processing.
+ *  The browser's native <video> player handles playback directly. */
+function toStreamUrl(url: string): string | null {
+  const id = extractDriveFileId(url);
+  if (!id) return null;
+  return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
+}
+
 /* ── Drive preview component ───────────────────────────────────────── */
 
 /** Build an embeddable URL for a Google Drive folder (grid view). */
@@ -60,18 +68,31 @@ function IframeSkeleton() {
   );
 }
 
-/** Renders a Google Drive file/folder as an embedded iframe preview with a
- *  small "Open in Drive" fallback link. Forces a full remount + skeleton
- *  whenever the URL changes so stale content never lingers. */
-function DrivePreview({ url, label }: { url: string; label?: string }) {
+/** Renders a Google Drive file/folder. For video files (or files of unknown
+ *  type), uses our streaming proxy so the native <video> player works even
+ *  for very large files that Google Drive can't preview. Falls back to an
+ *  iframe embed when the stream fails (e.g. for images). */
+function DrivePreview({ url, label, fileType }: { url: string; label?: string; fileType?: string | null }) {
   const [loaded, setLoaded] = useState(false);
+  const [streamFailed, setStreamFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Reset loaded state whenever the URL changes so the skeleton reappears
-  useEffect(() => { setLoaded(false); }, [url]);
+  // Reset all state whenever the URL changes
+  useEffect(() => {
+    setLoaded(false);
+    setStreamFailed(false);
+    setRetryCount(0);
+  }, [url]);
 
   const viewUrl = toViewUrl(url);
+  const streamUrl = toStreamUrl(url);
 
-  // Folders — use the embedded folder grid view
+  // Only skip the stream attempt for files we KNOW are images
+  const isKnownImage = fileType === 'image' ||
+    (label && /\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg)$/i.test(label)) ||
+    /\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg)/i.test(url);
+
+  // ── Folders — embedded folder grid view ──────────────────────────
   if (isDriveFolder(url)) {
     const folderEmbedUrl = toFolderEmbedUrl(url);
 
@@ -106,7 +127,37 @@ function DrivePreview({ url, label }: { url: string; label?: string }) {
     );
   }
 
-  // File — embed preview iframe
+  // ── Stream proxy: try for all non-image files ────────────────────
+  // If the stream works → native <video> player (handles large files).
+  // If the stream fails → auto-fallback to iframe preview.
+  if (!isKnownImage && !streamFailed && streamUrl) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        {!loaded && <IframeSkeleton />}
+        <video
+          key={`${streamUrl}-${retryCount}`}
+          src={streamUrl}
+          controls
+          className="max-w-full max-h-full rounded-lg"
+          preload="metadata"
+          style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+          onLoadedMetadata={() => setLoaded(true)}
+          onError={() => { setStreamFailed(true); setLoaded(false); }}
+        />
+        <a
+          href={viewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Open in Drive
+        </a>
+      </div>
+    );
+  }
+
+  // ── Iframe fallback (images, stream failed, or service account can't access) ──
   const previewUrl = toPreviewUrl(url);
   return (
     <div className="relative w-full h-full flex flex-col">
@@ -121,6 +172,16 @@ function DrivePreview({ url, label }: { url: string; label?: string }) {
         sandbox="allow-scripts allow-same-origin allow-popups"
         onLoad={() => setLoaded(true)}
       />
+      {/* If we fell back from stream failure, offer to retry */}
+      {streamFailed && (
+        <button
+          onClick={() => { setStreamFailed(false); setLoaded(false); setRetryCount(c => c + 1); }}
+          className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand-mid-pink/80 hover:bg-brand-mid-pink backdrop-blur-sm transition-colors"
+        >
+          <RefreshCw className="w-3 h-3" />
+          Try Stream Player
+        </button>
+      )}
       <a
         href={viewUrl}
         target="_blank"
@@ -146,7 +207,7 @@ function MediaItem({ item, description }: { item: ContentItemData; description: 
   const isImage = item.fileType === 'image' || (!item.fileType && !isGdrive && !!item.url.match(/\.(jpg|jpeg|png|gif|webp)/i));
 
   if (isGdrive) {
-    return <DrivePreview url={item.url} label={item.fileName ?? undefined} />;
+    return <DrivePreview url={item.url} label={item.fileName ?? undefined} fileType={item.fileType} />;
   }
 
   if (isImage) {

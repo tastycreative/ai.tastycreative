@@ -300,6 +300,7 @@ export async function PATCH(
             captionText: ci.captionText ?? null,
             captionStatus: ci.captionStatus,
             qaRejectionReason: ci.qaRejectionReason ?? null,
+            isPosted: ci.isPosted,
           }));
 
           // Build combined captionText from approved items
@@ -348,6 +349,7 @@ export async function PATCH(
       captionText: ci.captionText ?? null,
       captionStatus: ci.captionStatus,
       qaRejectionReason: ci.qaRejectionReason ?? null,
+      isPosted: ci.isPosted,
     }));
 
     // Derive wall post status for response

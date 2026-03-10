@@ -13,7 +13,7 @@ import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
-import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText, Gamepad2, DollarSign } from 'lucide-react';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText, Gamepad2, DollarSign, Link2, FolderOpen, Plus } from 'lucide-react';
 import type { ContentStyleFields } from './ContentStyleSelector';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useQuery } from '@tanstack/react-query';
@@ -42,6 +42,15 @@ const TEMPLATE_LABELS: Record<string, string> = {
 
 type FormData = CreateSubmissionWithComponents;
 
+/** A resolved file entry from a Google Drive link */
+interface DriveFileEntry {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  thumbnailLink: string | null;
+}
+
 interface SubmissionFormProps {
   submissionId?: string;
   initialData?: Partial<FormData>;
@@ -60,6 +69,8 @@ export const SubmissionForm = memo(function SubmissionForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileUploadStep, setFileUploadStep] = useState<{ current: number; total: number } | null>(null);
+  const [uploadMode, setUploadMode] = useState<'upload' | 'drive' | 'both'>('upload');
+  const [driveFiles, setDriveFiles] = useState<DriveFileEntry[]>([]);
   const [selectedTemplateType, setSelectedTemplateType] = useState<'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null>(null);
   const [selectedSpaces, setSelectedSpaces] = useState<Map<string, Space>>(new Map());
   const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined);
@@ -427,6 +438,105 @@ export const SubmissionForm = memo(function SubmissionForm({
         setFileUploadStep(null);
       }
 
+      // 4. Download Google Drive files → S3, create media records in ALL board items
+      if (driveFiles.length > 0) {
+        const totalDriveFiles = driveFiles.length;
+        let completedDriveFiles = 0;
+        setFileUploadStep({ current: 0, total: totalDriveFiles });
+
+        const primaryMediaBase = `/api/spaces/${primaryItem.spaceId}/boards/${primaryItem.boardId}/items/${primaryItem.itemId}/media`;
+
+        const driveResults = await Promise.allSettled(
+          driveFiles.map(async (df, i) => {
+            // Download from GDrive → S3 via server
+            const dlRes = await fetch('/api/google-drive/download-to-s3', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                driveFileId: df.id,
+                fileName: df.name,
+                mimeType: df.mimeType,
+                context: `board-items/${primaryItem.itemId}`,
+              }),
+            });
+            if (!dlRes.ok) throw new Error(`Failed to download ${df.name} from Google Drive`);
+            const dlResult = await dlRes.json();
+
+            // Create primary media record
+            await fetch(primaryMediaBase, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'record',
+                url: dlResult.fileUrl,
+                type: df.mimeType,
+                name: df.name,
+                size: dlResult.fileSize,
+              }),
+            });
+
+            // Link to additional spaces
+            if (createdItems.length > 1) {
+              await Promise.allSettled(
+                createdItems.slice(1).map((item) =>
+                  fetch(`/api/spaces/${item.spaceId}/boards/${item.boardId}/items/${item.itemId}/media`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'record',
+                      url: dlResult.fileUrl,
+                      type: df.mimeType,
+                      name: df.name,
+                      size: dlResult.fileSize,
+                    }),
+                  }).catch((linkErr) => {
+                    console.error(`Drive media link failed for space ${item.spaceId}:`, df.name, linkErr);
+                  })
+                )
+              );
+            }
+
+            // Dual-write to content_submission_files
+            if (contentSubmissionId) {
+              const fileCategory = df.mimeType.startsWith('image/')
+                ? 'image'
+                : df.mimeType.startsWith('video/')
+                  ? 'video'
+                  : 'other';
+
+              try {
+                await fetch(`/api/content-submissions/${contentSubmissionId}/files`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    awsS3Key: dlResult.s3Key,
+                    awsS3Url: dlResult.fileUrl,
+                    fileName: df.name,
+                    fileSize: dlResult.fileSize,
+                    fileType: df.mimeType,
+                    fileCategory,
+                    order: pendingFiles.length + i,
+                  }),
+                });
+              } catch (dualWriteErr) {
+                console.error('Dual-write content_submission_files (drive) failed:', df.name, dualWriteErr);
+              }
+            }
+
+            completedDriveFiles++;
+            setFileUploadStep({ current: completedDriveFiles, total: totalDriveFiles });
+          })
+        );
+
+        driveResults.forEach((result, i) => {
+          if (result.status === 'rejected') {
+            console.error('Drive file download failed:', driveFiles[i].name, result.reason);
+          }
+        });
+
+        setFileUploadStep(null);
+      }
+
       setShowSuccess(true);
 
       setTimeout(() => {
@@ -557,7 +667,14 @@ export const SubmissionForm = memo(function SubmissionForm({
               {/* File Upload Step */}
               {currentStepInfo?.id === 'files' && (
                 <StepContent title="Upload Files" subtitle="Add images or videos — they'll be attached when you submit">
-                  <LocalFilePicker files={pendingFiles} onChange={setPendingFiles} />
+                  <FileUploadStep
+                    mode={uploadMode}
+                    onModeChange={setUploadMode}
+                    files={pendingFiles}
+                    onFilesChange={setPendingFiles}
+                    driveFiles={driveFiles}
+                    onDriveFilesChange={setDriveFiles}
+                  />
                 </StepContent>
               )}
 
@@ -572,6 +689,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                     assigneeId={assigneeId}
                     spaceId={primarySpace?.id}
                     pendingFilesCount={pendingFiles.length}
+                    driveFilesCount={driveFiles.length}
                     contentStyle={contentStyle}
                     styleFields={styleFields}
                   />
@@ -781,6 +899,295 @@ const LocalFilePicker = memo(function LocalFilePicker({
   );
 });
 
+// ─── Upload Mode Selector + File Upload Step ────────────────────────────────
+
+type UploadMode = 'upload' | 'drive' | 'both';
+
+const UPLOAD_MODES: { value: UploadMode; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    value: 'upload',
+    label: 'Upload Files',
+    description: 'Drag & drop or browse',
+    icon: <Upload className="w-4 h-4" />,
+  },
+  {
+    value: 'drive',
+    label: 'Google Drive Link',
+    description: 'Paste a shared link',
+    icon: <Link2 className="w-4 h-4" />,
+  },
+  {
+    value: 'both',
+    label: 'Both',
+    description: 'Upload + Drive link',
+    icon: <Plus className="w-4 h-4" />,
+  },
+];
+
+const FileUploadStep = memo(function FileUploadStep({
+  mode,
+  onModeChange,
+  files,
+  onFilesChange,
+  driveFiles,
+  onDriveFilesChange,
+}: {
+  mode: UploadMode;
+  onModeChange: (m: UploadMode) => void;
+  files: File[];
+  onFilesChange: (f: File[]) => void;
+  driveFiles: DriveFileEntry[];
+  onDriveFilesChange: (f: DriveFileEntry[]) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Mode selector */}
+      <div className="grid grid-cols-3 gap-3">
+        {UPLOAD_MODES.map((m) => (
+          <button
+            key={m.value}
+            type="button"
+            onClick={() => onModeChange(m.value)}
+            className={[
+              'relative flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center transition-all duration-200',
+              mode === m.value
+                ? 'border-brand-light-pink bg-brand-light-pink/5 shadow-sm shadow-brand-light-pink/10'
+                : 'border-zinc-700/60 bg-zinc-900/40 hover:border-zinc-600 hover:bg-zinc-800/40',
+            ].join(' ')}
+          >
+            <div
+              className={[
+                'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
+                mode === m.value
+                  ? 'bg-brand-light-pink/15 text-brand-light-pink'
+                  : 'bg-zinc-800/60 text-zinc-500',
+              ].join(' ')}
+            >
+              {m.icon}
+            </div>
+            <div>
+              <p className={`text-sm font-semibold ${mode === m.value ? 'text-white' : 'text-zinc-300'}`}>
+                {m.label}
+              </p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">{m.description}</p>
+            </div>
+            {mode === m.value && (
+              <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand-light-pink" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Upload Files section */}
+      {(mode === 'upload' || mode === 'both') && (
+        <LocalFilePicker files={files} onChange={onFilesChange} />
+      )}
+
+      {/* Google Drive Link section */}
+      {(mode === 'drive' || mode === 'both') && (
+        <GoogleDriveLinkInput driveFiles={driveFiles} onChange={onDriveFilesChange} />
+      )}
+    </div>
+  );
+});
+
+// ─── Google Drive Link Input ─────────────────────────────────────────────────
+
+const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
+  driveFiles,
+  onChange,
+}: {
+  driveFiles: DriveFileEntry[];
+  onChange: (files: DriveFileEntry[]) => void;
+}) {
+  const [driveUrl, setDriveUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resolved, setResolved] = useState(false);
+
+  const resolveLink = useCallback(async () => {
+    const trimmed = driveUrl.trim();
+    if (!trimmed) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/google-drive/fetch-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: trimmed }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to fetch Google Drive contents');
+        return;
+      }
+
+      if (!data.files || data.files.length === 0) {
+        setError('No media files (images/videos) found at this link.');
+        return;
+      }
+
+      onChange(data.files);
+      setResolved(true);
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [driveUrl, onChange]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        resolveLink();
+      }
+    },
+    [resolveLink],
+  );
+
+  const clearAll = useCallback(() => {
+    onChange([]);
+    setDriveUrl('');
+    setResolved(false);
+    setError(null);
+  }, [onChange]);
+
+  const removeFile = useCallback(
+    (id: string) => {
+      onChange(driveFiles.filter((f) => f.id !== id));
+    },
+    [driveFiles, onChange],
+  );
+
+  const formatSize = (bytes: number | null) => {
+    if (!bytes) return '';
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Link input */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-zinc-300">Google Drive Link</label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
+              <Link2 className="w-4 h-4" />
+            </div>
+            <input
+              type="url"
+              value={driveUrl}
+              onChange={(e) => {
+                setDriveUrl(e.target.value);
+                if (resolved) {
+                  setResolved(false);
+                  onChange([]);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="https://drive.google.com/drive/folders/... or .../file/d/..."
+              disabled={loading}
+              className="w-full rounded-xl bg-zinc-900/60 border border-zinc-700/60 pl-10 pr-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-brand-light-pink/60 focus:outline-none transition-colors disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={resolveLink}
+            disabled={loading || !driveUrl.trim()}
+            className="px-5 py-3 rounded-xl bg-brand-light-pink/10 border border-brand-light-pink/30 text-brand-light-pink text-sm font-medium hover:bg-brand-light-pink/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FolderOpen className="w-4 h-4" />
+            )}
+            {loading ? 'Loading...' : 'Fetch'}
+          </button>
+        </div>
+        <p className="text-[11px] text-zinc-600">
+          Paste a Google Drive file or folder link. The file/folder must be shared (Anyone with the link).
+        </p>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Resolved file list */}
+      {driveFiles.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">
+              {driveFiles.length} file{driveFiles.length !== 1 ? 's' : ''} from Google Drive
+            </p>
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            {driveFiles.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl group"
+              >
+                {/* Thumbnail or icon */}
+                {file.thumbnailLink ? (
+                  <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-zinc-800">
+                    <img
+                      src={file.thumbnailLink}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-zinc-400">
+                    {file.mimeType.startsWith('image/') ? (
+                      <ImageIcon className="w-4 h-4" />
+                    ) : file.mimeType.startsWith('video/') ? (
+                      <VideoIcon className="w-4 h-4" />
+                    ) : (
+                      <FileIcon className="w-4 h-4" />
+                    )}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white truncate">{file.name}</p>
+                  <p className="text-xs text-zinc-600">
+                    {file.mimeType.split('/')[1]?.toUpperCase() || file.mimeType}
+                    {file.size ? ` · ${formatSize(file.size)}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeFile(file.id)}
+                  className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light-pink hover:bg-brand-light-pink/10 transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── Review Step ─────────────────────────────────────────────────────────────
 
 const ReviewStep = memo(function ReviewStep({
@@ -791,6 +1198,7 @@ const ReviewStep = memo(function ReviewStep({
   assigneeId,
   spaceId,
   pendingFilesCount,
+  driveFilesCount = 0,
   contentStyle,
   styleFields,
 }: {
@@ -801,6 +1209,7 @@ const ReviewStep = memo(function ReviewStep({
   assigneeId?: string;
   spaceId?: string;
   pendingFilesCount: number;
+  driveFilesCount?: number;
   contentStyle: string;
   styleFields: ContentStyleFields;
 }) {
@@ -899,12 +1308,20 @@ const ReviewStep = memo(function ReviewStep({
               </div>
             </div>
           )}
-          {pendingFilesCount > 0 && (
+          {(pendingFilesCount > 0 || (driveFilesCount ?? 0) > 0) && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Files</p>
               <div className="flex items-center gap-1.5 text-white font-medium text-sm">
                 <FileText className="w-3.5 h-3.5 text-zinc-400" />
-                {pendingFilesCount} file{pendingFilesCount !== 1 ? 's' : ''} attached
+                {pendingFilesCount > 0 && (
+                  <span>{pendingFilesCount} uploaded</span>
+                )}
+                {pendingFilesCount > 0 && (driveFilesCount ?? 0) > 0 && (
+                  <span className="text-zinc-500">+</span>
+                )}
+                {(driveFilesCount ?? 0) > 0 && (
+                  <span>{driveFilesCount} from Drive</span>
+                )}
               </div>
             </div>
           )}

@@ -1354,6 +1354,7 @@ model SextingSet {
   category      String
   s3FolderPath  String
   status        String         @default("draft")
+  sortOrder     Int            @default(0)
   scheduledDate DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -1362,6 +1363,7 @@ model SextingSet {
   @@index([userId])
   @@index([category])
   @@index([status])
+  @@index([sortOrder])
   @@map("sexting_sets")
 }
 

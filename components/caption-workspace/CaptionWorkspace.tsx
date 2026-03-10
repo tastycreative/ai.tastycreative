@@ -66,7 +66,7 @@ const ResizablePanel = memo(function ResizablePanel({
   }, [isDragging, minHeight, maxHeight]);
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full">
+    <div ref={containerRef} className="flex flex-col flex-1 min-h-0">
       <div style={{ height: `${height}%` }} className="shrink-0 overflow-hidden">
         {Array.isArray(children) ? children[0] : children}
       </div>
@@ -83,7 +83,7 @@ const ResizablePanel = memo(function ResizablePanel({
         }`} />
       </div>
       
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {Array.isArray(children) && children[1]}
       </div>
     </div>
@@ -720,7 +720,7 @@ export default function CaptionWorkspace() {
   }, [selectedTicketData]);
 
   return (
-    <div className="h-[85vh] overflow-hidden bg-brand-off-white dark:bg-gray-950 border border-brand-mid-pink/20 rounded-2xl shadow-lg">
+    <div className="h-[calc(100vh-7rem)] overflow-hidden bg-brand-off-white dark:bg-gray-950 border border-brand-mid-pink/20 rounded-2xl shadow-lg">
       {/* Responsive grid: stack on mobile, 3-col on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] grid-rows-[60px_1fr] h-full">
         {/* Header */}
@@ -809,7 +809,7 @@ export default function CaptionWorkspace() {
         </div>
 
         {/* Center Panel: Content Viewer + Editor with Resizable */}
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
           {/* OTP/PTR: rejection banner — shown when PGT Team sent the caption back */}
           {isOtpPtr && selectedTicketData?.status === 'in_revision' && (
             <div className="flex items-start gap-2.5 px-3 py-2 bg-red-500/10 border-b border-red-500/30 text-[11px] shrink-0">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { Prisma } from '@/lib/generated/prisma';
 import { canManageQueue, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import {
@@ -108,23 +109,27 @@ export async function PATCH(
 
     const isApprove = action === 'approve';
 
-    // ── Atomic transaction ──
+    // ── Atomic transaction (extended timeout for large tickets) ──
     const updatedTicket = await prisma.$transaction(async (tx) => {
-      // 1. Update ALL content items that are eligible for QA
+      // 1. Batch-update ALL eligible content items for QA
       //    On approve: submitted/pending items → approved
-      //    On reject: submitted/pending items → rejected (stay in QA for explicit re-push)
+      //    On reject: submitted/pending items → rejected
       const eligibleItems = ticket.contentItems.filter(
         (ci) => ci.requiresCaption && ['submitted', 'pending'].includes(ci.captionStatus),
       );
 
-      for (const ci of eligibleItems) {
-        await tx.captionQueueContentItem.update({
-          where: { id: ci.id },
+      const eligibleIds = eligibleItems.map((ci) => ci.id);
+      const now = new Date();
+
+      if (eligibleIds.length > 0) {
+        // Bulk status update instead of per-item loop
+        await tx.captionQueueContentItem.updateMany({
+          where: { id: { in: eligibleIds } },
           data: {
             captionStatus: isApprove ? 'approved' : 'rejected',
             ...(isApprove
               ? {
-                  qaApprovedAt: new Date(),
+                  qaApprovedAt: now,
                   qaApprovedBy: clerkId,
                   qaRejectionReason: null,
                   qaRejectedAt: null,
@@ -132,24 +137,28 @@ export async function PATCH(
                 }
               : {
                   qaRejectionReason: reason,
-                  qaRejectedAt: new Date(),
+                  qaRejectedAt: now,
                   qaRejectedBy: clerkId,
-                  revisionCount: { increment: 1 },
                 }),
-            updatedAt: new Date(),
+            updatedAt: now,
           },
         });
 
-        // Create revision history entry
-        await tx.captionRevisionHistory.create({
-          data: {
+        // For rejections, increment revisionCount in a separate batch
+        if (!isApprove) {
+          await tx.$executeRaw`UPDATE "CaptionQueueContentItem" SET "revisionCount" = "revisionCount" + 1 WHERE "id" IN (${Prisma.join(eligibleIds)})`;
+        }
+
+        // Bulk-create revision history entries
+        await tx.captionRevisionHistory.createMany({
+          data: eligibleItems.map((ci) => ({
             contentItemId: ci.id,
             revisionNumber: ci.revisionCount + (isApprove ? 0 : 1),
             captionText: ci.captionText ?? '',
             action,
             reason: reason || null,
             performedBy: clerkId,
-          },
+          })),
         });
       }
 
@@ -189,6 +198,7 @@ export async function PATCH(
               qaApprovedAt: true,
               qaApprovedBy: true,
               revisionCount: true,
+              isPosted: true,
             },
           },
         },
@@ -227,6 +237,7 @@ export async function PATCH(
             captionText: ci.captionText ?? null,
             captionStatus: ci.captionStatus,
             qaRejectionReason: ci.qaRejectionReason ?? null,
+            isPosted: ci.isPosted,
           }));
 
           const newWallPostStatus = captionStatusToWallPostStatus(newTicketStatus)
@@ -260,7 +271,7 @@ export async function PATCH(
       }
 
       return { updated, newTicketStatus, allItems };
-    });
+    }, { timeout: 30000 });
 
     const newWallPostStatus = captionStatusToWallPostStatus(updatedTicket.newTicketStatus)
       || (isApprove ? WALL_POST_STATUS.COMPLETED : WALL_POST_STATUS.PARTIALLY_APPROVED);

@@ -32,8 +32,9 @@
  *    - Simplified mobile layout
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Plus,
   Trash2,
@@ -166,6 +167,402 @@ interface SextingSetOrganizerProps {
   tenant: string;
 }
 
+// Helper functions extracted outside component to avoid recreating
+const isVideo = (type: string) => type.startsWith("video/");
+const isAudio = (type: string) => type.startsWith("audio/");
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+};
+
+// Memoized image card component to prevent re-renders on sibling hover/state changes
+interface ImageCardProps {
+  image: SextingImage;
+  index: number;
+  totalImages: number;
+  isMobile: boolean;
+  draggedIndex: number | null;
+  dragOverIndex: number | null;
+  touchOffsetValue: number;
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent, index: number) => void;
+  onDragEnd: () => void;
+  onClick: (image: SextingImage) => void;
+  onDelete: (imageId: string) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onMoveToPosition: (fromIndex: number, toPosition: number) => void;
+  onTouchStart: (e: React.TouchEvent, imageId: string) => void;
+  onTouchMove: (e: React.TouchEvent, imageId: string) => void;
+  onTouchEnd: (imageId: string) => void;
+}
+
+const ImageCard = memo(function ImageCard({
+  image,
+  index,
+  totalImages,
+  isMobile,
+  draggedIndex,
+  dragOverIndex,
+  touchOffsetValue,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onClick,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  onMoveToPosition,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+}: ImageCardProps) {
+  const isDragging = draggedIndex === index;
+  const isDropTarget = dragOverIndex === index;
+  const isInsertBefore = draggedIndex !== null && dragOverIndex === index && draggedIndex > index;
+  const isInsertAfter = draggedIndex !== null && dragOverIndex === index && draggedIndex < index;
+  const [isEditingPos, setIsEditingPos] = useState(false);
+  const [posInput, setPosInput] = useState("");
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const badgeRef = useRef<HTMLButtonElement>(null);
+
+  const showTooltip = useCallback(() => {
+    if (badgeRef.current) {
+      const rect = badgeRef.current.getBoundingClientRect();
+      setTooltipPos({ x: rect.left + rect.width / 2, y: rect.bottom + 6 });
+    }
+  }, []);
+  const hideTooltip = useCallback(() => setTooltipPos(null), []);
+
+  return (
+    <div className="relative">
+      {/* Drop insertion indicator - left/top edge line */}
+      {isInsertBefore && !isDragging && (
+        <div className="absolute -left-[5px] top-0 bottom-0 w-[3px] bg-[var(--color-brand-mid-pink)] rounded-full z-20 shadow-[0_0_6px_var(--color-brand-mid-pink)]" />
+      )}
+
+      <div
+        draggable={!isMobile && !isEditingPos}
+        onDragStart={(e) => onDragStart(e, index)}
+        onDragOver={(e) => onDragOver(e, index)}
+        onDragEnd={onDragEnd}
+        onClick={() => !isMobile && !isEditingPos && onClick(image)}
+        onTouchStart={(e) => onTouchStart(e, image.id)}
+        onTouchMove={(e) => onTouchMove(e, image.id)}
+        onTouchEnd={() => onTouchEnd(image.id)}
+        className={`group relative aspect-square rounded-xl overflow-hidden border-2 will-change-transform transition-[border-color,transform,opacity,box-shadow] duration-200 ${
+          isMobile ? 'active:scale-95' : 'cursor-grab active:cursor-grabbing hover:border-[var(--color-brand-mid-pink)]/50 hover:scale-[1.02]'
+        } ${
+          isDragging
+            ? "opacity-30 scale-95 border-[var(--color-brand-mid-pink)] shadow-xl"
+            : isDropTarget
+              ? "border-[var(--color-brand-mid-pink)]/60"
+              : "border-transparent"
+        }`}
+        style={{
+          contentVisibility: 'auto',
+          containIntrinsicSize: '0 200px',
+          transform: isMobile && touchOffsetValue !== 0 ? `translateX(${touchOffsetValue}px)` : undefined,
+          transition: touchOffsetValue !== 0 ? 'none' : undefined,
+        }}
+      >
+        {/* Visual drag preview indicator */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-[var(--color-brand-mid-pink)]/20 flex items-center justify-center z-20">
+            <div className="bg-[var(--color-brand-mid-pink)] rounded-full p-3 shadow-xl">
+              <Move className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        )}
+
+        {/* Swipe delete indicator (mobile) */}
+        {isMobile && touchOffsetValue < -50 && (
+          <div className="absolute inset-y-0 right-0 w-20 bg-red-500 flex items-center justify-center">
+            <Trash2 className="w-6 h-6 text-white" />
+          </div>
+        )}
+
+        {/* Reorder controls - position badge + move arrows */}
+        <div
+          className="absolute top-2 left-2 z-10 flex items-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Position badge - clickable to jump to position */}
+          {isEditingPos ? (
+            <div className="flex flex-col items-start gap-1">
+              <input
+                type="number"
+                min={1}
+                max={totalImages}
+                value={posInput}
+                onChange={(e) => setPosInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const pos = parseInt(posInput, 10);
+                    if (pos >= 1 && pos <= totalImages && pos !== index + 1) {
+                      onMoveToPosition(index, pos);
+                    }
+                    setIsEditingPos(false);
+                  } else if (e.key === "Escape") {
+                    setIsEditingPos(false);
+                  }
+                }}
+                onBlur={() => setIsEditingPos(false)}
+                autoFocus
+                className="w-12 h-8 text-center text-sm font-bold rounded-lg border-2 border-[var(--color-brand-mid-pink)] bg-white dark:bg-gray-900 text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] shadow-lg"
+              />
+              <span className="text-[10px] text-white bg-black/70 rounded px-1.5 py-0.5 whitespace-nowrap shadow">
+                Enter to move · Esc to cancel
+              </span>
+            </div>
+          ) : (
+            <button
+              ref={badgeRef}
+              onClick={() => { setPosInput(String(index + 1)); setIsEditingPos(true); hideTooltip(); }}
+              onMouseEnter={showTooltip}
+              onMouseLeave={hideTooltip}
+              className="w-8 h-8 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all cursor-text"
+            >
+              <span className="text-white text-sm font-bold">
+                {index + 1}
+              </span>
+            </button>
+          )}
+
+        </div>
+
+      {/* Media */}
+      {isVideo(image.type) ? (
+        <video
+          src={image.url}
+          className="w-full h-full object-cover"
+          muted
+          preload="metadata"
+        />
+      ) : isAudio(image.type) ? (
+        <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 dark:from-violet-900/50 dark:to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
+          <Music className="w-10 h-10 text-violet-500 mb-2" />
+          <audio
+            src={image.url}
+            controls
+            className="w-full h-8"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span className="text-xs text-muted-foreground mt-2 truncate max-w-full">
+            {image.name}
+          </span>
+        </div>
+      ) : (
+        <img
+          src={image.url}
+          alt={image.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
+      )}
+
+      {/* Hover overlay with quick actions - CSS only, no React state */}
+      <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-200 ${
+        isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+      }`}>
+        {/* Top action buttons */}
+        <div className="absolute top-2 right-2 flex gap-1">
+          {/* Drag handle - desktop only */}
+          {!isMobile && (
+            <div className="p-2 bg-black/80 hover:bg-[var(--color-brand-mid-pink)]/80 rounded-lg transition-[opacity,transform] cursor-grab active:cursor-grabbing opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
+              title="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4 text-white" />
+            </div>
+          )}
+
+          {/* Quick delete */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(image.id);
+            }}
+            className={`p-2 bg-black/80 hover:bg-red-500/80 rounded-lg transition-[opacity,transform] ${
+              isMobile ? 'opacity-100' : 'opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'
+            }`}
+            title="Delete"
+            style={{ transitionDelay: isMobile ? '0ms' : '50ms' }}
+          >
+            <Trash2 className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {/* Bottom info bar */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isVideo(image.type) ? (
+              <Video className="w-4 h-4 text-[var(--color-brand-blue)]" />
+            ) : isAudio(image.type) ? (
+              <Volume2 className="w-4 h-4 text-violet-500" />
+            ) : (
+              <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
+            )}
+            <span className="text-xs text-white/90 font-medium">
+              {formatFileSize(image.size)}
+            </span>
+          </div>
+          {isMobile && (
+            <span className="text-xs text-white/70">
+              Swipe left to delete
+            </span>
+          )}
+        </div>
+
+        {/* File name on hover */}
+        <div className="absolute bottom-12 left-2 right-2">
+          <p className="text-xs text-white/90 font-medium truncate bg-black/75 px-2 py-1 rounded">
+            {image.name}
+          </p>
+        </div>
+      </div>
+    </div>
+
+      {/* Drop insertion indicator - right/bottom edge line */}
+      {isInsertAfter && !isDragging && (
+        <div className="absolute -right-[5px] top-0 bottom-0 w-[3px] bg-[var(--color-brand-mid-pink)] rounded-full z-20 shadow-[0_0_6px_var(--color-brand-mid-pink)]" />
+      )}
+
+      {/* Portal tooltip for position badge */}
+      {tooltipPos && createPortal(
+        <div
+          className="fixed z-[9999] pointer-events-none animate-in fade-in duration-150"
+          style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateX(-50%)' }}
+        >
+          <div className="bg-gray-900 text-white text-xs rounded-md px-2.5 py-1.5 shadow-xl whitespace-nowrap border border-white/10">
+            Click to set position
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45 border-l border-t border-white/10" />
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+});
+
+// Memoized folder item for sidebar - prevents re-renders from sibling hover/state
+interface FolderItemProps {
+  set: SextingSet;
+  isSelected: boolean;
+  isEditing: boolean;
+  tempName: string;
+  onSelect: (set: SextingSet) => void;
+  onEditStart: (id: string, name: string) => void;
+  onEditSave: (id: string, name: string) => void;
+  onEditCancel: () => void;
+  onTempNameChange: (name: string) => void;
+  onDelete: (id: string) => void;
+  // Drag props (optional - only for single-profile view)
+  draggable?: boolean;
+  isDragTarget?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (e: React.DragEvent, index: number) => void;
+  onDragOver?: (e: React.DragEvent, index: number) => void;
+  onDragEnd?: () => void;
+  dragIndex?: number;
+  showDragHandle?: boolean;
+}
+
+const FolderItem = memo(function FolderItem({
+  set,
+  isSelected,
+  isEditing,
+  tempName,
+  onSelect,
+  onEditStart,
+  onEditSave,
+  onEditCancel,
+  onTempNameChange,
+  onDelete,
+  draggable = false,
+  isDragTarget = false,
+  isDragging = false,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  dragIndex = 0,
+  showDragHandle = false,
+}: FolderItemProps) {
+  return (
+    <div
+      draggable={draggable && !isEditing}
+      onDragStart={onDragStart ? (e) => onDragStart(e, dragIndex) : undefined}
+      onDragOver={onDragOver ? (e) => onDragOver(e, dragIndex) : undefined}
+      onDragEnd={onDragEnd}
+      className={`group flex items-center gap-1 px-1 py-0.5 cursor-pointer will-change-transform ${
+        isDragTarget ? "bg-[var(--color-brand-mid-pink)]/15" : ""
+      } ${isDragging ? "opacity-40" : ""} ${
+        isSelected
+          ? "bg-[var(--color-brand-mid-pink)]/10"
+          : "hover:bg-muted/60"
+      }`}
+      onClick={() => onSelect(set)}
+    >
+      {/* Drag handle */}
+      {showDragHandle && (
+        <div className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground shrink-0" title="Drag to reorder">
+          <GripVertical className="w-3 h-3" />
+        </div>
+      )}
+
+      {/* Left accent bar */}
+      {showDragHandle && (
+        <div className={`w-0.5 self-stretch rounded-full shrink-0 ${isSelected ? "bg-[var(--color-brand-mid-pink)]" : "bg-transparent"}`} />
+      )}
+
+      {/* For non-drag view (all profiles), add border accent */}
+      {!showDragHandle && (
+        <div className={`w-0 border-l-2 self-stretch shrink-0 ml-1 ${isSelected ? "border-l-[var(--color-brand-mid-pink)]" : "border-l-transparent"}`} />
+      )}
+
+      <div className="flex-1 min-w-0 py-1 px-1">
+        {isEditing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={tempName}
+              onChange={(e) => onTempNameChange(e.target.value)}
+              className="flex-1 px-2 py-0.5 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-mid-pink)]"
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onEditSave(set.id, tempName);
+                else if (e.key === "Escape") onEditCancel();
+              }}
+            />
+            <button onClick={(e) => { e.stopPropagation(); onEditSave(set.id, tempName); }} className="p-0.5 text-green-500 hover:text-green-600">
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onEditCancel(); }} className="p-0.5 text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-foreground truncate">{set.name}</span>
+            <span className="text-[10px] text-muted-foreground bg-muted/80 px-1 py-0.5 rounded shrink-0">{set.images.length}</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button onClick={(e) => { e.stopPropagation(); onEditStart(set.id, set.name); }} className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors">
+          <Edit3 className="w-3 h-3" />
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(set.id); }} className="p-1 text-muted-foreground hover:text-red-500 rounded transition-colors">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export default function SextingSetOrganizer({
   profileId,
   tenant,
@@ -267,9 +664,6 @@ export default function SextingSetOrganizer({
     isDangerous?: boolean;
   } | null>(null);
 
-  // Hover state for image cards
-  const [hoveredImageId, setHoveredImageId] = useState<string | null>(null);
-
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
@@ -279,6 +673,15 @@ export default function SextingSetOrganizer({
 
   // Drop zone state for drag between sets
   const [dropTargetSetId, setDropTargetSetId] = useState<string | null>(null);
+
+  // Folder (set) drag reordering state
+  const [folderDragIndex, setFolderDragIndex] = useState<number | null>(null);
+  const [folderDragOverIndex, setFolderDragOverIndex] = useState<number | null>(null);
+  const [savingFolderOrder, setSavingFolderOrder] = useState(false);
+  const folderReorderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Folder search state
+  const [folderSearchQuery, setFolderSearchQuery] = useState("");
 
   // Check if "All Profiles" is selected
   const isAllProfiles = profileId === "all";
@@ -697,45 +1100,49 @@ export default function SextingSetOrganizer({
   };
 
   // Open image detail modal
-  const openImageDetail = (image: SextingImage) => {
+  const openImageDetail = useCallback((image: SextingImage) => {
     setSelectedImageForDetail(image);
     setShowImageDetailModal(true);
-  };
+  }, []);
+
+  // Stable ref so useCallback closures always call the latest deleteImage
+  const deleteImageRef = useRef(deleteImage);
+  deleteImageRef.current = deleteImage;
+
+  // Stable delete handler for current set — only changes when selected set changes
+  const handleDeleteCurrentSetImage = useCallback((imageId: string) => {
+    if (selectedSet) deleteImageRef.current(selectedSet.id, imageId);
+  }, [selectedSet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Touch gesture handlers for swipe delete
-  const handleTouchStart = (e: React.TouchEvent, imageId: string) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent, imageId: string) => {
     if (!isMobile) return;
     const touch = e.touches[0];
     setTouchStart({ x: touch.clientX, y: touch.clientY, id: imageId });
-  };
+  }, [isMobile]);
 
-  const handleTouchMove = (e: React.TouchEvent, imageId: string) => {
+  const handleTouchMove = useCallback((e: React.TouchEvent, imageId: string) => {
     if (!isMobile || !touchStart || touchStart.id !== imageId) return;
     const touch = e.touches[0];
     const deltaX = touch.clientX - touchStart.x;
     const deltaY = Math.abs(touch.clientY - touchStart.y);
-    
-    // Only track horizontal swipe
     if (deltaY < 30 && Math.abs(deltaX) > 10) {
       setTouchOffset({ id: imageId, offset: deltaX });
     }
-  };
+  }, [isMobile, touchStart]);
 
-  const handleTouchEnd = (imageId: string) => {
+  const handleTouchEnd = useCallback((imageId: string) => {
     if (!isMobile || !touchOffset || touchOffset.id !== imageId) {
       setTouchStart(null);
       setTouchOffset(null);
       return;
     }
-
-    // If swiped left significantly, trigger delete
     if (touchOffset.offset < -100 && selectedSet) {
-      deleteImage(selectedSet.id, imageId);
+      deleteImageRef.current(selectedSet.id, imageId);
     }
-
     setTouchStart(null);
     setTouchOffset(null);
-  };
+  }, [isMobile, touchOffset, selectedSet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch profiles for export
   const fetchProfiles = async () => {
@@ -1307,17 +1714,16 @@ export default function SextingSetOrganizer({
   };
 
   // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, index: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", index.toString());
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
-    if (draggedIndex === null) return;
     setDragOverIndex(index);
-  };
+  }, []);
 
   // Debounced save function for reordering
   const saveReorderDebounced = useCallback((setId: string, imageIds: string[]) => {
@@ -1359,7 +1765,36 @@ export default function SextingSetOrganizer({
     };
   }, []);
 
-  const handleDragEnd = () => {
+  // Core insert/shift reorder logic - reusable by drag, move buttons, and position input
+  const reorderImages = useCallback((fromIndex: number, toIndex: number) => {
+    if (!selectedSet || fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= selectedSet.images.length) return;
+    if (toIndex < 0 || toIndex >= selectedSet.images.length) return;
+
+    const newImages = [...selectedSet.images];
+    // Remove from old position
+    const [movedItem] = newImages.splice(fromIndex, 1);
+    // Insert at new position (shift, not swap)
+    newImages.splice(toIndex, 0, movedItem);
+
+    // Update sequences
+    const reorderedImages = newImages.map((img, idx) => ({
+      ...img,
+      sequence: idx + 1,
+    }));
+
+    // Optimistic update
+    const updatedSet = { ...selectedSet, images: reorderedImages };
+    setSelectedSet(updatedSet);
+    setSets((prev) =>
+      prev.map((s) => (s.id === selectedSet.id ? updatedSet : s)),
+    );
+
+    // Debounced save
+    saveReorderDebounced(selectedSet.id, reorderedImages.map((img) => img.id));
+  }, [selectedSet, saveReorderDebounced]);
+
+  const handleDragEnd = useCallback(() => {
     if (draggedIndex === null || dragOverIndex === null || !selectedSet) {
       setDraggedIndex(null);
       setDragOverIndex(null);
@@ -1367,33 +1802,28 @@ export default function SextingSetOrganizer({
     }
 
     if (draggedIndex !== dragOverIndex) {
-      const newImages = [...selectedSet.images];
-
-      // Swap the two elements directly
-      const temp = newImages[draggedIndex];
-      newImages[draggedIndex] = newImages[dragOverIndex];
-      newImages[dragOverIndex] = temp;
-
-      // Update sequences
-      const reorderedImages = newImages.map((img, idx) => ({
-        ...img,
-        sequence: idx + 1,
-      }));
-
-      // Optimistic update - instant UI feedback
-      const updatedSet = { ...selectedSet, images: reorderedImages };
-      setSelectedSet(updatedSet);
-      setSets((prev) =>
-        prev.map((s) => (s.id === selectedSet.id ? updatedSet : s)),
-      );
-
-      // Debounced save - waits for user to finish reordering
-      saveReorderDebounced(selectedSet.id, reorderedImages.map((img) => img.id));
+      reorderImages(draggedIndex, dragOverIndex);
     }
 
     setDraggedIndex(null);
     setDragOverIndex(null);
-  };
+  }, [draggedIndex, dragOverIndex, selectedSet, reorderImages]);
+
+  // Move item up one position
+  const handleMoveUp = useCallback((index: number) => {
+    if (index > 0) reorderImages(index, index - 1);
+  }, [reorderImages]);
+
+  // Move item down one position
+  const handleMoveDown = useCallback((index: number) => {
+    if (selectedSet && index < selectedSet.images.length - 1) reorderImages(index, index + 1);
+  }, [selectedSet, reorderImages]);
+
+  // Move item to a specific 1-based position
+  const handleMoveToPosition = useCallback((fromIndex: number, toPosition: number) => {
+    const toIndex = toPosition - 1; // Convert 1-based to 0-based
+    reorderImages(fromIndex, toIndex);
+  }, [reorderImages]);
 
   // File drop zone handlers
   const handleFileDragOver = (e: React.DragEvent) => {
@@ -1420,6 +1850,164 @@ export default function SextingSetOrganizer({
     }
   };
 
+  // Folder (set) drag reorder handlers
+  const handleFolderDragStart = useCallback((e: React.DragEvent, index: number) => {
+    setFolderDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/folder-reorder", index.toString());
+  }, []);
+
+  const handleFolderDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    // Only respond to folder reorders, not file drops
+    if (e.dataTransfer.types.includes("text/folder-reorder")) {
+      setFolderDragOverIndex(index);
+    }
+  }, []);
+
+  const handleFolderDragEnd = useCallback(() => {
+    if (folderDragIndex === null || folderDragOverIndex === null || folderDragIndex === folderDragOverIndex) {
+      setFolderDragIndex(null);
+      setFolderDragOverIndex(null);
+      return;
+    }
+
+    const newSets = [...sets];
+    const [movedSet] = newSets.splice(folderDragIndex, 1);
+    newSets.splice(folderDragOverIndex, 0, movedSet);
+
+    // Optimistic update
+    setSets(newSets);
+
+    // Update selected set reference if needed
+    if (selectedSet) {
+      const updated = newSets.find(s => s.id === selectedSet.id);
+      if (updated) setSelectedSet(updated);
+    }
+
+    setFolderDragIndex(null);
+    setFolderDragOverIndex(null);
+
+    // Debounced save
+    if (folderReorderTimeoutRef.current) {
+      clearTimeout(folderReorderTimeoutRef.current);
+    }
+    folderReorderTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSavingFolderOrder(true);
+        await fetch("/api/sexting-sets/reorder-sets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ setIds: newSets.map(s => s.id) }),
+        });
+      } catch (error) {
+        console.error("Error saving folder order:", error);
+        showToast("Failed to save folder order", "error");
+      } finally {
+        setSavingFolderOrder(false);
+      }
+    }, 1000);
+  }, [folderDragIndex, folderDragOverIndex, sets, selectedSet]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup folder reorder timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (folderReorderTimeoutRef.current) {
+        clearTimeout(folderReorderTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Filtered sets based on search
+  const filteredSets = useMemo(() => {
+    if (!folderSearchQuery.trim()) return sets;
+    const q = folderSearchQuery.toLowerCase();
+    return sets.filter(s => s.name.toLowerCase().includes(q));
+  }, [sets, folderSearchQuery]);
+
+  // For "All Profiles" grouped view, flatten into a single items array for virtualizer
+  const allProfileFolderItems = useMemo(() => {
+    if (!isAllProfiles) return [];
+    const items: Array<{ type: 'header'; profileName: string; count: number } | { type: 'set'; set: SextingSet }> = [];
+    const grouped = filteredSets.reduce((acc, set) => {
+      const profileName = set.profileName || "Unknown Profile";
+      if (!acc[profileName]) acc[profileName] = [];
+      acc[profileName].push(set);
+      return acc;
+    }, {} as Record<string, SextingSet[]>);
+    for (const [profileName, profileSets] of Object.entries(grouped)) {
+      items.push({ type: 'header', profileName, count: profileSets.length });
+      for (const set of profileSets) {
+        items.push({ type: 'set', set });
+      }
+    }
+    return items;
+  }, [isAllProfiles, filteredSets]);
+
+  // Virtualizer refs
+  const folderListRef = useRef<HTMLDivElement>(null);
+  const contentGridRef = useRef<HTMLDivElement>(null);
+
+  // Folder list virtualizer
+  const folderVirtualizer = useVirtualizer({
+    count: isAllProfiles ? allProfileFolderItems.length : filteredSets.length,
+    getScrollElement: () => folderListRef.current,
+    estimateSize: useCallback((index: number) => {
+      if (isAllProfiles && allProfileFolderItems[index]?.type === 'header') return 28;
+      return 32;
+    }, [isAllProfiles, allProfileFolderItems]),
+    overscan: 5,
+  });
+
+  // Grid column count - track responsive columns for virtualizing grid rows
+  const [gridColumns, setGridColumns] = useState(3);
+  useEffect(() => {
+    const updateCols = () => {
+      const w = window.innerWidth;
+      // Matches: grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6
+      // But content area is ~2/3 of viewport on lg+
+      if (w >= 1024) setGridColumns(6);
+      else if (w >= 768) setGridColumns(5);
+      else if (w >= 640) setGridColumns(4);
+      else setGridColumns(3);
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
+
+  // Content grid virtualizer - virtualize rows of images
+  const gridRowCount = useMemo(() => {
+    if (!selectedSet) return 0;
+    return Math.ceil(selectedSet.images.length / gridColumns);
+  }, [selectedSet, gridColumns]);
+
+  const gridVirtualizer = useVirtualizer({
+    count: gridRowCount,
+    getScrollElement: () => contentGridRef.current,
+    estimateSize: () => 160, // Approximate row height (aspect-square items)
+    overscan: 5,
+  });
+
+  // Stable callbacks for FolderItem to prevent re-renders
+  const handleFolderSelect = useCallback((set: SextingSet) => {
+    setSelectedSet(set);
+    setExpandedSets((prev) => new Set([...prev, set.id]));
+  }, []);
+
+  const handleFolderEditStart = useCallback((id: string, name: string) => {
+    setEditingName(id);
+    setTempName(name);
+  }, []);
+
+  const handleFolderEditCancel = useCallback(() => {
+    setEditingName(null);
+  }, []);
+
+  const handleTempNameChange = useCallback((name: string) => {
+    setTempName(name);
+  }, []);
+
   // Toggle set expansion
   const toggleSetExpansion = (setId: string) => {
     setExpandedSets((prev) => {
@@ -1433,39 +2021,33 @@ export default function SextingSetOrganizer({
     });
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  };
-
-  const isVideo = (type: string) => type.startsWith("video/");
-  const isAudio = (type: string) => type.startsWith("audio/");
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header Skeleton */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-muted rounded-xl animate-pulse" />
-            <div className="space-y-2">
-              <div className="h-6 w-48 bg-muted rounded animate-pulse" />
-              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+            <div className="w-10 h-10 bg-muted rounded-xl animate-pulse" />
+            <div className="space-y-1.5">
+              <div className="h-5 w-44 bg-muted rounded animate-pulse" />
+              <div className="h-3.5 w-28 bg-muted rounded animate-pulse" />
             </div>
           </div>
-          <div className="h-10 w-32 bg-muted rounded-xl animate-pulse" />
+          <div className="h-9 w-28 bg-muted rounded-xl animate-pulse" />
         </div>
 
         {/* Content Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Sidebar Skeleton */}
           <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <div className="h-5 w-24 bg-muted rounded animate-pulse mb-3" />
-              <div className="space-y-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-12 bg-muted rounded-xl animate-pulse" />
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+              <div className="px-3 py-2.5 border-b border-border">
+                <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="py-0.5">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="h-8 mx-1 my-0.5 bg-muted rounded animate-pulse" />
                 ))}
               </div>
             </div>
@@ -1473,12 +2055,16 @@ export default function SextingSetOrganizer({
 
           {/* Main Content Skeleton */}
           <div className="lg:col-span-2">
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <div className="h-12 bg-muted rounded-xl animate-pulse mb-4" />
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className="aspect-square bg-muted rounded-xl animate-pulse" />
-                ))}
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+              <div className="px-3 py-2.5 border-b border-border">
+                <div className="h-5 w-36 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="p-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                    <div key={i} className="aspect-square bg-muted rounded-lg animate-pulse" />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1488,26 +2074,26 @@ export default function SextingSetOrganizer({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header with gradient and tabs */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-xl shadow-lg">
-            <Flame className="w-6 h-6 text-white" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg shadow-md">
+            <Flame className="w-5 h-5 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-foreground">
+              <h2 className="text-lg font-bold text-foreground">
                 Sexting Set Organizer
               </h2>
               {isSharedProfile && !isAllProfiles && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-[var(--color-brand-blue)]/10 text-[var(--color-brand-blue)] text-xs font-medium rounded-full border border-[var(--color-brand-blue)]/30">
-                  <Share2 className="w-3 h-3" />
+                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--color-brand-blue)]/10 text-[var(--color-brand-blue)] text-[10px] font-medium rounded-full border border-[var(--color-brand-blue)]/30">
+                  <Share2 className="w-2.5 h-2.5" />
                   Shared
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {isAllProfiles && <span>All Profiles • </span>}
               {isSharedProfile 
                 ? `Viewing ${getSharedProfileOwnerName ? `${getSharedProfileOwnerName}'s` : "shared"} sets`
@@ -1519,301 +2105,199 @@ export default function SextingSetOrganizer({
         <button
           onClick={() => setShowCreateModal(true)}
           disabled={isAllProfiles}
-          className={`flex items-center gap-2 px-4 py-2.5 sm:px-4 sm:py-2.5 min-h-[44px] rounded-xl font-medium shadow-lg transition-all duration-200 ${
+          className={`flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2 min-h-[40px] rounded-lg font-medium shadow-md transition-all duration-200 text-sm ${
             isAllProfiles
               ? "bg-muted text-muted-foreground cursor-not-allowed"
               : "bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white hover:scale-105 active:scale-95"
           }`}
           title={isAllProfiles ? "Select a specific profile to create a new set" : "Create a new set"}
         >
-          <FolderPlus className="w-5 h-5" />
+          <FolderPlus className="w-4 h-4" />
           <span className="hidden sm:inline">New Set</span>
         </button>
       </div>
 
       {/* Shared Profile Notice */}
       {isSharedProfile && !isAllProfiles && (
-        <div className="flex items-center gap-3 p-3 bg-[var(--color-brand-blue)]/10 border border-[var(--color-brand-blue)]/30 rounded-xl">
-          <Info className="w-5 h-5 text-[var(--color-brand-blue)] shrink-0" />
-          <p className="text-sm text-foreground">
-            You are viewing a shared profile{getSharedProfileOwnerName ? ` from ${getSharedProfileOwnerName}` : ""}. 
-            You can view, organize, and add content to these sets.
+        <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-brand-blue)]/10 border border-[var(--color-brand-blue)]/30 rounded-lg">
+          <Info className="w-4 h-4 text-[var(--color-brand-blue)] shrink-0" />
+          <p className="text-xs text-foreground">
+            Viewing a shared profile{getSharedProfileOwnerName ? ` from ${getSharedProfileOwnerName}` : ""}. 
+            You can view, organize, and add content.
           </p>
         </div>
       )}
 
       {/* All Profiles Notice */}
       {isAllProfiles && (
-        <div className="flex items-center gap-3 p-3 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-xl">
-          <Users className="w-5 h-5 text-[var(--color-brand-mid-pink)] shrink-0" />
-          <p className="text-sm text-foreground">
-            Viewing sets from all profiles. Select a specific profile to create new sets or perform certain actions.
+        <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/30 rounded-lg">
+          <Users className="w-4 h-4 text-[var(--color-brand-mid-pink)] shrink-0" />
+          <p className="text-xs text-foreground">
+            Viewing sets from all profiles. Select a specific profile for full actions.
           </p>
         </div>
       )}
 
       {/* Main content area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sets sidebar */}
-        <div className="lg:col-span-1 space-y-3">
-          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-            <h3 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
-              {isAllProfiles ? (
-                <>
-                  <Users className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
-                  All Profiles&apos; Sets
-                </>
-              ) : (
-                <>
-                  <Heart className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
-                  Your Sets
-                </>
+        <div className="lg:col-span-1">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+            {/* Sidebar header */}
+            <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                {isAllProfiles ? (
+                  <>
+                    <Users className="w-3.5 h-3.5 text-[var(--color-brand-mid-pink)]" />
+                    All Sets
+                  </>
+                ) : (
+                  <>
+                    <Heart className="w-3.5 h-3.5 text-[var(--color-brand-mid-pink)]" />
+                    Sets
+                  </>
+                )}
+                <span className="text-xs text-muted-foreground font-normal ml-1">({sets.length})</span>
+              </h3>
+              {savingFolderOrder && (
+                <span className="text-xs text-[var(--color-brand-mid-pink)] flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Saving...
+                </span>
               )}
-            </h3>
+            </div>
+
+            {/* Search input */}
+            {sets.length > 5 && (
+              <div className="px-2 py-1.5 border-b border-border">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search sets..."
+                    value={folderSearchQuery}
+                    onChange={(e) => setFolderSearchQuery(e.target.value)}
+                    className="w-full pl-7 pr-2 py-1.5 bg-muted/50 border border-transparent rounded-lg text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-[var(--color-brand-mid-pink)]/40 focus:bg-background transition-colors"
+                  />
+                </div>
+              </div>
+            )}
 
             {sets.length === 0 ? (
-              <div className="text-center py-8">
-                <Sparkles className="w-10 h-10 text-[var(--color-brand-mid-pink)] mx-auto mb-3" />
+              <div className="text-center py-8 px-3">
+                <Sparkles className="w-8 h-8 text-[var(--color-brand-mid-pink)] mx-auto mb-2" />
                 <p className="text-foreground text-sm font-medium">No sets yet</p>
                 {!isAllProfiles && (
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="mt-3 text-[var(--color-brand-mid-pink)] hover:text-[var(--color-brand-dark-pink)] text-sm font-medium transition-colors"
+                    className="mt-2 text-[var(--color-brand-mid-pink)] hover:text-[var(--color-brand-dark-pink)] text-sm font-medium transition-colors"
                   >
                     Create your first set
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
-                {/* Group sets by profile when All Profiles is selected */}
-                {isAllProfiles ? (
-                  // Group by profile
-                  Object.entries(
-                    sets.reduce((acc, set) => {
-                      const profileName = set.profileName || "Unknown Profile";
-                      if (!acc[profileName]) {
-                        acc[profileName] = [];
-                      }
-                      acc[profileName].push(set);
-                      return acc;
-                    }, {} as Record<string, SextingSet[]>)
-                  ).map(([profileName, profileSets]) => (
-                    <div key={profileName} className="mb-4">
-                      {/* Profile Header */}
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <User className="w-3.5 h-3.5 text-[var(--color-brand-mid-pink)]" />
-                        <span className="text-xs font-medium text-[var(--color-brand-mid-pink)]">{profileName}</span>
-                        <span className="text-xs text-muted-foreground">({profileSets.length})</span>
-                      </div>
-                      {/* Profile's Sets */}
-                      <div className="space-y-2 pl-2 border-l-2 border-[var(--color-brand-mid-pink)]/20">
-                        {profileSets.map((set) => (
+              <div
+                ref={folderListRef}
+                className="max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar"
+              >
+                <div
+                  style={{
+                    height: `${folderVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {folderVirtualizer.getVirtualItems().map((virtualRow) => {
+                    if (isAllProfiles) {
+                      const item = allProfileFolderItems[virtualRow.index];
+                      if (item.type === 'header') {
+                        return (
                           <div
-                            key={set.id}
-                            className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-                              selectedSet?.id === set.id
-                                ? "bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/40"
-                                : "bg-muted/50 hover:bg-muted border border-transparent hover:border-border"
-                            }`}
-                            onClick={() => {
-                              setSelectedSet(set);
-                              setExpandedSets((prev) => new Set([...prev, set.id]));
+                            key={`header-${item.profileName}`}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
                             }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/30 border-b border-border"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                {editingName === set.id ? (
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="text"
-                                      value={tempName}
-                                      onChange={(e) => setTempName(e.target.value)}
-                                      className="flex-1 px-2 py-1 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
-                                      autoFocus
-                                      onClick={(e) => e.stopPropagation()}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          updateSetName(set.id, tempName);
-                                        } else if (e.key === "Escape") {
-                                          setEditingName(null);
-                                        }
-                                      }}
-                                    />
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        updateSetName(set.id, tempName);
-                                      }}
-                                      className="p-1 text-green-500 hover:text-green-600 transition-colors"
-                                    >
-                                      <Check className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingName(null);
-                                      }}
-                                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-foreground truncate">
-                                      {set.name}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                      {set.images.length}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded-full ${
-                                      set.status === "published"
-                                        ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
-                                        : set.status === "scheduled"
-                                          ? "bg-[var(--color-brand-blue)]/20 text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)]/30"
-                                          : "bg-muted text-muted-foreground border border-border"
-                                    }`}
-                                  >
-                                    {set.status}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingName(set.id);
-                                    setTempName(set.name);
-                                  }}
-                                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteSet(set.id);
-                                  }}
-                                  className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
+                            <User className="w-3 h-3 text-[var(--color-brand-mid-pink)]" />
+                            <span className="text-xs font-medium text-[var(--color-brand-mid-pink)]">{item.profileName}</span>
+                            <span className="text-[10px] text-muted-foreground">({item.count})</span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  // Normal view - single profile
-                  sets.map((set) => (
-                  <div
-                    key={set.id}
-                    className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-                      selectedSet?.id === set.id
-                        ? "bg-[var(--color-brand-mid-pink)]/10 border border-[var(--color-brand-mid-pink)]/40"
-                        : "bg-muted/50 hover:bg-muted border border-transparent hover:border-border"
-                    }`}
-                    onClick={() => {
-                      setSelectedSet(set);
-                      setExpandedSets((prev) => new Set([...prev, set.id]));
-                    }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        {editingName === set.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={tempName}
-                              onChange={(e) => setTempName(e.target.value)}
-                              className="flex-1 px-2 py-1 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
-                              autoFocus
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  updateSetName(set.id, tempName);
-                                } else if (e.key === "Escape") {
-                                  setEditingName(null);
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateSetName(set.id, tempName);
-                              }}
-                              className="p-1 text-green-500 hover:text-green-600 transition-colors"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingName(null);
-                              }}
-                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-foreground truncate">
-                              {set.name}
-                            </span>
-                            <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                              {set.images.length}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              set.status === "published"
-                                ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
-                                : set.status === "scheduled"
-                                  ? "bg-[var(--color-brand-blue)]/20 text-[var(--color-brand-blue)] border border-[var(--color-brand-blue)]/30"
-                                  : "bg-muted text-muted-foreground border border-border"
-                            }`}
-                          >
-                            {set.status}
-                          </span>
+                        );
+                      }
+                      const set = item.set;
+                      return (
+                        <div
+                          key={set.id}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          <FolderItem
+                            set={set}
+                            isSelected={selectedSet?.id === set.id}
+                            isEditing={editingName === set.id}
+                            tempName={tempName}
+                            onSelect={handleFolderSelect}
+                            onEditStart={handleFolderEditStart}
+                            onEditSave={updateSetName}
+                            onEditCancel={handleFolderEditCancel}
+                            onTempNameChange={handleTempNameChange}
+                            onDelete={deleteSet}
+                          />
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingName(set.id);
-                            setTempName(set.name);
+                      );
+                    } else {
+                      const set = filteredSets[virtualRow.index];
+                      const actualIndex = sets.indexOf(set);
+                      return (
+                        <div
+                          key={set.id}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
                           }}
-                          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                         >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSet(set.id);
-                          }}
-                          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-                )}
+                          <FolderItem
+                            set={set}
+                            isSelected={selectedSet?.id === set.id}
+                            isEditing={editingName === set.id}
+                            tempName={tempName}
+                            onSelect={handleFolderSelect}
+                            onEditStart={handleFolderEditStart}
+                            onEditSave={updateSetName}
+                            onEditCancel={handleFolderEditCancel}
+                            onTempNameChange={handleTempNameChange}
+                            onDelete={deleteSet}
+                            showDragHandle
+                            draggable
+                            isDragTarget={folderDragOverIndex === actualIndex}
+                            isDragging={folderDragIndex === actualIndex}
+                            onDragStart={handleFolderDragStart}
+                            onDragOver={handleFolderDragOver}
+                            onDragEnd={handleFolderDragEnd}
+                            dragIndex={actualIndex}
+                          />
+                        </div>
+                      );
+                    }
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1823,7 +2307,7 @@ export default function SextingSetOrganizer({
         <div className="lg:col-span-2">
           {selectedSet ? (
             <div
-              className={`bg-card border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+              className={`bg-card border rounded-xl overflow-hidden shadow-sm transition-colors ${
                 isDraggingFile ? "border-[var(--color-brand-mid-pink)] ring-2 ring-[var(--color-brand-mid-pink)]/30" : "border-border"
               }`}
               onDragOver={handleFileDragOver}
@@ -1831,27 +2315,25 @@ export default function SextingSetOrganizer({
               onDrop={handleFileDrop}
             >
               {/* Header */}
-              <div className="p-4 border-b border-border">
+              <div className="px-3 py-2.5 border-b border-border">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-foreground text-lg">
+                      <h3 className="font-semibold text-foreground text-base truncate">
                         {selectedSet.name}
                       </h3>
-                      {/* Profile badge when viewing All Profiles */}
                       {isAllProfiles && selectedSet.profileName && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-brand-mid-pink)]/10 text-[var(--color-brand-mid-pink)] border border-[var(--color-brand-mid-pink)]/30">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-brand-mid-pink)]/10 text-[var(--color-brand-mid-pink)] shrink-0">
                           {selectedSet.profileName}
                         </span>
                       )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedSet.images.length} item
-                      {selectedSet.images.length !== 1 ? "s" : ""}
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {selectedSet.images.length} item{selectedSet.images.length !== 1 ? "s" : ""}
+                      </span>
                       {savingOrder && (
-                        <span className="ml-2 text-[var(--color-brand-mid-pink)]">• Saving...</span>
+                        <span className="text-xs text-[var(--color-brand-mid-pink)] shrink-0">• Saving...</span>
                       )}
-                    </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -1954,22 +2436,25 @@ export default function SextingSetOrganizer({
               </div>
 
               {/* Images grid */}
-              <div className="p-4">
+              <div
+                ref={contentGridRef}
+                className="p-2 max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar"
+              >
                 {selectedSet.images.length === 0 ? (
                   <div
-                    className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${
+                    className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
                       isDraggingFile
                         ? "border-[var(--color-brand-mid-pink)] bg-[var(--color-brand-mid-pink)]/10"
                         : "border-border hover:border-[var(--color-brand-mid-pink)]/50"
                     }`}
                   >
                     <Upload
-                      className={`w-12 h-12 mx-auto mb-4 ${
+                      className={`w-10 h-10 mx-auto mb-3 ${
                         isDraggingFile ? "text-[var(--color-brand-mid-pink)]" : "text-muted-foreground"
                       }`}
                     />
                     <p
-                      className={`font-medium ${
+                      className={`font-medium text-sm ${
                         isDraggingFile ? "text-[var(--color-brand-mid-pink)]" : "text-muted-foreground"
                       }`}
                     >
@@ -1977,167 +2462,57 @@ export default function SextingSetOrganizer({
                         ? "Drop your files here!"
                         : "Drop images or videos here"}
                     </p>
-                    <p className="text-muted-foreground text-sm mt-2">
+                    <p className="text-muted-foreground text-xs mt-1">
                       or click upload to browse
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {selectedSet.images.map((image, index) => {
-                      const isHovered = hoveredImageId === image.id;
-                      const isDragging = draggedIndex === index;
-                      const isDropTarget = dragOverIndex === index;
-                      const touchOffsetValue = touchOffset?.id === image.id ? touchOffset.offset : 0;
-
+                  <div
+                    style={{
+                      height: `${gridVirtualizer.getTotalSize()}px`,
+                      width: '100%',
+                      position: 'relative',
+                    }}
+                  >
+                    {gridVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const startIdx = virtualRow.index * gridColumns;
+                      const rowImages = selectedSet.images.slice(startIdx, startIdx + gridColumns);
                       return (
                         <div
-                          key={image.id}
-                          draggable={!isMobile}
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragOver={(e) => handleDragOver(e, index)}
-                          onDragEnd={handleDragEnd}
-                          onClick={() => !isMobile && openImageDetail(image)}
-                          onMouseEnter={() => !isMobile && setHoveredImageId(image.id)}
-                          onMouseLeave={() => !isMobile && setHoveredImageId(null)}
-                          onTouchStart={(e) => handleTouchStart(e, image.id)}
-                          onTouchMove={(e) => handleTouchMove(e, image.id)}
-                          onTouchEnd={() => handleTouchEnd(image.id)}
-                          className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                            isMobile ? 'active:scale-95' : 'cursor-grab active:cursor-grabbing'
-                          } ${
-                            isDragging
-                              ? "opacity-30 scale-95 border-[var(--color-brand-mid-pink)] shadow-xl"
-                              : isDropTarget
-                                ? "border-[var(--color-brand-mid-pink)] ring-4 ring-[var(--color-brand-mid-pink)]/30 scale-105 shadow-xl"
-                                : isHovered
-                                  ? "border-[var(--color-brand-mid-pink)]/50 scale-[1.02]"
-                                  : "border-transparent hover:border-[var(--color-brand-mid-pink)]/30"
-                          }`}
+                          key={virtualRow.index}
                           style={{
-                            transform: isMobile ? `translateX(${touchOffsetValue}px)` : undefined,
-                            transition: touchOffsetValue !== 0 ? 'none' : undefined,
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
                           }}
+                          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5"
                         >
-                          {/* Visual drag preview indicator */}
-                          {isDragging && (
-                            <div className="absolute inset-0 bg-[var(--color-brand-mid-pink)]/10 backdrop-blur-sm flex items-center justify-center z-20">
-                              <div className="bg-[var(--color-brand-mid-pink)] rounded-full p-3 shadow-xl">
-                                <Move className="w-6 h-6 text-white" />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Drop target indicator */}
-                          {isDropTarget && !isDragging && (
-                            <div className="absolute inset-0 border-4 border-dashed border-[var(--color-brand-mid-pink)] rounded-xl pointer-events-none z-10 animate-pulse" />
-                          )}
-
-                          {/* Swipe delete indicator (mobile) */}
-                          {isMobile && touchOffsetValue < -50 && (
-                            <div className="absolute inset-y-0 right-0 w-20 bg-red-500 flex items-center justify-center">
-                              <Trash2 className="w-6 h-6 text-white" />
-                            </div>
-                          )}
-
-                          {/* Sequence badge */}
-                          <div className={`absolute top-2 left-2 z-10 w-7 h-7 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg flex items-center justify-center shadow-lg transition-transform ${
-                            isHovered ? 'scale-110' : ''
-                          }`}>
-                            <span className="text-white text-xs font-bold">
-                              {image.sequence}
-                            </span>
-                          </div>
-
-                          {/* Media */}
-                          {isVideo(image.type) ? (
-                            <video
-                              src={image.url}
-                              className="w-full h-full object-cover"
-                              muted
+                          {rowImages.map((image, colIdx) => (
+                            <ImageCard
+                              key={image.id}
+                              image={image}
+                              index={startIdx + colIdx}
+                              totalImages={selectedSet.images.length}
+                              isMobile={isMobile}
+                              draggedIndex={draggedIndex}
+                              dragOverIndex={dragOverIndex}
+                              touchOffsetValue={touchOffset?.id === image.id ? touchOffset.offset : 0}
+                              onDragStart={handleDragStart}
+                              onDragOver={handleDragOver}
+                              onDragEnd={handleDragEnd}
+                              onClick={openImageDetail}
+                              onDelete={handleDeleteCurrentSetImage}
+                              onMoveUp={handleMoveUp}
+                              onMoveDown={handleMoveDown}
+                              onMoveToPosition={handleMoveToPosition}
+                              onTouchStart={handleTouchStart}
+                              onTouchMove={handleTouchMove}
+                              onTouchEnd={handleTouchEnd}
                             />
-                          ) : isAudio(image.type) ? (
-                            <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 dark:from-violet-900/50 dark:to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
-                              <Music className="w-10 h-10 text-violet-500 mb-2" />
-                              <audio
-                                src={image.url}
-                                controls
-                                className="w-full h-8"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <span className="text-xs text-muted-foreground mt-2 truncate max-w-full">
-                                {image.name}
-                              </span>
-                            </div>
-                          ) : (
-                            <img
-                              src={image.url}
-                              alt={image.name}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-
-                          {/* Hover overlay with quick actions */}
-                          <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-200 ${
-                            isHovered || isMobile ? 'opacity-100' : 'opacity-0'
-                          }`}>
-                            {/* Top action buttons */}
-                            <div className="absolute top-2 right-2 flex gap-1">
-                              {/* Drag handle - desktop only */}
-                              {!isMobile && (
-                                <div className={`p-2 bg-black/70 hover:bg-[var(--color-brand-mid-pink)]/80 rounded-lg backdrop-blur-sm transition-all cursor-grab active:cursor-grabbing ${
-                                  isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-                                }`}
-                                  title="Drag to reorder"
-                                  style={{ transitionDelay: '0ms' }}
-                                >
-                                  <GripVertical className="w-4 h-4 text-white" />
-                                </div>
-                              )}
-
-                              {/* Quick delete */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteImage(selectedSet.id, image.id);
-                                }}
-                                className={`p-2 bg-black/70 hover:bg-red-500/80 rounded-lg backdrop-blur-sm transition-all ${
-                                  isHovered || isMobile ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-                                }`}
-                                title="Delete"
-                                style={{ transitionDelay: isMobile ? '0ms' : '50ms' }}
-                              >
-                                <Trash2 className="w-4 h-4 text-white" />
-                              </button>
-                            </div>
-
-                            {/* Bottom info bar */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {isVideo(image.type) ? (
-                                  <Video className="w-4 h-4 text-[var(--color-brand-blue)]" />
-                                ) : isAudio(image.type) ? (
-                                  <Volume2 className="w-4 h-4 text-violet-500" />
-                                ) : (
-                                  <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
-                                )}
-                                <span className="text-xs text-white/90 font-medium">
-                                  {formatFileSize(image.size)}
-                                </span>
-                              </div>
-                              {isMobile && (
-                                <span className="text-xs text-white/70">
-                                  Swipe left to delete
-                                </span>
-                              )}
-                            </div>
-
-                            {/* File name on hover */}
-                            <div className="absolute bottom-12 left-2 right-2">
-                              <p className="text-xs text-white/90 font-medium truncate bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
-                                {image.name}
-                              </p>
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       );
                     })}
@@ -2146,17 +2521,17 @@ export default function SextingSetOrganizer({
               </div>
             </div>
           ) : (
-            <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-sm">
-              <Sparkles className="w-16 h-16 text-[var(--color-brand-mid-pink)]/30 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
+            <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
+              <Sparkles className="w-12 h-12 text-[var(--color-brand-mid-pink)]/30 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-foreground mb-1">
                 Select a Set
               </h3>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-sm text-muted-foreground mb-4">
                 Choose a set from the sidebar to organize your content
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium shadow-lg transition-all duration-200"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium shadow-lg transition-all duration-200"
               >
                 <FolderPlus className="w-5 h-5" />
                 Create New Set

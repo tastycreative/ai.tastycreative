@@ -130,6 +130,7 @@ async function fetchCaptionItemsForSync(ticketId: string): Promise<CaptionItemSy
       captionText: true,
       captionStatus: true,
       qaRejectionReason: true,
+      isPosted: true,
     },
   });
   return items.map((ci) => ({
@@ -139,6 +140,7 @@ async function fetchCaptionItemsForSync(ticketId: string): Promise<CaptionItemSy
     captionText: ci.captionText ?? null,
     captionStatus: ci.captionStatus,
     qaRejectionReason: ci.qaRejectionReason ?? null,
+    isPosted: ci.isPosted,
   }));
 }
 
@@ -218,11 +220,11 @@ export async function PATCH(
     // Prevent overwriting protected fields; extract assignees separately
     const { clerkId: _c, organizationId: _o, assignees: _a, assignedCreatorClerkIds, ...safeBody } = body;
 
-    // When a creator submits for QA, promote all in_progress items → submitted
-    // so the QA modal can show per-item approve/reject controls.
+    // When a creator submits for QA, promote all in_progress AND pending items → submitted
+    // so the QA modal can show per-item approve/reject controls (including uncaptioned ones).
     if (safeBody.status === 'pending_qa') {
       await prisma.captionQueueContentItem.updateMany({
-        where: { ticketId: id, captionStatus: 'in_progress' },
+        where: { ticketId: id, captionStatus: { in: ['in_progress', 'pending'] } },
         data: { captionStatus: 'submitted', updatedAt: new Date() },
       });
     }

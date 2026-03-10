@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
           orderBy: { sequence: "asc" },
         },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
     });
 
     // Add profileName and isShared to each set
