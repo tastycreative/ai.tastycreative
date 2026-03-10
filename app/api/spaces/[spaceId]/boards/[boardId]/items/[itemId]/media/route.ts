@@ -3,7 +3,30 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { Prisma } from '@/lib/generated/prisma';
 import { generatePresignedUploadUrl } from '@/lib/s3-submission-uploads';
+import { deleteFromS3 } from '@/lib/s3-cleanup';
 import { WALL_POST_STATUS } from '@/lib/wall-post-status';
+
+const CDN_DOMAIN = process.env.CDN_DOMAIN || 'cdn.tastycreative.xyz';
+const S3_BUCKET = process.env.AWS_S3_BUCKET || 'tastycreative';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+
+/** Extract the S3 key from a CDN or S3 URL. */
+function extractS3Key(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    // CDN URL: https://cdn.tastycreative.xyz/content-submissions/...
+    if (parsed.hostname === CDN_DOMAIN) {
+      return parsed.pathname.startsWith('/') ? parsed.pathname.slice(1) : parsed.pathname;
+    }
+    // S3 URL: https://bucket.s3.region.amazonaws.com/key
+    if (parsed.hostname.includes('.s3.') && parsed.hostname.includes('.amazonaws.com')) {
+      return parsed.pathname.startsWith('/') ? parsed.pathname.slice(1) : parsed.pathname;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 type Params = { params: Promise<{ spaceId: string; boardId: string; itemId: string }> };
 
@@ -270,5 +293,49 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error('Error in board item media:', error);
     return NextResponse.json({ error: 'Failed to process media request' }, { status: 500 });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  DELETE /api/spaces/:spaceId/boards/:boardId/items/:itemId/media    */
+/*                                                                     */
+/*  Body: { mediaId: string }                                          */
+/*  Deletes the BoardItemMedia row AND the file from S3.               */
+/* ------------------------------------------------------------------ */
+
+export async function DELETE(req: NextRequest, { params }: Params) {
+  try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { itemId } = await params;
+    const body = await req.json().catch(() => null);
+
+    if (!body?.mediaId) {
+      return NextResponse.json({ error: 'mediaId is required' }, { status: 400 });
+    }
+
+    // Find the media record (ensure it belongs to this item)
+    const media = await prisma.boardItemMedia.findFirst({
+      where: { id: body.mediaId, itemId },
+    });
+
+    if (!media) {
+      return NextResponse.json({ error: 'Media not found' }, { status: 404 });
+    }
+
+    // Delete from S3
+    const s3Key = extractS3Key(media.url);
+    if (s3Key) {
+      await deleteFromS3(s3Key);
+    }
+
+    // Delete from database
+    await prisma.boardItemMedia.delete({ where: { id: media.id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting board item media:', error);
+    return NextResponse.json({ error: 'Failed to delete media' }, { status: 500 });
   }
 }

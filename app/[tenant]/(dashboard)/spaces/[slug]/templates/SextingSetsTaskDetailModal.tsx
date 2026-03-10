@@ -21,6 +21,7 @@ import { SelectField } from '../../board/SelectField';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { useBoardItemComments, useAddComment, useBoardItemHistory } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
@@ -48,7 +49,14 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
-  const { data: spaceMembers } = useSpaceMembers(spaceId);
+  const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+
+  const getMemberName = (id?: string) => {
+    if (!id) return undefined;
+    const m = spaceMembers.find((mb) => mb.user.clerkId === id || mb.userId === id);
+    if (!m) return undefined;
+    return m.user.name || `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim() || m.user.email;
+  };
 
   // Fetch real comments from API - only when modal is open
   const { data: commentsData, isLoading: commentsLoading } = useBoardItemComments(spaceId, boardId, task.id, isOpen);
@@ -245,6 +253,24 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, isOpen, onClose,
             <div>
               <div className="flex items-center gap-1.5 mb-1.5"><User className="h-3.5 w-3.5 text-gray-400" /><span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Model</span></div>
               <EditableField value={model} placeholder="Model name" onSave={(v) => updateMeta({ model: v })} />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5"><User className="h-3.5 w-3.5 text-gray-400" /><span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Assignee</span></div>
+              <SearchableDropdown
+                value={getMemberName(task.assignee) ?? ''}
+                placeholder="Unassigned"
+                searchPlaceholder="Search members..."
+                options={spaceMembers.map((m) => getMemberName(m.user.clerkId) ?? m.user.email)}
+                onChange={(v) => {
+                  if (!v) { onUpdate({ ...task, assignee: undefined }); }
+                  else {
+                    const member = spaceMembers.find((m) => (getMemberName(m.user.clerkId) ?? m.user.email) === v);
+                    if (member) onUpdate({ ...task, assignee: member.user.clerkId });
+                  }
+                }}
+                clearable
+              />
             </div>
 
             <div>

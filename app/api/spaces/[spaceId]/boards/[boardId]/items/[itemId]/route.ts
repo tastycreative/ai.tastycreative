@@ -4,6 +4,7 @@ import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
 import { saveCaptionFromOtpPtr } from '@/lib/caption-bank-sync';
 import { sendBoardMoveNotification } from '@/lib/board-move-notification';
+import { sendBoardAssignNotification } from '@/lib/board-assign-notification';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -261,6 +262,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         createdBy: updated.createdBy,
         spaceId,
       }).catch((e) => console.error('[board-move-notification]', e));
+    }
+
+    // ── Fire-and-forget assignee notification ──
+    if (
+      data.assigneeId !== undefined &&
+      current &&
+      current.assigneeId !== data.assigneeId &&
+      data.assigneeId // only when assigning, not unassigning
+    ) {
+      sendBoardAssignNotification({
+        itemId,
+        itemTitle: updated.title,
+        itemNo: updated.itemNo,
+        assigneeClerkId: data.assigneeId as string,
+        assignedByUserId: userId,
+        spaceId,
+      }).catch((e) => console.error('[board-assign-notification]', e));
     }
 
     const senderTab = req.headers.get('x-tab-id') ?? undefined;

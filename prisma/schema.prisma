@@ -1357,11 +1357,13 @@ model SextingSet {
   scheduledDate DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  sortOrder     Int            @default(0)
   images        SextingImage[]
 
   @@index([userId])
   @@index([category])
   @@index([status])
+  @@index([sortOrder])
   @@map("sexting_sets")
 }
 
@@ -2473,6 +2475,7 @@ enum NotificationType {
   BOARD_MOVE
   BOARD_COMMENT
   BOARD_ONBOARDING
+  BOARD_ASSIGN
 }
 
 enum PostType {
