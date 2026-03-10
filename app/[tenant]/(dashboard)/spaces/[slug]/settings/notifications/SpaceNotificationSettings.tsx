@@ -28,6 +28,7 @@ export function SpaceNotificationSettings({ slug }: Props) {
   const memberEnabled = notifications.memberEnabled ?? false;
   const memberMode = notifications.memberMode ?? 'all';
   const notifyAssigned = notifications.notifyAssigned ?? false;
+  const notifyOnboarding = notifications.notifyOnboarding ?? false;
   const columnMembers = notifications.columnMembers ?? {};
 
   const mutation = useUpdateSpaceNotifications(space?.id, config);
@@ -37,6 +38,7 @@ export function SpaceNotificationSettings({ slug }: Props) {
       memberEnabled,
       memberMode,
       notifyAssigned,
+      notifyOnboarding,
       columnMembers,
       ...patch,
     });
@@ -127,7 +129,7 @@ export function SpaceNotificationSettings({ slug }: Props) {
         </div>
 
         {/* Notify assigned users + creator */}
-        <div className="flex items-center justify-between py-4">
+        <div className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="pr-4">
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
               Notify assigned users
@@ -139,6 +141,23 @@ export function SpaceNotificationSettings({ slug }: Props) {
           <Toggle
             checked={notifyAssigned}
             onChange={(v) => save({ notifyAssigned: v })}
+            disabled={mutation.isPending}
+          />
+        </div>
+
+        {/* Webhook onboarding notifications */}
+        <div className="flex items-center justify-between py-4">
+          <div className="pr-4">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              Onboarding webhook notifications
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Notify space members when a new item is created via the onboarding webhook
+            </p>
+          </div>
+          <Toggle
+            checked={notifyOnboarding}
+            onChange={(v) => save({ notifyOnboarding: v })}
             disabled={mutation.isPending}
           />
         </div>

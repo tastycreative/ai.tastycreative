@@ -2472,6 +2472,7 @@ enum NotificationType {
   SYSTEM
   BOARD_MOVE
   BOARD_COMMENT
+  BOARD_ONBOARDING
 }
 
 enum PostType {

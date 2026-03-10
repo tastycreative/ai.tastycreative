@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
 import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
+import { sendBoardOnboardingNotification } from '@/lib/board-onboarding-notification';
 
 type Params = { params: Promise<{ spaceId: string }> };
 
@@ -246,6 +247,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     } catch (_) {
       // Ably not configured — skip
     }
+
+    // Fire-and-forget: notify space members about the new onboarding item
+    sendBoardOnboardingNotification({
+      spaceId,
+      boardId: board.id,
+      itemId: item.id,
+      itemTitle: title,
+      itemNo: nextItemNo,
+      columnId: column.id,
+      columnName: column.name,
+    }).catch((e) => console.error('[board-onboarding-notification]', e));
 
     const taskKey = workspace.key
       ? `${workspace.key}-${nextItemNo}`.toLowerCase()

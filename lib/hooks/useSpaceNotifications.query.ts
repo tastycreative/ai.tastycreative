@@ -14,6 +14,8 @@ export interface NotificationConfig {
   notifyAssigned: boolean;
   /** Maps columnId → array of clerkIds assigned to that column (used when memberMode = 'column') */
   columnMembers?: Record<string, string[]>;
+  /** Whether to notify space members when a new item is created via onboarding webhook */
+  notifyOnboarding?: boolean;
 }
 
 export function useUpdateSpaceNotifications(
