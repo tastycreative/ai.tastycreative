@@ -38,6 +38,7 @@ import {
 } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import {
   useBoardItemComments,
   useAddComment,
@@ -593,7 +594,14 @@ export function WallPostTaskDetailModal({
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
-  const { data: spaceMembers } = useSpaceMembers(spaceId);
+  const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+
+  const getMemberName = (id?: string) => {
+    if (!id) return undefined;
+    const m = spaceMembers.find((mb) => mb.user.clerkId === id || mb.userId === id);
+    if (!m) return undefined;
+    return m.user.name || `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim() || m.user.email;
+  };
 
   const [activeTab, setActiveTab] = useState<ModalTab>('description');
   const [selectedItemIndex, setSelectedItemIndex] = useState(0);
@@ -2039,6 +2047,23 @@ export function WallPostTaskDetailModal({
                 value={model}
                 placeholder="Model name"
                 onSave={(v) => updateMeta({ model: v })}
+              />
+            </SidebarField>
+
+            <SidebarField label="Assignee">
+              <SearchableDropdown
+                value={getMemberName(task.assignee) ?? ''}
+                placeholder="Unassigned"
+                searchPlaceholder="Search members..."
+                options={spaceMembers.map((m) => getMemberName(m.user.clerkId) ?? m.user.email)}
+                onChange={(v) => {
+                  if (!v) { onUpdate({ ...task, assignee: undefined }); }
+                  else {
+                    const member = spaceMembers.find((m) => (getMemberName(m.user.clerkId) ?? m.user.email) === v);
+                    if (member) onUpdate({ ...task, assignee: member.user.clerkId });
+                  }
+                }}
+                clearable
               />
             </SidebarField>
 

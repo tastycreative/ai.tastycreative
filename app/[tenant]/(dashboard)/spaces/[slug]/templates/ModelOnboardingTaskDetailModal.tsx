@@ -540,7 +540,7 @@ export function ModelOnboardingTaskDetailModal({
     <div
       className="fixed inset-0 z-9999 flex items-start justify-center overflow-y-auto py-8 px-4"
       onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.8)' }}
     >
       <div
         className="relative w-full max-w-[1080px] rounded-xl shadow-2xl shadow-black/50 bg-[#0d0b14] border border-white/[0.06]"

@@ -6,6 +6,32 @@ interface CommentContentProps {
   content: string;
 }
 
+const URL_REGEX = /(https?:\/\/[^\s<>]+)/g;
+
+/** Render a plain text string, turning URLs into clickable links. */
+function TextWithLinks({ text }: { text: string }) {
+  const parts = text.split(URL_REGEX);
+  return (
+    <>
+      {parts.map((part, i) =>
+        URL_REGEX.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand-blue hover:underline break-all"
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 export function CommentContent({ content }: CommentContentProps) {
   const segments = segmentMentionContent(content);
 
@@ -20,7 +46,7 @@ export function CommentContent({ content }: CommentContentProps) {
             @{seg.value}
           </span>
         ) : (
-          <span key={i}>{seg.value}</span>
+          <TextWithLinks key={i} text={seg.value} />
         )
       )}
     </>

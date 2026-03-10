@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   X,
   Pencil,
@@ -15,14 +16,23 @@ import {
   ListTodo,
   Hash,
   Tag,
+  Paperclip,
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  Film,
+  Loader2,
+  ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../board/ActivityFeed';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
-import { useBoardItemComments, useAddComment, useBoardItemHistory } from '@/lib/hooks/useBoardItems.query';
+import { useBoardItemComments, useAddComment, useBoardItemHistory, useBoardItemMedia, boardItemKeys } from '@/lib/hooks/useBoardItems.query';
 
 interface Props {
   task: BoardTask;
@@ -39,6 +49,36 @@ const PRIORITY_DOT: Record<string, string> = {
   Low: 'bg-emerald-500',
 };
 
+
+const URL_REGEX = /(https?:\/\/[^\s<>]+)/g;
+
+/** Renders text with clickable URL links. */
+function Linkify({ text }: { text: string }) {
+  const parts = text.split(URL_REGEX);
+  return (
+    <>
+      {parts.map((part, i) =>
+        URL_REGEX.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-brand-blue hover:underline break-all">{part}</a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIcon(type: string) {
+  if (type.startsWith('image/')) return ImageIcon;
+  if (type.startsWith('video/')) return Film;
+  return FileText;
+}
 
 function SidebarLabel({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
@@ -69,7 +109,98 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
-  const { data: spaceMembers } = useSpaceMembers(spaceId);
+  const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+
+  const getMemberName = (id?: string) => {
+    if (!id) return undefined;
+    const m = spaceMembers.find((mb) => mb.user.clerkId === id || mb.userId === id);
+    if (!m) return undefined;
+    return m.user.name || `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim() || m.user.email;
+  };
+
+  // Attachments
+  const queryClient = useQueryClient();
+  const { data: attachments = [], isLoading: attachmentsLoading } = useBoardItemMedia(spaceId, boardId, task.id, isOpen);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0 || !spaceId || !boardId) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        // 1. Get presigned URL
+        const presignRes = await fetch(`/api/spaces/${spaceId}/boards/${boardId}/items/${task.id}/media`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'presign', fileName: file.name, fileType: file.type }),
+        });
+        if (!presignRes.ok) throw new Error('Failed to get upload URL');
+        const { uploadUrl, fileUrl } = await presignRes.json();
+
+        // 2. Upload directly to S3
+        await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+
+        // 3. Record in database
+        await fetch(`/api/spaces/${spaceId}/boards/${boardId}/items/${task.id}/media`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'record', url: fileUrl, type: file.type, name: file.name, size: file.size }),
+        });
+      }
+      // Refresh attachments list
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.media(task.id) });
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [spaceId, boardId, task.id, queryClient]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    dragCounterRef.current = 0;
+    if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files);
+  }, [handleFileUpload]);
+
+  const handleDeleteAttachment = useCallback(async (mediaId: string) => {
+    if (!spaceId || !boardId) return;
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/boards/${boardId}/items/${task.id}/media`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaId }),
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.media(task.id) });
+    } catch (err) {
+      console.error('Delete attachment failed:', err);
+    }
+  }, [spaceId, boardId, task.id, queryClient]);
 
   // Fetch real comments from API - only when modal is open
   const { data: commentsData, isLoading: commentsLoading } = useBoardItemComments(spaceId, boardId, task.id, isOpen);
@@ -175,7 +306,7 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
                   </div>
                 ) : (
                   <button type="button" onClick={() => setEditingDesc(true)} className="flex items-start gap-2 w-full text-left">
-                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap flex-1">{task.description || <span className="text-gray-400 italic">Click to add a description...</span>}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap flex-1">{task.description ? <Linkify text={task.description} /> : <span className="text-gray-400 italic">Click to add a description...</span>}</p>
                     <Pencil className="h-3.5 w-3.5 text-gray-400 opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 mt-0.5" />
                   </button>
                 )}
@@ -199,6 +330,108 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
               )}
             </div>
 
+            {/* Attachments */}
+            <div
+              className="mb-6"
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Attachments {attachments.length > 0 && `(${attachments.length})`}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-brand-mid-pink/20 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                  {uploading ? 'Uploading...' : 'Add'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                />
+              </div>
+
+              {/* Drag overlay */}
+              {dragOver && (
+                <div className="flex items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed border-brand-light-pink bg-brand-light-pink/10 text-brand-light-pink mb-2 transition-colors">
+                  <Upload className="h-5 w-5" />
+                  <span className="text-sm font-medium">Drop files here to upload</span>
+                </div>
+              )}
+
+              {!dragOver && (attachmentsLoading ? (
+                <div className="flex gap-2">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-16 w-32 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                  ))}
+                </div>
+              ) : attachments.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {attachments.map((att) => {
+                    const FileIcon = getFileIcon(att.type);
+                    const isImage = att.type.startsWith('image/');
+                    return (
+                      <div
+                        key={att.id}
+                        className="group/att relative flex flex-col rounded-xl border border-gray-200 dark:border-brand-mid-pink/20 bg-white dark:bg-gray-900/60 overflow-hidden hover:border-brand-light-pink/40 transition-colors"
+                      >
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                          className="absolute top-1.5 right-1.5 z-10 h-6 w-6 flex items-center justify-center rounded-full bg-red-500/90 text-white opacity-0 group-hover/att:opacity-100 transition-opacity hover:bg-red-600"
+                          title="Delete attachment"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                          {isImage ? (
+                            <div className="h-24 bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
+                              <img src={att.url} alt={att.name ?? 'attachment'} className="h-full w-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="h-24 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                              <FileIcon className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                        </a>
+                        <div className="px-2 py-1.5 flex items-center gap-1.5 min-w-0">
+                          <FileIcon className="h-3 w-3 text-gray-400 shrink-0" />
+                          <span className="text-[11px] text-gray-600 dark:text-gray-300 truncate flex-1">{att.name ?? 'File'}</span>
+                          <a href={att.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3 text-gray-400 opacity-0 group-hover/att:opacity-100 transition-opacity shrink-0 hover:text-brand-blue" />
+                          </a>
+                        </div>
+                        {att.size && (
+                          <span className="px-2 pb-1.5 text-[10px] text-gray-400">{formatFileSize(att.size)}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-gray-200 dark:border-brand-mid-pink/15 text-gray-400 hover:border-brand-light-pink/40 hover:text-brand-light-pink cursor-pointer transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="text-xs">Drop files or click to attach</span>
+                </div>
+              ))}
+            </div>
+
             <ActivityFeed
               comments={comments}
               history={history}
@@ -218,11 +451,26 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
             </div>
             <div>
               <SidebarLabel icon={User} label="Assignee" />
-              <EditableField value={task.assignee ?? ''} placeholder="Unassigned" onSave={(v) => onUpdate({ ...task, assignee: v || undefined })} />
+              <SearchableDropdown
+                value={getMemberName(task.assignee) ?? ''}
+                placeholder="Unassigned"
+                searchPlaceholder="Search members..."
+                options={spaceMembers.map((m) => getMemberName(m.user.clerkId) ?? m.user.email)}
+                onChange={(v) => {
+                  if (!v) { onUpdate({ ...task, assignee: undefined }); }
+                  else {
+                    const member = spaceMembers.find((m) => (getMemberName(m.user.clerkId) ?? m.user.email) === v);
+                    if (member) onUpdate({ ...task, assignee: member.user.clerkId });
+                  }
+                }}
+                clearable
+              />
             </div>
             <div>
               <SidebarLabel icon={UserCircle} label="Reporter" />
-              <EditableField value={task.reporter ?? ''} placeholder="None" onSave={(v) => onUpdate({ ...task, reporter: v || undefined })} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {getMemberName(task.reporter) ?? 'Unknown'}
+              </span>
             </div>
             <div>
               <SidebarLabel icon={Flag} label="Priority" />

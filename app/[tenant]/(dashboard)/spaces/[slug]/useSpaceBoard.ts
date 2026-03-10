@@ -46,7 +46,7 @@ export const defaultItemToTask: ItemToTaskFn = (item, spaceKey) => {
     tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : undefined,
     startDate: undefined,
     dueDate: item.dueDate ?? undefined,
-    reporter: undefined,
+    reporter: (item.createdBy as string) ?? undefined,
     metadata: meta,
   };
 };
