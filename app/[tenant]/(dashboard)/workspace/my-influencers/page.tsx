@@ -427,7 +427,7 @@ export default function MyInfluencersPage() {
     // Check if user has the required organization role
     if (currentOrganization) {
       const userRole = currentOrganization.role;
-      const allowedRoles = ["OWNER", "ADMIN", "MANAGER"];
+      const allowedRoles = ["OWNER", "ADMIN", "MANAGER", "CREATOR"];
       
       if (!allowedRoles.includes(userRole)) {
         setShowPermissionModal(true);
@@ -461,7 +461,7 @@ export default function MyInfluencersPage() {
 
     // Check if user has elevated role in the organization
     if (profile.organizationId && profile.currentUserOrgRole) {
-      const elevatedRoles = ["OWNER", "ADMIN", "MANAGER"];
+      const elevatedRoles = ["OWNER", "ADMIN", "MANAGER", "CREATOR"];
       return elevatedRoles.includes(profile.currentUserOrgRole);
     }
 
@@ -1000,7 +1000,7 @@ function PermissionDeniedModal({
 }) {
   if (typeof window === "undefined") return null;
 
-  const allowedRoles = ["Owner", "Admin", "Manager"];
+  const allowedRoles = ["Owner", "Admin", "Manager", "Creator"];
   const currentRoleDisplay = currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase();
 
   return createPortal(
