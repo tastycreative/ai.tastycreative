@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useMemo, useRef, useEffect } from 'react';
+import { useCallback, useState, useMemo, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Image,
@@ -108,6 +108,21 @@ const PAGE_TYPE_OPTIONS = [
   { value: 'VIP', label: 'VIP' },
 ];
 
+function useOutsideClick(
+  ref: React.RefObject<HTMLElement | null>,
+  onOutside: () => void
+) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onOutside();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, onOutside]);
+}
+
 interface ContentDetailsFieldsProps {
   register: UseFormRegister<CreateSubmissionWithComponents>;
   setValue: UseFormSetValue<CreateSubmissionWithComponents>;
@@ -164,28 +179,18 @@ export function ContentDetailsFields({
   const { data: influencerProfiles, isLoading: influencerProfilesLoading } = useInstagramProfiles();
 
   // Close content type dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (contentTypeRef.current && !contentTypeRef.current.contains(e.target as Node)) {
-        setContentTypeOpen(false);
-        setContentTypeSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+  const closeContentType = useCallback(() => {
+    setContentTypeOpen(false);
+    setContentTypeSearch('');
   }, []);
+  useOutsideClick(contentTypeRef, closeContentType);
 
   // Close content tags dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (contentTagsRef.current && !contentTagsRef.current.contains(e.target as Node)) {
-        setContentTagsOpen(false);
-        setContentTagsSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+  const closeContentTags = useCallback(() => {
+    setContentTagsOpen(false);
+    setContentTagsSearch('');
   }, []);
+  useOutsideClick(contentTagsRef, closeContentTags);
 
   // Filtered content type options
   const filteredContentTypeOptions = useMemo(() => {
@@ -229,21 +234,26 @@ export function ContentDetailsFields({
     );
   }, [sortedProfiles, internalModelsSearch]);
 
+  // Keep a ref to watch so handleMetadataChange doesn't depend on it directly
+  const watchRef = useRef(watch);
+  watchRef.current = watch;
+
   const handleTemplateChange = useCallback(
     (type: SubmissionTemplateType) => {
       setValue('submissionType', type);
       const defaults = getMetadataDefaults(type);
-      setValue('metadata', { ...defaults, ...metadata });
+      const current = watchRef.current('metadata') || {};
+      setValue('metadata', { ...defaults, ...current });
     },
-    [setValue, metadata]
+    [setValue]
   );
 
   const handleMetadataChange = useCallback(
     (key: string, value: any) => {
-      const current = watch('metadata') || {};
+      const current = watchRef.current('metadata') || {};
       setValue('metadata', { ...current, [key]: value }, { shouldDirty: true });
     },
-    [setValue, watch]
+    [setValue]
   );
 
   const handleContentTypeSelect = useCallback(
@@ -1080,7 +1090,7 @@ export function ContentDetailsFields({
 }
 
 // Dynamic metadata field renderer
-function MetadataFieldInput({
+const MetadataFieldInput = memo(function MetadataFieldInput({
   field,
   value,
   onChange,
@@ -1211,7 +1221,7 @@ function MetadataFieldInput({
       />
     </div>
   );
-}
+});
 
 // ─── Assignee Picker ─────────────────────────────────────────────────────────
 
@@ -1269,7 +1279,7 @@ function useAssignableMembers(spaceId: string) {
   return { members, isLoading, source };
 }
 
-function AssigneePicker({
+const AssigneePicker = memo(function AssigneePicker({
   spaceId,
   assigneeId,
   onAssigneeChange,
@@ -1465,9 +1475,9 @@ function AssigneePicker({
       )}
     </div>
   );
-}
+});
 
-function TagInput({
+const TagInput = memo(function TagInput({
   tags,
   onChange,
   placeholder,
@@ -1531,4 +1541,4 @@ function TagInput({
       )}
     </div>
   );
-}
+});

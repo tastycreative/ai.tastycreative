@@ -1,12 +1,103 @@
-# Creative Ink AI - Development Guidelines
+# CLAUDE.md
 
-**No Need to add another guidelines unless stated**
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **CRITICAL: Always reference these guidelines when creating or updating UI components.**
 
 ---
 
-## 📦 Data Fetching with TanStack Query
+## Commands
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Next.js dev server with Turbopack |
+| `npm run build` | `prisma generate && next build` |
+| `npm run lint` | ESLint |
+| `npm run remotion:studio` | Launch Remotion Studio UI |
+| `npm run remotion:render` | Render Remotion compositions |
+| `npx prisma generate` | Regenerate Prisma client (after schema changes) |
+| `npx prisma db push` | Push schema changes to database |
+
+---
+
+## Architecture
+
+### Tech Stack
+
+- **Framework**: Next.js (App Router) with React 19, TypeScript
+- **Styling**: Tailwind CSS v4 (CSS-based config in `globals.css`, NO `tailwind.config.ts`)
+- **Auth**: Clerk (`@clerk/nextjs` v6)
+- **Database**: PostgreSQL via Neon (`@neondatabase/serverless`) + Prisma ORM
+- **Data fetching**: TanStack Query (React Query) — all hooks in `lib/hooks/*.query.ts`
+- **Client state**: Zustand (UI state in `stores/`, editor state in `stores/video-editor-store.ts`)
+- **UI components**: shadcn/ui (Radix primitives, configured in `components.json`)
+- **Video/GIF**: Remotion (`remotion/` compositions, `@remotion/player`)
+- **Storage**: AWS S3 (CDN at `cdn.tastycreative.xyz`), Cloudinary for thumbnails
+- **AI compute**: RunPod serverless (generation + training), SeeDream API, Kling API
+- **Payments**: Stripe (subscriptions, credits, add-on slots)
+- **tRPC**: Used only for training job procedures; REST API routes are the primary pattern
+- **Email**: Resend with React Email templates
+- **Path alias**: `@/` maps to project root
+
+### Multi-Tenancy & Routing
+
+Routes are structured as `app/[tenant]/(dashboard)/...` where `[tenant]` is either an **org slug** or **personal username**.
+
+**Flow**: Clerk middleware protects `/:tenant/*` routes → `app/[tenant]/layout.tsx` verifies access via `/api/organizations/verify-slug` → redirects if unauthorized. The `/dashboard` page resolves the current org and redirects to `/${slug}/dashboard`.
+
+**Key files**:
+- `middleware.ts` — Clerk route protection; public API routes (webhooks, RunPod callbacks, cron, onboarding-public) bypass auth
+- `app/[tenant]/layout.tsx` — client-side tenant guard
+- `lib/organizationAuth.ts` — server-side org membership/role checks
+- `lib/adminAuth.ts` — super-admin checks (`User.role === 'SUPER_ADMIN'`)
+
+### Permission System
+
+`lib/hooks/usePermissions.query.ts` defines 80+ feature flags fetched from `/api/features`. Permissions derive from `SubscriptionPlan.features` (JSON) merged with `CustomOrganizationPermission.permissions`.
+
+- `lib/planFeatures.ts` — central `PLAN_FEATURES` array (key, label, category, type, defaultValue)
+- `lib/permissions/routePermissions.ts` — maps URL paths to permission keys
+- `components/PermissionGuard.tsx` — conditional UI rendering wrapper
+
+### Database
+
+- **Schema**: `prisma/schema.prisma`
+- **Generated client**: `lib/generated/prisma/`
+- **Singleton**: `lib/database.ts` — `globalForPrisma.prisma` with exponential-backoff retry wrapper
+- Always call `ensureUserExists(clerkId)` before user-scoped DB operations
+
+### Major Feature Areas
+
+| Feature | Route | Key Components |
+|---|---|---|
+| AI Generation | `workspace/generate-content/*` | RunPod/SeeDream/Kling endpoints, SSE progress |
+| GIF Maker | `gif-maker/` | Remotion player, Zustand editor store, canvas export |
+| OF Models | `of-models/` | Model profiles, stats, assets |
+| Spaces (Kanban) | `spaces/` | Workspaces, boards, columns, items with history/comments |
+| Content Submissions | `submissions/` | Multi-step form, S3 uploads, space linking |
+| Content Studio | `workspace/content-studio/*` | Calendar, feed posts, stories, reels, pipeline |
+| Vault | `workspace/vault/` | Hierarchical folders, S3-backed media |
+| LoRA Training | `workspace/train-lora/` | RunPod training, job tracking, model sharing |
+| Billing | `billing/` | Stripe subscriptions, credits, add-on slots |
+| Admin | `admin/*` | Super-admin panel (analytics, orgs, users, plans) |
+
+### GIF Maker Specifics
+
+- **Clip types**: `VideoClip | ImageClip` discriminated union via `type: "video" | "image"`
+- **Collage system**: 12 `CollageLayout` presets (split, grid, PiP); clips use `slotIndex` for slot assignment
+- **Store**: `stores/video-editor-store.ts` — full editor state (clips, overlays, transitions, playback, export)
+- **Remotion**: `ClipEditor` composition renders multi-clip timelines; `VideoToGif` for simple conversions
+- **Export**: `lib/gif-maker/gif-renderer.ts` — canvas-based capture for collage/mixed, fast video path for video-only
+
+### API Routes
+
+REST routes live in `app/api/`. Major groups: `billing/`, `organizations/`, `spaces/`, `content-submissions/`, `generate/`, `webhook/` (RunPod callbacks), `webhooks/` (Stripe), `models/`, `of-models/`, `vault/`, `captions/`, `feed/`, `admin/`.
+
+Public API routes bypass Clerk: webhooks, RunPod callbacks, proxy routes, cron (protected by `CRON_SECRET`), onboarding-public.
+
+---
+
+## Data Fetching with TanStack Query
 
 ### Source of Truth
 
@@ -14,7 +105,7 @@
 
 This project uses **TanStack Query (React Query)** for all data fetching and state management.
 
-### ✅ Correct Usage
+### Correct Usage
 
 Always create custom hooks in `lib/hooks/` with the `.query.ts` suffix:
 
@@ -62,7 +153,7 @@ function MyComponent() {
 }
 ```
 
-### ❌ Wrong Usage
+### Wrong Usage
 
 ```tsx
 // DON'T use useState + useEffect for API calls
@@ -96,7 +187,6 @@ export function useUpdateData() {
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate and refetch related queries
       queryClient.invalidateQueries({ queryKey: ['data'] });
     },
   });
@@ -123,42 +213,31 @@ export function useTransactions(enabled: boolean = true) {
 
 ---
 
-## 🎨 Color System
-
-## 🎨 Brand Colors
+## Color System & Brand Colors
 
 ### Source of Truth
 
-**Location**: [`lib/colors.ts`](lib/colors.ts)
+**Location**: [`lib/colors.ts`](lib/colors.ts) and [`app/globals.css`](app/globals.css) (lines 51-56)
 
 ```typescript
 const brandColors = {
-  'brand-light-pink': '#F774B9',  // Primary accent - vibrant and energetic
-  'brand-dark-pink': '#E1518E',   // Secondary accent - deeper and more intense
-  'brand-mid-pink': '#EC67A1',    // Balanced pink tone - versatile
-  'brand-blue': '#5DC3F8',        // Cool accent - fresh and modern
-  'brand-off-white': '#F8F8F8',   // Neutral background - soft and clean
+  'brand-light-pink': '#F774B9',  // Primary accent
+  'brand-dark-pink': '#E1518E',   // Secondary accent
+  'brand-mid-pink': '#EC67A1',    // Balanced pink
+  'brand-blue': '#5DC3F8',        // Cool accent
+  'brand-off-white': '#F8F8F8',   // Neutral background
 };
 ```
 
-### Tailwind Configuration
-
-**Location**: [`app/globals.css`](app/globals.css) (lines 46-51)
-
-This project uses **Tailwind CSS v4** with CSS-based configuration (NO `tailwind.config.ts`).
-
----
-
-## ✅ Correct Usage
+### Correct Usage
 
 ```tsx
 // Use Tailwind brand color classes
 <div className="bg-brand-light-pink text-brand-blue border-brand-dark-pink">
 <button className="hover:bg-brand-mid-pink text-brand-off-white">
-<span className="bg-brand-blue">
 ```
 
-## ❌ Wrong Usage
+### Wrong Usage
 
 ```tsx
 // DON'T use arbitrary hex values
@@ -168,35 +247,26 @@ This project uses **Tailwind CSS v4** with CSS-based configuration (NO `tailwind
 
 ---
 
-## 🌓 Dark Mode Support
+## Dark Mode Support
 
 Always add dark mode variants using brand colors:
 
 ```tsx
-// Use brand colors for dark backgrounds
 <div className="bg-white dark:bg-brand-dark-pink/10">
 <p className="text-gray-900 dark:text-brand-off-white">
 <div className="border-gray-200 dark:border-brand-mid-pink/30">
 
-// Brand color accents in dark mode
+// Interactive elements
 <button className="bg-brand-light-pink hover:bg-brand-mid-pink dark:bg-brand-dark-pink dark:hover:bg-brand-mid-pink">
-<span className="text-brand-blue dark:text-brand-light-pink">
-
-// Gradient overlays with brand colors
-<div className="bg-gradient-to-r from-brand-light-pink/10 via-brand-blue/10 to-brand-dark-pink/10
-                dark:from-brand-dark-pink/5 dark:via-brand-blue/5 dark:to-brand-mid-pink/5">
 
 // Cards and surfaces
 <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20">
-<div className="bg-gray-50 dark:bg-brand-dark-pink/5">
 ```
 
 ### Dark Mode Brand Color Usage
 
-- **Backgrounds**: Use `brand-dark-pink/10` or `brand-dark-pink/5` for subtle brand presence
-- **Accents**: Use `brand-light-pink`, `brand-mid-pink`, `brand-blue` for interactive elements
-- **Text**: Use `brand-off-white` for primary text, `brand-light-pink` for highlights
-- **Borders**: Use `brand-mid-pink/20` or `brand-mid-pink/30` for subtle definition
+- **Backgrounds**: `brand-dark-pink/10` or `brand-dark-pink/5` for subtle brand presence
+- **Accents**: `brand-light-pink`, `brand-mid-pink`, `brand-blue` for interactive elements
+- **Text**: `brand-off-white` for primary text, `brand-light-pink` for highlights
+- **Borders**: `brand-mid-pink/20` or `brand-mid-pink/30` for subtle definition
 - **Gradients**: Combine brand colors with low opacity for ambient effects
-
----

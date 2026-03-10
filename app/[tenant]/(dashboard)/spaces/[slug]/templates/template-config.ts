@@ -53,7 +53,7 @@ const sextingSetsItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string):
       ...(Array.isArray(meta.tags) ? (meta.tags as string[]) : []),
     ],
     dueDate: item.dueDate ?? undefined,
-    metadata: meta,
+    metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },
   };
 };
 

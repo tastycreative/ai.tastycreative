@@ -203,6 +203,40 @@ export const SubmissionForm = memo(function SubmissionForm({
     SEXTING_SETS: 'SET',
   };
 
+  const buildMetadata = useCallback((
+    data: FormData,
+    meta: Record<string, unknown>,
+    extraFields?: Record<string, unknown>,
+  ) => ({
+    // Spread raw metadata first so explicit fields below take priority
+    ...meta,
+    submissionType: data.submissionType,
+    contentStyle,
+    // Game-specific fields
+    ...(contentStyle === 'game' ? {
+      gameType: styleFields.gameType || undefined,
+      gifUrl: styleFields.gifUrl || undefined,
+      gameNotes: styleFields.gameNotes || undefined,
+    } : {}),
+    // PPV/Bundle-specific fields
+    ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
+      originalPollReference: styleFields.originalPollReference || undefined,
+    } : {}),
+    pricingCategory: data.pricingCategory,
+    pageType: (meta as Record<string, unknown>).pageType || 'ALL_PAGES',
+    contentType: data.contentType,
+    contentTypeOptionId: data.contentTypeOptionId,
+    contentTags: data.contentTags,
+    internalModelTags: data.internalModelTags,
+    externalCreatorTags: data.externalCreatorTags,
+    // Hoist top-level form fields into metadata so board items can access them
+    modelId: data.modelId ?? null,
+    platforms: data.platform ?? ['onlyfans'],
+    // Wall post workflow: set initial status so it appears in Caption Workspace flow
+    ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
+    ...extraFields,
+  }), [contentStyle, styleFields]);
+
   const onSubmit = async (data: FormData) => {
     setSubmitError(null);
 
@@ -233,34 +267,7 @@ export const SubmissionForm = memo(function SubmissionForm({
         priority: PRIORITY_MAP[data.priority ?? 'normal'] ?? 'MEDIUM',
         dueDate: rawDue ? new Date(rawDue).toISOString() : undefined,
         assigneeId: assigneeId || undefined,
-        metadata: {
-          // Spread raw metadata first so explicit fields below take priority
-          ...meta,
-          submissionType: data.submissionType,
-          contentStyle,
-          // Game-specific fields
-          ...(contentStyle === 'game' ? {
-            gameType: styleFields.gameType || undefined,
-            gifUrl: styleFields.gifUrl || undefined,
-            gameNotes: styleFields.gameNotes || undefined,
-          } : {}),
-          // PPV/Bundle-specific fields
-          ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
-            originalPollReference: styleFields.originalPollReference || undefined,
-          } : {}),
-          pricingCategory: data.pricingCategory,
-          pageType: (meta as Record<string, unknown>).pageType || 'ALL_PAGES',
-          contentType: data.contentType,
-          contentTypeOptionId: data.contentTypeOptionId,
-          contentTags: data.contentTags,
-          internalModelTags: data.internalModelTags,
-          externalCreatorTags: data.externalCreatorTags,
-          // Hoist top-level form fields into metadata so board items can access them
-          modelId: data.modelId ?? null,
-          platforms: data.platform ?? ['onlyfans'],
-          // Wall post workflow: set initial status so it appears in Caption Workspace flow
-          ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
-        },
+        metadata: buildMetadata(data, meta),
       };
 
       // 1. Create BoardItem in EACH selected space
@@ -304,37 +311,28 @@ export const SubmissionForm = memo(function SubmissionForm({
         const submission = await createSubmission.mutateAsync({
           ...data,
           workspaceId: primaryItem.spaceId,
-          metadata: {
-            ...meta,
-            contentStyle,
-            // Game-specific fields
-            ...(contentStyle === 'game' ? {
-              gameType: styleFields.gameType || undefined,
-              gifUrl: styleFields.gifUrl || undefined,
-              gameNotes: styleFields.gameNotes || undefined,
-            } : {}),
-            // PPV/Bundle-specific fields
-            ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
-              originalPollReference: styleFields.originalPollReference || undefined,
-            } : {}),
+          metadata: buildMetadata(data, meta, {
             boardItemId: primaryItem.itemId,
             targetSpaces: createdItems.map((i) => ({ spaceId: i.spaceId, boardId: i.boardId, itemId: i.itemId })),
             submitStatus: 'SUBMITTED',
-          },
+          }),
         });
         contentSubmissionId = submission?.id ?? null;
       } catch (err) {
         console.error('Content submission record creation failed:', err);
       }
 
-      // 3. Upload files once, create media records in ALL board items
+      // 3. Upload files in parallel, create media records in ALL board items
       if (pendingFiles.length > 0) {
-        for (let i = 0; i < pendingFiles.length; i++) {
-          const file = pendingFiles[i];
-          setFileUploadStep({ current: i + 1, total: pendingFiles.length });
-          try {
+        const totalFiles = pendingFiles.length;
+        let completedFiles = 0;
+        setFileUploadStep({ current: 0, total: totalFiles });
+
+        const primaryMediaBase = `/api/spaces/${primaryItem.spaceId}/boards/${primaryItem.boardId}/items/${primaryItem.itemId}/media`;
+
+        const uploadResults = await Promise.allSettled(
+          pendingFiles.map(async (file, i) => {
             // Presign via the primary item
-            const primaryMediaBase = `/api/spaces/${primaryItem.spaceId}/boards/${primaryItem.boardId}/items/${primaryItem.itemId}/media`;
             const presignRes = await fetch(primaryMediaBase, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -343,44 +341,45 @@ export const SubmissionForm = memo(function SubmissionForm({
             if (!presignRes.ok) throw new Error('Failed to get upload URL');
             const presigned = await presignRes.json();
 
-            // Upload directly to S3 (once)
-            await fetch(presigned.uploadUrl, {
-              method: 'PUT',
-              body: file,
-              headers: { 'Content-Type': file.type },
-            });
-
-            // Create media record in primary item
-            await fetch(primaryMediaBase, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'record',
-                url: presigned.fileUrl,
-                type: file.type,
-                name: file.name,
-                size: file.size,
+            // Upload to S3 and create primary media record concurrently
+            await Promise.all([
+              fetch(presigned.uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': file.type },
               }),
-            });
+              fetch(primaryMediaBase, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'record',
+                  url: presigned.fileUrl,
+                  type: file.type,
+                  name: file.name,
+                  size: file.size,
+                }),
+              }),
+            ]);
 
             // Create media records in additional items (link same S3 URL)
-            for (let j = 1; j < createdItems.length; j++) {
-              const item = createdItems[j];
-              try {
-                await fetch(`/api/spaces/${item.spaceId}/boards/${item.boardId}/items/${item.itemId}/media`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    action: 'record',
-                    url: presigned.fileUrl,
-                    type: file.type,
-                    name: file.name,
-                    size: file.size,
-                  }),
-                });
-              } catch (linkErr) {
-                console.error(`Media link failed for space ${item.spaceId}:`, file.name, linkErr);
-              }
+            if (createdItems.length > 1) {
+              await Promise.allSettled(
+                createdItems.slice(1).map((item) =>
+                  fetch(`/api/spaces/${item.spaceId}/boards/${item.boardId}/items/${item.itemId}/media`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'record',
+                      url: presigned.fileUrl,
+                      type: file.type,
+                      name: file.name,
+                      size: file.size,
+                    }),
+                  }).catch((linkErr) => {
+                    console.error(`Media link failed for space ${item.spaceId}:`, file.name, linkErr);
+                  })
+                )
+              );
             }
 
             // Dual-write to content_submission_files
@@ -411,10 +410,20 @@ export const SubmissionForm = memo(function SubmissionForm({
                 console.error('Dual-write to content_submission_files failed:', file.name, dualWriteErr);
               }
             }
-          } catch (err) {
-            console.error('File upload failed:', file.name, err);
+
+            // Update progress as each file completes
+            completedFiles++;
+            setFileUploadStep({ current: completedFiles, total: totalFiles });
+          })
+        );
+
+        // Log any failed uploads
+        uploadResults.forEach((result, i) => {
+          if (result.status === 'rejected') {
+            console.error('File upload failed:', pendingFiles[i].name, result.reason);
           }
-        }
+        });
+
         setFileUploadStep(null);
       }
 
@@ -774,12 +783,6 @@ const LocalFilePicker = memo(function LocalFilePicker({
 
 // ─── Review Step ─────────────────────────────────────────────────────────────
 
-const TEMPLATE_LABELS_REVIEW: Record<string, string> = {
-  OTP_PTR: 'OTP / PTR',
-  WALL_POST: 'Wall Post',
-  SEXTING_SETS: 'Sexting Sets',
-};
-
 const ReviewStep = memo(function ReviewStep({
   selectedSpaces,
   submissionType,
@@ -813,6 +816,14 @@ const ReviewStep = memo(function ReviewStep({
     refetchOnWindowFocus: false,
   });
 
+  // Destructure watched fields once to avoid repeated watch() calls
+  const priority = watch('priority');
+  const contentTags = watch('contentTags') || [];
+  const internalModelTags = watch('internalModelTags') || [];
+  const contentType = watch('contentType');
+  const pricingCategory = watch('pricingCategory');
+  const metadata = watch('metadata') || {};
+
   const assignee = useMemo(() => {
     if (!assigneeId) return null;
     // Try space members first
@@ -828,8 +839,7 @@ const ReviewStep = memo(function ReviewStep({
     return null;
   }, [assigneeId, spaceMembers, orgMembers]);
 
-  const meta = watch('metadata') || {};
-  const entries = Object.entries(meta).filter(
+  const entries = Object.entries(metadata).filter(
     ([key, v]) =>
       key !== 'submitStatus' &&
       key !== 'boardItemId' &&
@@ -865,13 +875,13 @@ const ReviewStep = memo(function ReviewStep({
           <div>
             <p className="text-xs text-zinc-500 mb-1">Submission Type</p>
             <p className="text-white font-medium">
-              {TEMPLATE_LABELS_REVIEW[submissionType] ?? submissionType}
+              {TEMPLATE_LABELS[submissionType] ?? submissionType}
             </p>
           </div>
-          {watch('priority') && (
+          {priority && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Priority</p>
-              <p className="text-white font-medium capitalize">{watch('priority')}</p>
+              <p className="text-white font-medium capitalize">{priority}</p>
             </div>
           )}
           {assignee && (
@@ -953,25 +963,25 @@ const ReviewStep = memo(function ReviewStep({
             <div>
               <p className="text-xs text-zinc-500 mb-1">Pricing Tier</p>
               <p className="text-white font-medium">
-                {({'PORN_ACCURATE':'Porn Accurate','PORN_SCAM':'Porn Scam','GF_ACCURATE':'GF Accurate','GF_SCAM':'GF Scam'} as Record<string,string>)[watch('pricingCategory') || ''] || watch('pricingCategory') || 'Not set'}
+                {({'PORN_ACCURATE':'Porn Accurate','PORN_SCAM':'Porn Scam','GF_ACCURATE':'GF Accurate','GF_SCAM':'GF Scam'} as Record<string,string>)[pricingCategory || ''] || pricingCategory || 'Not set'}
               </p>
             </div>
             <div>
               <p className="text-xs text-zinc-500 mb-1">Page Type</p>
               <p className="text-white font-medium">
-                {({'ALL_PAGES':'All Pages','FREE':'Free','PAID':'Paid','VIP':'VIP'} as Record<string,string>)[(watch('metadata') as Record<string,any>)?.pageType || ''] || 'All Pages'}
+                {({'ALL_PAGES':'All Pages','FREE':'Free','PAID':'Paid','VIP':'VIP'} as Record<string,string>)[(metadata as Record<string,any>)?.pageType || ''] || 'All Pages'}
               </p>
             </div>
             <div>
               <p className="text-xs text-zinc-500 mb-1">Content Type</p>
-              <p className="text-white font-medium">{watch('contentType') || 'Not selected'}</p>
+              <p className="text-white font-medium">{contentType || 'Not selected'}</p>
             </div>
             {/* Content Tags */}
             <div className="col-span-2">
               <p className="text-xs text-zinc-500 mb-2">Content Tags</p>
-              {(watch('contentTags') || []).length > 0 ? (
+              {contentTags.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {(watch('contentTags') || []).map((tag: string) => (
+                  {contentTags.map((tag: string) => (
                     <span key={tag} className="px-2 py-0.5 bg-brand-light-pink/10 border border-brand-light-pink/20 text-brand-light-pink rounded-md text-xs font-medium">
                       {tag}
                     </span>
@@ -985,8 +995,8 @@ const ReviewStep = memo(function ReviewStep({
             <div className="col-span-2">
               <p className="text-xs text-zinc-500 mb-1">Internal Models</p>
               <p className="text-white font-medium text-sm">
-                {(watch('internalModelTags') || []).length > 0
-                  ? (watch('internalModelTags') || []).join(', ')
+                {internalModelTags.length > 0
+                  ? internalModelTags.join(', ')
                   : 'None'}
               </p>
             </div>
@@ -998,7 +1008,7 @@ const ReviewStep = memo(function ReviewStep({
       {entries.length > 0 && (
         <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
           <h3 className="text-sm font-medium text-zinc-400 mb-3">
-            {TEMPLATE_LABELS_REVIEW[submissionType]} Details
+            {TEMPLATE_LABELS[submissionType]} Details
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {entries.map(([key, val]) => (
