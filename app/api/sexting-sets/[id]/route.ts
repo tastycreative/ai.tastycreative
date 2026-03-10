@@ -171,23 +171,28 @@ export async function DELETE(
       // Continue with database deletion even if S3 fails
     }
 
-    // Delete from database
-    await prisma.sextingImage.delete({
-      where: { id: imageId },
-    });
-
-    // Re-sequence remaining images
-    const remainingImages = await prisma.sextingImage.findMany({
-      where: { setId },
-      orderBy: { sequence: "asc" },
-    });
-
-    for (let i = 0; i < remainingImages.length; i++) {
-      await prisma.sextingImage.update({
-        where: { id: remainingImages[i].id },
-        data: { sequence: i + 1 },
+    // Delete and re-sequence atomically in a transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.sextingImage.delete({
+        where: { id: imageId },
       });
-    }
+
+      // Re-sequence remaining images
+      const remainingImages = await tx.sextingImage.findMany({
+        where: { setId },
+        orderBy: { sequence: "asc" },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        remainingImages.map((img, i) =>
+          tx.sextingImage.update({
+            where: { id: img.id },
+            data: { sequence: i + 1 },
+          })
+        )
+      );
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

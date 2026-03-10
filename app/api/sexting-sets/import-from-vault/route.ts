@@ -104,11 +104,19 @@ export async function POST(request: NextRequest) {
     // Get starting sequence number (after existing images)
     const startSequence = (sextingSet.images[0]?.sequence || 0) + 1;
 
-    // Fetch all vault items (vault items belong to current user)
+    // Resolve the profile owner's clerkId — vault items are stored under
+    // the profile owner, not necessarily the currently logged-in user.
+    const profile = await prisma.instagramProfile.findUnique({
+      where: { id: sextingSet.category },
+      select: { clerkId: true },
+    });
+    const vaultOwnerClerkId = profile?.clerkId ?? userId;
+
+    // Fetch vault items owned by the profile owner
     const vaultItems = await prisma.vaultItem.findMany({
       where: {
         id: { in: vaultItemIds },
-        clerkId: userId,
+        clerkId: vaultOwnerClerkId,
       },
     });
 
