@@ -1360,6 +1360,7 @@ const ReviewStep = memo(function ReviewStep({
       key !== 'postOrigin' &&
       key !== 'pageType' &&
       key !== 'contentType' &&
+      key !== 'totalSale' &&
       v !== '' &&
       v !== null &&
       v !== undefined &&

@@ -213,11 +213,7 @@ export const SearchableDropdown = memo(function SearchableDropdown({
             boxShadow:
               '0 4px 6px -1px rgba(0,0,0,0.5), 0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,116,185,0.12)',
           }}
-          className={[
-            'bg-zinc-950 border border-zinc-800/80 rounded-xl',
-            'overflow-hidden',
-            'animate-in fade-in-0 zoom-in-[0.98] slide-in-from-top-1 duration-150',
-          ].join(' ')}
+          className="bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden"
           onKeyDown={handleKeyDown}
         >
           {/* Search bar */}
