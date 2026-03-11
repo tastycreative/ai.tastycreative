@@ -88,6 +88,39 @@ function toDriveStreamUrl(url: string): string | null {
   return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
 }
 
+/** Drive video player: tries the stream proxy, falls back to iframe embed on error. */
+function DriveVideoPlayer({ url, className }: { url: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  const streamUrl = toDriveStreamUrl(url);
+  const id = extractDriveFileId(url);
+  const previewUrl = id ? `https://drive.google.com/file/d/${id}/preview` : null;
+
+  if (failed && previewUrl) {
+    return (
+      <div className="relative w-full h-full flex flex-col">
+        <iframe
+          src={previewUrl}
+          className={`flex-1 w-full border-0 ${className ?? ''}`}
+          style={{ minHeight: 200 }}
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <video
+      src={streamUrl ?? url}
+      className={className}
+      controls
+      preload="metadata"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 /* ── Types ───────────────────────────────────────────────── */
 
 interface Props {
@@ -287,11 +320,15 @@ function MediaCard({
         }`}
       >
         {isVideo ? (
-          <video
-            src={isDriveUrl(media.url) ? (toDriveStreamUrl(media.url) ?? media.url) : media.url}
-            className="w-full h-full object-cover"
-            preload="metadata"
-          />
+          isDriveUrl(media.url) ? (
+            <DriveVideoPlayer url={media.url} className="w-full h-full object-cover" />
+          ) : (
+            <video
+              src={media.url}
+              className="w-full h-full object-cover"
+              preload="metadata"
+            />
+          )
         ) : isDriveUrl(media.url) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -1802,7 +1839,11 @@ export function WallPostTaskDetailModal({
                           {/* Media preview */}
                           <div className="relative bg-black/50 flex items-center justify-center overflow-hidden" style={{ minHeight: 200, maxHeight: 340 }}>
                             {svIsVideo ? (
-                              <video src={isDriveUrl(selectedItem.url) ? (toDriveStreamUrl(selectedItem.url) ?? selectedItem.url) : selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
+                              isDriveUrl(selectedItem.url) ? (
+                                <DriveVideoPlayer url={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" />
+                              ) : (
+                                <video src={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
+                              )
                             ) : (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={isDriveUrl(selectedItem.url) ? (toDriveStreamUrl(selectedItem.url) ?? selectedItem.url) : selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
