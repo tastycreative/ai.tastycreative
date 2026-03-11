@@ -84,24 +84,19 @@ const modelOnboardingItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: stri
 const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): BoardTask => {
   const meta = (item.metadata ?? {}) as Record<string, unknown>;
   const priceTag = meta.price ? `$${meta.price}` : undefined;
-  const requestType = (meta.requestType as string) ?? '';
-  const contentStyle = (meta.contentStyle as string) ?? '';
-  const typeTag = requestType
-    ? contentStyle && contentStyle !== 'NORMAL'
-      ? `${requestType}-${contentStyle.replace(/_/g, ' ')}`
-      : requestType
-    : undefined;
+  // Backward compat: read postOrigin, fall back to old requestType
+  const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? '';
+  const typeTag = postOrigin || undefined;
   return {
     id: item.id,
     taskKey: spaceKey ? `${spaceKey}-${item.itemNo}` : item.id.slice(-6).toUpperCase(),
     title: item.title,
     description: (item.description as string) ?? undefined,
     assignee: (item.assigneeId as string) ?? undefined,
-    priority: meta.isPaid ? ('Low' as const) : ('High' as const),
+    priority: item.priority === 'HIGH' ? 'High' : item.priority === 'LOW' ? 'Low' : 'Medium',
     tags: [
       ...(typeTag ? [typeTag] : []),
       ...(priceTag ? [priceTag] : []),
-      ...(meta.buyer ? [`@${meta.buyer}`] : []),
     ],
     dueDate: (meta.deadline as string) ?? item.dueDate ?? undefined,
     metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },

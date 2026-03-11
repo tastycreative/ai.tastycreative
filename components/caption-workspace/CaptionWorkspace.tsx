@@ -173,7 +173,10 @@ export default function CaptionWorkspace() {
       videoUrl: item.workflowType === 'otp_ptr' ? null : (item.contentSourceType === 'upload' ? (item.contentUrl || null) : null),
       contentUrl: item.contentUrl,
       contentSourceType: (item.workflowType === 'otp_ptr' ? 'gdrive' : item.contentSourceType) as 'upload' | 'gdrive' | null,
-      contentItems: (item.contentItems || []).map(ci => ({
+      contentItems: (item.contentItems || [])
+        // OTP/PTR tickets only need the Google Drive link — filter out uploaded reference images
+        .filter(ci => item.workflowType === 'otp_ptr' ? ci.sourceType === 'gdrive' : true)
+        .map(ci => ({
         id: ci.id,
         url: ci.url,
         sourceType: ci.sourceType as 'upload' | 'gdrive',
