@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { profileId, teamId, platformType, managingSystem, trackerStatus, notes } = body;
+  const { profileId, teamId, platformType, managingSystem, trackerStatus, notes, pausedContentStyles } = body;
 
   if (!profileId) {
     return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
       platformType: platformType || null,
       managingSystem: managingSystem || null,
       trackerStatus: trackerStatus || 'ACTIVE',
+      pausedContentStyles: trackerStatus === 'ON PAUSE' && Array.isArray(pausedContentStyles) ? pausedContentStyles : [],
       notes: notes || null,
       organizationId: orgId,
     },

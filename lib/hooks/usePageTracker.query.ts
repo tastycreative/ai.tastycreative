@@ -30,6 +30,7 @@ export interface TrackerEntry {
   platformType: string | null;
   managingSystem: string | null;
   trackerStatus: string;
+  pausedContentStyles: string[];
   notes: string | null;
   organizationId: string;
   createdAt: string;
@@ -125,6 +126,7 @@ export function useCreateTrackerEntry() {
       platformType?: string;
       managingSystem?: string;
       trackerStatus?: string;
+      pausedContentStyles?: string[];
       notes?: string;
     }) => {
       const response = await fetch('/api/page-tracker', {
@@ -154,6 +156,7 @@ export function useUpdateTrackerEntry() {
       platformType?: string;
       managingSystem?: string;
       trackerStatus?: string;
+      pausedContentStyles?: string[];
       notes?: string;
     }) => {
       const response = await fetch(`/api/page-tracker/${id}`, {

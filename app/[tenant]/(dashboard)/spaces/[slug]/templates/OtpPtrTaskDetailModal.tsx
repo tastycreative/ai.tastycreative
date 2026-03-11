@@ -58,6 +58,8 @@ import {
   OTP_PTR_STATUS_CONFIG,
   type OtpPtrCaptionStatus,
 } from '@/lib/otp-ptr-caption-status';
+import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
+import { CONTENT_STYLES } from '@/components/content-submission/ContentStyleSelector';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -345,6 +347,8 @@ export function OtpPtrTaskDetailModal({
     if (!m) return undefined;
     return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
   };
+
+  const { pausedModelsMap } = usePausedModels();
 
   const [activeTab, setActiveTab] = useState<ModalTab>('details');
   const [mounted, setMounted] = useState(false);
@@ -687,6 +691,24 @@ export function OtpPtrTaskDetailModal({
                   {captionCfg.label}
                 </span>
               </div>
+
+              {/* Paused model banner — only when this task's content style is paused */}
+              {(() => {
+                const taskContentStyle = (meta.contentStyle as string) ?? '';
+                const paused = model ? pausedModelsMap.get(model) : undefined;
+                const isStylePaused = paused && paused.length > 0 && taskContentStyle && paused.includes(taskContentStyle);
+                if (!isStylePaused) return null;
+                const styleName = CONTENT_STYLES.find((s) => s.id === taskContentStyle)?.name || taskContentStyle;
+                return (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">PAUSED</span>
+                    <span className="text-[11px] text-amber-300/70">—</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">
+                      {styleName}
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Title */}
               <div className="group/title">

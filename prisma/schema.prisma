@@ -2354,8 +2354,9 @@ model PageTrackerEntry {
   teamId         String?
   platformType   String?
   managingSystem String?
-  trackerStatus  String           @default("ACTIVE")
-  notes          String?
+  trackerStatus       String           @default("ACTIVE")
+  pausedContentStyles String[]         @default([])
+  notes               String?
   organizationId String
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt

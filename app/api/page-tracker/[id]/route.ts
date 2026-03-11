@@ -42,7 +42,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { teamId, platformType, managingSystem, trackerStatus, notes } = body;
+  const { teamId, platformType, managingSystem, trackerStatus, notes, pausedContentStyles } = body;
 
   // Build change details
   const changes: string[] = [];
@@ -51,6 +51,13 @@ export async function PATCH(
   if (managingSystem !== undefined && managingSystem !== existing.managingSystem) changes.push(`system: ${existing.managingSystem || '—'} → ${managingSystem || '—'}`);
   if (teamId !== undefined && teamId !== existing.teamId) changes.push(`team reassigned`);
   if (notes !== undefined && notes !== existing.notes) changes.push(`notes updated`);
+  if (pausedContentStyles !== undefined) changes.push(`paused content styles updated`);
+
+  // If switching away from ON PAUSE, clear pausedContentStyles
+  const effectivePausedStyles =
+    trackerStatus !== undefined && trackerStatus !== 'ON PAUSE'
+      ? []
+      : pausedContentStyles;
 
   const entry = await prisma.pageTrackerEntry.update({
     where: { id },
@@ -60,6 +67,7 @@ export async function PATCH(
       ...(managingSystem !== undefined && { managingSystem }),
       ...(trackerStatus !== undefined && { trackerStatus }),
       ...(notes !== undefined && { notes }),
+      ...(effectivePausedStyles !== undefined && { pausedContentStyles: effectivePausedStyles }),
     },
     include: {
       profile: {

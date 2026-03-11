@@ -41,6 +41,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import { ModelCaptionBank } from "@/components/model-profile/ModelCaptionBank";
+import { usePausedModels } from "@/lib/hooks/usePausedModels.query";
+import { CONTENT_STYLES } from "@/components/content-submission/ContentStyleSelector";
 
 interface InfluencerProfile {
   id: string;
@@ -3153,6 +3155,7 @@ export default function ModelProfilePage() {
   const params = useParams();
   const router = useRouter();
   const apiClient = useApiClient();
+  const { pausedModelsMap } = usePausedModels();
   const [profile, setProfile] = useState<InfluencerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
@@ -4998,6 +5001,31 @@ export default function ModelProfilePage() {
               </button>
             </div>
           </div>
+
+          {/* Paused Content Styles Banner */}
+          {profile && pausedModelsMap.has(profile.name) && (pausedModelsMap.get(profile.name)?.length ?? 0) > 0 && (
+            <div className="flex items-center gap-3 mt-4 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">Paused</span>
+              </div>
+              <div className="h-4 w-px bg-amber-500/30" />
+              <div className="flex flex-wrap gap-1.5">
+                {pausedModelsMap.get(profile.name)!.map((styleId) => {
+                  const style = CONTENT_STYLES.find((s) => s.id === styleId);
+                  return (
+                    <span
+                      key={styleId}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20"
+                    >
+                      {style?.name || styleId}
+                    </span>
+                  );
+                })}
+              </div>
+              <span className="ml-auto text-[11px] text-amber-500/60">Set from Page Tracker</span>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-1 mt-6">

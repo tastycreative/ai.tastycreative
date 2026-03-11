@@ -40,7 +40,9 @@ import {
   Clock,
   MessageSquare,
   FileText,
+  Pause,
 } from "lucide-react";
+import { CONTENT_STYLES } from "@/components/content-submission/ContentStyleSelector";
 
 // ─── Status badge colors ────────────────────────────────────────────────────
 
@@ -100,6 +102,7 @@ function AddEntryModal({
     platformType?: string;
     managingSystem?: string;
     trackerStatus?: string;
+    pausedContentStyles?: string[];
   }) => void;
   isSubmitting: boolean;
 }) {
@@ -109,6 +112,7 @@ function AddEntryModal({
   const [managingSystem, setManagingSystem] = useState("");
   const [trackerStatus, setTrackerStatus] = useState("ACTIVE");
   const [profileSearch, setProfileSearch] = useState("");
+  const [pausedContentStyles, setPausedContentStyles] = useState<string[]>([]);
 
   const filteredProfiles = useMemo(() => {
     if (!profileSearch) return profiles;
@@ -250,13 +254,27 @@ function AddEntryModal({
             </label>
             <select
               value={trackerStatus}
-              onChange={(e) => setTrackerStatus(e.target.value)}
+              onChange={(e) => {
+                const newStatus = e.target.value;
+                setTrackerStatus(newStatus);
+                if (newStatus === "ON PAUSE") {
+                  setPausedContentStyles(CONTENT_STYLES.map((s) => s.id));
+                } else {
+                  setPausedContentStyles([]);
+                }
+              }}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-light-pink/50 focus:border-brand-light-pink outline-none"
             >
               {statuses.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            {trackerStatus === "ON PAUSE" && (
+              <PausedContentStylesPicker
+                selected={pausedContentStyles}
+                onChange={setPausedContentStyles}
+              />
+            )}
           </div>
         </div>
 
@@ -279,6 +297,7 @@ function AddEntryModal({
                 platformType: platformType || undefined,
                 managingSystem: managingSystem || undefined,
                 trackerStatus,
+                pausedContentStyles: trackerStatus === "ON PAUSE" ? pausedContentStyles : undefined,
               });
             }}
             disabled={!profileId || isSubmitting}
@@ -531,6 +550,67 @@ function InlineSelect({
   );
 }
 
+// ─── Paused Content Styles Picker ────────────────────────────────────────────
+
+function PausedContentStylesPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (styles: string[]) => void;
+}) {
+  const allIds = CONTENT_STYLES.map((s) => s.id);
+  const allSelected = allIds.every((id) => selected.includes(id));
+
+  return (
+    <div className="mt-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+          <Pause className="w-3 h-3" />
+          Paused Content Styles
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(allSelected ? [] : allIds)}
+          className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline"
+        >
+          {allSelected ? "Deselect All" : "Select All"}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {CONTENT_STYLES.map((style) => {
+          const isSelected = selected.includes(style.id);
+          return (
+            <button
+              key={style.id}
+              type="button"
+              onClick={() => {
+                onChange(
+                  isSelected
+                    ? selected.filter((s) => s !== style.id)
+                    : [...selected, style.id]
+                );
+              }}
+              className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full border transition-all ${
+                isSelected
+                  ? "bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-500"
+              }`}
+            >
+              {isSelected && (
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              )}
+              {style.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Entry Row ──────────────────────────────────────────────────────────────
 
 function EntryRow({
@@ -549,7 +629,7 @@ function EntryRow({
   platforms: string[];
   systems: string[];
   canEdit: boolean;
-  onUpdate: (id: string, data: Record<string, string | null>) => void;
+  onUpdate: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -562,6 +642,7 @@ function EntryRow({
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(entry.notes || "");
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const [showPausePicker, setShowPausePicker] = useState(false);
 
   useEffect(() => {
     setNotesValue(entry.notes || "");
@@ -645,22 +726,73 @@ function EntryRow({
 
       {/* Status */}
       <td className="px-4 py-3">
-        {canEdit ? (
-          <select
-            value={entry.trackerStatus}
-            onChange={(e) => onUpdate(entry.id, { trackerStatus: e.target.value })}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:ring-0 ${statusStyle.bg} ${statusStyle.text}`}
-          >
-            {statuses.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        ) : (
-          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-            {entry.trackerStatus}
-          </span>
-        )}
+        <div>
+          {canEdit ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <select
+                value={entry.trackerStatus}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  if (newStatus === "ON PAUSE") {
+                    // Auto-select all content styles when switching to ON PAUSE
+                    const allStyles = CONTENT_STYLES.map((s) => s.id);
+                    onUpdate(entry.id, { trackerStatus: newStatus, pausedContentStyles: allStyles });
+                    setShowPausePicker(true);
+                  } else {
+                    // Clear paused styles when switching away
+                    onUpdate(entry.id, { trackerStatus: newStatus, pausedContentStyles: [] });
+                    setShowPausePicker(false);
+                  }
+                }}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:ring-0 ${statusStyle.bg} ${statusStyle.text}`}
+              >
+                {statuses.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              {entry.trackerStatus === "ON PAUSE" && (
+                <button
+                  type="button"
+                  onClick={() => setShowPausePicker(!showPausePicker)}
+                  className="text-[10px] text-amber-500 hover:text-amber-400 transition-colors"
+                  title="Edit paused content styles"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+              {entry.trackerStatus}
+            </span>
+          )}
+          {/* Paused content style badges */}
+          {entry.trackerStatus === "ON PAUSE" && entry.pausedContentStyles && entry.pausedContentStyles.length > 0 && !showPausePicker && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {entry.pausedContentStyles.map((styleId) => {
+                const style = CONTENT_STYLES.find((s) => s.id === styleId);
+                return (
+                  <span
+                    key={styleId}
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                  >
+                    {style?.name || styleId}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {/* Inline paused content styles picker */}
+          {showPausePicker && entry.trackerStatus === "ON PAUSE" && canEdit && (
+            <PausedContentStylesPicker
+              selected={entry.pausedContentStyles || []}
+              onChange={(styles) => {
+                onUpdate(entry.id, { pausedContentStyles: styles });
+              }}
+            />
+          )}
+        </div>
       </td>
 
       {/* Notes */}
@@ -796,7 +928,7 @@ function TeamGroupSection({
   platforms: string[];
   systems: string[];
   canEdit: boolean;
-  onUpdate: (id: string, data: Record<string, string | null>) => void;
+  onUpdate: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
   onDeleteTeam?: (id: string) => void;
   onRenameTeam?: (id: string, name: string) => void;
@@ -1179,9 +1311,9 @@ export default function PageTrackerPage() {
   }, [data?.entries]);
 
   const handleUpdate = useCallback(
-    async (id: string, updates: Record<string, string | null>) => {
+    async (id: string, updates: Record<string, unknown>) => {
       try {
-        await updateEntry.mutateAsync({ id, ...updates });
+        await updateEntry.mutateAsync({ id, ...updates } as Parameters<typeof updateEntry.mutateAsync>[0]);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to update";
         toast.error(message);

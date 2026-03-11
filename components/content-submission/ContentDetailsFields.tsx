@@ -18,6 +18,7 @@ import {
   Loader2,
   Link2,
   ExternalLink,
+  Pause,
 } from 'lucide-react';
 import type { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors } from 'react-hook-form';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
@@ -33,6 +34,8 @@ import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 import { useQuery } from '@tanstack/react-query';
 import { CONTENT_TAGS } from '@/lib/constants/contentTags';
 import { PlatformSelector } from './PlatformSelector';
+import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
+import { CONTENT_STYLES } from './ContentStyleSelector';
 
 type SubmissionTemplateType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -240,6 +243,15 @@ export function ContentDetailsFields({
       pageType: null,
     })) satisfies ContentTypeOption[];
   }, [contentTypeOptions, modelContentMinimums, selectedModelId]);
+
+   // Check if selected model is paused for the chosen content style
+  const { pausedModelsMap } = usePausedModels();
+  const selectedModelName = (metadata.model as string) || '';
+  const selectedContentStyle = (metadata.contentStyle as string) || '';
+  const modelPausedStyles = selectedModelName ? pausedModelsMap.get(selectedModelName) : undefined;
+  const isSelectedStylePaused = modelPausedStyles && selectedContentStyle
+    ? modelPausedStyles.includes(selectedContentStyle)
+    : false;
 
   // Close content type dropdown on outside click
   const closeContentType = useCallback(() => {
@@ -510,6 +522,31 @@ export function ContentDetailsFields({
               />
             )}
             <p className="text-[11px] text-zinc-500 mt-1">Select the model associated with this content</p>
+
+            {/* Model pause warning — only shown when the selected content style is paused */}
+            {isSelectedStylePaused && modelPausedStyles && (
+              <div className="mt-2 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25">
+                <Pause className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-semibold text-amber-600 dark:text-amber-400">
+                    This model has paused content styles
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {modelPausedStyles.map((styleId) => {
+                      const style = CONTENT_STYLES.find((s) => s.id === styleId);
+                      return (
+                        <span
+                          key={styleId}
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20"
+                        >
+                          {style?.name || styleId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Google Drive Link (OTP/PTR — caption workspace context) */}

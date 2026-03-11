@@ -12,8 +12,10 @@ import {
   BadgeCheck,
   Loader2,
   Trash2,
+  Pause,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
+import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
 import {
   OTP_PTR_STATUS_CONFIG,
   type OtpPtrCaptionStatus,
@@ -94,6 +96,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   const [markingFinal, setMarkingFinal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
+  const { pausedModelsMap } = usePausedModels();
 
   const isReadyToDeploy = columnTitle?.toLowerCase().includes('ready to deploy') ?? false;
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
@@ -129,6 +132,14 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   const typeBadge = TYPE_BADGE[postOrigin] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
   const priorityBorder = PRIORITY_BORDER[task.priority ?? ''] ?? 'border-l-transparent';
 
+  // Check if model is paused and if the task's content style matches
+  const modelPausedStyles = model ? pausedModelsMap.get(model) : undefined;
+  const contentStyle = (meta.contentStyle as string) ?? '';
+  const isContentStylePaused = modelPausedStyles && modelPausedStyles.length > 0 && contentStyle
+    ? modelPausedStyles.includes(contentStyle)
+    : false;
+  const showPausedBadge = isContentStylePaused;
+
   return (
     <Draggable draggableId={task.id} index={index}>
       {(provided, snapshot) => {
@@ -139,7 +150,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
             {...provided.dragHandleProps}
             onClick={() => { if (!editing) onClick?.(task); }}
             className={[
-              'group/card relative rounded-xl cursor-pointer select-none',
+              'group/card relative rounded-xl cursor-pointer overflow-hidden select-none',
               'border-l-[3px]',
               priorityBorder,
               'bg-white/90 dark:bg-gray-900/70 backdrop-blur-lg border border-gray-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] ring-1 ring-transparent dark:ring-white/[0.05]',
@@ -150,6 +161,17 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
             ].join(' ')}
           >
             <div className="px-3.5 pt-3 pb-2.5">
+              {/* Paused badge */}
+              {showPausedBadge && (
+                <div className={`-mx-3.5 -mt-3 mb-2 px-3 py-1.5 text-[10px] font-bold tracking-wide flex items-center gap-1.5 ${
+                  isContentStylePaused
+                    ? 'bg-amber-500/15 text-amber-400 border-b border-amber-500/20'
+                    : 'bg-amber-500/8 text-amber-500/70 border-b border-amber-500/10'
+                }`}>
+                  <Pause className="h-3 w-3" />
+                  PAUSED{isContentStylePaused && contentStyle ? ` — ${contentStyle}` : ''}
+                </div>
+              )}
               {/* Row 1: ticket badge + post origin + caption status */}
               <div className="flex items-center gap-1.5 mb-2.5">
                 <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold tracking-wide ${typeBadge.bg} ${typeBadge.text}`}>

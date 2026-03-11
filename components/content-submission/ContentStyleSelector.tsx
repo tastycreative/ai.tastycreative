@@ -2,7 +2,7 @@
 
 import { FileText, BarChart3, Gamepad2, DollarSign, Package, Crown, Disc3, HelpCircle } from 'lucide-react';
 
-const CONTENT_STYLES = [
+export const CONTENT_STYLES = [
   {
     id: 'normal',
     name: 'Normal Content',
@@ -60,6 +60,7 @@ interface ContentStyleSelectorProps {
   submissionType: 'otp' | 'ptr';
   styleFields: ContentStyleFields;
   onStyleFieldsChange: (fields: Partial<ContentStyleFields>) => void;
+  pausedStyles?: string[];
 }
 
 export function ContentStyleSelector({
@@ -68,6 +69,7 @@ export function ContentStyleSelector({
   submissionType,
   styleFields,
   onStyleFieldsChange,
+  pausedStyles,
 }: ContentStyleSelectorProps) {
   const availableStyles = CONTENT_STYLES;
 
@@ -80,21 +82,32 @@ export function ContentStyleSelector({
         {availableStyles.map((style) => {
           const Icon = style.icon;
           const isSelected = value === style.id;
+          const isPaused = pausedStyles?.includes(style.id) ?? false;
 
           return (
             <button
               key={style.id}
               type="button"
-              onClick={() => onChange(style.id)}
+              onClick={() => { if (!isPaused) onChange(style.id); }}
+              disabled={isPaused}
               className={`
                 relative p-4 rounded-xl border-2 transition-all text-left
-                ${isSelected
+                ${isPaused
+                  ? 'border-amber-500/30 bg-amber-500/5 opacity-60 cursor-not-allowed'
+                  : isSelected
                   ? 'border-brand-light-pink bg-brand-light-pink/10'
                   : 'border-gray-200 dark:border-gray-700 hover:border-brand-light-pink/50'
                 }
               `}
             >
-              {isSelected && (
+              {isPaused && (
+                <div className="absolute top-2 right-2">
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/15 border border-amber-500/25 px-1.5 py-0.5 rounded-full">
+                    PAUSED
+                  </span>
+                </div>
+              )}
+              {isSelected && !isPaused && (
                 <div className="absolute top-2 right-2">
                   <svg className="w-5 h-5 text-brand-light-pink" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -103,12 +116,12 @@ export function ContentStyleSelector({
               )}
               <div className="flex items-start space-x-3">
                 <div className={`
-                  w-10 h-10 rounded-lg bg-gradient-to-br ${style.color} flex items-center justify-center flex-shrink-0
+                  w-10 h-10 rounded-lg bg-gradient-to-br ${isPaused ? 'from-amber-500/30 to-amber-600/30' : style.color} flex items-center justify-center flex-shrink-0
                 `}>
                   <Icon className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
+                  <h4 className={`font-semibold ${isPaused ? 'text-gray-500 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                     {style.name}
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
