@@ -151,6 +151,13 @@ export function ContentDetailsFields({
   const pricingCategory = watch('pricingCategory') || 'PORN_ACCURATE';
   const selectedContentType = watch('contentType');
 
+  // Set default pricingCategory if not already set
+  useEffect(() => {
+    if (!watch('pricingCategory')) {
+      setValue('pricingCategory', 'PORN_ACCURATE' as any);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Content Type Options (OTP_PTR only)
   const [contentTypeOpen, setContentTypeOpen] = useState(false);
   const [contentTypeSearch, setContentTypeSearch] = useState('');
@@ -1313,9 +1320,15 @@ const MetadataFieldInput = memo(function MetadataFieldInput({
       <input
         type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
         value={value ?? ''}
-        onChange={(e) =>
-          onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)
-        }
+        min={field.type === 'number' ? 0 : undefined}
+        onChange={(e) => {
+          if (field.type === 'number') {
+            const raw = e.target.value;
+            onChange(raw === '' ? '' : Math.max(0, Number(raw)));
+          } else {
+            onChange(e.target.value);
+          }
+        }}
         placeholder={field.placeholder}
         className={`${inputClass} ${field.type === 'date' ? '[color-scheme:dark]' : ''}`}
       />

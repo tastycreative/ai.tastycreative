@@ -98,13 +98,6 @@ export function PlatformSelector({ value, onChange }: PlatformSelectorProps) {
                 {platform.description}
               </p>
 
-              {/* Team Badge */}
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-500">Routes to:</span>
-                <span className="px-2 py-1 rounded-md bg-brand-light-pink/20 border border-brand-light-pink/30 text-brand-light-pink font-medium">
-                  {platform.teamName}
-                </span>
-              </div>
             </button>
           );
         })}

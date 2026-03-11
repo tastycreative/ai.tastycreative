@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
+import { sendBoardAssignNotification } from '@/lib/board-assign-notification';
 import {
   OTP_PTR_CAPTION_STATUS,
   parseDriveLink,
@@ -145,6 +146,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       publishBoardEvent(boardId, 'item.created', { userId, entityId: item.id, tabId: senderTab });
     } catch (_) {
       // Ably not configured — skip real-time notification
+    }
+
+    // ── Fire-and-forget assignee notification on creation ──
+    if (item.assigneeId) {
+      sendBoardAssignNotification({
+        itemId: item.id,
+        itemTitle: item.title,
+        itemNo: item.itemNo,
+        assigneeClerkId: item.assigneeId,
+        assignedByUserId: userId,
+        spaceId,
+      }).catch((e) => console.error('[board-assign-notification]', e));
     }
 
     // ── Auto-push to Caption Workspace for OTP_PTR boards ─────────────
