@@ -140,12 +140,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         columnNameMap = Object.fromEntries(columns.map((c) => [c.id, c.name]));
       }
 
-      // Helper to format a value for display
+      // Helper to format a value for display — never returns [object Object]
       const formatValue = (field: string, val: unknown): string | null => {
         if (val == null) return null;
         if (field === 'columnId') return columnNameMap[String(val)] ?? String(val);
         if (field === 'priority') return String(val).charAt(0).toUpperCase() + String(val).slice(1).toLowerCase();
         if (field === 'dueDate' && val instanceof Date) return val.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (Array.isArray(val)) return `${val.length} item${val.length !== 1 ? 's' : ''}`;
+        if (typeof val === 'object') return JSON.stringify(val);
         return String(val);
       };
 
@@ -190,24 +192,156 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const oldMeta = (current.metadata as Record<string, unknown>) ?? {};
         const newMeta = (data.metadata as Record<string, unknown>) ?? {};
         const allKeys = new Set([...Object.keys(oldMeta), ...Object.keys(newMeta)]);
+
+        // Humanize UPPER_SNAKE_CASE / snake_case status strings
+        // e.g. "PENDING_CAPTION" → "Pending Caption", "in_progress" → "In Progress"
+        const humanizeStatus = (val: string): string =>
+          val
+            .split(/[_\s]+/)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(' ');
+
+        // Dynamically format any metadata value for readable history storage
+        const formatMetaValue = (key: string, val: unknown): string | null => {
+          if (val == null) return null;
+          if (Array.isArray(val)) {
+            if (val.length === 0) return 'none';
+            // Array of primitives (tags, hashtags) → show values if short
+            if (val.every((v) => typeof v === 'string' || typeof v === 'number')) {
+              const joined = (val as (string | number)[]).join(', ');
+              if (joined.length <= 60) return joined;
+            }
+            // Checklist → show completed/total
+            if (val.every((v) => typeof v === 'object' && v !== null && 'text' in (v as Record<string, unknown>))) {
+              const completed = val.filter((v) => (v as { completed?: boolean }).completed).length;
+              return `${completed}/${val.length} completed`;
+            }
+            // Files / captionItems → file count
+            if (val.every((v) => typeof v === 'object' && v !== null && 'fileName' in (v as Record<string, unknown>))) {
+              return `${val.length} file${val.length !== 1 ? 's' : ''}`;
+            }
+            return `${val.length} item${val.length !== 1 ? 's' : ''}`;
+          }
+          if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+          if (typeof val === 'string') {
+            // ISO date strings → readable
+            if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
+              try {
+                return new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+              } catch { return val; }
+            }
+            // Clerk user IDs
+            if (/^user_[a-zA-Z0-9]+$/.test(val)) return val;
+            // UPPER_SNAKE or snake_case status/enum values (e.g. PENDING_CAPTION, in_progress)
+            if (/^[A-Z][A-Z0-9_]+$/.test(val) || (key.toLowerCase().includes('status') && /^[a-z][a-z0-9_]+$/.test(val))) {
+              return humanizeStatus(val);
+            }
+            // Prisma-style cuid/uuid IDs — hide the raw value
+            if (/^c[a-z0-9]{20,}$/.test(val) && key.toLowerCase().endsWith('id')) {
+              return null;
+            }
+            return val;
+          }
+          if (typeof val === 'object') {
+            const keys = Object.keys(val as Record<string, unknown>);
+            return `${keys.length} field${keys.length !== 1 ? 's' : ''}`;
+          }
+          return String(val);
+        };
+
+        // Diff checklist items individually for meaningful history
+        type ChecklistItem = { id: string; text: string; completed?: boolean; order?: number };
+        const diffChecklist = (
+          oldList: ChecklistItem[],
+          newList: ChecklistItem[],
+        ): HistoryRow[] => {
+          const rows: HistoryRow[] = [];
+          const oldMap = new Map(oldList.map((s) => [s.id, s]));
+          const newMap = new Map(newList.map((s) => [s.id, s]));
+
+          // Added steps
+          for (const s of newList) {
+            if (!oldMap.has(s.id)) {
+              rows.push({ itemId, userId, action: 'UPDATED', field: 'checklist', oldValue: null, newValue: `Added "${s.text}"` });
+            }
+          }
+          // Removed steps
+          for (const s of oldList) {
+            if (!newMap.has(s.id)) {
+              rows.push({ itemId, userId, action: 'UPDATED', field: 'checklist', oldValue: `Removed "${s.text}"`, newValue: null });
+            }
+          }
+          // Toggled or renamed
+          for (const s of newList) {
+            const old = oldMap.get(s.id);
+            if (!old) continue;
+            if (old.completed !== s.completed) {
+              rows.push({
+                itemId, userId, action: 'UPDATED', field: 'checklist',
+                oldValue: null,
+                newValue: s.completed ? `Completed "${s.text}"` : `Unchecked "${s.text}"`,
+              });
+            }
+            if (old.text !== s.text) {
+              rows.push({
+                itemId, userId, action: 'UPDATED', field: 'checklist',
+                oldValue: old.text, newValue: s.text,
+              });
+            }
+          }
+          // Reordered (only if no adds/removes and order changed)
+          if (rows.length === 0 && oldList.length === newList.length) {
+            const orderChanged = newList.some((s, i) => oldList[i]?.id !== s.id);
+            if (orderChanged) {
+              rows.push({ itemId, userId, action: 'UPDATED', field: 'checklist', oldValue: null, newValue: 'Reordered steps' });
+            }
+          }
+          return rows;
+        };
+
         for (const key of allKeys) {
+          // Skip underscore-prefixed internal keys and large structural keys
+          if (key.startsWith('_') || key === 'fieldOrder' || key === 'fields') continue;
           const oldVal = JSON.stringify(oldMeta[key] ?? null);
           const newVal = JSON.stringify(newMeta[key] ?? null);
-          if (oldVal !== newVal) {
-            historyEntries.push({
-              itemId,
-              userId,
-              action: 'UPDATED',
-              field: `metadata.${key}`,
-              oldValue: oldMeta[key] != null ? String(oldMeta[key]) : null,
-              newValue: newMeta[key] != null ? String(newMeta[key]) : null,
-            });
+          if (oldVal === newVal) continue;
+
+          // Detailed checklist diff
+          if (key === 'checklist' && Array.isArray(oldMeta[key]) && Array.isArray(newMeta[key])) {
+            historyEntries.push(...diffChecklist(
+              oldMeta[key] as ChecklistItem[],
+              newMeta[key] as ChecklistItem[],
+            ));
+            continue;
           }
+
+          historyEntries.push({
+            itemId,
+            userId,
+            action: 'UPDATED',
+            field: `metadata.${key}`,
+            oldValue: formatMetaValue(key, oldMeta[key]),
+            newValue: formatMetaValue(key, newMeta[key]),
+          });
         }
       }
 
       if (historyEntries.length > 0) {
-        await prisma.boardItemHistory.createMany({ data: historyEntries });
+        // Safety net: never store [object Object] in history — sanitize all values
+        const sanitize = (v: string | null): string | null => {
+          if (v == null) return null;
+          if (v.includes('[object Object]')) {
+            const count = v.split('[object Object]').length - 1;
+            return `${count} item${count !== 1 ? 's' : ''}`;
+          }
+          return v;
+        };
+        const sanitized = historyEntries.map((e) => ({
+          ...e,
+          oldValue: sanitize(e.oldValue),
+          newValue: sanitize(e.newValue),
+        }));
+        await prisma.boardItemHistory.createMany({ data: sanitized });
       }
     }
 

@@ -42,13 +42,71 @@ export async function GET(_req: NextRequest, { params }: Params) {
       })
     );
 
+    // Fields to hide from history (internal/noise)
+    const isHiddenField = (field: string): boolean => {
+      if (field === 'position') return true;
+      const key = field.startsWith('metadata.') ? field.slice(9) : field;
+      if (key.startsWith('_')) return true;
+      if (key === 'fieldOrder' || key === 'fields') return true;
+      // Hide internal IDs (captionTicketId, modelId, etc.) — not meaningful to users
+      if (/Id$/.test(key) && key !== 'columnId' && key !== 'assigneeId') return true;
+      return false;
+    };
+
+    // Humanize UPPER_SNAKE_CASE / snake_case → "Title Case"
+    const humanizeStatus = (val: string): string =>
+      val
+        .split(/[_\s]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+
+    // Clean up raw history values (fixes legacy & current data)
+    const formatValue = (field: string, val: string | null): string | null => {
+      if (val == null || val === '') return null;
+      // [object Object] from legacy String() on arrays
+      if (val.includes('[object Object]')) {
+        const count = val.split('[object Object]').length - 1;
+        return `${count} item${count !== 1 ? 's' : ''}`;
+      }
+      // Clerk user IDs → resolve from userMap or show generic
+      if (/^user_[a-zA-Z0-9]+$/.test(val)) {
+        return userMap.get(val) || 'a user';
+      }
+      // ISO date strings → readable format
+      if (/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(val)) {
+        try {
+          return new Date(val).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+          });
+        } catch { return val; }
+      }
+      // UPPER_SNAKE_CASE status values (PENDING_CAPTION, COMPLETED, etc.)
+      if (/^[A-Z][A-Z0-9_]+$/.test(val)) {
+        return humanizeStatus(val);
+      }
+      // snake_case status values on status-like fields (in_progress, pending_qa, etc.)
+      const fieldKey = field.startsWith('metadata.') ? field.slice(9) : field;
+      if (/^[a-z][a-z0-9_]+$/.test(val) && (fieldKey.toLowerCase().includes('status') || fieldKey === 'captionStatus' || fieldKey === 'priority')) {
+        return humanizeStatus(val);
+      }
+      // Boolean strings
+      if (val === 'true') return 'Yes';
+      if (val === 'false') return 'No';
+      // Prisma cuid IDs — not useful to show
+      if (/^c[a-z0-9]{20,}$/.test(val)) return null;
+      return val;
+    };
+
+    const filtered = history.filter((h) => !isHiddenField(h.field));
+
     return NextResponse.json({
-      history: history.map((h) => ({
+      history: filtered.map((h) => ({
         id: h.id,
         action: h.action,
         field: h.field,
-        oldValue: h.oldValue,
-        newValue: h.newValue,
+        oldValue: formatValue(h.field, h.oldValue),
+        newValue: formatValue(h.field, h.newValue),
         userId: h.userId,
         userName: userMap.get(h.userId) || 'Unknown User',
         createdAt: h.createdAt.toISOString(),

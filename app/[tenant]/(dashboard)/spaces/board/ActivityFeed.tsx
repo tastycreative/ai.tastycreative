@@ -42,24 +42,142 @@ interface ActivityFeedProps {
   onPhotoClick?: (photoIndex: number) => void;
 }
 
+// Only a few well-known overrides — everything else is derived dynamically
 const FIELD_LABELS: Record<string, string> = {
-  title: 'title',
-  description: 'description',
   columnId: 'status',
-  priority: 'priority',
   assigneeId: 'assignee',
   dueDate: 'due date',
-  position: 'position',
 };
 
+/** Dynamically turn any field key into a readable label.
+ *  e.g. "metadata.qaApprovedBy" → "qa approved by"
+ *       "captionItems"          → "caption items"
+ *       "columnId"              → "status" (via override)
+ */
 function formatFieldName(field: string): string {
   if (FIELD_LABELS[field]) return FIELD_LABELS[field];
-  // metadata.scheduledDate → scheduled date
-  if (field.startsWith('metadata.')) {
-    const key = field.replace('metadata.', '');
-    return key.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+  // Strip metadata. prefix
+  const key = field.startsWith('metadata.') ? field.replace('metadata.', '') : field;
+  // camelCase / PascalCase → space-separated lowercase, strip trailing "Id"
+  return key
+    .replace(/Id$/, '')
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+/** Returns true for internal/noise fields that shouldn't appear in the feed */
+function isHiddenField(field: string): boolean {
+  const key = field.startsWith('metadata.') ? field.replace('metadata.', '') : field;
+  // Hide position (DnD reordering), any underscore-prefixed internal keys
+  if (field === 'position') return true;
+  if (key.startsWith('_')) return true;
+  // Hide large structural metadata that produces noise (ordering arrays, full form data)
+  if (key === 'fieldOrder' || key === 'fields') return true;
+  return false;
+}
+
+/** Summarize an array for display */
+function formatArray(arr: unknown[]): string {
+  // Empty
+  if (arr.length === 0) return 'none';
+  // Array of primitives (tags, hashtags, etc.) — show values if short
+  if (arr.every((v) => typeof v === 'string' || typeof v === 'number')) {
+    const joined = (arr as (string | number)[]).join(', ');
+    if (joined.length <= 60) return joined;
+    return `${arr.length} item${arr.length !== 1 ? 's' : ''}`;
   }
-  return field;
+  // Array of objects with 'text' (checklist) — show completed count
+  if (arr.every((v) => typeof v === 'object' && v !== null && 'text' in v)) {
+    const completed = arr.filter((v) => (v as { completed?: boolean }).completed).length;
+    return `${completed}/${arr.length} completed`;
+  }
+  // Array of objects with 'fileName' (captionItems, media) — show count
+  if (arr.every((v) => typeof v === 'object' && v !== null && 'fileName' in v)) {
+    return `${arr.length} file${arr.length !== 1 ? 's' : ''}`;
+  }
+  // Generic array of objects
+  return `${arr.length} item${arr.length !== 1 ? 's' : ''}`;
+}
+
+/** Dynamically clean up any raw history value for display.
+ *  Handles [object Object], clerk IDs, ISO dates, JSON arrays, booleans, etc.
+ */
+function formatHistoryValue(field: string, value: string | null): string | null {
+  if (value == null || value === '') return null;
+
+  // [object Object] — legacy data stored via String() on arrays
+  if (value.includes('[object Object]')) {
+    const count = value.split('[object Object]').length - 1;
+    return `${count} item${count !== 1 ? 's' : ''}`;
+  }
+
+  // JSON arrays → parse and summarize
+  if (value.startsWith('[')) {
+    try {
+      const arr = JSON.parse(value);
+      if (Array.isArray(arr)) return formatArray(arr);
+    } catch { /* not JSON, fall through */ }
+  }
+
+  // JSON objects → show key count
+  if (value.startsWith('{')) {
+    try {
+      const obj = JSON.parse(value);
+      if (typeof obj === 'object' && obj !== null) {
+        const keys = Object.keys(obj);
+        return `${keys.length} field${keys.length !== 1 ? 's' : ''}`;
+      }
+    } catch { /* not JSON, fall through */ }
+  }
+
+  // Clerk user IDs (user_xxx...)
+  if (/^user_[a-zA-Z0-9]+$/.test(value)) {
+    return 'a user';
+  }
+
+  // ISO date strings → readable format
+  if (/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(value)) {
+    try {
+      return new Date(value).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } catch {
+      return value;
+    }
+  }
+
+  // UPPER_SNAKE_CASE status values (PENDING_CAPTION, COMPLETED, etc.)
+  if (/^[A-Z][A-Z0-9_]+$/.test(value)) {
+    return value.split(/[_\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  // snake_case on status-like fields (in_progress, pending_qa, etc.)
+  const fieldKey = field.startsWith('metadata.') ? field.slice(9) : field;
+  if (/^[a-z][a-z0-9_]+$/.test(value) && fieldKey.toLowerCase().includes('status')) {
+    return value.split(/[_\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  // Boolean-like strings
+  if (value === 'true') return 'Yes';
+  if (value === 'false') return 'No';
+
+  // Prisma cuid IDs — not useful
+  if (/^c[a-z0-9]{20,}$/.test(value)) return null;
+
+  return value;
+}
+
+/** Detect if a checklist history value is a self-contained action description
+ *  (e.g. 'Added "STEP"', 'Completed "STEP"', 'Reordered steps') */
+function isChecklistActionValue(value: string | null): boolean {
+  if (!value) return false;
+  return /^(Added|Removed|Completed|Unchecked|Reordered) /.test(value);
 }
 
 function formatDate(iso: string) {
@@ -194,13 +312,16 @@ export function ActivityFeed({
   // Get the first letter of the current user's name for the avatar
   const userInitial = currentUserName?.charAt(0).toUpperCase() || 'U';
 
+  // Filter out hidden/noise fields from history
+  const filteredHistory = history.filter((h) => !isHiddenField(h.field));
+
   const allItems = tab === 'comments'
     ? comments.map((c) => ({ ...c, _type: 'comment' as const }))
     : tab === 'history'
-      ? history.map((h) => ({ ...h, _type: 'history' as const }))
+      ? filteredHistory.map((h) => ({ ...h, _type: 'history' as const }))
       : [
           ...comments.map((c) => ({ ...c, _type: 'comment' as const })),
-          ...history.map((h) => ({ ...h, _type: 'history' as const })),
+          ...filteredHistory.map((h) => ({ ...h, _type: 'history' as const })),
         ].sort((a, b) => {
           const aDate = 'createdAt' in a ? a.createdAt : a.changedAt;
           const bDate = 'createdAt' in b ? b.createdAt : b.changedAt;
@@ -336,8 +457,11 @@ export function ActivityFeed({
 
               const h = item as TaskHistoryEntry & { _type: 'history' };
               const isCreated = h.action === 'CREATED';
+              const isChecklistAction = h.field === 'checklist' && isChecklistActionValue(h.newValue || h.oldValue);
               const IconEl = isCreated ? Plus : History;
               const fieldLabel = formatFieldName(h.field);
+              const displayOld = formatHistoryValue(h.field, h.oldValue);
+              const displayNew = formatHistoryValue(h.field, h.newValue);
 
               return (
                 <div key={h.id} className="flex items-start gap-2.5">
@@ -349,15 +473,28 @@ export function ActivityFeed({
                       <span className="font-semibold text-gray-800 dark:text-brand-off-white">{h.changedBy}</span>{' '}
                       {isCreated ? (
                         <>created this item</>
+                      ) : isChecklistAction ? (
+                        // Checklist entries: value is already a readable action like 'Added "STEP"'
+                        <>
+                          {displayOld && !displayNew ? (
+                            <span className="text-gray-400">{displayOld}</span>
+                          ) : (
+                            <span className="font-medium text-brand-light-pink">{displayNew}</span>
+                          )}
+                        </>
                       ) : (
                         <>
                           changed <span className="font-medium">{fieldLabel}</span>{' '}
-                          {h.oldValue && (
+                          {displayOld && (
                             <>
-                              from <span className="line-through text-gray-400">{h.oldValue}</span>{' '}
+                              from <span className="line-through text-gray-400">{displayOld}</span>{' '}
                             </>
                           )}
-                          to <span className="font-medium text-brand-light-pink">{h.newValue}</span>
+                          {displayNew ? (
+                            <>to <span className="font-medium text-brand-light-pink">{displayNew}</span></>
+                          ) : (
+                            <span className="italic text-gray-400">(cleared)</span>
+                          )}
                         </>
                       )}
                     </p>
