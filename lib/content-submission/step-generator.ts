@@ -20,7 +20,6 @@ export function generateSteps(submissionType?: string): WizardStep[] {
 
   steps.push(
     { id: 'details', title: 'Content Details' },
-    { id: 'files', title: 'File Uploads' },
     { id: 'review', title: 'Review & Submit' },
   );
 

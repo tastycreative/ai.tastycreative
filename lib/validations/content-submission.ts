@@ -16,6 +16,11 @@ export type ComponentModule = z.infer<typeof componentModuleSchema>;
 // Platform enum
 export const platformSchema = z.enum(['onlyfans', 'fansly']);
 
+// Post origin — unified type replacing requestType + contentStyle
+export const postOriginSchema = z.enum([
+  'PTR', 'OTP', 'OTM', 'PPV', 'GAME', 'LIVE', 'TIP_ME', 'VIP', 'DM_FUNNEL', 'RENEW_ON', 'CUSTOM',
+]);
+
 // Pricing category enum
 export const pricingCategorySchema = z.enum([
   'PORN_ACCURATE',
@@ -31,6 +36,9 @@ export const createSubmissionInputSchema = z.object({
 
   // Required fields
   submissionType: submissionTypeSchema,
+
+  // Post origin — unified type (optional; derived from contentStyle + metadata in form)
+  postOrigin: postOriginSchema.optional(),
 
   // Platform selection (optional — captured in metadata for WALL_POST)
   platform: z.array(platformSchema).optional().default(['onlyfans']),

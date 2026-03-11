@@ -31,15 +31,15 @@ interface OtpPtrTaskCardProps {
 const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
   OTP: { bg: 'bg-blue-500/15 border-blue-500/25', text: 'text-blue-400' },
   PTR: { bg: 'bg-brand-light-pink/15 border-brand-light-pink/25', text: 'text-brand-light-pink' },
-  CUSTOM: { bg: 'bg-amber-500/15 border-amber-500/25', text: 'text-amber-400' },
-};
-
-const STYLE_LABEL: Record<string, string> = {
-  GAME: 'Game',
-  PPV: 'PPV',
-  POLL: 'Poll',
-  BUNDLE: 'Bundle',
-  NORMAL: '',
+  OTM: { bg: 'bg-violet-500/15 border-violet-500/25', text: 'text-violet-400' },
+  PPV: { bg: 'bg-emerald-500/15 border-emerald-500/25', text: 'text-emerald-400' },
+  GAME: { bg: 'bg-amber-500/15 border-amber-500/25', text: 'text-amber-400' },
+  LIVE: { bg: 'bg-red-500/15 border-red-500/25', text: 'text-red-400' },
+  TIP_ME: { bg: 'bg-cyan-500/15 border-cyan-500/25', text: 'text-cyan-400' },
+  VIP: { bg: 'bg-yellow-500/15 border-yellow-500/25', text: 'text-yellow-400' },
+  DM_FUNNEL: { bg: 'bg-indigo-500/15 border-indigo-500/25', text: 'text-indigo-400' },
+  RENEW_ON: { bg: 'bg-teal-500/15 border-teal-500/25', text: 'text-teal-400' },
+  CUSTOM: { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' },
 };
 
 const PRIORITY_BORDER: Record<string, string> = {
@@ -105,13 +105,10 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
     else setDraft(task.title);
   };
 
-  const requestType = (meta.requestType as string) ?? '';
-  const contentStyle = (meta.contentStyle as string) ?? 'NORMAL';
-  const styleLabel = STYLE_LABEL[contentStyle] ?? '';
+  // Backward compat: read postOrigin, fall back to old requestType
+  const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? '';
   const price = meta.price as number | undefined;
-  const isPaid = meta.isPaid as boolean | undefined;
   const model = (meta.model as string) ?? '';
-  const buyer = (meta.buyer as string) ?? '';
   const platforms = Array.isArray(meta.platforms) ? (meta.platforms as string[]) : [];
   const deadline = (meta.deadline as string) ?? '';
   const createdAt = typeof meta._createdAt === 'string' ? meta._createdAt : '';
@@ -126,7 +123,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   })();
 
   const assigneeInitial = assigneeName?.charAt(0)?.toUpperCase() ?? null;
-  const typeBadge = TYPE_BADGE[requestType] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
+  const typeBadge = TYPE_BADGE[postOrigin] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
   const priorityBorder = PRIORITY_BORDER[task.priority ?? ''] ?? 'border-l-transparent';
 
   return (
@@ -142,25 +139,20 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
               'group/card relative rounded-xl cursor-pointer select-none',
               'border-l-[3px]',
               priorityBorder,
-              'bg-white/[0.03] dark:bg-[#1a2237]/80 backdrop-blur-sm border border-[#2a3450]/60',
+              'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
               snapshot.isDragging
-                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/50 ring-1 ring-brand-light-pink/20 scale-[1.02]'
-                : 'hover:bg-white/[0.06] dark:hover:bg-[#1a2237] hover:border-[#2a3450] hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5',
+                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/40 ring-1 ring-brand-light-pink/20 scale-[1.02]'
+                : 'hover:shadow-xl dark:hover:shadow-2xl hover:border-pink-200 dark:hover:border-pink-700 hover:-translate-y-0.5',
               'transition-all duration-200',
             ].join(' ')}
           >
             <div className="px-3.5 pt-3 pb-2.5">
-              {/* Row 1: ticket badge + style + caption status */}
+              {/* Row 1: ticket badge + post origin + caption status */}
               <div className="flex items-center gap-1.5 mb-2.5">
                 <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold tracking-wide ${typeBadge.bg} ${typeBadge.text}`}>
                   <span className="font-mono">{task.taskKey}</span>
-                  {requestType && <span>{requestType}</span>}
+                  {postOrigin && <span>{postOrigin.replace(/_/g, ' ')}</span>}
                 </span>
-                {styleLabel && (
-                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5">
-                    {styleLabel}
-                  </span>
-                )}
 
                 <span className="flex-1" />
 
@@ -212,30 +204,24 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                 </p>
               )}
 
-              {/* Row 3: Price, paid status, buyer, model, deadline */}
+              {/* Row 3: Price, model, platforms, deadline */}
               <div className="flex items-center gap-2 flex-wrap text-xs mb-2.5">
                 {price != null && price > 0 && (
                   <span className="font-bold text-brand-light-pink">
                     ${price}
                   </span>
                 )}
-                {isPaid != null && (
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                    isPaid
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-red-500/10 text-red-400 border-red-500/20'
-                  }`}>
-                    {isPaid ? 'paid' : 'unpaid'}
-                  </span>
-                )}
-                {buyer && (
-                  <span className="text-gray-500 dark:text-gray-500 truncate max-w-[90px]">@{buyer}</span>
-                )}
                 {model && (
                   <span className="text-gray-500 dark:text-gray-500 truncate max-w-[90px]">{model}</span>
                 )}
                 {platforms.length > 0 && platforms.map((p) => (
-                  <span key={p} className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5 border border-white/[0.06]">
+                  <span key={p} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${
+                    p === 'onlyfans'
+                      ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/25'
+                      : p === 'fansly'
+                      ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+                      : 'bg-gray-500/10 text-gray-400 border-gray-500/25'
+                  }`}>
                     {p === 'onlyfans' ? 'OF' : p === 'fansly' ? 'Fansly' : p}
                   </span>
                 ))}
@@ -264,7 +250,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
               )}
 
               {/* Footer: priority + timestamp + assignee */}
-              <div className="flex items-center gap-2.5 pt-2.5 border-t border-white/[0.06]">
+              <div className="flex items-center gap-2.5 pt-2.5 border-t border-white/[0.04]">
                 {task.priority && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                     <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? ''}`} />

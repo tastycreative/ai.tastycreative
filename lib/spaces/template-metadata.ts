@@ -141,7 +141,8 @@ export const SEXTING_SETS_METADATA_FIELDS: MetadataFieldDescriptor[] = [
 /* ================================================================== */
 
 export interface OtpPtrItemMetadata {
-  requestType: 'OTP' | 'PTR' | 'CUSTOM';
+  // --- Submission fields (set at creation) ---
+  postOrigin: 'PTR' | 'OTP' | 'OTM' | 'PPV' | 'GAME' | 'LIVE' | 'TIP_ME' | 'VIP' | 'DM_FUNNEL' | 'RENEW_ON' | 'CUSTOM';
   price: number;
   model: string;
   pricingTier: string;
@@ -150,20 +151,29 @@ export interface OtpPtrItemMetadata {
   contentType: string;
   contentLength: string;
   contentCount: string;
-  deliverables: string[];
   externalCreatorTags: string[];
   internalModelTags: string[];
   contentTags: string[];
   deadline: string;
-  isPaid: boolean;
-  fulfillmentNotes: string;
+  platforms: string[];
+
+  // --- Workflow fields (filled by teams) ---
   caption: string;
   gameType: string;
-  gifUrl: string;
+  gifUrl: string;                    // Single GIF URL (or OnlyFans GIF when both platforms)
+  gifUrlFansly: string;              // NEW: Fansly-specific GIF URL (when both platforms selected)
+  gameNotes: string;
+  originalPollReference: string;     // PPV/Bundle reference
+  campaignOrUnlock: string;          // NEW: "Campaign", "Unlock", etc.
+  totalSale: number;                 // NEW: Revenue tracking (QA only)
+  qaNotes: string;                   // NEW: QA team notes
+  postLinkOnlyfans: string;          // NEW: OF post URL after deployment
+  postLinkFansly: string;            // NEW: Fansly post URL after deployment
+  datePosted: string;                // NEW: Actual post date (ISO string)
 }
 
 export const OTP_PTR_METADATA_DEFAULTS: OtpPtrItemMetadata = {
-  requestType: 'OTP',
+  postOrigin: 'OTP',
   price: 0,
   model: '',
   pricingTier: '',
@@ -172,43 +182,40 @@ export const OTP_PTR_METADATA_DEFAULTS: OtpPtrItemMetadata = {
   contentType: '',
   contentLength: '',
   contentCount: '',
-  deliverables: [],
   externalCreatorTags: [],
   internalModelTags: [],
   contentTags: [],
   deadline: '',
-  isPaid: false,
-  fulfillmentNotes: '',
+  platforms: [],
   caption: '',
   gameType: '',
   gifUrl: '',
+  gifUrlFansly: '',
+  gameNotes: '',
+  originalPollReference: '',
+  campaignOrUnlock: '',
+  totalSale: 0,
+  qaNotes: '',
+  postLinkOnlyfans: '',
+  postLinkFansly: '',
+  datePosted: '',
 };
 
 export const OTP_PTR_METADATA_FIELDS: MetadataFieldDescriptor[] = [
   {
-    key: 'requestType',
-    label: 'Request Type',
+    key: 'postOrigin',
+    label: 'Post Origin',
     type: 'select',
     required: true,
-    options: ['OTP', 'PTR', 'CUSTOM'],
+    options: ['PTR', 'OTP', 'OTM', 'PPV', 'GAME', 'LIVE', 'TIP_ME', 'VIP', 'DM_FUNNEL', 'RENEW_ON', 'CUSTOM'],
   },
   { key: 'price', label: 'Price ($)', type: 'number', placeholder: '0.00' },
-  // model — now a dedicated searchable dropdown in ContentDetailsFields
-  // pricingTier — now a dedicated dropdown in ContentDetailsFields
-  // pageType — now a dedicated dropdown in ContentDetailsFields
-  { key: 'driveLink', label: 'Drive Link', type: 'text', placeholder: 'https://drive.google.com/...' },
-  // contentType — now a dedicated pricing-aware dropdown in ContentDetailsFields
+  // driveLink — handled by the Google Drive attachment section in the submission form
   { key: 'contentLength', label: 'Content Length', type: 'text', placeholder: 'e.g. 8:43 or 8 mins 43 secs' },
   { key: 'contentCount', label: 'Content Count', type: 'text', placeholder: 'e.g. 1 Video, 3 Photos' },
-  { key: 'deliverables', label: 'Deliverables', type: 'tags', placeholder: 'e.g. 3 photos, 1 video' },
   { key: 'externalCreatorTags', label: 'Tags — External Creators', type: 'tags', placeholder: '@johndoe @janedoe' },
-  // internalModelTags — now a dedicated modal multi-select in ContentDetailsFields
-  // contentTags — now a dedicated multi-select in ContentDetailsFields
   { key: 'deadline', label: 'Deadline', type: 'date' },
-  { key: 'isPaid', label: 'Paid', type: 'boolean' },
-  { key: 'fulfillmentNotes', label: 'Fulfillment Notes', type: 'textarea', placeholder: 'Delivery instructions...' },
-  { key: 'caption', label: 'Caption', type: 'textarea', placeholder: 'PGT caption text...' },
-  // gameType, gifUrl, gameNotes — handled in Content Style step (ContentStyleSelector)
+  // caption, campaignOrUnlock, qaNotes, totalSale — workflow-only fields (board modal, not submission form)
 ];
 
 /* ================================================================== */

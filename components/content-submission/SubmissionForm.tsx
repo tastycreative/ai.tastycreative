@@ -214,39 +214,58 @@ export const SubmissionForm = memo(function SubmissionForm({
     SEXTING_SETS: 'SET',
   };
 
+  // Map contentStyle → postOrigin for the new unified field
+  // 'normal'/'poll' keep the metadata's postOrigin (user-selected, default 'OTP')
+  // Others map directly to their postOrigin equivalent
+  const CONTENT_STYLE_TO_POST_ORIGIN: Record<string, string> = {
+    game: 'GAME',
+    ppv: 'PPV',
+    bundle: 'PPV',
+    vip: 'VIP',
+  };
+
   const buildMetadata = useCallback((
     data: FormData,
     meta: Record<string, unknown>,
     extraFields?: Record<string, unknown>,
-  ) => ({
-    // Spread raw metadata first so explicit fields below take priority
-    ...meta,
-    submissionType: data.submissionType,
-    contentStyle,
-    // Game-specific fields
-    ...(contentStyle === 'game' ? {
-      gameType: styleFields.gameType || undefined,
-      gifUrl: styleFields.gifUrl || undefined,
-      gameNotes: styleFields.gameNotes || undefined,
-    } : {}),
-    // PPV/Bundle-specific fields
-    ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
-      originalPollReference: styleFields.originalPollReference || undefined,
-    } : {}),
-    pricingCategory: data.pricingCategory,
-    pageType: (meta as Record<string, unknown>).pageType || 'ALL_PAGES',
-    contentType: data.contentType,
-    contentTypeOptionId: data.contentTypeOptionId,
-    contentTags: data.contentTags,
-    internalModelTags: data.internalModelTags,
-    externalCreatorTags: data.externalCreatorTags,
-    // Hoist top-level form fields into metadata so board items can access them
-    modelId: data.modelId ?? null,
-    platforms: data.platform ?? ['onlyfans'],
-    // Wall post workflow: set initial status so it appears in Caption Workspace flow
-    ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
-    ...extraFields,
-  }), [contentStyle, styleFields]);
+  ) => {
+    // Derive postOrigin: contentStyle override takes priority, then metadata's postOrigin, then 'OTP'
+    const derivedPostOrigin =
+      CONTENT_STYLE_TO_POST_ORIGIN[contentStyle] ??
+      (meta.postOrigin as string) ??
+      'OTP';
+
+    return {
+      // Spread raw metadata first so explicit fields below take priority
+      ...meta,
+      submissionType: data.submissionType,
+      contentStyle,        // Keep for backward compat
+      postOrigin: derivedPostOrigin, // NEW: unified post origin field
+      // Game-specific fields
+      ...(contentStyle === 'game' ? {
+        gameType: styleFields.gameType || undefined,
+        gifUrl: styleFields.gifUrl || undefined,
+        gameNotes: styleFields.gameNotes || undefined,
+      } : {}),
+      // PPV/Bundle-specific fields
+      ...(contentStyle === 'ppv' || contentStyle === 'bundle' ? {
+        originalPollReference: styleFields.originalPollReference || undefined,
+      } : {}),
+      pricingCategory: data.pricingCategory,
+      pageType: (meta as Record<string, unknown>).pageType || 'ALL_PAGES',
+      contentType: data.contentType,
+      contentTypeOptionId: data.contentTypeOptionId,
+      contentTags: data.contentTags,
+      internalModelTags: data.internalModelTags,
+      externalCreatorTags: data.externalCreatorTags,
+      // Hoist top-level form fields into metadata so board items can access them
+      modelId: data.modelId ?? null,
+      platforms: data.platform ?? ['onlyfans'],
+      // Wall post workflow: set initial status so it appears in Caption Workspace flow
+      ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
+      ...extraFields,
+    };
+  }, [contentStyle, styleFields]);
 
   const onSubmit = async (data: FormData) => {
     setSubmitError(null);
@@ -259,10 +278,9 @@ export const SubmissionForm = memo(function SubmissionForm({
     try {
       const meta = (data.metadata ?? {}) as Record<string, unknown>;
 
-      // Title: use model/buyer from metadata, fall back to template label
+      // Title: use model name from metadata, fall back to template label
       const title =
         (meta.model as string)?.trim() ||
-        (meta.buyer as string)?.trim() ||
         TEMPLATE_LABELS[data.submissionType] ||
         data.submissionType;
 
@@ -661,20 +679,25 @@ export const SubmissionForm = memo(function SubmissionForm({
                     assigneeId={assigneeId}
                     onAssigneeChange={setAssigneeId}
                   />
-                </StepContent>
-              )}
 
-              {/* File Upload Step */}
-              {currentStepInfo?.id === 'files' && (
-                <StepContent title="Upload Files" subtitle="Add images or videos — they'll be attached when you submit">
-                  <FileUploadStep
-                    mode={uploadMode}
-                    onModeChange={setUploadMode}
-                    files={pendingFiles}
-                    onFilesChange={setPendingFiles}
-                    driveFiles={driveFiles}
-                    onDriveFilesChange={setDriveFiles}
-                  />
+                  {/* File Uploads section */}
+                  <div className="mt-8 pt-8 border-t border-zinc-700/50">
+                    <div className="mb-5">
+                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                        <Upload className="w-4 h-4 text-brand-light-pink" />
+                        Attachments
+                      </h3>
+                      <p className="text-sm text-zinc-400 mt-1">Upload reference images or paste a Google Drive link</p>
+                    </div>
+                    <FileUploadStep
+                      mode={uploadMode}
+                      onModeChange={setUploadMode}
+                      files={pendingFiles}
+                      onFilesChange={setPendingFiles}
+                      driveFiles={driveFiles}
+                      onDriveFilesChange={setDriveFiles}
+                    />
+                  </div>
                 </StepContent>
               )}
 
@@ -850,10 +873,10 @@ const LocalFilePicker = memo(function LocalFilePicker({
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-zinc-300">
-            {dragActive ? 'Drop files here' : 'Drop files or click to browse'}
+            {dragActive ? 'Drop files here' : 'Drop files here or click to browse'}
           </p>
           <p className="text-xs text-zinc-600 mt-1">
-            Images & videos · Max {maxFileSizeMB} MB each · {files.length}/{maxFiles} files
+            Max {maxFiles} files, {maxFileSizeMB}MB each
           </p>
         </div>
       </div>
@@ -980,7 +1003,13 @@ const FileUploadStep = memo(function FileUploadStep({
 
       {/* Upload Files section */}
       {(mode === 'upload' || mode === 'both') && (
-        <LocalFilePicker files={files} onChange={onFilesChange} />
+        <div>
+          <p className="text-sm font-medium text-zinc-300 mb-2">Reference Images (screenshots from OF vault)</p>
+          <LocalFilePicker files={files} onChange={onFilesChange} />
+          <p className="text-xs text-zinc-600 mt-1.5">
+            Upload screenshots from OnlyFans vault for team reference
+          </p>
+        </div>
       )}
 
       {/* Google Drive Link section */}
@@ -1253,6 +1282,7 @@ const ReviewStep = memo(function ReviewStep({
       key !== 'submitStatus' &&
       key !== 'boardItemId' &&
       key !== 'contentStyle' &&
+      key !== 'postOrigin' &&
       key !== 'pageType' &&
       key !== 'contentType' &&
       v !== '' &&
@@ -1333,6 +1363,15 @@ const ReviewStep = memo(function ReviewStep({
         <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
           <h3 className="text-sm font-medium text-zinc-400 mb-3">Content Configuration</h3>
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Post Origin</p>
+              <p className="text-white font-medium">
+                {(() => {
+                  const STYLE_TO_ORIGIN: Record<string, string> = { game: 'GAME', ppv: 'PPV', bundle: 'PPV', vip: 'VIP' };
+                  return (STYLE_TO_ORIGIN[contentStyle] ?? (metadata as Record<string, unknown>)?.postOrigin ?? 'OTP') as string;
+                })()}
+              </p>
+            </div>
             <div>
               <p className="text-xs text-zinc-500 mb-1">Content Style</p>
               <p className="text-white font-medium capitalize">{contentStyle}</p>

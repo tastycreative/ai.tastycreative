@@ -10,19 +10,16 @@ import {
   DollarSign,
   User,
   CalendarDays,
-  Package,
   ClipboardList,
   FileText,
   Tag,
   History,
   MessageSquare,
   Plus,
-  CreditCard,
   Info,
   Clock,
   ExternalLink,
   Film,
-  Users,
   Link2,
   ChevronDown,
   Image as ImageIcon,
@@ -30,7 +27,7 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
-// Note: All icons above are used across the component's sections and sidebar
+// Note: Icons above are used across the component's sections and sidebar
 import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
@@ -71,8 +68,7 @@ type ModalTab = 'details' | 'workflow' | 'history' | 'comments';
 
 /* ── Constants ───────────────────────────────────────────── */
 
-const REQUEST_TYPE_OPTIONS = ['OTP', 'PTR', 'CUSTOM'];
-const CONTENT_STYLE_OPTIONS = ['NORMAL', 'PPV', 'GAME', 'POLL', 'BUNDLE'];
+const POST_ORIGIN_OPTIONS = ['PTR', 'OTP', 'OTM', 'PPV', 'GAME', 'LIVE', 'TIP_ME', 'VIP', 'DM_FUNNEL', 'RENEW_ON', 'CUSTOM'];
 
 const PRIORITY_PILL: Record<string, string> = {
   High: 'text-red-400',
@@ -89,7 +85,15 @@ const PRIORITY_DOT: Record<string, string> = {
 const TYPE_DOT: Record<string, string> = {
   OTP: 'bg-brand-blue',
   PTR: 'bg-brand-light-pink',
-  CUSTOM: 'bg-amber-400',
+  OTM: 'bg-violet-400',
+  PPV: 'bg-emerald-400',
+  GAME: 'bg-amber-400',
+  LIVE: 'bg-red-400',
+  TIP_ME: 'bg-cyan-400',
+  VIP: 'bg-yellow-400',
+  DM_FUNNEL: 'bg-indigo-400',
+  RENEW_ON: 'bg-teal-400',
+  CUSTOM: 'bg-gray-400',
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -143,7 +147,26 @@ function getAvatarColor(name: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-/* ── Section — collapsible flat section ──────────────────── */
+/* ── Section color themes for glassmorphism cards ──────── */
+
+const SECTION_THEMES: Record<string, { border: string; iconBg: string; iconColor: string; gradientFrom: string }> = {
+  'Basic Information': { border: 'border-brand-blue/30', iconBg: 'bg-brand-blue/15', iconColor: 'text-brand-blue', gradientFrom: 'from-brand-blue/[0.06]' },
+  'Description & Content': { border: 'border-emerald-500/30', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', gradientFrom: 'from-emerald-500/[0.06]' },
+  'Google Drive': { border: 'border-amber-500/30', iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400', gradientFrom: 'from-amber-500/[0.06]' },
+  'Notes': { border: 'border-violet-500/30', iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400', gradientFrom: 'from-violet-500/[0.06]' },
+  'Tags': { border: 'border-brand-light-pink/30', iconBg: 'bg-brand-light-pink/15', iconColor: 'text-brand-light-pink', gradientFrom: 'from-brand-light-pink/[0.06]' },
+  'Timestamps': { border: 'border-gray-500/30', iconBg: 'bg-gray-500/15', iconColor: 'text-gray-400', gradientFrom: 'from-gray-500/[0.06]' },
+  'PGT Team': { border: 'border-brand-light-pink/30', iconBg: 'bg-brand-light-pink/15', iconColor: 'text-brand-light-pink', gradientFrom: 'from-brand-light-pink/[0.06]' },
+  'Flyer Team': { border: 'border-brand-blue/30', iconBg: 'bg-brand-blue/15', iconColor: 'text-brand-blue', gradientFrom: 'from-brand-blue/[0.06]' },
+  'PPV/Bundle Details': { border: 'border-amber-500/30', iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400', gradientFrom: 'from-amber-500/[0.06]' },
+  'QA': { border: 'border-emerald-500/30', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', gradientFrom: 'from-emerald-500/[0.06]' },
+  'Deploy': { border: 'border-brand-blue/30', iconBg: 'bg-brand-blue/15', iconColor: 'text-brand-blue', gradientFrom: 'from-brand-blue/[0.06]' },
+  'Attachments': { border: 'border-emerald-500/30', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', gradientFrom: 'from-emerald-500/[0.06]' },
+};
+
+const DEFAULT_THEME = { border: 'border-white/[0.08]', iconBg: 'bg-white/[0.06]', iconColor: 'text-gray-400', gradientFrom: 'from-white/[0.03]' };
+
+/* ── Section — collapsible glassmorphism card ──────────── */
 
 function Section({
   icon: Icon,
@@ -159,29 +182,32 @@ function Section({
   badge?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const themeKey = Object.keys(SECTION_THEMES).find(k => title.startsWith(k)) ?? '';
+  const theme = SECTION_THEMES[themeKey] ?? DEFAULT_THEME;
 
   return (
-    <div className="mb-0.5">
+    <div className={`mb-3 rounded-xl border ${theme.border} bg-gradient-to-br ${theme.gradientFrom} to-transparent backdrop-blur-sm overflow-hidden transition-all duration-200`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center w-full gap-2.5 py-2.5 px-1 text-left group/section hover:bg-white/[0.02] rounded-lg transition-colors"
+        className="flex items-center w-full gap-2.5 py-3 px-4 text-left group/section hover:bg-white/[0.02] transition-colors"
       >
-        <Icon className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-        <span className="text-[11px] font-semibold text-gray-400 tracking-[0.08em] flex-1 uppercase">
+        <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${theme.iconBg} shrink-0`}>
+          <Icon className={`h-3.5 w-3.5 ${theme.iconColor}`} />
+        </span>
+        <span className="text-[12px] font-semibold text-gray-300 tracking-wide flex-1">
           {title}
         </span>
         {badge}
         <ChevronDown
-          className={`h-3 w-3 text-gray-600 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`h-3.5 w-3.5 text-gray-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className="pb-3 pl-6 pr-1">
+        <div className="px-4 pb-4 pt-0.5 pl-[52px]">
           {children}
         </div>
       )}
-      <div className="border-t border-white/[0.04] mx-1" />
     </div>
   );
 }
@@ -335,15 +361,19 @@ export function OtpPtrTaskDetailModal({
   /* ── Metadata ────────────────────────────────────────── */
 
   const meta = task.metadata ?? {};
-  const requestType = (meta.requestType as string) ?? 'OTP';
-  const contentStyle = (meta.contentStyle as string) ?? 'NORMAL';
+  // Backward compat: read postOrigin, fall back to old requestType
+  const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? 'OTP';
   const price = (meta.price as number) ?? 0;
-  const buyer = (meta.buyer as string) ?? '';
   const model = (meta.model as string) ?? '';
-  const deliverables = Array.isArray(meta.deliverables) ? (meta.deliverables as string[]) : [];
   const deadline = (meta.deadline as string) ?? '';
-  const isPaid = (meta.isPaid as boolean) ?? false;
-  const fulfillmentNotes = (meta.fulfillmentNotes as string) ?? '';
+  const notes = (meta.fulfillmentNotes as string) ?? '';  // keep reading old field name for backward compat
+  const campaignOrUnlock = (meta.campaignOrUnlock as string) ?? '';
+  const totalSale = (meta.totalSale as number) ?? 0;
+  const qaNotes = (meta.qaNotes as string) ?? '';
+  const postLinkOnlyfans = (meta.postLinkOnlyfans as string) ?? '';
+  const postLinkFansly = (meta.postLinkFansly as string) ?? '';
+  const datePosted = (meta.datePosted as string) ?? '';
+  const gifUrlFansly = (meta.gifUrlFansly as string) ?? '';
   const pricingCategory = (meta.pricingCategory as string) ?? '';
   const pricingTier = (meta.pricingTier as string) ?? '';
   const pageType = (meta.pageType as string) ?? '';
@@ -367,7 +397,7 @@ export function OtpPtrTaskDetailModal({
   const workspaceCaptionText = (meta.captionText as string) ?? '';
   const tier = pricingCategory || pricingTier;
 
-  const [notesDraft, setNotesDraft] = useState(fulfillmentNotes);
+  const [notesDraft, setNotesDraft] = useState(notes);
   const [captionDraft, setCaptionDraft] = useState(caption);
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
@@ -418,9 +448,9 @@ export function OtpPtrTaskDetailModal({
   useEffect(() => setMounted(true), []);
   useEffect(() => {
     setTitleDraft(task.title);
-    setNotesDraft(fulfillmentNotes);
+    setNotesDraft(notes);
     setCaptionDraft(caption);
-  }, [task, fulfillmentNotes, caption]);
+  }, [task, notes, caption]);
   useEffect(() => { if (editingTitle) titleRef.current?.focus(); }, [editingTitle]);
   useEffect(() => { if (editingNotes) notesRef.current?.focus(); }, [editingNotes]);
   useEffect(() => { if (editingCaption) captionRef.current?.focus(); }, [editingCaption]);
@@ -449,7 +479,7 @@ export function OtpPtrTaskDetailModal({
 
   const saveNotes = () => {
     setEditingNotes(false);
-    if (notesDraft !== fulfillmentNotes) updateMeta({ fulfillmentNotes: notesDraft });
+    if (notesDraft !== notes) updateMeta({ fulfillmentNotes: notesDraft });
   };
 
   const saveCaption = () => {
@@ -540,12 +570,12 @@ export function OtpPtrTaskDetailModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-9999 flex items-start justify-center overflow-y-auto py-8 px-4"
+      className="fixed inset-0 z-9999 flex items-start justify-center overflow-y-auto py-4 px-4"
       onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)' }}
+      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)' }}
     >
       <div
-        className="relative w-full max-w-5xl rounded-2xl shadow-2xl shadow-black/60 bg-[#0f1729]/95 backdrop-blur-xl border border-white/[0.08] overflow-hidden"
+        className="relative w-full max-w-7xl rounded-2xl shadow-2xl shadow-black/40 bg-[#0d1321]/80 backdrop-blur-2xl border border-white/[0.06] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Pink gradient top strip */}
@@ -561,13 +591,13 @@ export function OtpPtrTaskDetailModal({
                   {task.taskKey}
                 </span>
                 <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-2.5 py-1 ${
-                  requestType === 'OTP'
+                  postOrigin === 'OTP'
                     ? 'bg-brand-blue/15 text-brand-blue'
-                    : requestType === 'PTR'
+                    : postOrigin === 'PTR'
                     ? 'bg-brand-light-pink/15 text-brand-light-pink'
-                    : 'bg-amber-500/15 text-amber-400'
+                    : `bg-white/[0.06] ${(TYPE_DOT[postOrigin] ?? '').replace('bg-', 'text-')}`
                 }`}>
-                  {requestType}
+                  {postOrigin.replace(/_/g, ' ')}
                 </span>
                 <span className="text-[11px] text-gray-500 bg-white/[0.04] px-2.5 py-1 rounded-full">
                   {columnTitle}
@@ -608,19 +638,10 @@ export function OtpPtrTaskDetailModal({
               </div>
 
               {/* Quick info bar */}
-              {(buyer || model || deadline || price > 0 || platforms.length > 0) && (
-                <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 rounded-xl bg-[#1a2237]/80 border border-white/[0.06] px-4 py-2.5">
+              {(model || deadline || price > 0 || platforms.length > 0) && (
+                <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] px-4 py-2.5">
                   {price > 0 && (
                     <span className="text-brand-light-pink font-bold text-sm">${price}</span>
-                  )}
-                  {(meta.isPaid as boolean) != null && (
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                      (meta.isPaid as boolean)
-                        ? 'bg-emerald-500/12 text-emerald-400'
-                        : 'bg-red-500/12 text-red-400'
-                    }`}>
-                      {(meta.isPaid as boolean) ? 'PAID' : 'UNPAID'}
-                    </span>
                   )}
                   {model && (
                     <span className="inline-flex items-center gap-1.5">
@@ -702,7 +723,7 @@ export function OtpPtrTaskDetailModal({
         {/* ═══ Body ═════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px]">
           {/* ── Left: Tab Content ──────────────────────── */}
-          <div className="px-6 py-5 min-h-[50vh] max-h-[62vh] overflow-y-auto custom-scrollbar border-r border-white/[0.04]">
+          <div className="px-6 py-5 min-h-[70vh] max-h-[82vh] overflow-y-auto custom-scrollbar border-r border-white/[0.04] bg-white/[0.01]">
 
             {/* ── Details Tab ────────────────────────────── */}
             {activeTab === 'details' && (
@@ -823,7 +844,7 @@ export function OtpPtrTaskDetailModal({
                           <button type="button" onClick={saveNotes} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-light-pink/80 hover:bg-brand-light-pink transition-colors">
                             Save
                           </button>
-                          <button type="button" onClick={() => { setNotesDraft(fulfillmentNotes); setEditingNotes(false); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                          <button type="button" onClick={() => { setNotesDraft(notes); setEditingNotes(false); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors">
                             Cancel
                           </button>
                         </div>
@@ -831,7 +852,7 @@ export function OtpPtrTaskDetailModal({
                     ) : (
                       <button type="button" onClick={() => setEditingNotes(true)} className="flex items-start gap-2 w-full text-left">
                         <p className="text-[13px] text-gray-400 whitespace-pre-wrap flex-1 leading-relaxed">
-                          {fulfillmentNotes || <span className="text-gray-600 italic">Click to add notes...</span>}
+                          {notes || <span className="text-gray-600 italic">Click to add notes...</span>}
                         </p>
                         <Pencil className="h-3 w-3 text-gray-700 opacity-0 group-hover/notes:opacity-100 transition-opacity shrink-0 mt-0.5" />
                       </button>
@@ -869,11 +890,20 @@ export function OtpPtrTaskDetailModal({
                 {/* Timestamps */}
                 <Section icon={Clock} title="Timestamps" defaultOpen={false}>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                    {typeof meta.createdAt === 'string' && (
-                      <div><SideLabel>Created</SideLabel><span className="text-gray-400">{formatFullDate(meta.createdAt)}</span></div>
+                    {typeof meta._createdAt === 'string' && (
+                      <div>
+                        <SideLabel>Created</SideLabel>
+                        <span className="text-gray-400">{formatFullDate(meta._createdAt as string)}</span>
+                        {typeof meta.createdBy === 'string' && (
+                          <span className="text-gray-500 ml-1">by {getMemberName(meta.createdBy as string) ?? 'Unknown'}</span>
+                        )}
+                      </div>
                     )}
-                    {typeof meta.updatedAt === 'string' && (
-                      <div><SideLabel>Updated</SideLabel><span className="text-gray-400">{formatFullDate(meta.updatedAt)}</span></div>
+                    {typeof meta._updatedAt === 'string' && (
+                      <div>
+                        <SideLabel>Updated</SideLabel>
+                        <span className="text-gray-400">{formatFullDate(meta._updatedAt as string)}</span>
+                      </div>
                     )}
                   </div>
                 </Section>
@@ -892,16 +922,6 @@ export function OtpPtrTaskDetailModal({
                       {captionCfg.label}
                       {captionTicketId && <span className="ml-auto text-[10px] opacity-50">Ticket linked</span>}
                     </div>
-
-                    {driveLink && (
-                      <div>
-                        <SideLabel>Drive Content</SideLabel>
-                        <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-brand-blue hover:text-brand-blue/80 transition-colors">
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                          <span className="underline underline-offset-2 break-all">{driveLink.length > 55 ? driveLink.slice(0, 52) + '...' : driveLink}</span>
-                        </a>
-                      </div>
-                    )}
 
                     <div>
                       <SideLabel>Caption</SideLabel>
@@ -1011,32 +1031,117 @@ export function OtpPtrTaskDetailModal({
 
                 {/* Flyer Team */}
                 <Section icon={Film} title="Flyer Team">
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-                    <div>
-                      <SideLabel>Game Type</SideLabel>
-                      <EditableField value={gameType} placeholder="Wheel, Dice..." onSave={(v) => updateMeta({ gameType: v })} />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-x-4">
+                      <div>
+                        <SideLabel>Game Type</SideLabel>
+                        <EditableField value={gameType} placeholder="Wheel, Dice..." onSave={(v) => updateMeta({ gameType: v })} />
+                      </div>
+                      <div className="col-span-2">
+                        <SideLabel>Game Notes</SideLabel>
+                        <EditableField value={gameNotes} placeholder="Notes..." onSave={(v) => updateMeta({ gameNotes: v })} />
+                      </div>
                     </div>
-                    <div>
-                      <SideLabel>GIF URL</SideLabel>
-                      <EditableField value={gifUrl} placeholder="https://..." onSave={(v) => updateMeta({ gifUrl: v })} />
-                      {gifUrl && (
-                        <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+
+                    {/* GIF URLs — show per platform */}
+                    <div className="pt-2 border-t border-white/[0.04]">
+                      <SideLabel>GIF URL{platforms.length > 1 ? 's' : ''}</SideLabel>
+                      {platforms.length <= 1 ? (
+                        <div>
+                          <EditableField value={gifUrl} placeholder="https://..." onSave={(v) => updateMeta({ gifUrl: v })} />
+                          {gifUrl && (
+                            <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-[10px] font-medium text-brand-blue">OnlyFans</span>
+                            <EditableField value={gifUrl} placeholder="OF GIF URL..." onSave={(v) => updateMeta({ gifUrl: v })} />
+                            {gifUrl && (
+                              <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-medium text-brand-light-pink">Fansly</span>
+                            <EditableField value={gifUrlFansly} placeholder="Fansly GIF URL..." onSave={(v) => updateMeta({ gifUrlFansly: v })} />
+                            {gifUrlFansly && (
+                              <a href={gifUrlFansly} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                            )}
+                          </div>
+                        </div>
                       )}
-                    </div>
-                    <div>
-                      <SideLabel>Game Notes</SideLabel>
-                      <EditableField value={gameNotes} placeholder="Notes..." onSave={(v) => updateMeta({ gameNotes: v })} />
                     </div>
                   </div>
                 </Section>
 
                 {/* PPV/Bundle Details */}
-                {(contentStyle.toLowerCase() === 'ppv' || contentStyle.toLowerCase() === 'bundle') && (
+                {(postOrigin === 'PPV') && (
                   <Section icon={Film} title="PPV/Bundle Details">
                     <SideLabel>Original Poll Reference</SideLabel>
                     <EditableField value={originalPollReference} placeholder="Reference..." onSave={(v) => updateMeta({ originalPollReference: v })} />
                   </Section>
                 )}
+
+                {/* QA */}
+                <Section icon={ClipboardList} title="QA">
+                  <div className="space-y-3">
+                    <div>
+                      <SideLabel>Campaign / Unlock</SideLabel>
+                      <SelectField
+                        value={campaignOrUnlock}
+                        options={['', 'Campaign', 'Unlock']}
+                        onSave={(v) => updateMeta({ campaignOrUnlock: v })}
+                      />
+                    </div>
+                    <div>
+                      <SideLabel>QA Notes</SideLabel>
+                      <EditableField value={qaNotes} placeholder="QA feedback..." onSave={(v) => updateMeta({ qaNotes: v })} />
+                    </div>
+                    <div>
+                      <SideLabel>Total Sale ($)</SideLabel>
+                      <EditableField value={totalSale ? String(totalSale) : ''} placeholder="0.00" onSave={(v) => updateMeta({ totalSale: Number(v) || 0 })} />
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Deploy */}
+                <Section icon={ExternalLink} title="Deploy" defaultOpen={false}>
+                  <div className="space-y-3">
+                    {platforms.includes('onlyfans') && (
+                      <div>
+                        <SideLabel>OnlyFans Post Link</SideLabel>
+                        <EditableField value={postLinkOnlyfans} placeholder="https://onlyfans.com/..." onSave={(v) => updateMeta({ postLinkOnlyfans: v })} />
+                        {postLinkOnlyfans && (
+                          <a href={postLinkOnlyfans} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline mt-1">
+                            <ExternalLink className="h-3 w-3" />Open
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {platforms.includes('fansly') && (
+                      <div>
+                        <SideLabel>Fansly Post Link</SideLabel>
+                        <EditableField value={postLinkFansly} placeholder="https://fansly.com/..." onSave={(v) => updateMeta({ postLinkFansly: v })} />
+                        {postLinkFansly && (
+                          <a href={postLinkFansly} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline mt-1">
+                            <ExternalLink className="h-3 w-3" />Open
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {platforms.length === 0 && (
+                      <div>
+                        <SideLabel>Post Link</SideLabel>
+                        <EditableField value={postLinkOnlyfans} placeholder="https://..." onSave={(v) => updateMeta({ postLinkOnlyfans: v })} />
+                      </div>
+                    )}
+                    <div>
+                      <SideLabel>Date Posted</SideLabel>
+                      <EditableField value={datePosted} type="date" placeholder="Not set" onSave={(v) => updateMeta({ datePosted: v })} />
+                    </div>
+                  </div>
+                </Section>
 
                 {/* Attachments / Media */}
                 {mediaData.length > 0 && (
@@ -1077,28 +1182,6 @@ export function OtpPtrTaskDetailModal({
                   </Section>
                 )}
 
-                {/* Deliverables */}
-                <Section
-                  icon={Package}
-                  title="Deliverables"
-                  badge={deliverables.length > 0 ? <span className="text-xs font-mono text-gray-500">{deliverables.length}</span> : undefined}
-                >
-                  {deliverables.length > 0 && (
-                    <div className="space-y-1 mb-2">
-                      {deliverables.map((d, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[13px] text-gray-300 group/del">
-                          <span className="h-1 w-1 rounded-full bg-brand-blue shrink-0" />
-                          <span className="flex-1">{d}</span>
-                          <button type="button" onClick={() => removeFromArray('deliverables', d)} className="opacity-0 group-hover/del:opacity-100 text-gray-600 hover:text-red-400 transition-all">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {deliverables.length === 0 && <p className="text-xs text-gray-600 italic mb-2">None</p>}
-                  <TagInput value={getTagInput('deliverables')} onChange={(v) => setTagInput('deliverables', v)} onAdd={() => addToArray('deliverables', getTagInput('deliverables'))} placeholder="Add deliverable..." />
-                </Section>
               </>
             )}
 
@@ -1196,7 +1279,7 @@ export function OtpPtrTaskDetailModal({
           </div>
 
           {/* ═══ Right Sidebar — Properties ═══════════════ */}
-          <div className="px-4 py-4 max-h-[62vh] overflow-y-auto custom-scrollbar bg-[#111827]/50">
+          <div className="px-4 py-4 max-h-[82vh] overflow-y-auto custom-scrollbar bg-white/[0.02]">
             <div className="flex items-center gap-2 mb-3">
               <Settings className="h-3.5 w-3.5 text-gray-500" />
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-400">Properties</h3>
@@ -1223,41 +1306,18 @@ export function OtpPtrTaskDetailModal({
               />
             </SideRow>
 
-            <div className="grid grid-cols-2 gap-2 py-2.5 border-b border-white/[0.04]">
-              <div>
-                <SideLabel>Type</SideLabel>
-                <SelectField
-                  value={requestType}
-                  options={REQUEST_TYPE_OPTIONS}
-                  onSave={(v) => updateMeta({ requestType: v })}
-                  renderOption={(v) => (
-                    <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
-                      <span className={`h-2 w-2 rounded-full ${TYPE_DOT[v] ?? 'bg-gray-500'}`} />
-                      {v}
-                    </span>
-                  )}
-                />
-              </div>
-              <div>
-                <SideLabel>Style</SideLabel>
-                <SelectField value={contentStyle} options={CONTENT_STYLE_OPTIONS} onSave={(v) => updateMeta({ contentStyle: v })} />
-              </div>
-            </div>
-
-            <SideRow label="Payment">
-              <button
-                type="button"
-                onClick={() => updateMeta({ isPaid: !isPaid })}
-                className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold transition-all duration-200 border ${
-                  isPaid
-                    ? 'bg-emerald-500/[0.08] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/[0.12]'
-                    : 'bg-red-500/[0.08] border-red-500/20 text-red-400 hover:bg-red-500/[0.12]'
-                }`}
-              >
-                <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 text-left">{isPaid ? 'Paid' : 'Unpaid'}</span>
-                <span className={`h-2 w-2 rounded-full ${isPaid ? 'bg-emerald-400' : 'bg-red-400'}`} />
-              </button>
+            <SideRow label="Post Origin">
+              <SelectField
+                value={postOrigin}
+                options={POST_ORIGIN_OPTIONS}
+                onSave={(v) => updateMeta({ postOrigin: v })}
+                renderOption={(v) => (
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
+                    <span className={`h-2 w-2 rounded-full ${TYPE_DOT[v] ?? 'bg-gray-500'}`} />
+                    {v.replace(/_/g, ' ')}
+                  </span>
+                )}
+              />
             </SideRow>
 
             <SideRow label="Tier">
@@ -1278,33 +1338,17 @@ export function OtpPtrTaskDetailModal({
               </span>
             </SideRow>
 
-            <SideRow label="Buyer">
-              <span className="text-sm font-semibold text-brand-off-white">
-                <EditableField value={buyer} placeholder="@username" onSave={(v) => updateMeta({ buyer: v })} />
-              </span>
-            </SideRow>
-
             <SideRow label="Price">
               <span className="text-sm font-semibold text-brand-light-pink">
                 <EditableField value={price ? String(price) : ''} placeholder="0.00" onSave={(v) => updateMeta({ price: Number(v) || 0 })} />
               </span>
             </SideRow>
 
-            <SideRow label="Deadline">
+            <SideRow label="Target Date">
               <span className="text-sm font-semibold text-brand-off-white">
                 <EditableField value={deadline} type="date" placeholder="Not set" onSave={(v) => updateMeta({ deadline: v })} />
               </span>
             </SideRow>
-
-            {deliverables.length > 0 && (
-              <SideRow label="Deliverables">
-                <div className="flex flex-wrap gap-1">
-                  {deliverables.map((d) => (
-                    <span key={d} className="text-[11px] font-medium text-brand-blue bg-brand-blue/10 rounded-md px-1.5 py-0.5 border border-brand-blue/15">{d}</span>
-                  ))}
-                </div>
-              </SideRow>
-            )}
 
             {(externalCreatorTags.length > 0 || internalModelTags.length > 0) && (
               <SideRow label="People">
@@ -1315,32 +1359,21 @@ export function OtpPtrTaskDetailModal({
               </SideRow>
             )}
 
-            {driveLink && (
-              <SideRow label="Drive">
-                <a href={driveLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline break-all">
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                  {driveLink.length > 30 ? driveLink.slice(0, 27) + '...' : driveLink}
-                </a>
-              </SideRow>
-            )}
-
-            {/* Created / Updated footer */}
-            {(typeof meta.createdAt === 'string' || typeof meta.updatedAt === 'string') && (
+            {/* Created / Updated footer with "Created by" */}
+            {(typeof meta._createdAt === 'string' || typeof meta._updatedAt === 'string') && (
               <div className="mt-4 pt-3 border-t border-white/[0.06]">
-                {typeof meta.createdAt === 'string' && (
+                {typeof meta._createdAt === 'string' && (
                   <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1.5">
                     <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.04] text-[8px] font-bold text-gray-500 shrink-0">
-                      {(getMemberName(task.assignee) ?? 'U').charAt(0).toUpperCase()}
+                      {(getMemberName(meta.createdBy as string) ?? 'U').charAt(0).toUpperCase()}
                     </span>
-                    Created {formatDate(meta.createdAt)}
+                    Created by {getMemberName(meta.createdBy as string) ?? 'Unknown'} · {formatDate(meta._createdAt as string)}
                   </div>
                 )}
-                {typeof meta.updatedAt === 'string' && (
+                {typeof meta._updatedAt === 'string' && (
                   <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.04] text-[8px] font-bold text-gray-500 shrink-0">
-                      {(getMemberName(task.assignee) ?? 'U').charAt(0).toUpperCase()}
-                    </span>
-                    Updated {formatDate(meta.updatedAt)}
+                    <Clock className="h-3 w-3 shrink-0" />
+                    Updated {formatDate(meta._updatedAt as string)}
                   </div>
                 )}
               </div>
