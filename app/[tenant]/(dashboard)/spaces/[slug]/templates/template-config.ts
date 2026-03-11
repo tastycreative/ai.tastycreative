@@ -3,6 +3,7 @@ import type { BoardTask, BoardTab, BoardTaskCardProps } from '../../board';
 import type { BoardItem } from '@/lib/hooks/useBoardItems.query';
 import type { ItemToTaskFn } from '../useSpaceBoard';
 import { defaultItemToTask } from '../useSpaceBoard';
+import type { SummaryTabProps } from './summary';
 
 /* ------------------------------------------------------------------ */
 /*  Task Detail Modal prop shape (shared by all modals)                */
@@ -117,6 +118,7 @@ export interface TemplateConfig {
   itemToTask: ItemToTaskFn;
   DetailModal: ComponentType<TaskDetailModalProps>;
   CardComponent?: ComponentType<BoardTaskCardProps>;
+  SummaryComponent?: ComponentType<SummaryTabProps>;
 }
 
 // Lazy imports — resolved at render time, keeps this file light
@@ -128,6 +130,13 @@ import { OtpPtrTaskCard } from './OtpPtrTaskCard';
 import { WallPostTaskCard } from './WallPostTaskCard';
 import { ModelOnboardingTaskDetailModal } from './ModelOnboardingTaskDetailModal';
 import { ModelOnboardingTaskCard } from './ModelOnboardingTaskCard';
+import {
+  KanbanSummary,
+  WallPostSummary,
+  SextingSetsSummary,
+  OtpPtrSummary,
+  ModelOnboardingSummary,
+} from './summary';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -139,47 +148,56 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     ],
     itemToTask: defaultItemToTask,
     DetailModal: KanbanTaskDetailModal,
+    SummaryComponent: KanbanSummary,
   },
   WALL_POST: {
     label: 'Wall Post',
     tabs: [
       { id: 'summary', label: 'Summary' },
       { id: 'board', label: 'Board' },
-      { id: 'calendar', label: 'Calendar' },
+      { id: 'timeline', label: 'Timeline' },
+      // { id: 'calendar', label: 'Calendar' },
     ],
     itemToTask: wallPostItemToTask,
     DetailModal: WallPostTaskDetailModal,
     CardComponent: WallPostTaskCard,
+    SummaryComponent: WallPostSummary,
   },
   SEXTING_SETS: {
     label: 'Sexting Sets',
     tabs: [
       { id: 'summary', label: 'Summary' },
       { id: 'board', label: 'Board' },
-      { id: 'gallery', label: 'Gallery' },
+      { id: 'timeline', label: 'Timeline' },
+      // { id: 'gallery', label: 'Gallery' },
     ],
     itemToTask: sextingSetsItemToTask,
     DetailModal: SextingSetsTaskDetailModal,
+    SummaryComponent: SextingSetsSummary,
   },
   OTP_PTR: {
     label: 'OTP / PTR',
     tabs: [
       { id: 'summary', label: 'Summary' },
       { id: 'board', label: 'Board' },
-      { id: 'financials', label: 'Financials' },
+      { id: 'timeline', label: 'Timeline' },
+      // { id: 'financials', label: 'Financials' },
     ],
     itemToTask: otpPtrItemToTask,
     DetailModal: OtpPtrTaskDetailModal,
     CardComponent: OtpPtrTaskCard,
+    SummaryComponent: OtpPtrSummary,
   },
   MODEL_ONBOARDING: {
     label: 'Model Onboarding',
     tabs: [
       { id: 'summary', label: 'Summary' },
       { id: 'board', label: 'Board' },
+      { id: 'timeline', label: 'Timeline' },
     ],
     itemToTask: modelOnboardingItemToTask,
     DetailModal: ModelOnboardingTaskDetailModal,
     CardComponent: ModelOnboardingTaskCard,
+    SummaryComponent: ModelOnboardingSummary,
   },
 };

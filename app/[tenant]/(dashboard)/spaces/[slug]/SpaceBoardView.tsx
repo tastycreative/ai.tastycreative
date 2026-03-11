@@ -20,6 +20,7 @@ import {
 } from '../board';
 import { useSpaceBoard } from './useSpaceBoard';
 import { TEMPLATE_CONFIG } from './templates/template-config';
+import { TimelineTab } from './templates/summary';
 import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
 
 interface SpaceBoardViewProps {
@@ -81,7 +82,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
   const updateSpaceMutation = useUpdateSpace(space?.id ?? '');
   const queryClient = useQueryClient();
   const config = TEMPLATE_CONFIG[space!.templateType];
-  const { DetailModal, CardComponent } = config;
+  const { DetailModal, CardComponent, SummaryComponent } = config;
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
   // Drag-to-scroll state
@@ -224,6 +225,31 @@ function TemplateBoardView({ slug }: { slug: string }) {
         currentUserId={user?.id}
       >
         {(activeTab, filters) => {
+          // Summary tab
+          if (activeTab === 'summary' && SummaryComponent) {
+            return (
+              <SummaryComponent
+                tasks={effectiveTasks}
+                columns={effectiveColumns}
+                columnOrder={effectiveColumnOrder}
+                resolveMemberName={resolveMemberName}
+              />
+            );
+          }
+
+          // Timeline tab
+          if (activeTab === 'timeline') {
+            return (
+              <TimelineTab
+                tasks={effectiveTasks}
+                columns={effectiveColumns}
+                columnOrder={effectiveColumnOrder}
+                resolveMemberName={resolveMemberName}
+                onTaskClick={handleTaskClick}
+              />
+            );
+          }
+
           // Any non-board tab → placeholder
           if (activeTab !== 'board') {
             return (

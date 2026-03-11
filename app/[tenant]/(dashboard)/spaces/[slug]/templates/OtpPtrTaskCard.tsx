@@ -11,6 +11,7 @@ import {
   X,
   BadgeCheck,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import {
@@ -26,6 +27,7 @@ interface OtpPtrTaskCardProps {
   onTitleUpdate?: (task: BoardTask, newTitle: string) => void;
   columnTitle?: string;
   onMarkFinal?: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
@@ -85,6 +87,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   onTitleUpdate,
   columnTitle,
   onMarkFinal,
+  onDelete,
 }: OtpPtrTaskCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -163,6 +166,22 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                 )}
 
                 <span className="flex-1" />
+
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+                        onDelete(task.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                    title="Delete task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
 
                 {captionStatus && OTP_PTR_STATUS_CONFIG[captionStatus] && (
                   <span

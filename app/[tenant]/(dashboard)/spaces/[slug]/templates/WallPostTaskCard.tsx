@@ -11,6 +11,7 @@ import {
   User,
   Calendar,
   AtSign,
+  Trash2,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import type { BoardTaskCardProps } from '../../board/BoardTaskCard';
@@ -151,6 +152,21 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
                   </span>
                 )}
                 <span className="flex-1" />
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+                        onDelete(task.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                    title="Delete task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {scheduledDate && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">
                     <Calendar className="h-3 w-3" />
