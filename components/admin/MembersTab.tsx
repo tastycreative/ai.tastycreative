@@ -71,7 +71,13 @@ export default function MembersTab() {
     // Prevent multiple simultaneous updates for the same member
     if (updatingRoles.has(memberId)) return;
 
+    // Snapshot previous role for rollback
+    const previousRole = users.find(u => u.id === memberId)?.role;
+
     setUpdatingRoles(prev => new Set(prev).add(memberId));
+
+    // Optimistic update — avoids a full refetch and prevents scroll-to-top
+    setUsers(prev => prev.map(u => u.id === memberId ? { ...u, role: newRole } : u));
 
     try {
       const response = await fetch(`/api/tenant/${tenant}/members`, {
@@ -87,20 +93,18 @@ export default function MembersTab() {
         throw new Error(errorData.error || 'Failed to update member role');
       }
 
-      // Refresh the member list to get updated data
-      await fetchUsers();
-      console.log(`Member role updated to ${newRole}`);
-
     } catch (error) {
       console.error('Error updating member role:', error);
+
+      // Revert optimistic update on failure
+      if (previousRole) {
+        setUsers(prev => prev.map(u => u.id === memberId ? { ...u, role: previousRole } : u));
+      }
 
       let errorMessage = 'Failed to update member role';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-
-      // Revert by refetching
-      fetchUsers();
 
       alert(`Error updating member role: ${errorMessage}`);
     } finally {

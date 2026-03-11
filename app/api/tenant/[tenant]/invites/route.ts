@@ -150,35 +150,46 @@ export async function POST(
     // Create invites and send emails
     for (const email of newEmails) {
       try {
-        // Check for existing pending invite
+        // Check for any existing invite (pending, expired, or accepted)
         const existingInvite = await prisma.organizationInvite.findFirst({
           where: {
             organizationId: organization.id,
             email: email.toLowerCase(),
-            acceptedAt: null,
-            expiresAt: { gt: new Date() },
           },
         });
 
-        if (existingInvite) {
+        // If there's a valid pending invite, skip re-sending
+        if (existingInvite && existingInvite.acceptedAt === null && existingInvite.expiresAt > new Date()) {
           skipped.push(email);
           continue;
         }
 
         // Generate unique token
         const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-        // Create invite
-        const invite = await prisma.organizationInvite.create({
-          data: {
-            organizationId: organization.id,
-            email: email.toLowerCase(),
-            role,
-            invitedBy: membership.userId,
-            token,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-          },
-        });
+        // Update existing record or create new one
+        const invite = existingInvite
+          ? await prisma.organizationInvite.update({
+              where: { id: existingInvite.id },
+              data: {
+                role,
+                invitedBy: membership.userId,
+                token,
+                expiresAt,
+                acceptedAt: null,
+              },
+            })
+          : await prisma.organizationInvite.create({
+              data: {
+                organizationId: organization.id,
+                email: email.toLowerCase(),
+                role,
+                invitedBy: membership.userId,
+                token,
+                expiresAt,
+              },
+            });
 
         // Send email - use current request host for invite URL
         const protocol = req.headers.get('x-forwarded-proto') || 'http';

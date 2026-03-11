@@ -141,6 +141,10 @@ export async function POST(req: NextRequest, { params }: Params) {
             ? 'video'
             : null;
 
+        // Detect Google Drive URLs for proper rendering in caption workspace
+        const mediaSourceType = (body.url as string).includes('drive.google.com') || (body.url as string).includes('lh3.googleusercontent.com/d/')
+          ? 'gdrive' : 'upload';
+
         if (captionTicketId) {
           // ── Path A: ticket already exists — append content item ──
           const ticket = await prisma.captionQueueTicket.findUnique({
@@ -157,7 +161,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             data: {
               ticketId: captionTicketId,
               url: body.url,
-              sourceType: 'upload',
+              sourceType: mediaSourceType,
               fileName: body.name ?? null,
               fileType,
               sortOrder: existingCount,
@@ -167,7 +171,36 @@ export async function POST(req: NextRequest, { params }: Params) {
             },
           });
         } else {
-          // ── Path B: no ticket yet — auto-push if this is a WALL_POST board ──
+          // ── Path B: no ticket in metadata — check DB directly to handle
+          //    concurrent uploads (race: multiple files uploaded in parallel may all
+          //    read metadata before any of them writes captionTicketId back).
+          const existingByBoardItem = await prisma.captionQueueTicket.findFirst({
+            where: { boardItemId: itemId },
+            select: { id: true, workflowType: true },
+          });
+
+          if (existingByBoardItem) {
+            // Another concurrent request already created the ticket — append to it
+            const isWallPost =
+              !existingByBoardItem.workflowType ||
+              existingByBoardItem.workflowType === 'wall_post';
+            const existingCount = await prisma.captionQueueContentItem.count({
+              where: { ticketId: existingByBoardItem.id },
+            });
+            await prisma.captionQueueContentItem.create({
+              data: {
+                ticketId: existingByBoardItem.id,
+                url: body.url,
+                sourceType: mediaSourceType,
+                fileName: body.name ?? null,
+                fileType,
+                sortOrder: existingCount,
+                requiresCaption: isWallPost,
+                captionStatus: isWallPost ? 'pending' : 'not_required',
+              },
+            });
+          } else {
+          // ── Path B2: no ticket yet — auto-push if this is a WALL_POST board ──
           const workspace = await prisma.workspace.findUnique({
             where: { id: spaceId },
             select: { organizationId: true, templateType: true },
@@ -238,7 +271,7 @@ export async function POST(req: NextRequest, { params }: Params) {
                 data: {
                   ticketId: created.id,
                   url: body.url,
-                  sourceType: 'upload',
+                  sourceType: mediaSourceType,
                   fileName: body.name ?? null,
                   fileType,
                   sortOrder: 0,
@@ -280,6 +313,7 @@ export async function POST(req: NextRequest, { params }: Params) {
               // Non-fatal
             }
           }
+          } // closes else (no existingByBoardItem)
         }
       } catch (syncErr) {
         // Non-fatal – don't block the media record response

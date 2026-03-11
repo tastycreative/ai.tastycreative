@@ -31,18 +31,25 @@ function getServiceAccountDriveClient() {
   return google.drive({ version: 'v3', auth: jwtAuth });
 }
 
+function getUserDriveClient(accessToken: string) {
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  return google.drive({ version: 'v3', auth: oauth2Client });
+}
+
 /**
  * POST /api/google-drive/download-to-s3
  *
- * Downloads a single file from Google Drive (via service account) and
- * uploads it to S3. Returns the S3 URL and key.
+ * Downloads a single file from Google Drive and uploads it to S3.
+ * Uses user's OAuth token if provided, otherwise falls back to service account.
  *
  * Body: {
  *   driveFileId: string,   – Google Drive file ID
  *   fileName: string,      – original file name
  *   mimeType: string,      – MIME type
- *   orgId: string,         – organization ID for S3 path
- *   context: string,       – S3 sub-path context (e.g. "board-items/{itemId}")
+ *   orgId?: string,        – organization ID for S3 path
+ *   context?: string,      – S3 sub-path context (e.g. "board-items/{itemId}")
+ *   accessToken?: string,  – user's Google OAuth token
  * }
  */
 export async function POST(request: NextRequest) {
@@ -74,7 +81,10 @@ export async function POST(request: NextRequest) {
 
     const context = body.context || 'gdrive-imports';
 
-    const drive = getServiceAccountDriveClient();
+    // Use user's OAuth token if provided, otherwise fall back to service account
+    const drive = body.accessToken
+      ? getUserDriveClient(body.accessToken)
+      : getServiceAccountDriveClient();
 
     // Download file content
     const fileContent = await drive.files.get(

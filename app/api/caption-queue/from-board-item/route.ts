@@ -256,12 +256,14 @@ export async function POST(request: NextRequest) {
       await tx.captionQueueContentItem.createMany({
         data: media.map((m, i) => {
           const mimePrefix = m.type?.split('/')[0]; // 'image', 'video', etc.
+          // Detect Google Drive URLs for proper rendering in caption workspace
+          const isDriveFile = m.url.includes('drive.google.com') || m.url.includes('lh3.googleusercontent.com/d/');
           // Check overrides by media ID or index
           const needsCaption = requiresCaptionOverrides[m.id] ?? requiresCaptionOverrides[String(i)] ?? true;
           return {
             ticketId: newTicket.id,
             url: m.url,
-            sourceType: 'upload',
+            sourceType: isDriveFile ? 'gdrive' : 'upload',
             fileName: m.name || null,
             fileType: mimePrefix === 'image' || mimePrefix === 'video' ? mimePrefix : null,
             sortOrder: i,

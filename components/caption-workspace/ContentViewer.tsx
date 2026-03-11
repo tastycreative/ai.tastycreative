@@ -12,6 +12,7 @@ function extractDriveFileId(url: string): string | null {
     /\/file\/d\/([a-zA-Z0-9_-]+)/,
     /\/folders\/([a-zA-Z0-9_-]+)/,
     /[?&]id=([a-zA-Z0-9_-]+)/,
+    /lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/,
   ];
   for (const p of patterns) {
     const m = url.match(p);

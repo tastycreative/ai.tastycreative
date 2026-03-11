@@ -16,6 +16,8 @@ import {
   X,
   Search,
   Loader2,
+  Link2,
+  ExternalLink,
 } from 'lucide-react';
 import type { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors } from 'react-hook-form';
 import type { CreateSubmissionWithComponents } from '@/lib/validations/content-submission';
@@ -268,6 +270,10 @@ export function ContentDetailsFields({
   );
 
   const templateFields = getMetadataFields(submissionType);
+  // For WALL_POST, only model selection + priority + attachments are needed
+  const visibleTemplateFields = submissionType === 'WALL_POST'
+    ? templateFields.filter((f) => f.key === 'model')
+    : templateFields;
 
   return (
     <div className="space-y-8">
@@ -441,6 +447,38 @@ export function ContentDetailsFields({
               />
             )}
             <p className="text-[11px] text-zinc-500 mt-1">Select the model associated with this content</p>
+          </div>
+
+          {/* Google Drive Link (OTP/PTR — caption workspace context) */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-brand-blue" />
+                Google Drive Link
+                <span className="text-[11px] text-zinc-500 font-normal ml-0.5">(Optional)</span>
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                type="url"
+                value={(metadata.driveLink as string) || ''}
+                onChange={(e) => handleMetadataChange('driveLink', e.target.value)}
+                placeholder="https://drive.google.com/..."
+                className="w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 pr-10 transition-all duration-150"
+              />
+              {(metadata.driveLink as string) && (
+                <a
+                  href={metadata.driveLink as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-brand-blue transition-colors"
+                  title="Open in Drive"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-1">Paste the Drive link so caption writers can reference the content in the caption workspace</p>
           </div>
 
           {/* Content Type Dropdown */}
@@ -1003,7 +1041,7 @@ export function ContentDetailsFields({
       )}
 
       {/* Template-specific metadata fields */}
-      {templateFields.length > 0 && (
+      {visibleTemplateFields.length > 0 && (
         <div className="space-y-4">
           {/* Section Divider */}
           <div className="flex items-center gap-3 my-2">
@@ -1015,7 +1053,7 @@ export function ContentDetailsFields({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {templateFields.map((field) => (
+            {visibleTemplateFields.map((field) => (
               <MetadataFieldInput
                 key={field.key}
                 field={field}

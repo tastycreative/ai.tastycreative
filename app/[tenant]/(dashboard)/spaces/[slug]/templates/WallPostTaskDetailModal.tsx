@@ -59,6 +59,35 @@ import {
   captionStatusToWallPostStatus,
 } from '@/lib/wall-post-status';
 
+/* ── Google Drive URL helpers ─────────────────────────────── */
+
+/** Extract a file ID from common Google Drive URL patterns. */
+function extractDriveFileId(url: string): string | null {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
+/** Check if a URL is a Google Drive URL. */
+function isDriveUrl(url: string): boolean {
+  return url.includes('drive.google.com') || url.includes('lh3.googleusercontent.com/d/');
+}
+
+/** Convert a Drive URL to our streaming proxy URL. */
+function toDriveStreamUrl(url: string): string | null {
+  const id = extractDriveFileId(url);
+  if (!id) return null;
+  return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
+}
+
 /* ── Types ───────────────────────────────────────────────── */
 
 interface Props {
@@ -259,9 +288,18 @@ function MediaCard({
       >
         {isVideo ? (
           <video
-            src={media.url}
+            src={isDriveUrl(media.url) ? (toDriveStreamUrl(media.url) ?? media.url) : media.url}
             className="w-full h-full object-cover"
             preload="metadata"
+          />
+        ) : isDriveUrl(media.url) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={toDriveStreamUrl(media.url) ?? media.url}
+            alt={media.name ?? `Media ${media.index + 1}`}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1764,10 +1802,10 @@ export function WallPostTaskDetailModal({
                           {/* Media preview */}
                           <div className="relative bg-black/50 flex items-center justify-center overflow-hidden" style={{ minHeight: 200, maxHeight: 340 }}>
                             {svIsVideo ? (
-                              <video src={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
+                              <video src={isDriveUrl(selectedItem.url) ? (toDriveStreamUrl(selectedItem.url) ?? selectedItem.url) : selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
                             ) : (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
+                              <img src={isDriveUrl(selectedItem.url) ? (toDriveStreamUrl(selectedItem.url) ?? selectedItem.url) : selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
                                 loading="lazy" decoding="async" className="max-w-full max-h-[340px] w-auto h-auto object-contain" />
                             )}
                             {selectedItemIndex > 0 && (
@@ -1930,7 +1968,7 @@ export function WallPostTaskDetailModal({
                                       </div>
                                     ) : (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={m.url} alt={`${m.index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                                      <img src={isDriveUrl(m.url) ? (toDriveStreamUrl(m.url) ?? m.url) : m.url} alt={`${m.index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                                     )}
                                     <span className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full border border-black/30 ${dotColor}`} />
                                   </div>

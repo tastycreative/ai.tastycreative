@@ -351,7 +351,9 @@ export const SubmissionForm = memo(function SubmissionForm({
         console.error('Content submission record creation failed:', err);
       }
 
-      // 3. Upload files in parallel, create media records in ALL board items
+      // 3. Upload files: presign + S3 upload in parallel, then record
+      //    calls sequentially so the first triggers caption ticket creation
+      //    and subsequent ones find the existing ticket (avoids duplicate tickets).
       if (pendingFiles.length > 0) {
         const totalFiles = pendingFiles.length;
         let completedFiles = 0;
@@ -359,9 +361,9 @@ export const SubmissionForm = memo(function SubmissionForm({
 
         const primaryMediaBase = `/api/spaces/${primaryItem.spaceId}/boards/${primaryItem.boardId}/items/${primaryItem.itemId}/media`;
 
-        const uploadResults = await Promise.allSettled(
-          pendingFiles.map(async (file, i) => {
-            // Presign via the primary item
+        // Phase 1: Presign + S3 upload all files in parallel (fast)
+        const s3Results = await Promise.allSettled(
+          pendingFiles.map(async (file) => {
             const presignRes = await fetch(primaryMediaBase, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -370,25 +372,42 @@ export const SubmissionForm = memo(function SubmissionForm({
             if (!presignRes.ok) throw new Error('Failed to get upload URL');
             const presigned = await presignRes.json();
 
-            // Upload to S3 and create primary media record concurrently
-            await Promise.all([
-              fetch(presigned.uploadUrl, {
-                method: 'PUT',
-                body: file,
-                headers: { 'Content-Type': file.type },
+            await fetch(presigned.uploadUrl, {
+              method: 'PUT',
+              body: file,
+              headers: { 'Content-Type': file.type },
+            });
+
+            return presigned;
+          })
+        );
+
+        // Phase 2: Record calls sequentially (first one creates caption ticket,
+        // subsequent ones append to it via the existing captionTicketId in metadata)
+        for (let i = 0; i < pendingFiles.length; i++) {
+          const result = s3Results[i];
+          if (result.status === 'rejected') {
+            console.error('File upload failed:', pendingFiles[i].name, result.reason);
+            completedFiles++;
+            setFileUploadStep({ current: completedFiles, total: totalFiles });
+            continue;
+          }
+          const presigned = result.value;
+          const file = pendingFiles[i];
+
+          try {
+            // Create primary media record (triggers caption ticket sync)
+            await fetch(primaryMediaBase, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'record',
+                url: presigned.fileUrl,
+                type: file.type,
+                name: file.name,
+                size: file.size,
               }),
-              fetch(primaryMediaBase, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'record',
-                  url: presigned.fileUrl,
-                  type: file.type,
-                  name: file.name,
-                  size: file.size,
-                }),
-              }),
-            ]);
+            });
 
             // Create media records in additional items (link same S3 URL)
             if (createdItems.length > 1) {
@@ -439,57 +458,40 @@ export const SubmissionForm = memo(function SubmissionForm({
                 console.error('Dual-write to content_submission_files failed:', file.name, dualWriteErr);
               }
             }
-
-            // Update progress as each file completes
-            completedFiles++;
-            setFileUploadStep({ current: completedFiles, total: totalFiles });
-          })
-        );
-
-        // Log any failed uploads
-        uploadResults.forEach((result, i) => {
-          if (result.status === 'rejected') {
-            console.error('File upload failed:', pendingFiles[i].name, result.reason);
+          } catch (recordErr) {
+            console.error('Record failed:', file.name, recordErr);
           }
-        });
+
+          completedFiles++;
+          setFileUploadStep({ current: completedFiles, total: totalFiles });
+        }
 
         setFileUploadStep(null);
       }
 
-      // 4. Download Google Drive files → S3, create media records in ALL board items
+      // 4. Google Drive files — save file IDs to DB and use Google Drive's
+      //    direct serving URL. No S3 download, no proxy needed.
+      //    Record calls are sequential so the first triggers caption ticket creation
+      //    and subsequent ones append to the existing ticket.
       if (driveFiles.length > 0) {
-        const totalDriveFiles = driveFiles.length;
-        let completedDriveFiles = 0;
-        setFileUploadStep({ current: 0, total: totalDriveFiles });
-
         const primaryMediaBase = `/api/spaces/${primaryItem.spaceId}/boards/${primaryItem.boardId}/items/${primaryItem.itemId}/media`;
 
-        const driveResults = await Promise.allSettled(
-          driveFiles.map(async (df, i) => {
-            // Download from GDrive → S3 via server
-            const dlRes = await fetch('/api/google-drive/download-to-s3', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                driveFileId: df.id,
-                fileName: df.name,
-                mimeType: df.mimeType,
-                context: `board-items/${primaryItem.itemId}`,
-              }),
-            });
-            if (!dlRes.ok) throw new Error(`Failed to download ${df.name} from Google Drive`);
-            const dlResult = await dlRes.json();
+        for (let i = 0; i < driveFiles.length; i++) {
+          const df = driveFiles[i];
+          try {
+            // Store as standard Drive URL so all Drive-aware components can extract the file ID
+            const mediaUrl = `https://drive.google.com/file/d/${df.id}/view`;
 
-            // Create primary media record
+            // Create primary media record (sequential to avoid duplicate caption tickets)
             await fetch(primaryMediaBase, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 action: 'record',
-                url: dlResult.fileUrl,
+                url: mediaUrl,
                 type: df.mimeType,
                 name: df.name,
-                size: dlResult.fileSize,
+                size: df.size,
               }),
             });
 
@@ -502,10 +504,10 @@ export const SubmissionForm = memo(function SubmissionForm({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       action: 'record',
-                      url: dlResult.fileUrl,
+                      url: mediaUrl,
                       type: df.mimeType,
                       name: df.name,
-                      size: dlResult.fileSize,
+                      size: df.size,
                     }),
                   }).catch((linkErr) => {
                     console.error(`Drive media link failed for space ${item.spaceId}:`, df.name, linkErr);
@@ -527,10 +529,10 @@ export const SubmissionForm = memo(function SubmissionForm({
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    awsS3Key: dlResult.s3Key,
-                    awsS3Url: dlResult.fileUrl,
+                    awsS3Key: `gdrive:${df.id}`,
+                    awsS3Url: mediaUrl,
                     fileName: df.name,
-                    fileSize: dlResult.fileSize,
+                    fileSize: df.size,
                     fileType: df.mimeType,
                     fileCategory,
                     order: pendingFiles.length + i,
@@ -540,19 +542,10 @@ export const SubmissionForm = memo(function SubmissionForm({
                 console.error('Dual-write content_submission_files (drive) failed:', df.name, dualWriteErr);
               }
             }
-
-            completedDriveFiles++;
-            setFileUploadStep({ current: completedDriveFiles, total: totalDriveFiles });
-          })
-        );
-
-        driveResults.forEach((result, i) => {
-          if (result.status === 'rejected') {
-            console.error('Drive file download failed:', driveFiles[i].name, result.reason);
+          } catch (recordErr) {
+            console.error('Drive file record failed:', df.name, recordErr);
           }
-        });
-
-        setFileUploadStep(null);
+        }
       }
 
       setShowSuccess(true);
@@ -696,6 +689,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                       onFilesChange={setPendingFiles}
                       driveFiles={driveFiles}
                       onDriveFilesChange={setDriveFiles}
+                      submissionType={submissionType}
                     />
                   </div>
                 </StepContent>
@@ -954,6 +948,7 @@ const FileUploadStep = memo(function FileUploadStep({
   onFilesChange,
   driveFiles,
   onDriveFilesChange,
+  submissionType,
 }: {
   mode: UploadMode;
   onModeChange: (m: UploadMode) => void;
@@ -961,11 +956,27 @@ const FileUploadStep = memo(function FileUploadStep({
   onFilesChange: (f: File[]) => void;
   driveFiles: DriveFileEntry[];
   onDriveFilesChange: (f: DriveFileEntry[]) => void;
+  submissionType?: string;
 }) {
+  // OTP/PTR: skip mode selector, show only the file picker
+  if (submissionType === 'OTP_PTR') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="text-sm font-medium text-zinc-300 mb-2">Reference Images (screenshots from OF vault)</p>
+          <LocalFilePicker files={files} onChange={onFilesChange} />
+          <p className="text-xs text-zinc-600 mt-1.5">
+            Upload screenshots from OnlyFans vault for team reference
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Mode selector */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 grid-cols-3">
         {UPLOAD_MODES.map((m) => (
           <button
             key={m.value}
@@ -1033,6 +1044,41 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Check for Google Drive access token in URL (after OAuth callback) or localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('access_token');
+    if (token) {
+      setAccessToken(token);
+      localStorage.setItem('googleDriveAccessToken', token);
+      // Clean URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      const saved = localStorage.getItem('googleDriveAccessToken');
+      if (saved) setAccessToken(saved);
+    }
+  }, []);
+
+  const connectGoogleDrive = useCallback(async () => {
+    try {
+      const currentPath = window.location.pathname + window.location.search;
+      const res = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPath)}`);
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch {
+      setError('Failed to connect to Google Drive');
+    }
+  }, []);
+
+  const disconnectGoogleDrive = useCallback(() => {
+    setAccessToken(null);
+    localStorage.removeItem('googleDriveAccessToken');
+  }, []);
 
   const resolveLink = useCallback(async () => {
     const trimmed = driveUrl.trim();
@@ -1042,21 +1088,29 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     setError(null);
 
     try {
+      const body: Record<string, string> = { url: trimmed };
+      if (accessToken) body.accessToken = accessToken;
+
       const res = await fetch('/api/google-drive/fetch-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        // Handle expired/invalid token
+        if (data.authError) {
+          setAccessToken(null);
+          localStorage.removeItem('googleDriveAccessToken');
+        }
         setError(data.error || 'Failed to fetch Google Drive contents');
         return;
       }
 
       if (!data.files || data.files.length === 0) {
-        setError('No media files (images/videos) found at this link.');
+        setError('No files found at this link. Make sure the folder contains files.');
         return;
       }
 
@@ -1067,7 +1121,7 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     } finally {
       setLoading(false);
     }
-  }, [driveUrl, onChange]);
+  }, [driveUrl, onChange, accessToken]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1139,9 +1193,30 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
             {loading ? 'Loading...' : 'Fetch'}
           </button>
         </div>
-        <p className="text-[11px] text-zinc-600">
-          Paste a Google Drive file or folder link. The file/folder must be shared (Anyone with the link).
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-zinc-600">
+            {accessToken
+              ? 'Connected to Google Drive — paste any link you have access to.'
+              : 'Paste a Google Drive link. Connect your Google account to access private files.'}
+          </p>
+          {accessToken ? (
+            <button
+              type="button"
+              onClick={disconnectGoogleDrive}
+              className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors whitespace-nowrap ml-2"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={connectGoogleDrive}
+              className="text-[11px] text-brand-blue hover:text-brand-light-pink transition-colors whitespace-nowrap ml-2 font-medium"
+            >
+              Connect Google Drive
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error */}

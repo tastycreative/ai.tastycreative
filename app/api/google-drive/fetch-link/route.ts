@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { google } from 'googleapis';
+import { google, type drive_v3 } from 'googleapis';
 import { parseDriveLink } from '@/lib/otp-ptr-caption-status';
 
 /**
  * Initialise a Google Drive client using the project service account.
- * The service account can access files/folders that have been shared
- * with it (or are publicly accessible via link).
  */
 function getServiceAccountDriveClient() {
   const clientEmail = process.env.GOOGLE_CLOUD_CLIENT_EMAIL;
@@ -28,20 +26,32 @@ function getServiceAccountDriveClient() {
 }
 
 /**
+ * Initialise a Google Drive client using the user's OAuth access token.
+ */
+function getUserDriveClient(accessToken: string) {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_OAUTH_CLIENT_ID,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    process.env.GOOGLE_OAUTH_REDIRECT_URI,
+  );
+  oauth2Client.setCredentials({ access_token: accessToken });
+  return google.drive({ version: 'v3', auth: oauth2Client });
+}
+
+/**
  * POST /api/google-drive/fetch-link
  *
- * Accepts a Google Drive URL (file or folder), resolves it using the
- * service account, and returns a list of media files with metadata.
+ * Accepts a Google Drive URL (file or folder), resolves it, and returns
+ * a list of files with metadata.
  *
- * Body: { url: string }
- *
- * Response: {
- *   success: boolean,
- *   type: 'file' | 'folder',
- *   files: Array<{ id, name, mimeType, size, webContentLink, thumbnailLink }>
+ * Body: {
+ *   url: string,
+ *   accessToken?: string  — user's OAuth token (uses service account if omitted)
  * }
  */
 export async function POST(request: NextRequest) {
+  let userAccessToken: string | undefined;
+
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -67,7 +77,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const drive = getServiceAccountDriveClient();
+    // Use user's OAuth token if provided, otherwise fall back to service account
+    let drive: drive_v3.Drive;
+    userAccessToken = body.accessToken as string | undefined;
+    if (userAccessToken) {
+      drive = getUserDriveClient(userAccessToken);
+    } else {
+      drive = getServiceAccountDriveClient();
+    }
 
     if (parsed.type === 'file') {
       // ── Single file ────────────────────────────────────────────
@@ -121,13 +138,13 @@ export async function POST(request: NextRequest) {
             // Recurse into sub-folders
             await listFolder(file.id!);
           } else if (
-            file.mimeType?.startsWith('image/') ||
-            file.mimeType?.startsWith('video/')
+            // Skip Google Workspace native docs (Docs, Sheets, Slides, etc.)
+            !file.mimeType?.startsWith('application/vnd.google-apps.')
           ) {
             allFiles.push({
               id: file.id!,
               name: file.name ?? 'untitled',
-              mimeType: file.mimeType,
+              mimeType: file.mimeType ?? 'application/octet-stream',
               size: file.size ? parseInt(file.size, 10) : null,
               thumbnailLink: file.thumbnailLink ?? null,
             });
@@ -155,11 +172,28 @@ export async function POST(request: NextRequest) {
         error.message.includes('insufficientPermissions') ||
         error.message.includes('notFound'));
 
+    const isAuthError =
+      error instanceof Error &&
+      (error.message.includes('invalid_grant') ||
+        error.message.includes('Invalid Credentials') ||
+        error.message.includes('401'));
+
+    if (isAuthError && userAccessToken) {
+      return NextResponse.json(
+        {
+          error: 'Google Drive session expired. Please reconnect your Google account.',
+          authError: true,
+        },
+        { status: 401 },
+      );
+    }
+
     if (isPermission) {
       return NextResponse.json(
         {
-          error:
-            'Cannot access this Google Drive link. Make sure the file/folder is shared with "Anyone with the link" or shared with the service account.',
+          error: userAccessToken
+            ? 'Cannot access this Google Drive link. Make sure you have permission to view it.'
+            : 'Cannot access this Google Drive link. Make sure the file/folder is shared with "Anyone with the link" or connect your Google account.',
           permissionError: true,
         },
         { status: 403 },
@@ -167,7 +201,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to fetch Google Drive contents' },
+      { error: `Failed to fetch Google Drive contents: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 },
     );
   }
