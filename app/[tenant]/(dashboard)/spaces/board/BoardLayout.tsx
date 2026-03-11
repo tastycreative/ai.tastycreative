@@ -287,10 +287,10 @@ export function BoardLayout({
       </div>
 
       {/* ── Tabs + Filter toolbar — unified bar ───────────────── */}
-      <div className="relative rounded-t-xl overflow-hidden border border-b-0 border-gray-200/60 dark:border-[#2a3450]/40 bg-gray-50/50 dark:bg-[#0f1729]/60 backdrop-blur-sm">
+      <div className="relative rounded-t-xl overflow-hidden border border-b-0 border-gray-200/60 dark:border-white/[0.06] bg-gray-50/50 dark:bg-gray-950/50 backdrop-blur-xl">
         {/* Tab row — pill-shaped segmented controls */}
         <div className="flex items-center gap-1 px-3 py-2">
-          <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100/80 dark:bg-[#1a2237]/60 p-1 border border-gray-200/50 dark:border-[#2a3450]/50">
+          <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100/80 dark:bg-white/[0.04] p-1 border border-gray-200/50 dark:border-white/[0.06]">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTab;
               const icon = tabIcons[tab.id];
@@ -302,8 +302,8 @@ export function BoardLayout({
                   className={[
                     'relative inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200',
                     isActive
-                      ? 'bg-white dark:bg-[#2a3450]/80 text-brand-light-pink shadow-sm shadow-brand-light-pink/10 ring-1 ring-brand-light-pink/20'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-white/5',
+                      ? 'bg-white dark:bg-white/[0.08] text-brand-light-pink shadow-sm shadow-brand-light-pink/10 ring-1 ring-brand-light-pink/20'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-white/[0.06]',
                   ].join(' ')}
                 >
                   {icon && <span className={isActive ? 'text-brand-light-pink' : 'opacity-40'}>{icon}</span>}
@@ -317,7 +317,7 @@ export function BoardLayout({
 
       {/* ── Filter toolbar ─────────────────────────────────────── */}
       <div className="relative mb-3 z-30" ref={toolbarRef}>
-        <div className="flex items-center gap-2 rounded-b-xl border border-t-0 border-gray-200/60 dark:border-[#2a3450]/40 bg-gradient-to-b from-gray-50/80 to-white/60 dark:from-[#0f1729]/80 dark:to-[#0f1729]/60 backdrop-blur-md px-3 py-2">
+        <div className="flex items-center gap-2 rounded-b-xl border border-t-0 border-gray-200/60 dark:border-white/[0.06] bg-gradient-to-b from-gray-50/80 to-white/60 dark:from-gray-950/50 dark:to-gray-950/40 backdrop-blur-xl px-3 py-2">
           {/* Search — frosted glass effect */}
           <div className="relative flex-1 min-w-0 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
@@ -326,7 +326,7 @@ export function BoardLayout({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks..."
-              className="w-full rounded-xl bg-gray-100/80 dark:bg-white/[0.04] backdrop-blur-sm border border-gray-200/60 dark:border-[#2a3450]/60 pl-9 pr-7 py-2 text-sm text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/40 focus-visible:border-brand-light-pink/30 transition-all shadow-inner shadow-black/[0.02] dark:shadow-black/10"
+              className="w-full rounded-xl bg-gray-100/80 dark:bg-white/[0.04] backdrop-blur-sm border border-gray-200/60 dark:border-white/[0.06] pl-9 pr-7 py-2 text-sm text-gray-900 dark:text-brand-off-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-light-pink/40 focus-visible:border-brand-light-pink/30 transition-all shadow-inner shadow-black/[0.02] dark:shadow-black/10"
             />
             {searchQuery && (
               <button

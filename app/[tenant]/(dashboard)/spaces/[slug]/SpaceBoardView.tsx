@@ -269,14 +269,17 @@ function TemplateBoardView({ slug }: { slug: string }) {
           const query = filters.searchQuery.toLowerCase();
 
           return (
-            <div
-              ref={boardContainerRef}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              className={`rounded-2xl border border-gray-200 dark:border-[#2a3450]/40 bg-gray-100/50 dark:bg-[#0f1729]/50 p-3 sm:p-4 overflow-x-auto select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-            >
+            <div className="relative rounded-2xl overflow-hidden">
+              {/* Ambient gradient for glassmorphism effect */}
+              <div className="absolute inset-0 dark:bg-gradient-to-br dark:from-brand-dark-pink/[0.08] dark:via-transparent dark:to-brand-blue/[0.06] pointer-events-none" />
+              <div
+                ref={boardContainerRef}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                className={`relative rounded-2xl border border-gray-200 dark:border-white/[0.06] bg-gray-100/50 dark:bg-white/[0.02] p-3 sm:p-4 overflow-x-auto select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              >
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className="flex gap-3 sm:gap-4 min-w-max items-stretch">
                   {effectiveColumnOrder.map((colId) => {
@@ -344,6 +347,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                   <AddColumnButton onAddColumn={handleAddColumn} />
                 </div>
               </DragDropContext>
+              </div>
             </div>
           );
         }}
