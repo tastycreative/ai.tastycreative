@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 import { useRealtimeFallbackInterval } from './useConnectionStatus';
+import { boardItemKeys } from './useBoardItems.query';
 
 export interface CaptionQueueAssignee {
   clerkId: string;
@@ -261,6 +262,7 @@ export function useUpdateContentItemCaption() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
     },
   });
 }
@@ -355,10 +357,10 @@ export function usePushToCaptionWorkspace() {
       // Invalidate caption queue
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
       // Invalidate board items so the status badge updates
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
       // Invalidate the specific board item if there's a cache entry
       queryClient.invalidateQueries({
-        queryKey: ['boardItems', 'detail', variables.boardItemId],
+        queryKey: boardItemKeys.detail(variables.boardItemId),
       });
     },
   });
@@ -402,7 +404,7 @@ export function useQAAction() {
       // Invalidate caption queue
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
       // Invalidate board items so status badges update
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
     },
   });
 }
@@ -457,7 +459,7 @@ export function useQAItemAction() {
     mutationFn: performQAItemAction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
     },
   });
 }
@@ -503,7 +505,7 @@ export function useRepushRejected() {
     mutationFn: performRepushRejected,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
     },
   });
 }
@@ -539,7 +541,7 @@ export function useMarkItemPosted() {
     mutationFn: performMarkItemPosted,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
       // Refresh Caption Bank so newly auto-saved captions appear immediately
       queryClient.invalidateQueries({ queryKey: ['model-captions'] });
     },
@@ -591,9 +593,9 @@ export function usePushOtpPtrToCaptionWorkspace() {
     mutationFn: pushOtpPtrToCaptionWorkspace,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
       queryClient.invalidateQueries({
-        queryKey: ['boardItems', 'detail', variables.boardItemId],
+        queryKey: boardItemKeys.detail(variables.boardItemId),
       });
     },
   });
@@ -640,7 +642,7 @@ export function useOtpPtrQAAction() {
     mutationFn: performOtpPtrQAAction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caption-queue', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['boardItems'] });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
     },
   });
 }
