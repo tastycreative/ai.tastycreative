@@ -128,7 +128,35 @@ function DrivePreview({ url, label, fileType }: { url: string; label?: string; f
     );
   }
 
-  // ── Stream proxy: try for all non-image files ────────────────────
+  // ── Stream proxy for images — same approach as wall post board thumbnails ──
+  if (isKnownImage && !streamFailed && streamUrl) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        {!loaded && <IframeSkeleton />}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          key={`${streamUrl}-${retryCount}`}
+          src={streamUrl}
+          alt={label ?? 'Drive image'}
+          className="max-w-full max-h-full object-contain rounded-lg"
+          style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+          onLoad={() => setLoaded(true)}
+          onError={() => { setStreamFailed(true); setLoaded(false); }}
+        />
+        <a
+          href={viewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Open in Drive
+        </a>
+      </div>
+    );
+  }
+
+  // ── Stream proxy for videos ──────────────────────────────────────
   // If the stream works → native <video> player (handles large files).
   // If the stream fails → auto-fallback to iframe preview.
   if (!isKnownImage && !streamFailed && streamUrl) {
@@ -158,7 +186,7 @@ function DrivePreview({ url, label, fileType }: { url: string; label?: string; f
     );
   }
 
-  // ── Iframe fallback (images, stream failed, or service account can't access) ──
+  // ── Iframe fallback (stream failed, or unknown file type) ────────
   const previewUrl = toPreviewUrl(url);
   return (
     <div className="relative w-full h-full flex flex-col">
@@ -314,6 +342,10 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
           <div className="flex gap-1.5 p-1.5 bg-gray-100 dark:bg-gray-900 border-t border-brand-mid-pink/10 overflow-x-auto custom-scrollbar shrink-0">
             {items.map((thumb, i) => {
               const thumbIsImage = thumb.fileType === 'image' || (!thumb.fileType && thumb.sourceType !== 'gdrive' && thumb.url.match(/\.(jpg|jpeg|png|gif|webp)/i));
+              const thumbIsDriveImage = thumb.sourceType === 'gdrive' && (thumb.fileType === 'image' || (thumb.fileName && /\.(jpg|jpeg|png|gif|webp)/i.test(thumb.fileName)));
+              const thumbSrc = (thumbIsImage || thumbIsDriveImage) && thumb.sourceType === 'gdrive'
+                ? toStreamUrl(thumb.url) ?? thumb.url
+                : thumb.url;
               const isSelected = i === selectedItemIndex;
               return (
                 <button
@@ -327,8 +359,9 @@ function ContentViewerComponent({ ticket, selectedItemIndex = 0, onSelectItem }:
                         : 'border-transparent hover:border-brand-mid-pink/40'
                   }`}
                 >
-                  {thumbIsImage ? (
-                    <img src={thumb.url} alt={`item ${i + 1}`} className="w-full h-full object-cover" />
+                  {(thumbIsImage || thumbIsDriveImage) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumbSrc} alt={`item ${i + 1}`} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                       {thumb.sourceType === 'gdrive' ? <Link2 size={14} className="text-brand-mid-pink" /> : <FileVideo size={14} className="text-brand-mid-pink" />}
