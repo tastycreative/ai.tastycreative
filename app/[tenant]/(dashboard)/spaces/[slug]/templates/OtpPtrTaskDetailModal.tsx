@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
@@ -25,6 +25,9 @@ import {
   Image as ImageIcon,
   Settings,
   Workflow,
+  Search,
+  Check,
+  Minus,
   type LucideIcon,
 } from 'lucide-react';
 // Note: Icons above are used across the component's sections and sidebar
@@ -32,6 +35,8 @@ import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
 import { SelectField } from '../../board/SelectField';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
+import { CONTENT_TAGS } from '@/lib/constants/contentTags';
+import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
@@ -401,6 +406,19 @@ export function OtpPtrTaskDetailModal({
   const [captionDraft, setCaptionDraft] = useState(caption);
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
+  // Content Tags multi-select dropdown
+  const [contentTagsOpen, setContentTagsOpen] = useState(false);
+  const [contentTagsSearch, setContentTagsSearch] = useState('');
+  const contentTagsRef = useRef<HTMLDivElement>(null);
+  const contentTagsTriggerRef = useRef<HTMLButtonElement>(null);
+  const contentTagsDropdownRef = useRef<HTMLDivElement>(null);
+  const [contentTagsPos, setContentTagsPos] = useState({ top: 0, left: 0, width: 0 });
+
+  // Internal Models modal multi-select
+  const [internalModelsModalOpen, setInternalModelsModalOpen] = useState(false);
+  const [internalModelsSearch, setInternalModelsSearch] = useState('');
+  const [internalModelsSelection, setInternalModelsSelection] = useState<string[]>([]);
+
   /* ── API hooks ───────────────────────────────────────── */
 
   const { canManageQueue } = useOrgRole();
@@ -458,11 +476,72 @@ export function OtpPtrTaskDetailModal({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !editingTitle && !editingNotes && !editingCaption) onClose();
+      if (e.key === 'Escape' && !editingTitle && !editingNotes && !editingCaption && !internalModelsModalOpen) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, editingTitle, editingNotes, editingCaption, onClose]);
+  }, [isOpen, editingTitle, editingNotes, editingCaption, internalModelsModalOpen, onClose]);
+
+  // Fetch influencer profiles for internal models selector
+  const { data: influencerProfiles } = useInstagramProfiles();
+
+  const sortedProfiles = useMemo(() => {
+    const profiles = influencerProfiles ?? [];
+    return [...profiles].sort((a, b) => a.name.localeCompare(b.name));
+  }, [influencerProfiles]);
+
+  const filteredProfiles = useMemo(() => {
+    if (!internalModelsSearch.trim()) return sortedProfiles;
+    const q = internalModelsSearch.toLowerCase();
+    return sortedProfiles.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q)
+    );
+  }, [sortedProfiles, internalModelsSearch]);
+
+  // Filtered content tags
+  const filteredContentTags = useMemo(() => {
+    if (!contentTagsSearch.trim()) return [...CONTENT_TAGS];
+    const q = contentTagsSearch.toLowerCase();
+    return ([...CONTENT_TAGS]).filter((tag) => tag.toLowerCase().includes(q));
+  }, [contentTagsSearch]);
+
+  // Content tags: position tracking + outside click
+  const updateContentTagsPos = useCallback(() => {
+    if (!contentTagsTriggerRef.current) return;
+    const rect = contentTagsTriggerRef.current.getBoundingClientRect();
+    const dropdownHeight = 320; // approximate max height of dropdown
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+    setContentTagsPos({
+      top: openUpward ? rect.top - dropdownHeight - 8 : rect.bottom + 8,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!contentTagsOpen) return;
+    updateContentTagsPos();
+    const onScroll = () => updateContentTagsPos();
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [contentTagsOpen, updateContentTagsPos]);
+
+  useEffect(() => {
+    if (!contentTagsOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        contentTagsRef.current && !contentTagsRef.current.contains(target) &&
+        contentTagsDropdownRef.current && !contentTagsDropdownRef.current.contains(target)
+      ) {
+        setContentTagsOpen(false);
+        setContentTagsSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contentTagsOpen]);
 
   if (!mounted || !isOpen) return null;
 
@@ -862,33 +941,213 @@ export function OtpPtrTaskDetailModal({
 
                 {/* Tags */}
                 <Section icon={Tag} title="Tags">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* External Creators - free text input */}
                     <div>
                       <SideLabel>External Creators</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {externalCreatorTags.map((t) => <RemovableTag key={t} variant="pink" onRemove={() => removeFromArray('externalCreatorTags', t)}>{t}</RemovableTag>)}
-                      </div>
                       <TagInput value={getTagInput('externalCreatorTags')} onChange={(v) => setTagInput('externalCreatorTags', v)} onAdd={() => addToArray('externalCreatorTags', getTagInput('externalCreatorTags'))} placeholder="Add creator..." />
+                      {externalCreatorTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {externalCreatorTags.map((t) => <RemovableTag key={t} variant="pink" onRemove={() => removeFromArray('externalCreatorTags', t)}>{t}</RemovableTag>)}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Internal Models - modal multi-select */}
                     <div>
                       <SideLabel>Internal Models</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {internalModelTags.map((t) => <RemovableTag key={t} variant="blue" onRemove={() => removeFromArray('internalModelTags', t)}>{t}</RemovableTag>)}
-                      </div>
-                      <TagInput value={getTagInput('internalModelTags')} onChange={(v) => setTagInput('internalModelTags', v)} onAdd={() => addToArray('internalModelTags', getTagInput('internalModelTags'))} placeholder="Add model..." />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInternalModelsSelection([...internalModelTags]);
+                          setInternalModelsSearch('');
+                          setInternalModelsModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200 text-left outline-none bg-white/[0.03] border-white/[0.06] text-white hover:border-white/[0.12] hover:bg-white/[0.05]"
+                      >
+                        <span className="flex-1 text-gray-500 text-xs">
+                          {internalModelTags.length > 0
+                            ? `${internalModelTags.length} model${internalModelTags.length > 1 ? 's' : ''} selected`
+                            : 'Select internal models...'}
+                        </span>
+                        {internalModelTags.length > 0 && (
+                          <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] font-bold">
+                            {internalModelTags.length}
+                          </span>
+                        )}
+                        <ChevronDown className="shrink-0 w-3.5 h-3.5 text-gray-500" />
+                      </button>
+                      {internalModelTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {internalModelTags.map((t) => (
+                            <RemovableTag key={t} variant="blue" onRemove={() => removeFromArray('internalModelTags', t)}>{t}</RemovableTag>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div>
+
+                    {/* Content Tags - multi-select dropdown with checkboxes */}
+                    <div ref={contentTagsRef}>
                       <SideLabel>Content Tags</SideLabel>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {contentTags.map((t) => <RemovableTag key={t} onRemove={() => removeFromArray('contentTags', t)}>{t}</RemovableTag>)}
+                      <div>
+                        <button
+                          ref={contentTagsTriggerRef}
+                          type="button"
+                          onClick={() => setContentTagsOpen((o) => !o)}
+                          className={[
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200 text-left outline-none',
+                            contentTagsOpen
+                              ? 'bg-white/[0.05] border-brand-light-pink/40 text-white'
+                              : 'bg-white/[0.03] border-white/[0.06] text-white hover:border-white/[0.12] hover:bg-white/[0.05]',
+                          ].join(' ')}
+                        >
+                          <span className="flex-1 text-gray-500 text-xs">
+                            {contentTags.length > 0
+                              ? `${contentTags.length} tag${contentTags.length > 1 ? 's' : ''} selected`
+                              : 'Select content tags...'}
+                          </span>
+                          {contentTags.length > 0 && (
+                            <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-light-pink text-white text-[10px] font-bold">
+                              {contentTags.length}
+                            </span>
+                          )}
+                          <ChevronDown className={`shrink-0 w-3.5 h-3.5 transition-all duration-200 ${contentTagsOpen ? 'text-brand-light-pink rotate-180' : 'text-gray-500'}`} />
+                        </button>
+
+                        {/* Content Tags Dropdown (portaled) */}
+                        {contentTagsOpen && createPortal(
+                          <div
+                            ref={contentTagsDropdownRef}
+                            style={{ position: 'fixed', top: contentTagsPos.top, left: contentTagsPos.left, width: contentTagsPos.width, zIndex: 99999, borderTop: '2px solid #F774B9' }}
+                            className="bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden shadow-2xl shadow-black/50"
+                          >
+                            {/* Search */}
+                            <div className="p-2 border-b border-zinc-800/60">
+                              <div className="relative flex items-center">
+                                <Search className={`absolute left-3 w-3.5 h-3.5 pointer-events-none transition-colors ${contentTagsSearch ? 'text-brand-light-pink' : 'text-zinc-600'}`} />
+                                <input
+                                  type="text"
+                                  value={contentTagsSearch}
+                                  onChange={(e) => setContentTagsSearch(e.target.value)}
+                                  placeholder="Search tags..."
+                                  className="w-full pl-8 pr-8 py-2 text-sm bg-zinc-900/80 border border-zinc-700/40 rounded-lg text-white placeholder-zinc-600 outline-none focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/15 transition-all duration-150"
+                                  autoFocus
+                                />
+                                {contentTagsSearch && (
+                                  <button type="button" onClick={() => setContentTagsSearch('')} className="absolute right-2 text-zinc-600 hover:text-brand-light-pink transition-colors p-0.5 rounded">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Options */}
+                            <div className="max-h-52 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                              <div className="p-1.5 space-y-px">
+                                {/* Select All */}
+                                {!contentTagsSearch.trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (contentTags.length === CONTENT_TAGS.length) {
+                                        updateMeta({ contentTags: [] });
+                                      } else {
+                                        updateMeta({ contentTags: [...CONTENT_TAGS] });
+                                      }
+                                    }}
+                                    className={[
+                                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-100 text-left border-b border-zinc-800/40 mb-1',
+                                      contentTags.length === CONTENT_TAGS.length
+                                        ? 'text-brand-light-pink font-medium'
+                                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60',
+                                    ].join(' ')}
+                                  >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                                      contentTags.length === CONTENT_TAGS.length
+                                        ? 'bg-brand-light-pink border-brand-light-pink'
+                                        : contentTags.length > 0
+                                          ? 'border-brand-light-pink/50 bg-brand-light-pink/20'
+                                          : 'border-zinc-600 bg-zinc-900'
+                                    }`}>
+                                      {contentTags.length === CONTENT_TAGS.length ? (
+                                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                      ) : contentTags.length > 0 ? (
+                                        <Minus className="w-3 h-3 text-brand-light-pink" strokeWidth={3} />
+                                      ) : null}
+                                    </div>
+                                    <span className="italic text-xs">(Select All)</span>
+                                  </button>
+                                )}
+
+                                {/* Tag checkboxes */}
+                                {filteredContentTags.length === 0 ? (
+                                  <div className="flex flex-col items-center justify-center py-6 gap-2">
+                                    <Search className="w-3.5 h-3.5 text-zinc-600" />
+                                    <span className="text-xs text-zinc-600">No tags matching &ldquo;{contentTagsSearch}&rdquo;</span>
+                                  </div>
+                                ) : (
+                                  filteredContentTags.map((tag) => {
+                                    const isChecked = contentTags.includes(tag);
+                                    return (
+                                      <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => {
+                                          const next = isChecked
+                                            ? contentTags.filter((t) => t !== tag)
+                                            : [...contentTags, tag];
+                                          updateMeta({ contentTags: next });
+                                        }}
+                                        className={[
+                                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all duration-100 text-left',
+                                          isChecked
+                                            ? 'text-brand-light-pink font-medium bg-brand-light-pink/5'
+                                            : 'text-zinc-300 hover:text-white hover:bg-zinc-800/60',
+                                        ].join(' ')}
+                                      >
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                                          isChecked ? 'bg-brand-light-pink border-brand-light-pink' : 'border-zinc-600 bg-zinc-900'
+                                        }`}>
+                                          {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                        </div>
+                                        <span>{tag}</span>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="px-3 py-1.5 border-t border-zinc-800/60 flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-700 tracking-wide uppercase">
+                                {contentTags.length} selected
+                              </span>
+                              {contentTags.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateMeta({ contentTags: [] })}
+                                  className="text-[10px] text-zinc-600 hover:text-brand-light-pink transition-colors"
+                                >
+                                  Clear all
+                                </button>
+                              )}
+                            </div>
+                          </div>,
+                          document.body,
+                        )}
                       </div>
-                      <TagInput value={getTagInput('contentTags')} onChange={(v) => setTagInput('contentTags', v)} onAdd={() => addToArray('contentTags', getTagInput('contentTags'))} placeholder="Add tag..." />
+                      {contentTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {contentTags.map((t) => <RemovableTag key={t} onRemove={() => removeFromArray('contentTags', t)}>{t}</RemovableTag>)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Section>
 
                 {/* Timestamps */}
-                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
+                <Section icon={Clock} title="Timestamps">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
                     {typeof meta._createdAt === 'string' && (
                       <div>
@@ -1106,7 +1365,7 @@ export function OtpPtrTaskDetailModal({
                 </Section>
 
                 {/* Deploy */}
-                <Section icon={ExternalLink} title="Deploy" defaultOpen={false}>
+                <Section icon={ExternalLink} title="Deploy">
                   <div className="space-y-3">
                     {platforms.includes('onlyfans') && (
                       <div>
@@ -1381,6 +1640,127 @@ export function OtpPtrTaskDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Internal Models Selection Modal */}
+      {internalModelsModalOpen && (
+        <div
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setInternalModelsModalOpen(false); setInternalModelsSearch(''); }}
+          />
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/60 flex flex-col max-h-[60vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <h3 className="text-sm font-semibold text-white">Select Internal Models</h3>
+              <button
+                type="button"
+                onClick={() => { setInternalModelsModalOpen(false); setInternalModelsSearch(''); }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="px-5 py-3 border-b border-zinc-800/60">
+              <div className="relative flex items-center">
+                <Search className={`absolute left-3 w-3.5 h-3.5 pointer-events-none transition-colors ${internalModelsSearch ? 'text-brand-light-pink' : 'text-zinc-600'}`} />
+                <input
+                  type="text"
+                  value={internalModelsSearch}
+                  onChange={(e) => setInternalModelsSearch(e.target.value)}
+                  placeholder="Search models..."
+                  className="w-full pl-8 pr-8 py-2 text-sm bg-zinc-900/80 border border-zinc-700/40 rounded-lg text-white placeholder-zinc-600 outline-none focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/15 transition-all duration-150"
+                  autoFocus
+                />
+                {internalModelsSearch && (
+                  <button type="button" onClick={() => setInternalModelsSearch('')} className="absolute right-2 text-zinc-600 hover:text-brand-light-pink transition-colors p-0.5 rounded">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+              {filteredProfiles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Search className="w-4 h-4 text-zinc-600" />
+                  <span className="text-xs text-zinc-600">
+                    {internalModelsSearch ? `No models matching "${internalModelsSearch}"` : 'No models available'}
+                  </span>
+                </div>
+              ) : (
+                <div className="p-2 space-y-px">
+                  {filteredProfiles.map((profile) => {
+                    const displayName = profile.name;
+                    const isChecked = internalModelsSelection.includes(displayName);
+                    return (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        onClick={() => {
+                          setInternalModelsSelection((prev) =>
+                            isChecked ? prev.filter((n) => n !== displayName) : [...prev, displayName]
+                          );
+                        }}
+                        className={[
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-100 text-left',
+                          isChecked
+                            ? 'bg-brand-light-pink/10 text-brand-light-pink'
+                            : 'text-zinc-300 hover:bg-zinc-800/60 hover:text-white',
+                        ].join(' ')}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150 ${
+                          isChecked ? 'bg-brand-light-pink border-brand-light-pink' : 'border-zinc-600 bg-zinc-900'
+                        }`}>
+                          {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium">{displayName}</span>
+                          {profile.username && (
+                            <span className="text-zinc-500 text-xs ml-2">@{profile.username}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-zinc-950/80">
+              <span className="text-xs text-zinc-500">
+                {internalModelsSelection.length} selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setInternalModelsModalOpen(false); setInternalModelsSearch(''); }}
+                  className="px-3 py-1.5 text-xs rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateMeta({ internalModelTags: internalModelsSelection });
+                    setInternalModelsModalOpen(false);
+                    setInternalModelsSearch('');
+                  }}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-brand-light-pink text-white hover:bg-brand-mid-pink transition-colors"
+                >
+                  Save ({internalModelsSelection.length})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

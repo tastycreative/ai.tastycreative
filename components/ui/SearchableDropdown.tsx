@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 
 export interface SearchableDropdownProps {
@@ -31,9 +32,11 @@ export const SearchableDropdown = memo(function SearchableDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   const filtered = useMemo(
     () =>
@@ -59,9 +62,34 @@ export const SearchableDropdown = memo(function SearchableDropdown({
     setActiveIndex(-1);
   }, []);
 
+  const updatePos = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dropdownHeight = maxHeight + 100; // list + search + footer
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+    setPos({
+      top: openUpward ? rect.top - dropdownHeight - 8 : rect.bottom + 8,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, [maxHeight]);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePos();
+    const onScroll = () => updatePos();
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [open, updatePos]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         close();
       }
     };
@@ -171,20 +199,26 @@ export const SearchableDropdown = memo(function SearchableDropdown({
         )}
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
+      {/* Dropdown panel (portaled to body to escape overflow clipping) */}
+      {open && createPortal(
         <div
+          ref={dropdownRef}
           style={{
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
+            width: pos.width,
+            zIndex: 99999,
             borderTop: '2px solid #F774B9',
             boxShadow:
               '0 4px 6px -1px rgba(0,0,0,0.5), 0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,116,185,0.12)',
           }}
           className={[
-            'absolute z-50 left-0 right-0 mt-2',
             'bg-zinc-950 border border-zinc-800/80 rounded-xl',
             'overflow-hidden',
             'animate-in fade-in-0 zoom-in-[0.98] slide-in-from-top-1 duration-150',
           ].join(' ')}
+          onKeyDown={handleKeyDown}
         >
           {/* Search bar */}
           <div className="p-2 border-b border-zinc-800/60">
@@ -305,7 +339,8 @@ export const SearchableDropdown = memo(function SearchableDropdown({
               </span>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

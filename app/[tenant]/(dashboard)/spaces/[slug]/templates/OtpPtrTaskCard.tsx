@@ -142,10 +142,10 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
               'group/card relative rounded-xl cursor-pointer select-none',
               'border-l-[3px]',
               priorityBorder,
-              'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
+              'bg-white/90 dark:bg-gray-900/70 backdrop-blur-lg border border-gray-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] ring-1 ring-transparent dark:ring-white/[0.05]',
               snapshot.isDragging
-                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/40 ring-1 ring-brand-light-pink/20 scale-[1.02]'
-                : 'hover:shadow-xl dark:hover:shadow-2xl hover:border-pink-200 dark:hover:border-pink-700 hover:-translate-y-0.5',
+                ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/40 ring-brand-light-pink/20 scale-[1.02] dark:bg-gray-900/80'
+                : 'hover:shadow-xl dark:hover:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] hover:border-pink-200 dark:hover:border-white/[0.12] dark:hover:bg-gray-900/80 hover:-translate-y-0.5',
               'transition-all duration-200',
             ].join(' ')}
           >
@@ -269,7 +269,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
               )}
 
               {/* Footer: priority + timestamp + assignee */}
-              <div className="flex items-center gap-2.5 pt-2.5 border-t border-white/[0.04]">
+              <div className="flex items-center gap-2.5 pt-2.5 border-t border-gray-200/50 dark:border-white/[0.08]">
                 {task.priority && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                     <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? ''}`} />

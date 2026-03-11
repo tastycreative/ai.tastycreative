@@ -171,6 +171,8 @@ export function ContentDetailsFields({
   const [internalModelsSelection, setInternalModelsSelection] = useState<string[]>([]);
   const selectedInternalModelTags: string[] = watch('internalModelTags') || [];
 
+  const selectedModelId = watch('modelId') as string | undefined;
+
   const { data: contentTypeOptions, isLoading: contentTypeLoading } = useContentTypeOptions({
     category: pricingCategory,
     pageType: (metadata.pageType as string) || undefined,
@@ -179,6 +181,58 @@ export function ContentDetailsFields({
 
   // Fetch influencer profiles for model selector & internal models
   const { data: influencerProfiles, isLoading: influencerProfilesLoading } = useInstagramProfiles();
+
+  // Fetch selected model's profile to get content minimums pricing
+  const { data: selectedModelProfile } = useQuery({
+    queryKey: ['instagram-profile-pricing', selectedModelId],
+    queryFn: async () => {
+      if (!selectedModelId) return null;
+      const res = await fetch(`/api/instagram-profiles/${selectedModelId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedModelId && submissionType === 'OTP_PTR',
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  // Extract content minimums from selected model's pricing (use of_paid as primary)
+  const modelContentMinimums = useMemo(() => {
+    if (!selectedModelProfile?.modelBible?.platformPricing) return null;
+    const pp = selectedModelProfile.modelBible.platformPricing;
+    // Try of_paid first, then of_free, then fansly
+    const pricing = pp.of_paid ?? pp.of_free ?? pp.fansly;
+    const minimums = (pricing?.contentMinimums as Record<string, number>) ?? null;
+    // Treat empty object as null
+    if (minimums && Object.keys(minimums).length === 0) return null;
+    return minimums;
+  }, [selectedModelProfile]);
+
+  // Whether a model is selected but has no content minimums configured
+  const modelHasNoPricing = !!selectedModelId && !!selectedModelProfile && !modelContentMinimums;
+
+  // When a model is selected, build content type options directly from their contentMinimums
+  // Falls back to DB content type options when no model is selected
+  const enrichedContentTypeOptions = useMemo(() => {
+    // Model selected but no pricing → empty list; no model selected → DB options
+    if (!modelContentMinimums) return selectedModelId ? [] : contentTypeOptions;
+    return Object.entries(modelContentMinimums).map(([name, price]) => ({
+      id: name.toLowerCase().replace(/\s+/g, '-'),
+      value: name.toLowerCase().replace(/\s+/g, '-'),
+      label: name,
+      priceType: 'MINIMUM' as string | null,
+      priceMin: price as number,
+      priceFixed: null,
+      priceMax: null,
+      description: null,
+      isActive: true,
+      order: 0,
+      category: 'PORN_ACCURATE',
+      isFree: false,
+      modelId: selectedModelId ?? null,
+      pageType: null,
+    })) satisfies ContentTypeOption[];
+  }, [contentTypeOptions, modelContentMinimums, selectedModelId]);
 
   // Close content type dropdown on outside click
   const closeContentType = useCallback(() => {
@@ -194,23 +248,23 @@ export function ContentDetailsFields({
   }, []);
   useOutsideClick(contentTagsRef, closeContentTags);
 
-  // Filtered content type options
+  // Filtered content type options (use enriched options with model pricing)
   const filteredContentTypeOptions = useMemo(() => {
-    if (!contentTypeOptions) return [];
-    if (!contentTypeSearch.trim()) return contentTypeOptions;
+    if (!enrichedContentTypeOptions) return [];
+    if (!contentTypeSearch.trim()) return enrichedContentTypeOptions;
     const q = contentTypeSearch.toLowerCase();
-    return contentTypeOptions.filter(
+    return enrichedContentTypeOptions.filter(
       (opt) =>
         opt.label.toLowerCase().includes(q) ||
         opt.value.toLowerCase().includes(q) ||
         opt.description?.toLowerCase().includes(q)
     );
-  }, [contentTypeOptions, contentTypeSearch]);
+  }, [enrichedContentTypeOptions, contentTypeSearch]);
 
-  // Find currently selected content type option
+  // Find currently selected content type option (use enriched options for pricing)
   const selectedContentTypeOption = useMemo(
-    () => contentTypeOptions?.find((opt) => opt.value === selectedContentType) ?? null,
-    [contentTypeOptions, selectedContentType]
+    () => enrichedContentTypeOptions?.find((opt) => opt.value === selectedContentType) ?? null,
+    [enrichedContentTypeOptions, selectedContentType]
   );
 
   // Filtered content tags
@@ -261,12 +315,14 @@ export function ContentDetailsFields({
   const handleContentTypeSelect = useCallback(
     (opt: ContentTypeOption) => {
       setValue('contentType', opt.value);
-      setValue('contentTypeOptionId', opt.id);
+      // When options come from model's contentMinimums, there's no DB record — clear the FK
+      setValue('contentTypeOptionId', modelContentMinimums ? undefined : opt.id);
       handleMetadataChange('contentType', opt.label);
+      handleMetadataChange('contentTypePrice', opt.priceMin ?? opt.priceFixed ?? null);
       setContentTypeOpen(false);
       setContentTypeSearch('');
     },
-    [setValue, handleMetadataChange]
+    [setValue, handleMetadataChange, modelContentMinimums]
   );
 
   const templateFields = getMetadataFields(submissionType);
@@ -484,7 +540,7 @@ export function ContentDetailsFields({
           {/* Content Type Dropdown */}
           <div className="mt-4" ref={contentTypeRef}>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Content Type <span className="text-brand-light-pink">*</span>
+              Content Type
             </label>
             <div className="relative">
               {/* Trigger button */}
@@ -513,7 +569,9 @@ export function ContentDetailsFields({
                     </span>
                   </span>
                 ) : (
-                  <span className="flex-1 text-zinc-500">Select content type...</span>
+                  <span className="flex-1 text-zinc-500">
+                    {modelHasNoPricing ? 'No pricing data for this model' : 'Select content type...'}
+                  </span>
                 )}
                 <ChevronDown
                   className={`shrink-0 w-4 h-4 transition-all duration-200 ${
@@ -563,8 +621,12 @@ export function ContentDetailsFields({
                         <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center">
                           <Search className="w-3.5 h-3.5 text-zinc-600" />
                         </div>
-                        <span className="text-xs text-zinc-600">
-                          {contentTypeSearch ? `No results for "${contentTypeSearch}"` : 'No content types available'}
+                        <span className="text-xs text-zinc-600 text-center px-4">
+                          {contentTypeSearch
+                            ? `No results for "${contentTypeSearch}"`
+                            : modelHasNoPricing
+                              ? 'No content pricing configured for this model'
+                              : 'No content types available'}
                         </span>
                       </div>
                     ) : (

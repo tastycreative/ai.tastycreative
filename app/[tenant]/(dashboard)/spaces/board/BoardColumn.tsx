@@ -122,9 +122,9 @@ export function BoardColumn({
 
   return (
     <div className="w-[290px] shrink-0 flex flex-col">
-      <div className="rounded-2xl bg-gray-50/90 dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700 backdrop-blur-xl shadow-sm dark:shadow-xl dark:shadow-black/30 flex flex-col overflow-hidden h-full">
+      <div className="rounded-2xl bg-gray-50/80 dark:bg-gray-950/60 border border-gray-200/80 dark:border-white/[0.08] backdrop-blur-xl shadow-lg dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ring-1 ring-transparent dark:ring-white/[0.05] flex flex-col overflow-hidden h-full">
         {/* Column header */}
-        <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-gray-700 bg-white/60 dark:bg-gray-800/50">
+        <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-200/70 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03]">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Color picker */}
             <div className="relative" ref={colorPickerRef}>
