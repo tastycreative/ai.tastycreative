@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Edge Runtime — critical for streaming large files on Vercel.
- * Node.js serverless functions buffer responses and run out of memory
- * on large files. Edge functions pipe ReadableStreams natively with
- * near-zero memory overhead.
+ * Node.js runtime — required for large file streaming on Vercel.
+ *
+ * Edge Runtime (V8 Isolate) buffers the full upstream fetch() response body
+ * in memory before the ReadableStream is available, causing OOM on large
+ * videos. Node.js runtime uses real OS-level I/O and properly streams
+ * ReadableStreams without buffering.
+ *
+ * maxDuration is set to 30s — sufficient for one 8 MB chunk request.
+ * The <video> element issues sequential Range requests automatically.
  */
-export const runtime = 'edge';
+export const maxDuration = 30; // seconds
+
+/** Maximum bytes served per request — keeps memory and time bounded. */
+const MAX_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB
 
 /* ── Lightweight Google Service Account auth (no googleapis dep) ──── */
 
@@ -213,13 +221,37 @@ export async function GET(request: NextRequest) {
     const isUserAuth = !!userAccessToken;
     let token = userAccessToken || await getAccessToken();
 
-    // Build headers — forward Range if the browser sent one
     const fetchHeaders: Record<string, string> = {
       Authorization: `Bearer ${token}`,
     };
+
+    // Build Range header — always cap to MAX_CHUNK_BYTES so a single request
+    // never buffers more than 8 MB of the file into memory.
+    //
+    // Without this, a bare <video> src (no Range header) or an open-ended
+    // "Range: bytes=0-" causes the entire file to be fetched at once,
+    // exhausting Vercel function memory for large videos.
+    //
+    // The browser's media player handles 206 Partial Content transparently
+    // and will automatically issue subsequent Range requests as playback
+    // progresses through the file.
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) {
-      fetchHeaders['Range'] = rangeHeader;
+      const m = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (m) {
+        const start = parseInt(m[1], 10);
+        const reqEnd = m[2] ? parseInt(m[2], 10) : Infinity;
+        const cappedEnd = Math.min(reqEnd, start + MAX_CHUNK_BYTES - 1);
+        fetchHeaders['Range'] = `bytes=${start}-${cappedEnd}`;
+      } else {
+        // Non-standard Range format — pass through unchanged
+        fetchHeaders['Range'] = rangeHeader;
+      }
+    } else {
+      // No Range header (initial <video> load) — force first chunk only.
+      // Google returns 206 + Content-Range so the browser learns the full
+      // file size and can seek correctly on subsequent requests.
+      fetchHeaders['Range'] = `bytes=0-${MAX_CHUNK_BYTES - 1}`;
     }
 
     // Stream file directly from Google Drive API.
@@ -263,7 +295,8 @@ export async function GET(request: NextRequest) {
     // Forward relevant headers from Google's response
     const responseHeaders = new Headers({
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'public, max-age=3600, immutable',
+      // private: authenticated content must not be stored by shared CDN caches
+      'Cache-Control': 'private, max-age=300',
     });
 
     const contentType = driveRes.headers.get('content-type');
