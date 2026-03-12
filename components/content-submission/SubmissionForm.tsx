@@ -346,11 +346,20 @@ export const SubmissionForm = memo(function SubmissionForm({
     try {
       const meta = (data.metadata ?? {}) as Record<string, unknown>;
 
-      // Title: use model name from metadata, fall back to template label
-      const title =
-        (meta.model as string)?.trim() ||
-        TEMPLATE_LABELS[data.submissionType] ||
-        data.submissionType;
+      // Title: combine model + postOrigin + contentType for a descriptive title
+      const modelName = (meta.model as string)?.trim();
+      const postOrigin = (meta.postOrigin as string)?.trim();
+      const contentType = (meta.contentType as string)?.trim();
+      const titleParts: string[] = [];
+      if (modelName) titleParts.push(modelName);
+      const detailParts: string[] = [];
+      if (postOrigin) detailParts.push(postOrigin.toUpperCase());
+      if (contentType) {
+        // contentType is a slug like "solo-video", convert to readable
+        detailParts.push(contentType.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+      }
+      if (detailParts.length > 0) titleParts.push(detailParts.join(' '));
+      const title = titleParts.join(' — ') || TEMPLATE_LABELS[data.submissionType] || data.submissionType;
 
       // Due date: pull from template metadata date fields
       const rawDue =
@@ -751,6 +760,7 @@ if (cancelRequestedRef.current) break;
                     spaceId={primarySpace?.id}
                     assigneeId={assigneeId}
                     onAssigneeChange={setAssigneeId}
+                    contentStyle={contentStyle}
                   />
 
                   {/* File Uploads section */}

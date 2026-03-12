@@ -309,6 +309,28 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     [effectiveTasks, updateItemMutation],
   );
 
+  const handleColumnChange = useCallback(
+    (taskId: string, newColumnId: string) => {
+      const oldCol = findColumnForTask(taskId);
+      if (!oldCol || oldCol.id === newColumnId) return;
+      const newCol = effectiveColumns[newColumnId];
+      if (!newCol) return;
+
+      // Optimistic: move task between columns
+      const newCols = { ...effectiveColumns };
+      newCols[oldCol.id] = { ...oldCol, taskIds: oldCol.taskIds.filter((id) => id !== taskId) };
+      newCols[newCol.id] = { ...newCol, taskIds: [...newCol.taskIds, taskId] };
+      setLocalColumns(newCols);
+
+      // Update column title shown in modal
+      setSelectedColumnTitle(newCol.title);
+
+      // Persist to server
+      updateItemMutation.mutate({ itemId: taskId, columnId: newColumnId });
+    },
+    [effectiveColumns, findColumnForTask, updateItemMutation],
+  );
+
   const handleTitleUpdate = useCallback(
     (task: BoardTask, newTitle: string) => {
       const updated = { ...task, title: newTitle };
@@ -444,6 +466,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
     handleColumnTitleUpdate,
     handleTaskClick,
     handleTaskUpdate,
+    handleColumnChange,
     handleTitleUpdate,
     handleDeleteTask,
     closeTaskModal,

@@ -137,6 +137,8 @@ interface ContentDetailsFieldsProps {
   spaceId?: string;
   assigneeId?: string;
   onAssigneeChange?: (userId: string | undefined) => void;
+  /** The content style selected in the previous step (e.g. 'normal', 'game', 'ppv') */
+  contentStyle?: string;
 }
 
 export function ContentDetailsFields({
@@ -147,6 +149,7 @@ export function ContentDetailsFields({
   spaceId,
   assigneeId,
   onAssigneeChange,
+  contentStyle: contentStyleProp,
 }: ContentDetailsFieldsProps) {
   const submissionType = (watch('submissionType') ?? 'OTP_PTR') as SubmissionTemplateType;
   const metadata = watch('metadata') || {};
@@ -247,10 +250,9 @@ export function ContentDetailsFields({
    // Check if selected model is paused for the chosen content style
   const { pausedModelsMap } = usePausedModels();
   const selectedModelName = (metadata.model as string) || '';
-  const selectedContentStyle = (metadata.contentStyle as string) || '';
   const modelPausedStyles = selectedModelName ? pausedModelsMap.get(selectedModelName) : undefined;
-  const isSelectedStylePaused = modelPausedStyles && selectedContentStyle
-    ? modelPausedStyles.includes(selectedContentStyle)
+  const isSelectedStylePaused = modelPausedStyles && contentStyleProp
+    ? modelPausedStyles.includes(contentStyleProp)
     : false;
 
   // Close content type dropdown on outside click

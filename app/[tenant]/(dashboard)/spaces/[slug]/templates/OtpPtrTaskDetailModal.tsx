@@ -66,6 +66,8 @@ import { CONTENT_STYLES } from '@/components/content-submission/ContentStyleSele
 interface Props {
   task: BoardTask;
   columnTitle: string;
+  columns?: { id: string; name: string }[];
+  onColumnChange?: (columnId: string) => void;
   isOpen: boolean;
   onClose: () => void;
   onUpdate: (updated: BoardTask) => void;
@@ -76,6 +78,20 @@ type ModalTab = 'details' | 'workflow' | 'history' | 'comments';
 /* ── Constants ───────────────────────────────────────────── */
 
 const POST_ORIGIN_OPTIONS = ['PTR', 'OTP', 'OTM', 'PPV', 'GAME', 'LIVE', 'TIP_ME', 'VIP', 'DM_FUNNEL', 'RENEW_ON', 'CUSTOM'];
+
+const TIER_OPTIONS = [
+  { value: 'PORN_ACCURATE', label: 'Porn Accurate' },
+  { value: 'PORN_SCAM', label: 'Porn Scam' },
+  { value: 'GF_ACCURATE', label: 'GF Accurate' },
+  { value: 'GF_SCAM', label: 'GF Scam' },
+];
+
+const PAGE_TYPE_OPTIONS = [
+  { value: 'ALL_PAGES', label: 'All Pages' },
+  { value: 'FREE', label: 'Free' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'VIP', label: 'VIP' },
+];
 
 const PRIORITY_PILL: Record<string, string> = {
   High: 'text-red-400',
@@ -329,6 +345,8 @@ function RemovableTag({
 export function OtpPtrTaskDetailModal({
   task,
   columnTitle,
+  columns,
+  onColumnChange,
   isOpen,
   onClose,
   onUpdate,
@@ -1567,10 +1585,27 @@ export function OtpPtrTaskDetailModal({
             </div>
 
             <SideRow label="Status">
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
-                <span className="h-2 w-2 rounded-full bg-brand-light-pink" />
-                {columnTitle}
-              </span>
+              {columns && columns.length > 0 && onColumnChange ? (
+                <SelectField
+                  value={columnTitle}
+                  options={columns.map((c) => c.name)}
+                  onSave={(name) => {
+                    const col = columns.find((c) => c.name === name);
+                    if (col) onColumnChange(col.id);
+                  }}
+                  renderOption={(name) => (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${name === columnTitle ? 'bg-brand-light-pink' : 'bg-gray-500'}`} />
+                      {name}
+                    </span>
+                  )}
+                />
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-off-white">
+                  <span className="h-2 w-2 rounded-full bg-brand-light-pink" />
+                  {columnTitle}
+                </span>
+              )}
             </SideRow>
 
             <SideRow label="Priority">
@@ -1602,15 +1637,25 @@ export function OtpPtrTaskDetailModal({
             </SideRow>
 
             <SideRow label="Tier">
-              <span className="text-sm font-semibold text-brand-off-white">
-                <EditableField value={tier} placeholder="Set tier" onSave={(v) => updateMeta({ pricingCategory: v, pricingTier: v })} />
-              </span>
+              <SelectField
+                value={TIER_OPTIONS.find((o) => o.value === tier)?.label || tier || 'Set tier'}
+                options={TIER_OPTIONS.map((o) => o.label)}
+                onSave={(label) => {
+                  const opt = TIER_OPTIONS.find((o) => o.label === label);
+                  if (opt) updateMeta({ pricingCategory: opt.value, pricingTier: opt.value });
+                }}
+              />
             </SideRow>
 
             <SideRow label="Page Type">
-              <span className="text-sm font-semibold text-brand-off-white">
-                <EditableField value={pageType} placeholder="Set page type" onSave={(v) => updateMeta({ pageType: v })} />
-              </span>
+              <SelectField
+                value={PAGE_TYPE_OPTIONS.find((o) => o.value === pageType)?.label || pageType || 'Set page type'}
+                options={PAGE_TYPE_OPTIONS.map((o) => o.label)}
+                onSave={(label) => {
+                  const opt = PAGE_TYPE_OPTIONS.find((o) => o.label === label);
+                  if (opt) updateMeta({ pageType: opt.value });
+                }}
+              />
             </SideRow>
 
             <SideRow label="Model">
