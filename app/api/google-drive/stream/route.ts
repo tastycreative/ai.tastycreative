@@ -150,22 +150,59 @@ export async function GET(request: NextRequest) {
 
   // ── Ping mode: check auth without streaming ─────────────────────────
   // Used by the client to validate the user token against Drive before mounting
-  // a media element. Never falls back to the service account — the whole point
-  // is to confirm what *this user's* token can access.
+  // a media element. Tries refreshing the token if it's expired/missing.
+  // Never falls back to the service account — the whole point is to confirm
+  // what *this user's* token can access.
   const ping = request.nextUrl.searchParams.get('ping') === 'true';
   if (ping) {
-    const userToken = request.cookies.get('gdrive_access_token')?.value;
+    let userToken = request.cookies.get('gdrive_access_token')?.value;
+    const refreshToken = request.cookies.get('gdrive_refresh_token')?.value;
+
+    // If access token is missing but refresh token exists, try refreshing
+    if (!userToken && refreshToken) {
+      userToken = await tryRefreshUserToken(refreshToken) ?? undefined;
+    }
+
     if (!userToken) {
       return NextResponse.json({ code: 'no_token' }, { status: 401 });
     }
+
     // Lightweight metadata fetch — only retrieves the file id field (~50 bytes)
-    const metaRes = await fetch(
+    let metaRes = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id&supportsAllDrives=true`,
       { headers: { Authorization: `Bearer ${userToken}` } },
     );
+
+    // If token expired (401), try refreshing once
+    if (metaRes.status === 401 && refreshToken) {
+      const newToken = await tryRefreshUserToken(refreshToken);
+      if (newToken) {
+        userToken = newToken;
+        metaRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id&supportsAllDrives=true`,
+          { headers: { Authorization: `Bearer ${newToken}` } },
+        );
+      }
+    }
+
     if (metaRes.status === 401) return NextResponse.json({ code: 'token_expired' }, { status: 401 });
     if (metaRes.status === 403 || metaRes.status === 404) return NextResponse.json({ code: 'no_access' }, { status: 403 });
     if (!metaRes.ok) return NextResponse.json({ code: 'error' }, { status: metaRes.status });
+
+    // If we refreshed the token, set the updated cookie
+    const originalToken = request.cookies.get('gdrive_access_token')?.value;
+    if (userToken !== originalToken) {
+      const res = NextResponse.json({ code: 'ok' });
+      res.cookies.set('gdrive_access_token', userToken, {
+        path: '/api/google-drive',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3500,
+      });
+      return res;
+    }
+
     return NextResponse.json({ code: 'ok' });
   }
 

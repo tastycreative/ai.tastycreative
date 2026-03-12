@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useState, useEffect, useCallback } from 'react';
-import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck, FolderOpen, LogIn, LogOut, RefreshCw, Lock } from 'lucide-react';
+import { Play, ExternalLink, FileVideo, FileImage, ChevronLeft, ChevronRight, Link2, CheckCircle, ShieldCheck, FolderOpen, LogIn, LogOut, RefreshCw, Lock, AlertTriangle } from 'lucide-react';
 import { QueueTicket, ContentItemData } from './types';
 import { useGoogleDriveAccount, type GoogleDriveProfile } from '@/lib/hooks/useGoogleDriveAccount';
 
@@ -160,7 +160,8 @@ function DrivePreview({ url, label, isSignedIn, fileType, onSignIn }: {
   onSignIn?: () => void;
 }) {
   const [loaded, setLoaded] = useState(false);
-  const [streamStatus, setStreamStatus] = useState<'checking' | 'ok' | 'no_token' | 'no_access' | 'error'>('checking');
+  const [streamStatus, setStreamStatus] = useState<'checking' | 'ok' | 'no_token' | 'no_access' | 'stream_error' | 'error'>('checking');
+  const [retryKey, setRetryKey] = useState(0);
 
   const viewUrl = toViewUrl(url);
   const fileId = extractDriveFileId(url);
@@ -185,7 +186,7 @@ function DrivePreview({ url, label, isSignedIn, fileType, onSignIn }: {
       })
       .catch(() => { if (!cancelled) setStreamStatus('error'); });
     return () => { cancelled = true; };
-  }, [streamUrl]);
+  }, [streamUrl, retryKey]);
 
   // ── Folders — always use embed iframe (can't stream folder listings) ─
   if (isDriveFolder(url)) {
@@ -306,6 +307,32 @@ function DrivePreview({ url, label, isSignedIn, fileType, onSignIn }: {
         </div>
       );
     }
+    // Stream/loading error — ping passed but media failed to load
+    if (streamStatus === 'stream_error') {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-gray-900/40 rounded-lg p-8">
+          <div className="w-14 h-14 rounded-full bg-amber-900/40 flex items-center justify-center">
+            <AlertTriangle size={24} className="text-amber-400" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-200">Failed to load media</p>
+            <p className="text-xs text-gray-500 mt-1">The file couldn&apos;t be streamed. Try refreshing or open directly in Drive.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setRetryKey(k => k + 1)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand-mid-pink hover:bg-brand-dark-pink transition-colors"
+            >
+              <RefreshCw size={12} /> Retry
+            </button>
+            <a href={viewUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 transition-colors">
+              <ExternalLink size={12} /> Open in Drive
+            </a>
+          </div>
+        </div>
+      );
+    }
     // Token is valid and has access — mount the media element
     const isImage = fileType === 'image';
     return (
@@ -314,24 +341,24 @@ function DrivePreview({ url, label, isSignedIn, fileType, onSignIn }: {
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={streamUrl}
+            key={`${streamUrl}|${retryKey}`}
             src={streamUrl}
             alt={label ?? ''}
             className="flex-1 w-full h-full object-contain"
             style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
             onLoad={() => setLoaded(true)}
-            onError={() => { setLoaded(true); setStreamStatus('no_access'); }}
+            onError={() => { setLoaded(true); setStreamStatus('stream_error'); }}
           />
         ) : (
           <video
-            key={streamUrl}
+            key={`${streamUrl}|${retryKey}`}
             src={streamUrl}
             controls
             className="flex-1 w-full h-full bg-black rounded-lg"
             style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
             preload="metadata"
             onLoadedMetadata={() => setLoaded(true)}
-            onError={() => { setLoaded(true); setStreamStatus('no_access'); }}
+            onError={() => { setLoaded(true); setStreamStatus('stream_error'); }}
           />
         )}
         <a href={viewUrl} target="_blank" rel="noopener noreferrer"
