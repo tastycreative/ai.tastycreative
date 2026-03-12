@@ -341,6 +341,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onMarkFinal={handleMarkFinal}
                         onTaskDelete={handleDeleteTask}
                         CardComponent={CardComponent}
+                        templateType={space!.templateType}
                       />
                     );
                   })}

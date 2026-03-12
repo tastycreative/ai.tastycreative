@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus, X, Pencil } from 'lucide-react';
 import { BoardTaskCard, type BoardTask, type BoardTaskCardProps } from './BoardTaskCard';
@@ -23,6 +24,7 @@ interface BoardColumnProps {
   onMarkFinal?: (taskId: string) => void;
   onTaskDelete?: (taskId: string) => void;
   CardComponent?: ComponentType<BoardTaskCardProps>;
+  templateType?: string;
 }
 
 const STATUS_COLORS = [
@@ -58,8 +60,11 @@ export function BoardColumn({
   onMarkFinal,
   onTaskDelete,
   CardComponent,
+  templateType,
 }: BoardColumnProps) {
   const Card = CardComponent ?? BoardTaskCard;
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
   const dotColor = DOT_COLORS[column.color ?? 'blue'] ?? 'bg-brand-blue';
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -117,6 +122,15 @@ export function BoardColumn({
       onColumnTitleUpdate(column.id, trimmed);
     } else {
       setColumnTitleDraft(column.title);
+    }
+  };
+
+  const handlePlusClick = () => {
+    // Redirect to submissions for WALL_POST and OTP_PTR templates
+    if (templateType === 'WALL_POST' || templateType === 'OTP_PTR') {
+      router.push(`/${params.tenant}/submissions/new`);
+    } else {
+      setIsAdding(true);
     }
   };
 
@@ -193,7 +207,7 @@ export function BoardColumn({
           </div>
           <button
             type="button"
-            onClick={() => setIsAdding(true)}
+            onClick={handlePlusClick}
             className="shrink-0 p-1 rounded-lg text-gray-400 hover:text-brand-light-pink hover:bg-brand-light-pink/10 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
