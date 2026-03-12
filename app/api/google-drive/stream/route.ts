@@ -6,15 +6,23 @@ import { NextRequest, NextResponse } from 'next/server';
  * Edge Runtime (V8 Isolate) buffers the full upstream fetch() response body
  * in memory before the ReadableStream is available, causing OOM on large
  * videos. Node.js runtime uses real OS-level I/O and properly streams
- * ReadableStreams without buffering.
- *
- * maxDuration is set to 30s — sufficient for one 8 MB chunk request.
- * The <video> element issues sequential Range requests automatically.
+ * ReadableStreams without buffering without accumulating data in RAM.
  */
-export const maxDuration = 30; // seconds
+export const maxDuration = 60; // seconds — enough for a 32 MB chunk on slow connections
 
-/** Maximum bytes served per request — keeps memory and time bounded. */
-const MAX_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB
+/**
+ * Initial load chunk (no Range header from browser).
+ * Small so the video can start playing almost immediately — the browser
+ * will issue Range requests for the rest of the file as it plays.
+ */
+const INITIAL_CHUNK_BYTES = 2 * 1024 * 1024; // 2 MB — fast first-byte for playback start
+
+/**
+ * Max bytes per browser-initiated Range request.
+ * Larger = fewer proxy round-trips = less re-buffering during playback.
+ * Node.js pipes this as a true stream so it doesn't sit in RAM.
+ */
+const MAX_CHUNK_BYTES = 32 * 1024 * 1024; // 32 MB
 
 /* ── Lightweight Google Service Account auth (no googleapis dep) ──── */
 
@@ -225,16 +233,16 @@ export async function GET(request: NextRequest) {
       Authorization: `Bearer ${token}`,
     };
 
-    // Build Range header — always cap to MAX_CHUNK_BYTES so a single request
-    // never buffers more than 8 MB of the file into memory.
+    // Build Range header:
+    //  • Initial load (no Range): serve INITIAL_CHUNK_BYTES (2 MB) — video
+    //    starts playing quickly, then the browser issues Range requests.
+    //  • Browser Range request: cap at MAX_CHUNK_BYTES (32 MB) — large enough
+    //    that the browser can build a healthy buffer with few round-trips,
+    //    but bounded so no single function invocation risks OOM. Node.js
+    //    pipes this as a real stream so 32 MB never sits fully in RAM.
     //
-    // Without this, a bare <video> src (no Range header) or an open-ended
-    // "Range: bytes=0-" causes the entire file to be fetched at once,
-    // exhausting Vercel function memory for large videos.
-    //
-    // The browser's media player handles 206 Partial Content transparently
-    // and will automatically issue subsequent Range requests as playback
-    // progresses through the file.
+    // Google always returns 206 + Content-Range, so the browser learns the
+    // total file size on the very first response and can seek correctly.
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) {
       const m = rangeHeader.match(/bytes=(\d+)-(\d*)/);
@@ -248,10 +256,8 @@ export async function GET(request: NextRequest) {
         fetchHeaders['Range'] = rangeHeader;
       }
     } else {
-      // No Range header (initial <video> load) — force first chunk only.
-      // Google returns 206 + Content-Range so the browser learns the full
-      // file size and can seek correctly on subsequent requests.
-      fetchHeaders['Range'] = `bytes=0-${MAX_CHUNK_BYTES - 1}`;
+      // No Range header — serve the first 2 MB so playback begins fast.
+      fetchHeaders['Range'] = `bytes=0-${INITIAL_CHUNK_BYTES - 1}`;
     }
 
     // Stream file directly from Google Drive API.

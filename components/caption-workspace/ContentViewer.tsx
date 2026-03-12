@@ -356,7 +356,7 @@ function DrivePreview({ url, label, isSignedIn, fileType, onSignIn }: {
             controls
             className="flex-1 w-full h-full bg-black rounded-lg"
             style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
-            preload="metadata"
+            preload="auto"
             onLoadedMetadata={() => setLoaded(true)}
             onError={() => { setLoaded(true); setStreamStatus('stream_error'); }}
           />
