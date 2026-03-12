@@ -12,6 +12,8 @@ import type { SummaryTabProps } from './summary';
 export interface TaskDetailModalProps {
   task: BoardTask;
   columnTitle: string;
+  columns?: { id: string; name: string }[];
+  onColumnChange?: (columnId: string) => void;
   isOpen: boolean;
   onClose: () => void;
   onUpdate: (task: BoardTask) => void;

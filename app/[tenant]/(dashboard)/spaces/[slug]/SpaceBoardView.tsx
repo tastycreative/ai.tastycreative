@@ -176,6 +176,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
     handleColumnTitleUpdate,
     handleTaskClick,
     handleTaskUpdate,
+    handleColumnChange,
     handleTitleUpdate,
     handleDeleteTask,
     closeTaskModal,
@@ -362,6 +363,8 @@ function TemplateBoardView({ slug }: { slug: string }) {
         <DetailModal
           task={selectedTask}
           columnTitle={selectedColumnTitle}
+          columns={boardData?.columns.map((c) => ({ id: c.id, name: c.name })) ?? []}
+          onColumnChange={(colId) => handleColumnChange(selectedTask.id, colId)}
           isOpen={!!selectedTask}
           onClose={closeTaskModal}
           onUpdate={handleTaskUpdate}
