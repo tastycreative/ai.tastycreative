@@ -452,6 +452,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const { boardId, itemId } = await params;
 
+    // Cascade-delete any linked caption queue ticket before removing the board item
+    const linkedTicket = await prisma.captionQueueTicket.findFirst({
+      where: { boardItemId: itemId },
+      select: { id: true },
+    });
+    if (linkedTicket) {
+      await prisma.captionQueueTicket.delete({ where: { id: linkedTicket.id } });
+    }
+
     await prisma.boardItem.delete({ where: { id: itemId } });
 
     const senderTab = req.headers.get('x-tab-id') ?? undefined;

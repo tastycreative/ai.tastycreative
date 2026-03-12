@@ -555,7 +555,7 @@ export function ContentDetailsFields({
               <span className="flex items-center gap-1.5">
                 <Link2 className="w-3.5 h-3.5 text-brand-blue" />
                 Google Drive Link
-                <span className="text-[11px] text-zinc-500 font-normal ml-0.5">(Optional)</span>
+                {submissionType === 'OTP_PTR' && <span className="text-red-400 text-xs font-normal ml-0.5">*</span>}
               </span>
             </label>
             <div className="relative">
@@ -1388,10 +1388,10 @@ async function fetchOrgMembers(): Promise<AssignableMember[]> {
   const res = await fetch('/api/organization/members');
   if (!res.ok) return [];
   const data = await res.json();
-  return (data as Array<{ id: string; firstName: string | null; lastName: string | null; email: string }>).map(
+  return (data as Array<{ id: string; clerkId: string; firstName: string | null; lastName: string | null; email: string }>).map(
     (u) => ({
       id: u.id,
-      userId: u.id,
+      userId: u.clerkId || u.id,
       firstName: u.firstName,
       lastName: u.lastName,
       email: u.email,
@@ -1409,11 +1409,12 @@ function useAssignableMembers(spaceId: string) {
   });
 
   // Normalize space members to AssignableMember shape
+  // Use clerkId so board items store Clerk IDs (required for assignment notifications)
   const spaceMembers: AssignableMember[] = useMemo(() => {
     if (!spaceMembersQuery.data?.length) return [];
     return spaceMembersQuery.data.map((m) => ({
       id: m.id,
-      userId: m.userId,
+      userId: m.user.clerkId,
       firstName: m.user.firstName,
       lastName: m.user.lastName,
       email: m.user.email,

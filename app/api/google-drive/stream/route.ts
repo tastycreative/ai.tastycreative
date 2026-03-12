@@ -104,11 +104,43 @@ async function getAccessToken(): Promise<string> {
 /* ── Route handler ─────────────────────────────────────────────────── */
 
 /**
+ * Try refreshing a user OAuth token using the refresh_token cookie.
+ * Returns the new access token, or null on failure.
+ */
+async function tryRefreshUserToken(refreshToken: string): Promise<string | null> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret || !refreshToken) return null;
+
+  try {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * GET /api/google-drive/stream?fileId=XXXX
  *
  * Streaming proxy for Google Drive files on Edge Runtime.
  * Pipes data directly from Google → browser with zero buffering.
  * Supports HTTP Range requests for seeking in large videos.
+ *
+ * Auth priority:
+ * 1. User OAuth token (from httpOnly cookie `gdrive_access_token`)
+ * 2. Service account token (server-side JWT)
  */
 export async function GET(request: NextRequest) {
   const fileId = request.nextUrl.searchParams.get('fileId');
@@ -116,8 +148,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Valid fileId is required' }, { status: 400 });
   }
 
+  // ── Ping mode: check auth without streaming ─────────────────────────
+  // Used by the client to validate the user token against Drive before mounting
+  // a media element. Never falls back to the service account — the whole point
+  // is to confirm what *this user's* token can access.
+  const ping = request.nextUrl.searchParams.get('ping') === 'true';
+  if (ping) {
+    const userToken = request.cookies.get('gdrive_access_token')?.value;
+    if (!userToken) {
+      return NextResponse.json({ code: 'no_token' }, { status: 401 });
+    }
+    // Lightweight metadata fetch — only retrieves the file id field (~50 bytes)
+    const metaRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${userToken}` } },
+    );
+    if (metaRes.status === 401) return NextResponse.json({ code: 'token_expired' }, { status: 401 });
+    if (metaRes.status === 403 || metaRes.status === 404) return NextResponse.json({ code: 'no_access' }, { status: 403 });
+    if (!metaRes.ok) return NextResponse.json({ code: 'error' }, { status: metaRes.status });
+    return NextResponse.json({ code: 'ok' });
+  }
+
   try {
-    const token = await getAccessToken();
+    // Determine which token to use — user OAuth cookie first, then service account
+    const userAccessToken = request.cookies.get('gdrive_access_token')?.value;
+    const refreshToken = request.cookies.get('gdrive_refresh_token')?.value;
+    const isUserAuth = !!userAccessToken;
+    let token = userAccessToken || await getAccessToken();
 
     // Build headers — forward Range if the browser sent one
     const fetchHeaders: Record<string, string> = {
@@ -129,11 +186,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Stream file directly from Google Drive API.
-    // The response body is a ReadableStream — no memory buffering.
-    const driveRes = await fetch(
+    let driveRes = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
       { headers: fetchHeaders },
     );
+
+    // If user token expired (401), try refreshing
+    if (driveRes.status === 401 && isUserAuth && refreshToken) {
+      const newToken = await tryRefreshUserToken(refreshToken);
+      if (newToken) {
+        token = newToken;
+        fetchHeaders['Authorization'] = `Bearer ${newToken}`;
+        driveRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+          { headers: fetchHeaders },
+        );
+      }
+    }
 
     if (!driveRes.ok && driveRes.status !== 206) {
       if (driveRes.status === 404) {
@@ -144,7 +213,7 @@ export async function GET(request: NextRequest) {
       }
       if (driveRes.status === 403) {
         return NextResponse.json(
-          { error: 'Cannot access this file — check sharing permissions' },
+          { error: 'Cannot access this file — check sharing permissions', needsAccess: isUserAuth },
           { status: 403 },
         );
       }
@@ -155,18 +224,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Forward relevant headers from Google's response
-    const responseHeaders: Record<string, string> = {
+    const responseHeaders = new Headers({
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'public, max-age=3600, immutable',
-    };
+    });
 
     const contentType = driveRes.headers.get('content-type');
     const contentLength = driveRes.headers.get('content-length');
     const contentRange = driveRes.headers.get('content-range');
 
-    if (contentType) responseHeaders['Content-Type'] = contentType;
-    if (contentLength) responseHeaders['Content-Length'] = contentLength;
-    if (contentRange) responseHeaders['Content-Range'] = contentRange;
+    if (contentType) responseHeaders.set('Content-Type', contentType);
+    if (contentLength) responseHeaders.set('Content-Length', contentLength);
+    if (contentRange) responseHeaders.set('Content-Range', contentRange);
+
+    // If we refreshed the user token, set the new cookie
+    if (isUserAuth && token !== userAccessToken) {
+      responseHeaders.set(
+        'Set-Cookie',
+        `gdrive_access_token=${token}; Path=/api/google-drive; HttpOnly; SameSite=Lax; Max-Age=3500${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
+      );
+    }
 
     // Pipe the Google response body straight through — zero buffering.
     return new Response(driveRes.body, {

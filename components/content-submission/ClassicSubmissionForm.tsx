@@ -246,7 +246,7 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
                 {/* Drive Link */}
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">
-                    Drive Link <span className="text-zinc-500 text-xs">(Optional)</span>
+                    Drive Link{submissionType === 'OTP_PTR' && <span className="text-red-400 ml-0.5">*</span>}
                   </label>
                   <input
                     {...register('driveLink')}
@@ -254,6 +254,9 @@ export const ClassicSubmissionForm = memo(function ClassicSubmissionForm({
                     placeholder="https://drive.google.com/..."
                     className="w-full px-4 py-3 border border-zinc-700/50 rounded-xl bg-zinc-800/50 text-white placeholder-zinc-500 focus:ring-2 focus:ring-brand-light-pink focus:border-transparent transition-all"
                   />
+                  {errors.driveLink && (
+                    <p className="text-sm text-red-400 mt-1">{errors.driveLink.message}</p>
+                  )}
                 </div>
 
                 {/* Caption */}

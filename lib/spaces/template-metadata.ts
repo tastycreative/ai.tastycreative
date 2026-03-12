@@ -91,7 +91,7 @@ export const WALL_POST_METADATA_FIELDS: MetadataFieldDescriptor[] = [
   },
   { key: 'hashtags', label: 'Hashtags', type: 'tags', placeholder: 'e.g. summer, exclusive' },
   { key: 'scheduledDate', label: 'Scheduled Date', type: 'date' },
-  { key: 'model', label: 'Model', type: 'text', placeholder: 'Model name' },
+  { key: 'model', label: 'Model', type: 'text', placeholder: 'Model name', required: true },
   { key: 'mediaCount', label: 'Media Count', type: 'number', placeholder: '0' },
 ];
 

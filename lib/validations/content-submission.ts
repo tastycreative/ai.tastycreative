@@ -111,8 +111,16 @@ export const createSubmissionWithPricingSchema = createSubmissionWithScheduleSch
   pricing: pricingInputSchema.optional(),
 });
 
-// Complete submission schema (no PTR-specific validation needed)
-export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema;
+// Complete submission schema — requires driveLink for OTP_PTR submissions
+export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema.superRefine((data, ctx) => {
+  if (data.submissionType === 'OTP_PTR' && !data.driveLink) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Drive link is required for OTP/PTR submissions',
+      path: ['driveLink'],
+    });
+  }
+});
 
 export type CreateSubmissionWithComponents = z.infer<typeof createSubmissionWithComponentsSchema>;
 

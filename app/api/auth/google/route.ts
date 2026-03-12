@@ -5,11 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const redirectTo = searchParams.get('redirect') || '/workspace/generated-content';
-    
-    console.log('🔍 OAuth Environment Variables:');
-    console.log('CLIENT_ID:', process.env.GOOGLE_OAUTH_CLIENT_ID);
-    console.log('REDIRECT_URI:', process.env.GOOGLE_OAUTH_REDIRECT_URI);
-    console.log('🔄 Will redirect back to:', redirectTo);
+    const mode = searchParams.get('mode') || 'redirect'; // 'popup' or 'redirect'
     
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_OAUTH_CLIENT_ID,
@@ -18,19 +14,21 @@ export async function GET(request: NextRequest) {
     );
 
     const scopes = [
-      'https://www.googleapis.com/auth/drive.readonly'  // Read access to all files
+      'openid',
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/drive.readonly',
     ];
+
+    // Encode redirect + mode into state so the callback can handle both flows
+    const state = JSON.stringify({ redirect: redirectTo, mode });
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent',
-      state: redirectTo, // Pass the redirect page as state
+      state,
     });
-
-    console.log('🔗 Generated Auth URL:', authUrl);
-    console.log('📍 Extracted redirect_uri from URL:', new URL(authUrl).searchParams.get('redirect_uri'));
-    console.log('📍 State parameter:', new URL(authUrl).searchParams.get('state'));
 
     return NextResponse.json({ authUrl });
   } catch (error) {

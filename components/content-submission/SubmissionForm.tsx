@@ -13,11 +13,12 @@ import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
-import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText, Gamepad2, DollarSign, Link2, FolderOpen, Plus } from 'lucide-react';
+import { Loader2, Check, ChevronRight, ChevronLeft, Sparkles, AlertTriangle, Upload, X, Image as ImageIcon, Video as VideoIcon, File as FileIcon, FileText, Gamepad2, DollarSign, Link2, FolderOpen, Plus, LogIn, LogOut, RefreshCw } from 'lucide-react';
 import type { ContentStyleFields } from './ContentStyleSelector';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useQuery } from '@tanstack/react-query';
 import type { UseFormWatch } from 'react-hook-form';
+import { useGoogleDriveAccount } from '@/lib/hooks/useGoogleDriveAccount';
 
 // Lazy load heavy components
 import dynamic from 'next/dynamic';
@@ -69,6 +70,11 @@ export const SubmissionForm = memo(function SubmissionForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileUploadStep, setFileUploadStep] = useState<{ current: number; total: number } | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  // Cancellation signal + resource tracking for mid-submission rollback
+  const cancelRequestedRef = useRef(false);
+  const createdItemsRef = useRef<{ spaceId: string; boardId: string; itemId: string }[]>([]);
+  const contentSubmissionIdRef = useRef<string | null>(null);
   const [uploadMode, setUploadMode] = useState<'upload' | 'drive' | 'both'>('upload');
   const [driveFiles, setDriveFiles] = useState<DriveFileEntry[]>([]);
   const [selectedTemplateType, setSelectedTemplateType] = useState<'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null>(null);
@@ -85,6 +91,35 @@ export const SubmissionForm = memo(function SubmissionForm({
   const handleStyleFieldsChange = useCallback((fields: Partial<ContentStyleFields>) => {
     setStyleFields((prev) => ({ ...prev, ...fields }));
   }, []);
+
+  // Rollback: delete all board items + submission record created in this session
+  const handleCancelSubmission = useCallback(async () => {
+    cancelRequestedRef.current = true;
+    setIsRollingBack(true);
+    try {
+      const items = createdItemsRef.current;
+      const subId = contentSubmissionIdRef.current;
+      await Promise.allSettled([
+        ...items.map((item) =>
+          fetch(`/api/spaces/${item.spaceId}/boards/${item.boardId}/items/${item.itemId}`, {
+            method: 'DELETE',
+          })
+        ),
+        ...(subId
+          ? [fetch(`/api/content-submissions/${subId}`, { method: 'DELETE' })]
+          : []),
+      ]);
+    } catch (e) {
+      console.error('Rollback failed:', e);
+    } finally {
+      createdItemsRef.current = [];
+      contentSubmissionIdRef.current = null;
+      cancelRequestedRef.current = false;
+      setIsRollingBack(false);
+      setFileUploadStep(null);
+      if (onCancel) onCancel();
+    }
+  }, [onCancel]);
 
   const {
     register,
@@ -178,9 +213,39 @@ export const SubmissionForm = memo(function SubmissionForm({
   const handleNext = useCallback(() => {
     if (currentStep < steps.length - 1) {
       setSubmitError(null);
+
+      // WALL_POST: require model + at least one attachment before leaving the details step
+      if (submissionType === 'WALL_POST' && steps[currentStep]?.id === 'details') {
+        const metadataModel = (watch('metadata') as Record<string, unknown>)?.model as string | undefined;
+        const hasModel = !!(metadataModel?.trim() || watch('modelId'));
+        const hasFiles = pendingFiles.length > 0 || driveFiles.length > 0;
+
+        if (!hasModel && !hasFiles) {
+          setSubmitError('Please select a model and attach at least one file before proceeding.');
+          return;
+        }
+        if (!hasModel) {
+          setSubmitError('Please select a model before proceeding.');
+          return;
+        }
+        if (!hasFiles) {
+          setSubmitError('Please attach at least one file before proceeding.');
+          return;
+        }
+      }
+
+      // OTP_PTR: require drive link before leaving the details step
+      if (submissionType === 'OTP_PTR' && steps[currentStep]?.id === 'details') {
+        const metadataDriveLink = (watch('metadata') as Record<string, unknown>)?.driveLink as string | undefined;
+        if (!metadataDriveLink?.trim()) {
+          setSubmitError('Please enter a Google Drive link before proceeding.');
+          return;
+        }
+      }
+
       setCurrentStep((prev) => prev + 1);
     }
-  }, [currentStep, steps.length]);
+  }, [currentStep, steps, submissionType, watch, pendingFiles, driveFiles]);
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
@@ -269,6 +334,9 @@ export const SubmissionForm = memo(function SubmissionForm({
 
   const onSubmit = async (data: FormData) => {
     setSubmitError(null);
+    cancelRequestedRef.current = false;
+    createdItemsRef.current = [];
+    contentSubmissionIdRef.current = null;
 
     if (!hasTarget || spaceTargets.size === 0) {
       setSubmitError('No matching space/board found. Please select a space first.');
@@ -303,7 +371,8 @@ export const SubmissionForm = memo(function SubmissionForm({
       const createdItems: { spaceId: string; boardId: string; itemId: string }[] = [];
 
       for (const [sId, target] of spaceTargets.entries()) {
-        try {
+if (cancelRequestedRef.current) break;
+          try {
           // Use hook-based mutation for primary space (cache invalidation)
           if (sId === primarySpace?.id) {
             const result = await createItem.mutateAsync({
@@ -311,6 +380,7 @@ export const SubmissionForm = memo(function SubmissionForm({
               columnId: target.columnId,
             });
             createdItems.push({ spaceId: sId, boardId: target.boardId, itemId: result.id });
+            createdItemsRef.current = [...createdItems];
           } else {
             // Direct fetch for additional spaces
             const res = await fetch(`/api/spaces/${sId}/boards/${target.boardId}/items`, {
@@ -321,6 +391,7 @@ export const SubmissionForm = memo(function SubmissionForm({
             if (!res.ok) throw new Error(`Failed to create item in space ${sId}`);
             const result = await res.json();
             createdItems.push({ spaceId: sId, boardId: target.boardId, itemId: result.id });
+            createdItemsRef.current = [...createdItems];
           }
         } catch (err) {
           console.error(`Board item creation failed for space ${sId}:`, err);
@@ -331,6 +402,8 @@ export const SubmissionForm = memo(function SubmissionForm({
         setSubmitError('Failed to create board items in any space.');
         return;
       }
+
+      if (cancelRequestedRef.current) return;
 
       const primaryItem = createdItems[0];
 
@@ -347,9 +420,12 @@ export const SubmissionForm = memo(function SubmissionForm({
           }),
         });
         contentSubmissionId = submission?.id ?? null;
+        contentSubmissionIdRef.current = contentSubmissionId;
       } catch (err) {
         console.error('Content submission record creation failed:', err);
       }
+
+      if (cancelRequestedRef.current) return;
 
       // 3. Upload files: presign + S3 upload in parallel, then record
       //    calls sequentially so the first triggers caption ticket creation
@@ -548,6 +624,10 @@ export const SubmissionForm = memo(function SubmissionForm({
         }
       }
 
+      if (cancelRequestedRef.current) return;
+
+      createdItemsRef.current = [];
+      contentSubmissionIdRef.current = null;
       setShowSuccess(true);
 
       setTimeout(() => {
@@ -679,6 +759,9 @@ export const SubmissionForm = memo(function SubmissionForm({
                       <h3 className="text-base font-semibold text-white flex items-center gap-2">
                         <Upload className="w-4 h-4 text-brand-light-pink" />
                         Attachments
+                        {submissionType === 'WALL_POST' && (
+                          <span className="text-brand-light-pink">*</span>
+                        )}
                       </h3>
                       <p className="text-sm text-zinc-400 mt-1">Upload reference images or paste a Google Drive link</p>
                     </div>
@@ -725,16 +808,27 @@ export const SubmissionForm = memo(function SubmissionForm({
 
           {/* Navigation Buttons */}
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-6 py-3 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-colors duration-150"
-            >
-              Cancel
-            </button>
+            {isSubmitting || isRollingBack ? (
+              <button
+                type="button"
+                onClick={handleCancelSubmission}
+                disabled={isRollingBack}
+                className="px-6 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/30 rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRollingBack ? 'Cancelling...' : 'Cancel Submission'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-6 py-3 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-colors duration-150"
+              >
+                Cancel
+              </button>
+            )}
 
             <div className="flex items-center space-x-3">
-              {currentStep > 0 && (
+              {currentStep > 0 && !isSubmitting && !isRollingBack && (
                 <button
                   type="button"
                   onClick={handlePrevious}
@@ -749,7 +843,9 @@ export const SubmissionForm = memo(function SubmissionForm({
                 <button
                   type="button"
                   onClick={handleNext}
-                  disabled={currentStepInfo?.id === 'space' && selectedSpaces.size === 0}
+                  disabled={
+                    (currentStepInfo?.id === 'space' && selectedSpaces.size === 0)
+                  }
                   className="group relative inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-dark-pink text-white font-medium overflow-hidden shadow-lg shadow-brand-light-pink/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 hover:shadow-xl hover:shadow-brand-light-pink/30 active:scale-[0.97]"
                 >
                   <span className="relative">Next</span>
@@ -1044,41 +1140,11 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  // Check for Google Drive access token in URL (after OAuth callback) or localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('access_token');
-    if (token) {
-      setAccessToken(token);
-      localStorage.setItem('googleDriveAccessToken', token);
-      // Clean URL params
-      window.history.replaceState({}, '', window.location.pathname);
-    } else {
-      const saved = localStorage.getItem('googleDriveAccessToken');
-      if (saved) setAccessToken(saved);
-    }
-  }, []);
+  const { profile, isSignedIn, isLoading: accountLoading, signIn, signOut, switchAccount } = useGoogleDriveAccount();
 
-  const connectGoogleDrive = useCallback(async () => {
-    try {
-      const currentPath = window.location.pathname + window.location.search;
-      const res = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPath)}`);
-      const data = await res.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      }
-    } catch {
-      setError('Failed to connect to Google Drive');
-    }
-  }, []);
-
-  const disconnectGoogleDrive = useCallback(() => {
-    setAccessToken(null);
-    localStorage.removeItem('googleDriveAccessToken');
-  }, []);
+  const handleSignIn = useCallback(() => { signIn().catch(() => setError('Failed to connect to Google Drive')); }, [signIn]);
+  const handleSwitch = useCallback(() => { switchAccount().catch(() => {}); }, [switchAccount]);
 
   const resolveLink = useCallback(async () => {
     const trimmed = driveUrl.trim();
@@ -1088,23 +1154,15 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     setError(null);
 
     try {
-      const body: Record<string, string> = { url: trimmed };
-      if (accessToken) body.accessToken = accessToken;
-
       const res = await fetch('/api/google-drive/fetch-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ url: trimmed }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        // Handle expired/invalid token
-        if (data.authError) {
-          setAccessToken(null);
-          localStorage.removeItem('googleDriveAccessToken');
-        }
         setError(data.error || 'Failed to fetch Google Drive contents');
         return;
       }
@@ -1121,7 +1179,7 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     } finally {
       setLoading(false);
     }
-  }, [driveUrl, onChange, accessToken]);
+  }, [driveUrl, onChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1140,6 +1198,48 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     setError(null);
   }, [onChange]);
 
+  // ── Google account badge ───────────────────────────────────────
+  const AccountBadge = () => {
+    if (accountLoading) return null;
+    if (!isSignedIn) {
+      return (
+        <button
+          type="button"
+          onClick={handleSignIn}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 text-zinc-400 hover:text-brand-blue hover:border-brand-blue/40 transition-colors text-[11px] font-medium whitespace-nowrap"
+        >
+          <LogIn className="w-3 h-3" />
+          Sign in with Google
+        </button>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1.5">
+        {profile?.picture && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.picture} alt="" className="w-5 h-5 rounded-full shrink-0" referrerPolicy="no-referrer" />
+        )}
+        <span className="text-[11px] text-zinc-400 truncate max-w-[160px]">{profile?.email}</span>
+        <button
+          type="button"
+          onClick={handleSwitch}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-brand-mid-pink hover:bg-brand-mid-pink/10 transition-colors"
+          title="Switch account"
+        >
+          <RefreshCw className="w-2.5 h-2.5" /> Switch
+        </button>
+        <button
+          type="button"
+          onClick={signOut}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          title="Sign out"
+        >
+          <LogOut className="w-2.5 h-2.5" /> Sign out
+        </button>
+      </div>
+    );
+  };
+
   const removeFile = useCallback(
     (id: string) => {
       onChange(driveFiles.filter((f) => f.id !== id));
@@ -1157,7 +1257,10 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
     <div className="space-y-4">
       {/* Link input */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-zinc-300">Google Drive Link</label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-sm font-medium text-zinc-300 shrink-0">Google Drive Link</label>
+          <AccountBadge />
+        </div>
         <div className="flex gap-2">
           <div className="relative flex-1">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
@@ -1193,30 +1296,11 @@ const GoogleDriveLinkInput = memo(function GoogleDriveLinkInput({
             {loading ? 'Loading...' : 'Fetch'}
           </button>
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-zinc-600">
-            {accessToken
-              ? 'Connected to Google Drive — paste any link you have access to.'
-              : 'Paste a Google Drive link. Connect your Google account to access private files.'}
-          </p>
-          {accessToken ? (
-            <button
-              type="button"
-              onClick={disconnectGoogleDrive}
-              className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors whitespace-nowrap ml-2"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={connectGoogleDrive}
-              className="text-[11px] text-brand-blue hover:text-brand-light-pink transition-colors whitespace-nowrap ml-2 font-medium"
-            >
-              Connect Google Drive
-            </button>
-          )}
-        </div>
+        <p className="text-[11px] text-zinc-600">
+          {isSignedIn
+            ? 'Connected — paste any link you have access to.'
+            : 'Paste a Google Drive link. Sign in above to access private files.'}
+        </p>
       </div>
 
       {/* Error */}
@@ -1339,13 +1423,13 @@ const ReviewStep = memo(function ReviewStep({
 
   const assignee = useMemo(() => {
     if (!assigneeId) return null;
-    // Try space members first
-    const spaceMember = spaceMembers?.find((m) => m.userId === assigneeId);
+    // Try space members first (match by clerkId since assigneeId stores Clerk IDs)
+    const spaceMember = spaceMembers?.find((m) => m.user.clerkId === assigneeId);
     if (spaceMember) {
       return { name: spaceMember.user.firstName ? `${spaceMember.user.firstName} ${spaceMember.user.lastName || ''}`.trim() : spaceMember.user.email, email: spaceMember.user.email, initial: (spaceMember.user.firstName?.[0] || spaceMember.user.email[0]).toUpperCase() };
     }
-    // Fallback to org members
-    const orgMember = orgMembers?.find((m: { id: string }) => m.id === assigneeId);
+    // Fallback to org members (match by clerkId)
+    const orgMember = orgMembers?.find((m: { clerkId: string }) => m.clerkId === assigneeId);
     if (orgMember) {
       return { name: orgMember.firstName ? `${orgMember.firstName} ${orgMember.lastName || ''}`.trim() : orgMember.email, email: orgMember.email, initial: (orgMember.firstName?.[0] || orgMember.email[0]).toUpperCase() };
     }
@@ -1414,6 +1498,15 @@ const ReviewStep = memo(function ReviewStep({
               </div>
             </div>
           )}
+          {submissionType === 'WALL_POST' && !!(metadata as Record<string, unknown>)?.model && (() => {
+            const modelName = (metadata as Record<string, unknown>).model as string;
+            return (
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Model</p>
+                <p className="text-white font-medium">{modelName}</p>
+              </div>
+            );
+          })()}
           {(pendingFilesCount > 0 || (driveFilesCount ?? 0) > 0) && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Files</p>
@@ -1536,8 +1629,8 @@ const ReviewStep = memo(function ReviewStep({
         </div>
       )}
 
-      {/* Template metadata summary */}
-      {entries.length > 0 && (
+      {/* Template metadata summary — hidden for WALL_POST (model shown in overview above) */}
+      {entries.length > 0 && submissionType !== 'WALL_POST' && (
         <div className="bg-zinc-800/30 rounded-xl p-6 border border-zinc-700/30">
           <h3 className="text-sm font-medium text-zinc-400 mb-3">
             {TEMPLATE_LABELS[submissionType]} Details

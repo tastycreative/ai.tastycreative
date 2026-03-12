@@ -77,9 +77,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use user's OAuth token if provided, otherwise fall back to service account
+    // Use user's OAuth token if provided in body, then check httpOnly cookie, otherwise fall back to service account
     let drive: drive_v3.Drive;
-    userAccessToken = body.accessToken as string | undefined;
+    userAccessToken = (body.accessToken as string | undefined) || request.cookies.get('gdrive_access_token')?.value;
     if (userAccessToken) {
       drive = getUserDriveClient(userAccessToken);
     } else {
