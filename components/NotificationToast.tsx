@@ -48,7 +48,7 @@ function NotificationToastItem({ notification, onDismiss, onRead }: Notification
     setTimeout(() => onDismiss(notification.id), 300);
   };
 
-  const icon = notification.type === 'BOARD_MOVE' ? '📋' : '📬';
+  const icon = notification.type === 'BOARD_MOVE' ? '📋' : notification.type === 'ORG_INVITATION' ? '🏢' : '📬';
 
   return (
     <div

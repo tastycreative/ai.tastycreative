@@ -17,11 +17,66 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true, role: true, currentOrganizationId: true },
+      select: { id: true, email: true, role: true, currentOrganizationId: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Sync pending org invitations as notifications (Case 1: user signed up after invite)
+    try {
+      if (user.email) {
+        const pendingInvites = await prisma.organizationInvite.findMany({
+          where: {
+            email: user.email.toLowerCase(),
+            acceptedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          include: {
+            organization: { select: { name: true } },
+          },
+        });
+
+        if (pendingInvites.length > 0) {
+          // Find which invites already have notifications
+          const existingNotifications = await prisma.notification.findMany({
+            where: {
+              userId: user.id,
+              type: 'ORG_INVITATION',
+            },
+            select: { metadata: true },
+          });
+
+          const existingInviteIds = new Set(
+            existingNotifications
+              .map((n) => (n.metadata as any)?.inviteId)
+              .filter(Boolean)
+          );
+
+          // Create notifications for invites that don't have one yet
+          const newInviteNotifications = pendingInvites.filter(
+            (inv) => !existingInviteIds.has(inv.id)
+          );
+
+          if (newInviteNotifications.length > 0) {
+            await prisma.notification.createMany({
+              data: newInviteNotifications.map((inv) => ({
+                userId: user.id,
+                type: 'ORG_INVITATION' as const,
+                title: `You've been invited to ${inv.organization.name}`,
+                message: `You have a pending invitation to join ${inv.organization.name} as a ${inv.role}`,
+                link: `/invite/${inv.token}`,
+                metadata: { inviteId: inv.id },
+                organizationId: null,
+              })),
+            });
+          }
+        }
+      }
+    } catch (syncError) {
+      // Non-fatal: sync failure shouldn't break notification fetch
+      console.error('Error syncing invite notifications:', syncError);
     }
 
     const searchParams = request.nextUrl.searchParams;

@@ -215,6 +215,7 @@ export function NotificationBell() {
       case 'POST_REJECTED': return '❌';
       case 'BOARD_MOVE': return '📋';
       case 'BOARD_COMMENT': return '💬';
+      case 'ORG_INVITATION': return '🏢';
       default: return '📬';
     }
   };
@@ -226,6 +227,7 @@ export function NotificationBell() {
       case 'POST_REJECTED': return 'bg-red-100 dark:bg-red-900/30';
       case 'BOARD_MOVE': return 'bg-blue-100 dark:bg-blue-900/30';
       case 'BOARD_COMMENT': return 'bg-purple-100 dark:bg-purple-900/30';
+      case 'ORG_INVITATION': return 'bg-pink-100 dark:bg-pink-900/30';
       default: return 'bg-gray-100 dark:bg-gray-800';
     }
   };

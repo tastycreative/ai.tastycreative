@@ -2477,6 +2477,7 @@ enum NotificationType {
   BOARD_COMMENT
   BOARD_ONBOARDING
   BOARD_ASSIGN
+  ORG_INVITATION
 }
 
 enum PostType {
