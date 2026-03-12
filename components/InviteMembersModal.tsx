@@ -24,7 +24,7 @@ export function InviteMembersModal({
   maxMembers,
 }: InviteMembersModalProps) {
   const [emailInput, setEmailInput] = useState("");
-  const [role, setRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
+  const [role, setRole] = useState<"MEMBER" | "ADMIN" | "MANAGER" | "CREATOR" | "VIEWER">("MEMBER");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     invited: Array<{ email: string }>;
@@ -302,14 +302,21 @@ export function InviteMembersModal({
                 </label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as "MEMBER" | "ADMIN")}
+                  onChange={(e) => setRole(e.target.value as "MEMBER" | "ADMIN" | "MANAGER" | "CREATOR" | "VIEWER")}
                   className="w-full px-4 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-[#5DC3F8] focus:border-transparent transition-all"
                 >
-                  <option value="MEMBER">Member</option>
                   <option value="ADMIN">Admin</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="CREATOR">Creator</option>
+                  <option value="MEMBER">Member</option>
+                  <option value="VIEWER">Viewer</option>
                 </select>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Members can access resources. Admins can manage organization settings.
+                  {role === 'ADMIN' && 'Full access to manage organization settings, members, and all spaces.'}
+                  {role === 'MANAGER' && 'Can manage spaces, assign tasks, and oversee team workflows.'}
+                  {role === 'CREATOR' && 'Can create and edit content within assigned spaces.'}
+                  {role === 'MEMBER' && 'Standard access to view and collaborate in assigned spaces.'}
+                  {role === 'VIEWER' && 'Read-only access to view spaces and content.'}
                 </p>
               </div>
 

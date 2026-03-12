@@ -53,9 +53,15 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
   const { mutateAsync: deleteSpace } = useDeleteSpace();
   const { currentOrganization } = useOrganization();
 
-  const spaces = data?.spaces ?? [];
+  const allSpaces = data?.spaces ?? [];
   const isActive = pathname?.startsWith(`/${tenant}/spaces`);
   const organizationRole = currentOrganization?.role;
+
+  // Only show spaces the user is a member of, or all spaces if org admin/owner
+  const isOrgAdminOrOwner = organizationRole === 'OWNER' || organizationRole === 'ADMIN';
+  const spaces = isOrgAdminOrOwner
+    ? allSpaces
+    : allSpaces.filter((s) => !!s.currentUserRole);
 
   // Get localStorage key unique to user
   const getStorageKey = () => {

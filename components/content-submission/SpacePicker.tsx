@@ -1,7 +1,8 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useSpaces, type Space } from '@/lib/hooks/useSpaces.query';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
 import {
   Check,
   Loader2,
@@ -82,8 +83,20 @@ export const SpacePicker = memo(function SpacePicker({
   onToggleSpace,
 }: SpacePickerProps) {
   const { data, isLoading } = useSpaces();
+  const { currentOrganization } = useOrganization();
 
-  const allSpaces = data?.spaces ?? [];
+  const organizationRole = currentOrganization?.role;
+  const isOrgAdminOrOwner = organizationRole === 'OWNER' || organizationRole === 'ADMIN';
+
+  // Only show spaces the user is a member of, or all spaces if org admin/owner
+  const accessibleSpaces = useMemo(() => {
+    const spaces = data?.spaces ?? [];
+    return isOrgAdminOrOwner
+      ? spaces
+      : spaces.filter((s) => !!s.currentUserRole);
+  }, [data?.spaces, isOrgAdminOrOwner]);
+
+  const allSpaces = accessibleSpaces;
   const filteredSpaces = selectedTemplateType
     ? allSpaces.filter((s) => s.templateType === selectedTemplateType)
     : [];
