@@ -25,6 +25,11 @@ import {
   ShieldCheck,
   RotateCcw,
   Loader2,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  Lock,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,6 +56,7 @@ import {
 } from '@/lib/hooks/useBoardItems.query';
 import { usePushToCaptionWorkspace, useQAAction, useQAItemAction, useRepushRejected, useMarkItemPosted } from '@/lib/hooks/useCaptionQueue.query';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
+import { useGoogleDriveAccount } from '@/lib/hooks/useGoogleDriveAccount';
 import {
   WALL_POST_STATUS,
   WALL_POST_STATUS_CONFIG,
@@ -88,34 +94,184 @@ function toDriveStreamUrl(url: string): string | null {
   return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
 }
 
-/** Drive video player: tries the stream proxy, falls back to iframe embed on error. */
-function DriveVideoPlayer({ url, className }: { url: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  const streamUrl = toDriveStreamUrl(url);
-  const id = extractDriveFileId(url);
-  const previewUrl = id ? `https://drive.google.com/file/d/${id}/preview` : null;
+/**
+ * Auth-aware Drive media viewer.
+ * Shows a sign-in prompt when not signed in, runs a pre-flight ping when signed in,
+ * and renders the actual media (video or image) only when access is confirmed.
+ */
+function DriveMediaViewer({
+  url, isVideo, className, isSignedIn, onSignIn,
+}: {
+  url: string;
+  isVideo: boolean;
+  className?: string;
+  isSignedIn?: boolean;
+  onSignIn?: () => void;
+}) {
+  const [streamStatus, setStreamStatus] = useState<'checking' | 'ok' | 'no_token' | 'no_access' | 'error'>('checking');
 
-  if (failed && previewUrl) {
+  const fileId = extractDriveFileId(url);
+  const streamUrl = isSignedIn && fileId ? `/api/google-drive/stream?fileId=${encodeURIComponent(fileId)}` : null;
+
+  useEffect(() => {
+    if (!streamUrl) return;
+    let cancelled = false;
+    setStreamStatus('checking');
+    fetch(`${streamUrl}&ping=true`)
+      .then(res => {
+        if (cancelled) return;
+        if (res.status === 401) setStreamStatus('no_token');
+        else if (res.status === 403) setStreamStatus('no_access');
+        else if (res.ok) setStreamStatus('ok');
+        else setStreamStatus('error');
+      })
+      .catch(() => { if (!cancelled) setStreamStatus('error'); });
+    return () => { cancelled = true; };
+  }, [streamUrl]);
+
+  const signInPrompt = (
+    <div className={`flex flex-col items-center justify-center gap-2 bg-black/40 ${className ?? ''}`}>
+      <LogIn size={18} className="text-gray-500" />
+      <p className="text-[10px] text-gray-500 text-center px-2">Sign in with Google to view</p>
+      {onSignIn && (
+        <button
+          type="button"
+          onClick={onSignIn}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-white text-gray-800 hover:bg-gray-100 transition-colors"
+        >
+          <LogIn size={10} /> Sign in
+        </button>
+      )}
+    </div>
+  );
+
+  if (!isSignedIn) return signInPrompt;
+
+  if (streamStatus === 'checking') {
     return (
-      <div className="relative w-full h-full flex flex-col">
-        <iframe
-          src={previewUrl}
-          className={`flex-1 w-full border-0 ${className ?? ''}`}
-          style={{ minHeight: 200 }}
-          allow="autoplay; encrypted-media"
-          allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-popups"
-        />
+      <div className={`flex items-center justify-center bg-black/40 ${className ?? ''}`}>
+        <Loader2 size={18} className="text-gray-500 animate-spin" />
       </div>
     );
   }
 
+  if (streamStatus === 'no_token') {
+    return (
+      <div className={`flex flex-col items-center justify-center gap-2 bg-black/40 ${className ?? ''}`}>
+        <LogIn size={18} className="text-yellow-500" />
+        <p className="text-[10px] text-gray-400 text-center px-2">Session expired</p>
+        {onSignIn && (
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-white text-gray-800 hover:bg-gray-100 transition-colors"
+          >
+            Sign in again
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (streamStatus === 'no_access') {
+    return (
+      <div className={`flex flex-col items-center justify-center gap-2 bg-black/40 ${className ?? ''}`}>
+        <Lock size={18} className="text-red-400" />
+        <p className="text-[10px] text-red-300 text-center px-2">No access with this account</p>
+      </div>
+    );
+  }
+
+  if (streamStatus === 'error') {
+    return (
+      <div className={`flex flex-col items-center justify-center gap-2 bg-black/40 ${className ?? ''}`}>
+        <AlertTriangle size={18} className="text-gray-500" />
+        <p className="text-[10px] text-gray-500 text-center px-2">Failed to load</p>
+      </div>
+    );
+  }
+
+  if (isVideo) {
+    return <video src={streamUrl!} className={className} controls preload="metadata" />;
+  }
   return (
-    <video
-      src={streamUrl ?? url}
-      className={className}
-      controls
-      preload="metadata"
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={streamUrl!} alt="" loading="lazy" decoding="async" className={className} />
+  );
+}
+
+/** Compact Google Account Bar for the Drive content section of the modal. */
+function WallPostGoogleBar({
+  profile, isSignedIn, onSignIn, onSignOut, onSwitch,
+}: {
+  profile: { email: string; name: string; picture: string } | null;
+  isSignedIn: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  onSwitch: () => void;
+}) {
+  if (!isSignedIn) {
+    return (
+      <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
+        style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <span className="text-[11px] text-gray-500">Sign in with Google to view Drive content</span>
+        <button
+          type="button"
+          onClick={onSignIn}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-gray-800 hover:bg-gray-50 transition-colors"
+        >
+          <LogIn size={11} /> Sign in
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
+      style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex items-center gap-2 min-w-0">
+        {profile?.picture && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.picture} alt="" className="w-4 h-4 rounded-full shrink-0" referrerPolicy="no-referrer" />
+        )}
+        <span className="text-[11px] text-gray-400 truncate">{profile?.email}</span>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onSwitch}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-brand-mid-pink hover:bg-brand-mid-pink/10 transition-colors"
+        >
+          <RefreshCw size={9} /> Switch
+        </button>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-gray-500 hover:bg-white/10 transition-colors"
+        >
+          <LogOut size={9} /> Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Small Drive thumbnail for the filmstrip. Uses browser Google session cookies — no token needed. */
+function DriveThumbnailSmall({ url, alt }: { url: string; alt?: string }) {
+  const [failed, setFailed] = useState(false);
+  const id = extractDriveFileId(url);
+  if (!id || failed) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <span className="text-[7px] text-gray-400 font-bold">IMG</span>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=s80`}
+      alt={alt ?? ''}
+      className="h-full w-full object-cover"
       onError={() => setFailed(true)}
     />
   );
@@ -321,7 +477,7 @@ function MediaCard({
       >
         {isVideo ? (
           isDriveUrl(media.url) ? (
-            <DriveVideoPlayer url={media.url} className="w-full h-full object-cover" />
+            <DriveMediaViewer url={media.url} isVideo={true} className="w-full h-full object-cover" />
           ) : (
             <video
               src={media.url}
@@ -330,14 +486,7 @@ function MediaCard({
             />
           )
         ) : isDriveUrl(media.url) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={toDriveStreamUrl(media.url) ?? media.url}
-            alt={media.name ?? `Media ${media.index + 1}`}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
-          />
+          <DriveMediaViewer url={media.url} isVideo={false} className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -670,6 +819,7 @@ export function WallPostTaskDetailModal({
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
   const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+  const { profile: gDriveProfile, isSignedIn: isGDriveSignedIn, signIn: gDriveSignIn, signOut: gDriveSignOut, switchAccount: gDriveSwitchAccount } = useGoogleDriveAccount();
 
   const getMemberName = (id?: string) => {
     if (!id) return undefined;
@@ -756,6 +906,9 @@ export function WallPostTaskDetailModal({
     [mediaData],
   );
 
+  /* ── Drive media check ─────────────────────────────── */
+  // (defined below, after mediaWithCaptions)
+
   /* ── Joined media + captions ─────────────────────────── */
 
   const captionItems: CaptionItem[] = useMemo(() => {
@@ -804,6 +957,9 @@ export function WallPostTaskDetailModal({
     });
     return counts;
   }, [mediaWithCaptions]);
+
+  /* ── Drive media check ─────────────────────────────── */
+  const hasDriveMedia = useMemo(() => mediaWithCaptions.some(m => isDriveUrl(m.url)), [mediaWithCaptions]);
 
   /* ── Per-photo activity feed hooks ────────────────────── */
 
@@ -1745,6 +1901,16 @@ export function WallPostTaskDetailModal({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Google Drive account bar — shown when any media is hosted on Drive */}
+                  {hasDriveMedia && (
+                    <WallPostGoogleBar
+                      profile={gDriveProfile}
+                      isSignedIn={isGDriveSignedIn}
+                      onSignIn={gDriveSignIn}
+                      onSignOut={gDriveSignOut}
+                      onSwitch={gDriveSwitchAccount}
+                    />
+                  )}
                   {/* Bulk QA actions bar */}
                   {canQA && (wallPostStatus === WALL_POST_STATUS.FOR_QA || wallPostStatus === WALL_POST_STATUS.PARTIALLY_APPROVED) && (
                     <div className="rounded-xl px-4 py-3 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
@@ -1840,13 +2006,29 @@ export function WallPostTaskDetailModal({
                           <div className="relative bg-black/50 flex items-center justify-center overflow-hidden" style={{ minHeight: 200, maxHeight: 340 }}>
                             {svIsVideo ? (
                               isDriveUrl(selectedItem.url) ? (
-                                <DriveVideoPlayer url={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" />
+                                <DriveMediaViewer
+                                  key={`${selectedItem.url}|${gDriveProfile?.email}`}
+                                  url={selectedItem.url}
+                                  isVideo={true}
+                                  isSignedIn={isGDriveSignedIn}
+                                  onSignIn={gDriveSignIn}
+                                  className="max-w-full max-h-[340px] w-auto h-auto object-contain"
+                                />
                               ) : (
                                 <video src={selectedItem.url} className="max-w-full max-h-[340px] w-auto h-auto object-contain" controls preload="metadata" />
                               )
+                            ) : isDriveUrl(selectedItem.url) ? (
+                              <DriveMediaViewer
+                                key={`${selectedItem.url}|${gDriveProfile?.email}`}
+                                url={selectedItem.url}
+                                isVideo={false}
+                                isSignedIn={isGDriveSignedIn}
+                                onSignIn={gDriveSignIn}
+                                className="max-w-full max-h-[340px] w-auto h-auto object-contain"
+                              />
                             ) : (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={isDriveUrl(selectedItem.url) ? (toDriveStreamUrl(selectedItem.url) ?? selectedItem.url) : selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
+                              <img src={selectedItem.url} alt={selectedItem.name ?? `Photo ${selectedItem.index + 1}`}
                                 loading="lazy" decoding="async" className="max-w-full max-h-[340px] w-auto h-auto object-contain" />
                             )}
                             {selectedItemIndex > 0 && (
@@ -2007,9 +2189,11 @@ export function WallPostTaskDetailModal({
                                       <div className="h-full w-full flex items-center justify-center">
                                         <span className="text-[7px] text-gray-400 font-bold tracking-wider">VID</span>
                                       </div>
+                                    ) : isDriveUrl(m.url) ? (
+                                      <DriveThumbnailSmall url={m.url} alt={`${m.index + 1}`} />
                                     ) : (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={isDriveUrl(m.url) ? (toDriveStreamUrl(m.url) ?? m.url) : m.url} alt={`${m.index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                                      <img src={m.url} alt={`${m.index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                                     )}
                                     <span className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full border border-black/30 ${dotColor}`} />
                                   </div>

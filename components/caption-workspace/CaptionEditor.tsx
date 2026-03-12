@@ -30,6 +30,8 @@ interface CaptionEditorProps {
   itemCaptionStatus?: string;
   /** Whether this item is locked (approved / not_required) — makes editor read-only */
   isLocked?: boolean;
+  /** When true, the ticket hasn't been claimed yet — shown instead of generic read-only */
+  isUnclaimedTicket?: boolean;
   /** Auto-save state from parent — shown as a status indicator */
   autoSaveState?: 'idle' | 'saving' | 'saved' | 'error';
 }
@@ -121,6 +123,7 @@ function CaptionEditorComponent({
   qaRejectionReason,
   itemCaptionStatus,
   isLocked = false,
+  isUnclaimedTicket = false,
   autoSaveState = 'idle',
 }: CaptionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -214,7 +217,7 @@ function CaptionEditorComponent({
         {isLocked && (
           <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded text-[10px] font-medium">
             <Lock size={10} />
-            Read-only
+            {isUnclaimedTicket ? 'Unclaimed' : 'Read-only'}
           </span>
         )}
 
@@ -249,11 +252,19 @@ function CaptionEditorComponent({
 
       {/* Text area with restricted word highlighting */}
       {isLocked ? (
+        isUnclaimedTicket ? (
+          <div className="flex-1 min-h-30 mb-3 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-4 py-6 text-center">
+            <Lock size={20} className="text-gray-400 dark:text-gray-500" />
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Claim this ticket to start writing</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Click <span className="font-semibold">Claim</span> in the queue to take ownership of this ticket.</p>
+          </div>
+        ) : (
         <div className="flex-1 min-h-30 mb-3 relative">
           <div className="absolute inset-0 px-3 py-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm leading-relaxed text-gray-600 dark:text-gray-300 overflow-auto whitespace-pre-wrap">
             {caption || <span className="text-gray-400 italic">No caption</span>}
           </div>
         </div>
+        )
       ) : (
         <HighlightedTextarea
           value={caption}

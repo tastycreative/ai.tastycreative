@@ -309,6 +309,13 @@ export default function CaptionWorkspace() {
     ? ['approved', 'not_required'].includes(currentItem.captionStatus)
     : false;
 
+  // Creators can only edit tickets they've claimed or been explicitly assigned to.
+  // Unassigned/unclaimed tickets are visible but read-only until claimed.
+  const isUnclaimedByCreator = isCreator &&
+    !!selectedTicketData &&
+    selectedTicketData.claimedBy !== currentClerkId &&
+    !selectedTicketData.isAssignedToMe;
+
   // ── OTP/PTR single-caption mode ──────────────────────────────────────
   // OTP/PTR tickets require ONE caption at ticket level (not per-item).
   // We override the per-item signals so the workspace behaves like a legacy
@@ -316,7 +323,7 @@ export default function CaptionWorkspace() {
   const isOtpPtr = selectedTicketData?.workflowType === 'otp_ptr';
   const effectiveCurrentItem     = isOtpPtr ? null : currentItem;
   const effectiveHasMultipleItems = isOtpPtr ? false : hasMultipleItems;
-  const effectiveIsLocked         = isOtpPtr ? false : isCurrentItemLocked;
+  const effectiveIsLocked         = isOtpPtr ? isUnclaimedByCreator : (isCurrentItemLocked || isUnclaimedByCreator);
 
   // Auto-navigate to first actionable item when selecting a ticket
   // (skip approved items so the captioner lands on work that needs doing)
@@ -871,6 +878,7 @@ export default function CaptionWorkspace() {
                 qaRejectionReason={effectiveCurrentItem?.qaRejectionReason ?? selectedTicketData?.qaRejectionReason}
                 itemCaptionStatus={effectiveCurrentItem?.captionStatus}
                 isLocked={effectiveIsLocked}
+                isUnclaimedTicket={isUnclaimedByCreator}
                 autoSaveState={autoSaveState}
               />
             </ErrorBoundary>

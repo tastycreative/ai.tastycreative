@@ -51,7 +51,15 @@ export async function PATCH(
       where: { id: itemId },
       include: {
         ticket: {
-          include: {
+          select: {
+            id: true,
+            organizationId: true,
+            boardItemId: true,
+            clerkId: true,
+            claimedBy: true,
+            profileId: true,
+            modelName: true,
+            workflowType: true,
             assignees: { select: { clerkId: true } },
           },
         },
@@ -67,7 +75,8 @@ export async function PATCH(
       // Full access
     } else if (sameOrg && isCreatorRole(ctx.role)) {
       const isAssigned = ticket.assignees.some((a) => a.clerkId === clerkId);
-      if (!isAssigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const hasClaimed = ticket.claimedBy === clerkId;
+      if (!isAssigned && !hasClaimed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     } else if (ticket.clerkId === clerkId) {
       // Ticket creator can edit their own items
     } else {

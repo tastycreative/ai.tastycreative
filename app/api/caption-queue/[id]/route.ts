@@ -204,11 +204,12 @@ export async function PATCH(
     if (sameOrg && canManageQueue(ctx.role)) {
       // full edit allowed
     } else if (sameOrg && isCreatorRole(ctx.role)) {
-      // Verify this creator is assigned to the ticket
+      // Verify this creator is assigned to OR has claimed the ticket
       const assignee = await prisma.captionQueueAssignee.findFirst({
         where: { ticketId: id, clerkId },
       });
-      if (!assignee) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const hasClaimed = item.claimedBy === clerkId;
+      if (!assignee && !hasClaimed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     } else if (item.clerkId === clerkId) {
       // ticket creator can edit their own
     } else {
