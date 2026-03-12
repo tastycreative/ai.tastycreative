@@ -680,6 +680,7 @@ export const SubmissionForm = memo(function SubmissionForm({
                     spaceId={primarySpace?.id}
                     assigneeId={assigneeId}
                     onAssigneeChange={setAssigneeId}
+                    contentStyle={contentStyle}
                   />
 
                   {/* File Uploads section */}
