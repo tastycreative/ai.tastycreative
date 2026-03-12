@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { sendOrganizationInvite } from '@/lib/email';
+import { publishNotificationToUser } from '@/lib/ably-server';
 import crypto from 'crypto';
 
 // Force Node.js runtime for nodemailer support
@@ -203,6 +204,58 @@ export async function POST(
         });
 
         invited.push({ email });
+
+        // Create in-app notification if the invited email belongs to an existing user
+        try {
+          const invitedUser = await prisma.user.findFirst({
+            where: { email: email.toLowerCase() },
+            select: { id: true, clerkId: true },
+          });
+
+          if (invitedUser) {
+            // Check if notification already exists for this invite
+            const existingNotification = await prisma.notification.findFirst({
+              where: {
+                userId: invitedUser.id,
+                type: 'ORG_INVITATION',
+                metadata: { path: ['inviteId'], equals: invite.id },
+              },
+            });
+
+            if (existingNotification) {
+              // Re-send: update the link with the new token
+              await prisma.notification.update({
+                where: { id: existingNotification.id },
+                data: { link: `/invite/${invite.token}`, read: false, readAt: null },
+              });
+            } else {
+              const notification = await prisma.notification.create({
+                data: {
+                  userId: invitedUser.id,
+                  type: 'ORG_INVITATION',
+                  title: `You've been invited to ${organization.name}`,
+                  message: `${inviterName} invited you to join ${organization.name} as a ${role}`,
+                  link: `/invite/${invite.token}`,
+                  metadata: { inviteId: invite.id },
+                  organizationId: null,
+                },
+              });
+
+              // Push real-time notification via Ably
+              await publishNotificationToUser(invitedUser.clerkId, {
+                id: notification.id,
+                type: 'ORG_INVITATION',
+                title: notification.title,
+                message: notification.message,
+                link: notification.link,
+                createdAt: notification.createdAt.toISOString(),
+              });
+            }
+          }
+        } catch (notifError) {
+          // Non-fatal: notification failure shouldn't break the invite flow
+          console.error(`Failed to create notification for ${email}:`, notifError);
+        }
       } catch (error) {
         console.error(`Failed to invite ${email}:`, error);
         failed.push({
