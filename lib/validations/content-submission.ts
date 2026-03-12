@@ -112,13 +112,18 @@ export const createSubmissionWithPricingSchema = createSubmissionWithScheduleSch
 });
 
 // Complete submission schema — requires driveLink for OTP_PTR submissions
+// The wizard stores it in metadata.driveLink; the classic form uses the top-level driveLink field.
 export const createSubmissionWithComponentsSchema = createSubmissionWithPricingSchema.superRefine((data, ctx) => {
-  if (data.submissionType === 'OTP_PTR' && !data.driveLink) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Drive link is required for OTP/PTR submissions',
-      path: ['driveLink'],
-    });
+  if (data.submissionType === 'OTP_PTR') {
+    const topLevel = data.driveLink;
+    const inMetadata = (data.metadata as Record<string, unknown> | undefined)?.driveLink as string | undefined;
+    if (!topLevel && !inMetadata) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Drive link is required for OTP/PTR submissions',
+        path: ['driveLink'],
+      });
+    }
   }
 });
 
