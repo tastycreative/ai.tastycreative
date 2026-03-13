@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Loader2 } from "lucide-react";
+
+const ACTIVITY_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
 
 export default function TenantLayout({
   children,
@@ -65,6 +67,31 @@ export default function TenantLayout({
 
     verifyAccess();
   }, [isLoaded, user, tenant, router]);
+
+  // Track activity on mount + when tab becomes visible (with cooldown)
+  const lastTrackedRef = useRef(0);
+  const trackActivity = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTrackedRef.current < ACTIVITY_COOLDOWN_MS) return;
+    lastTrackedRef.current = now;
+    fetch('/api/track-activity', { method: 'POST' }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!hasAccess) return;
+
+    // Track on mount
+    trackActivity();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        trackActivity();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [hasAccess, trackActivity]);
 
   // Show loading state while verifying
   if (!isLoaded || isVerifying) {
