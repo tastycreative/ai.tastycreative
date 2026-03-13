@@ -19,11 +19,12 @@ interface TaskSidebarProps {
   onUpdate: (updated: BoardTask) => void;
 }
 
-const PRIORITY_OPTIONS: BoardTask['priority'][] = ['Low', 'Medium', 'High'];
+const PRIORITY_OPTIONS: BoardTask['priority'][] = ['Low', 'Normal', 'High', 'Urgent'];
 
 const PRIORITY_DOT: Record<string, string> = {
-  High: 'bg-red-500',
-  Medium: 'bg-amber-500',
+  Urgent: 'bg-red-500',
+  High: 'bg-orange-500',
+  Normal: 'bg-amber-500',
   Low: 'bg-emerald-500',
 };
 
