@@ -23,9 +23,6 @@ export default function TenantLayout({
         return;
       }
 
-      // Track user activity (fire-and-forget)
-      fetch('/api/track-activity', { method: 'POST' }).catch(() => {});
-
       try {
         // Check if this is the user's personal workspace
         const isPersonalWorkspace = tenant === user.username || tenant === user.id || tenant === "personal";

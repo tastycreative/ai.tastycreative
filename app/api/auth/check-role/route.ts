@@ -17,10 +17,27 @@ export async function GET() {
     // Get user role from database
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, isAdmin: true },
+      select: { id: true, role: true, isAdmin: true },
     });
 
     const role = user?.role || 'USER';
+
+    // Track daily activity (non-blocking)
+    if (user) {
+      const now = new Date();
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      Promise.all([
+        prisma.user.update({
+          where: { clerkId: userId },
+          data: { lastLoginAt: now },
+        }),
+        prisma.userDailyActivity.upsert({
+          where: { userId_date: { userId: user.id, date: todayDate } },
+          create: { userId: user.id, date: todayDate },
+          update: {},
+        }),
+      ]).catch(() => {});
+    }
 
     // Check if super admin: has SUPER_ADMIN role only
     const isSuperAdmin = role === 'SUPER_ADMIN';

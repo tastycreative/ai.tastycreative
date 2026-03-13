@@ -78,7 +78,6 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               imageUrl: true,
-              lastLoginAt: true,
             },
           },
         },
@@ -98,7 +97,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.teamMember.findMany({
         where: { ...orgFilter, user: { dailyActivities: { some: { date: { gte: todayStart } } } } },
-        orderBy: { user: { lastLoginAt: 'desc' } },
+        orderBy: { lastActiveAt: 'desc' },
         include: {
           user: {
             select: {
@@ -107,7 +106,6 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               imageUrl: true,
-              lastLoginAt: true,
             },
           },
         },
@@ -191,7 +189,7 @@ export async function GET(request: NextRequest) {
         id: m.id,
         role: m.role,
         joinedAt: m.joinedAt,
-        lastLoginAt: m.user.lastLoginAt,
+        lastLoginAt: m.lastActiveAt,
         user: {
           name: m.user.name,
           email: m.user.email,
@@ -204,7 +202,7 @@ export async function GET(request: NextRequest) {
         id: m.id,
         role: m.role,
         joinedAt: m.joinedAt,
-        lastLoginAt: m.user.lastLoginAt,
+        lastLoginAt: m.lastActiveAt,
         user: {
           name: m.user.name,
           email: m.user.email,
