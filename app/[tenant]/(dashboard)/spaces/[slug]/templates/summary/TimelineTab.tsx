@@ -670,7 +670,7 @@ function RoadmapTooltip({
           {task.priority && (
             <div className="flex justify-between gap-4">
               <span className="text-gray-500">Priority</span>
-              <span className={task.priority === 'High' ? 'text-red-400' : task.priority === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}>
+              <span className={task.priority === 'Urgent' ? 'text-red-400' : task.priority === 'Normal' ? 'text-amber-400' : 'text-emerald-400'}>
                 {task.priority}
               </span>
             </div>
