@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   CheckCircle,
@@ -29,6 +30,7 @@ export default function AcceptInvitePage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoaded: userLoaded } = useUser();
+  const queryClient = useQueryClient();
   const token = params.token as string;
 
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,10 @@ export default function AcceptInvitePage() {
       if (response.ok) {
         setSuccess(true);
         setRedirecting(true);
+
+        // Invalidate cached org/permissions so the sidebar loads fresh data
+        await queryClient.invalidateQueries({ queryKey: ['organizations'] });
+        await queryClient.invalidateQueries({ queryKey: ['permissions'] });
 
         // Redirect to organization dashboard after 2 seconds
         setTimeout(() => {
