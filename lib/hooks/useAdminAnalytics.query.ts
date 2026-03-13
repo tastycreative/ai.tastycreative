@@ -17,11 +17,13 @@ export interface UserAnalyticsSummary {
 }
 
 export interface TimeSeriesPoint {
+  [key: string]: string | number;
   date: string;
   count: number;
 }
 
 export interface ActivityTimeSeriesPoint {
+  [key: string]: string | number;
   date: string;
   activeUsers: number;
 }
@@ -61,6 +63,7 @@ export interface MemberAnalyticsSummary {
 }
 
 export interface MemberActivityPoint {
+  [key: string]: string | number;
   date: string;
   activeMembers: number;
 }
