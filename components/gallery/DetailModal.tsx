@@ -1,14 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, ExternalLink, Calendar, DollarSign, Eye, ShoppingCart,
   Tag, User, Copy, Check, ChevronLeft, ChevronRight, Edit2,
-  Archive, BarChart3, Link2
+  Archive, BarChart3, Link2, Film, Images, Globe, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, type GalleryContentType, type GalleryPlatform } from '@/lib/constants/gallery';
-import type { GalleryItemWithModel } from '@/types/gallery';
+import type { GalleryItemWithModel, GalleryBoardMetadata } from '@/types/gallery';
+
+const TIER_LABELS: Record<string, string> = {
+  PORN_ACCURATE: 'Porn Accurate',
+  PORN_SCAM: 'Porn Scam',
+  GF_ACCURATE: 'GF Accurate',
+  GF_SCAM: 'GF Scam',
+};
+
+const PAGE_TYPE_LABELS: Record<string, string> = {
+  ALL_PAGES: 'All Pages',
+  FREE: 'Free',
+  PAID: 'Paid',
+  VIP: 'VIP',
+};
 
 interface DetailModalProps {
   item: GalleryItemWithModel;
@@ -32,7 +47,9 @@ export function DetailModal({
   hasNext = false,
 }: DetailModalProps) {
   const [copied, setCopied] = useState<string | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const hasValidImage = !!item.previewUrl && item.previewUrl.startsWith('http') && item.previewUrl !== '/placeholder-gallery.png';
+  const [imageLoaded, setImageLoaded] = useState(!hasValidImage);
+  const [imageError, setImageError] = useState(false);
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -60,6 +77,13 @@ export function DetailModal({
     return `$${Number(amount).toFixed(2)}`;
   };
 
+  // Lock body scroll while modal is open
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // Handle keyboard navigation
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -71,8 +95,8 @@ export function DetailModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, onNavigate, hasPrev, hasNext]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden" style={{ isolation: 'isolate' }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/90 backdrop-blur-md"
@@ -98,24 +122,28 @@ export function DetailModal({
       )}
 
       {/* Modal */}
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
+      <div className="relative w-full max-w-5xl mx-4 my-4 h-[calc(100vh-2rem)] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Image Section */}
-        <div className="lg:w-1/2 bg-black flex items-center justify-center relative min-h-[300px] lg:min-h-0">
-          {!imageLoaded && (
+        <div className="lg:w-1/2 bg-black flex items-center justify-center relative min-h-[200px] max-h-[35vh] lg:max-h-none lg:min-h-0">
+          {!imageLoaded && !imageError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-12 h-12 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
-          {item.previewUrl ? (
+          {hasValidImage && !imageError ? (
             <img
               src={item.previewUrl}
               alt={item.title || 'Preview'}
               className={`max-w-full max-h-[90vh] object-contain transition-opacity ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setImageLoaded(true)}
+              onError={() => { setImageError(true); setImageLoaded(true); }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-zinc-600">
-              <Tag className="w-16 h-16" />
+            <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/[0.06]">
+                <BarChart3 className="w-10 h-10 text-brand-light-pink/50" />
+              </div>
+              <span className="text-sm text-zinc-500">{item.title || 'No Preview Available'}</span>
             </div>
           )}
 
@@ -143,9 +171,9 @@ export function DetailModal({
         {/* Details Section */}
         <div className="lg:w-1/2 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-zinc-800">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-medium text-white truncate">
+              <h2 className="text-lg font-medium text-white truncate">
                 {item.title || 'Untitled Content'}
               </h2>
               <div className="flex items-center gap-2 mt-1">
@@ -171,21 +199,22 @@ export function DetailModal({
           </div>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             {/* Model Info */}
             {item.model && (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-zinc-800/50">
-                {item.model.profileImageUrl ? (
-                  <img
-                    src={item.model.profileImageUrl}
-                    alt={item.model.displayName || item.model.name}
-                    className="w-12 h-12 rounded-full object-cover border-2 border-zinc-700"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border-2 border-zinc-700 flex items-center justify-center">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/50">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border-2 border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+                  {item.model.profileImageUrl?.startsWith('http') ? (
+                    <img
+                      src={item.model.profileImageUrl}
+                      alt={item.model.displayName || item.model.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
                     <User className="w-5 h-5 text-violet-400" />
-                  </div>
-                )}
+                  )}
+                </div>
                 <div>
                   <p className="text-white font-medium">{item.model.displayName || item.model.name}</p>
                   <p className="text-sm text-zinc-500">Model</p>
@@ -194,42 +223,42 @@ export function DetailModal({
             )}
 
             {/* Performance Stats */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Performance</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-zinc-800/50">
-                  <div className="flex items-center gap-2 text-emerald-400 mb-1">
-                    <DollarSign className="w-4 h-4" />
-                    <span className="text-xs font-medium uppercase">Revenue</span>
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Performance</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="p-2.5 rounded-lg bg-zinc-800/50 text-center">
+                  <div className="flex items-center justify-center gap-1 text-emerald-400 mb-0.5">
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-medium uppercase">Revenue</span>
                   </div>
-                  <p className="text-2xl font-semibold text-white">
+                  <p className="text-base font-semibold text-white">
                     {formatCurrency(Number(item.revenue))}
                   </p>
                 </div>
-                <div className="p-4 rounded-xl bg-zinc-800/50">
-                  <div className="flex items-center gap-2 text-blue-400 mb-1">
-                    <ShoppingCart className="w-4 h-4" />
-                    <span className="text-xs font-medium uppercase">Sales</span>
+                <div className="p-2.5 rounded-lg bg-zinc-800/50 text-center">
+                  <div className="flex items-center justify-center gap-1 text-blue-400 mb-0.5">
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-medium uppercase">Sales</span>
                   </div>
-                  <p className="text-2xl font-semibold text-white">
+                  <p className="text-base font-semibold text-white">
                     {item.salesCount || 0}
                   </p>
                 </div>
-                <div className="p-4 rounded-xl bg-zinc-800/50">
-                  <div className="flex items-center gap-2 text-violet-400 mb-1">
-                    <Eye className="w-4 h-4" />
-                    <span className="text-xs font-medium uppercase">Views</span>
+                <div className="p-2.5 rounded-lg bg-zinc-800/50 text-center">
+                  <div className="flex items-center justify-center gap-1 text-violet-400 mb-0.5">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-medium uppercase">Views</span>
                   </div>
-                  <p className="text-2xl font-semibold text-white">
+                  <p className="text-base font-semibold text-white">
                     {item.viewCount?.toLocaleString() || 0}
                   </p>
                 </div>
-                <div className="p-4 rounded-xl bg-zinc-800/50">
-                  <div className="flex items-center gap-2 text-amber-400 mb-1">
-                    <BarChart3 className="w-4 h-4" />
-                    <span className="text-xs font-medium uppercase">Conv. Rate</span>
+                <div className="p-2.5 rounded-lg bg-zinc-800/50 text-center">
+                  <div className="flex items-center justify-center gap-1 text-amber-400 mb-0.5">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-medium uppercase">Conv.</span>
                   </div>
-                  <p className="text-2xl font-semibold text-white">
+                  <p className="text-base font-semibold text-white">
                     {item.conversionRate ? `${(Number(item.conversionRate) * 100).toFixed(1)}%` : '-'}
                   </p>
                 </div>
@@ -237,8 +266,8 @@ export function DetailModal({
             </div>
 
             {/* Details */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Details</h3>
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Details</h3>
               <div className="space-y-2">
                 <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
                   <span className="text-zinc-500 flex items-center gap-2">
@@ -278,11 +307,121 @@ export function DetailModal({
               </div>
             </div>
 
+            {/* Board Details */}
+            {(() => {
+              const bm = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
+              const hasBoard = item.postOrigin || item.pricingTier || item.pageType || bm;
+              if (!hasBoard) return null;
+              return (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Board Details</h3>
+                  <div className="space-y-2">
+                    {item.postOrigin && (
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
+                        <span className="text-zinc-500">Post Origin</span>
+                        <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-cyan-500/15 text-cyan-400">
+                          {item.postOrigin.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    )}
+                    {item.pricingTier && (
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
+                        <span className="text-zinc-500">Tier</span>
+                        <span className="text-zinc-300">{TIER_LABELS[item.pricingTier] || item.pricingTier}</span>
+                      </div>
+                    )}
+                    {item.pageType && (
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
+                        <span className="text-zinc-500">Page Type</span>
+                        <span className="text-zinc-300">{PAGE_TYPE_LABELS[item.pageType] || item.pageType}</span>
+                      </div>
+                    )}
+                    {bm?.contentCount && (
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
+                        <span className="text-zinc-500 flex items-center gap-2"><Images className="w-4 h-4" />Content</span>
+                        <span className="text-zinc-300">{bm.contentCount}</span>
+                      </div>
+                    )}
+                    {bm?.contentLength && (
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/50">
+                        <span className="text-zinc-500 flex items-center gap-2"><Film className="w-4 h-4" />Length</span>
+                        <span className="text-zinc-300">{bm.contentLength}</span>
+                      </div>
+                    )}
+                    {/* Links */}
+                    {(bm?.driveLink || bm?.postLinkOnlyfans || bm?.postLinkFansly || bm?.gifUrl || bm?.gifUrlFansly) && (
+                      <div className="pt-2 space-y-2">
+                        {bm?.driveLink && (
+                          <a href={bm.driveLink.startsWith('http') ? bm.driveLink : `https://${bm.driveLink}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-brand-blue hover:underline">
+                            <Globe className="w-3.5 h-3.5" />Google Drive
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                        {bm?.postLinkOnlyfans && (
+                          <a href={bm.postLinkOnlyfans} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-sky-400 hover:underline">
+                            <Link2 className="w-3.5 h-3.5" />OnlyFans Post
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                        {bm?.postLinkFansly && (
+                          <a href={bm.postLinkFansly} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-indigo-400 hover:underline">
+                            <Link2 className="w-3.5 h-3.5" />Fansly Post
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                        {bm?.gifUrl && (
+                          <a href={bm.gifUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
+                            <Film className="w-3.5 h-3.5" />GIF Preview
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                        {bm?.gifUrlFansly && (
+                          <a href={bm.gifUrlFansly} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
+                            <Film className="w-3.5 h-3.5" />GIF Preview (Fansly)
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {/* Collaborators */}
+                    {((bm?.internalModelTags && bm.internalModelTags.length > 0) || (bm?.externalCreatorTags && bm.externalCreatorTags.length > 0)) && (
+                      <div className="pt-2 space-y-2">
+                        {bm?.internalModelTags && bm.internalModelTags.length > 0 && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium flex items-center gap-1 mb-1.5">
+                              <Users className="w-3 h-3" />Internal Models
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {bm.internalModelTags.map((t) => (
+                                <span key={t} className="px-2 py-0.5 rounded-md text-xs bg-brand-blue/15 text-brand-blue font-medium">{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {bm?.externalCreatorTags && bm.externalCreatorTags.length > 0 && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium flex items-center gap-1 mb-1.5">
+                              <Users className="w-3 h-3" />External Creators
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {bm.externalCreatorTags.map((t) => (
+                                <span key={t} className="px-2 py-0.5 rounded-md text-xs bg-brand-light-pink/15 text-brand-light-pink font-medium">{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Caption */}
             {item.captionUsed && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Caption</h3>
+                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Caption</h3>
                   <button
                     onClick={() => copyToClipboard(item.captionUsed!, 'Caption')}
                     className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 transition-colors"
@@ -299,7 +438,7 @@ export function DetailModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center gap-2 p-6 border-t border-zinc-800 bg-zinc-900/80">
+          <div className="flex items-center gap-2 px-5 py-3 border-t border-zinc-800 bg-zinc-900/80">
             {onEditContentType && (
               <button
                 onClick={onEditContentType}
@@ -330,6 +469,7 @@ export function DetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

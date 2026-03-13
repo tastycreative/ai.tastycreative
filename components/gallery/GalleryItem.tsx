@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { DollarSign, Eye, ShoppingCart, Calendar, BarChart3, Archive, MoreVertical, Tag } from 'lucide-react';
+import { DollarSign, Eye, ShoppingCart, Calendar, BarChart3, Archive, MoreVertical, Tag, Film, Images } from 'lucide-react';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, type GalleryContentType, type GalleryPlatform } from '@/lib/constants/gallery';
-import type { GalleryItemWithModel } from '@/types/gallery';
+import type { GalleryItemWithModel, GalleryBoardMetadata } from '@/types/gallery';
 
 interface GalleryItemProps {
   item: GalleryItemWithModel;
@@ -47,8 +47,33 @@ const platformColors: Record<string, string> = {
   OTHER: 'bg-zinc-500/20 text-zinc-400',
 };
 
+const postOriginColors: Record<string, string> = {
+  OTP: 'bg-cyan-500/20 text-cyan-400',
+  PTR: 'bg-amber-500/20 text-amber-400',
+  PPV: 'bg-emerald-500/20 text-emerald-400',
+  GAME: 'bg-yellow-500/20 text-yellow-400',
+  LIVE: 'bg-red-500/20 text-red-400',
+  TIP_ME: 'bg-green-500/20 text-green-400',
+  VIP: 'bg-violet-500/20 text-violet-400',
+  OTM: 'bg-teal-500/20 text-teal-400',
+  DM_FUNNEL: 'bg-orange-500/20 text-orange-400',
+  RENEW_ON: 'bg-lime-500/20 text-lime-400',
+  CUSTOM: 'bg-zinc-500/20 text-zinc-400',
+};
+
+const TIER_LABELS: Record<string, string> = {
+  PORN_ACCURATE: 'Porn Accurate',
+  PORN_SCAM: 'Porn Scam',
+  GF_ACCURATE: 'GF Accurate',
+  GF_SCAM: 'GF Scam',
+};
+
+const isValidUrl = (url: string | null | undefined) =>
+  !!url && url.startsWith('http') && url !== '/placeholder-gallery.png';
+
 export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive }: GalleryItemProps) {
   const [showMenu, setShowMenu] = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
 
   const revenue = Number(item.revenue) || 0;
   const salesCount = item.salesCount || 0;
@@ -59,6 +84,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
   const platformLabel = PLATFORM_LABELS[item.platform as GalleryPlatform] || item.platform;
   const contentTypeColor = contentTypeColors[item.contentType] || contentTypeColors.OTHER;
   const platformColor = platformColors[item.platform] || platformColors.OTHER;
+  const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
 
   return (
     <div
@@ -70,20 +96,19 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
 
       {/* Preview Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-zinc-800/50">
-        {item.previewUrl ? (
+        {isValidUrl(item.previewUrl) && !imgError ? (
           <img
             src={item.previewUrl}
             alt={item.title || 'Gallery item'}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
+            onError={() => setImgError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center">
-              <BarChart3 className="w-8 h-8 text-violet-400/50" />
+          <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-zinc-800/80 to-zinc-900/80">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/[0.06]">
+              <BarChart3 className="w-7 h-7 text-brand-light-pink/60" />
             </div>
+            <span className="text-[11px] text-zinc-500 font-medium">{item.title || 'No Preview'}</span>
           </div>
         )}
 
@@ -99,6 +124,11 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${platformColor}`}>
               {platformLabel}
             </span>
+            {item.postOrigin && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${postOriginColors[item.postOrigin] || postOriginColors.CUSTOM}`}>
+                {item.postOrigin.replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
 
           {/* Menu */}
@@ -181,20 +211,47 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
         {/* Model Info */}
         {item.model && (
           <div className="flex items-center gap-2">
-            {item.model.profileImageUrl ? (
-              <img
-                src={item.model.profileImageUrl}
-                alt={item.model.displayName}
-                className="w-6 h-6 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center shrink-0 overflow-hidden">
+              {isValidUrl(item.model.profileImageUrl) ? (
+                <img
+                  src={item.model.profileImageUrl!}
+                  alt={item.model.displayName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = `<span class="text-xs font-medium text-white/80">${item.model!.displayName.charAt(0)}</span>`;
+                  }}
+                />
+              ) : (
                 <span className="text-xs font-medium text-white/80">
                   {item.model.displayName.charAt(0)}
                 </span>
-              </div>
-            )}
+              )}
+            </div>
             <span className="text-sm text-zinc-400 truncate">{item.model.displayName}</span>
+          </div>
+        )}
+
+        {/* Content Info */}
+        {(item.pricingTier || boardMeta?.contentLength || boardMeta?.contentCount) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+            {item.pricingTier && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">
+                {TIER_LABELS[item.pricingTier] || item.pricingTier}
+              </span>
+            )}
+            {boardMeta?.contentCount && (
+              <span className="flex items-center gap-1 text-zinc-400">
+                <Images className="w-3 h-3" />
+                {boardMeta.contentCount}
+              </span>
+            )}
+            {boardMeta?.contentLength && (
+              <span className="flex items-center gap-1 text-zinc-400">
+                <Film className="w-3 h-3" />
+                {boardMeta.contentLength}
+              </span>
+            )}
           </div>
         )}
 
