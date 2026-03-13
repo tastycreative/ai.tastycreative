@@ -46,6 +46,7 @@ import {
   useBoardItemHistory,
 } from '@/lib/hooks/useBoardItems.query';
 import type { ChecklistItem } from '@/lib/spaces/template-metadata';
+import { ActivityFeed } from '../../board/ActivityFeed';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -69,7 +70,7 @@ const FIELD_LABELS: Record<string, string> = {
   columnId: 'status',
   priority: 'priority',
   assigneeId: 'assignee',
-  dueDate: 'due date',
+  dueDate: 'launching date',
   position: 'position',
 };
 
@@ -88,7 +89,8 @@ function formatDate(iso: string) {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  });
+    timeZone: 'America/Los_Angeles',
+  }) + ' PST';
 }
 
 function formatFullDate(iso: string) {
@@ -98,7 +100,8 @@ function formatFullDate(iso: string) {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  });
+    timeZone: 'America/Los_Angeles',
+  }) + ' PST';
 }
 
 const AVATAR_COLORS = [
@@ -289,6 +292,10 @@ export function ModelOnboardingTaskDetailModal({
 
   const getMemberName = (id?: string) => {
     if (!id) return undefined;
+    // Try space members first
+    const sm = spaceMembers?.find((mb) => mb.user.clerkId === id);
+    if (sm) return sm.user.name || `${sm.user.firstName ?? ''} ${sm.user.lastName ?? ''}`.trim() || sm.user.email;
+    // Fallback to org members for display of historical assignees
     const m = orgMembers.find((mb) => mb.clerkId === id || mb.id === id);
     if (!m) return undefined;
     return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
@@ -680,23 +687,24 @@ export function ModelOnboardingTaskDetailModal({
                         value={getMemberName(task.assignee) ?? ''}
                         placeholder="Unassigned"
                         searchPlaceholder="Search members..."
-                        options={orgMembers.map((m) => getMemberName(m.clerkId) ?? m.email)}
+                        options={(spaceMembers ?? []).map((m) => m.user.name || `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim() || m.user.email)}
                         onChange={(v) => {
                           if (!v) { onUpdate({ ...task, assignee: undefined }); }
                           else {
-                            const member = orgMembers.find((m) => (getMemberName(m.clerkId) ?? m.email) === v);
-                            if (member) onUpdate({ ...task, assignee: member.clerkId });
+                            const member = spaceMembers?.find((m) => (m.user.name || `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim() || m.user.email) === v);
+                            if (member) onUpdate({ ...task, assignee: member.user.clerkId });
                           }
                         }}
                         clearable
                       />
                     </div>
                     <div>
-                      <SideLabel>Due Date</SideLabel>
+                      <SideLabel>Launching Date (PST)</SideLabel>
                       <EditableField
                         value={task.dueDate ?? ''}
-                        type="date"
+                        type="datetime-local"
                         placeholder="Not set"
+                        displaySuffix="PST"
                         onSave={(v) => onUpdate({ ...task, dueDate: v })}
                       />
                     </div>
@@ -867,7 +875,7 @@ export function ModelOnboardingTaskDetailModal({
                 </Section>
 
                 {/* Timestamps */}
-                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
+                <Section icon={Clock} title="Timestamps (PST)" defaultOpen={false}>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
                     {typeof meta._createdAt === 'string' && (
                       <div><SideLabel>Created</SideLabel><span className="text-gray-400">{formatFullDate(meta._createdAt as string)}</span></div>
@@ -876,6 +884,19 @@ export function ModelOnboardingTaskDetailModal({
                       <div><SideLabel>Updated</SideLabel><span className="text-gray-400">{formatFullDate(meta._updatedAt as string)}</span></div>
                     )}
                   </div>
+                </Section>
+
+                {/* Activity Feed */}
+                <Section icon={MessageSquare} title="Activity">
+                  <ActivityFeed
+                    comments={comments}
+                    history={historyEntries}
+                    onAddComment={(content) => addCommentMutation.mutate(content)}
+                    currentUserName={user?.firstName ?? user?.username ?? 'You'}
+                    currentUserClerkId={user?.id}
+                    members={spaceMembers ?? undefined}
+                    isLoading={commentsLoading || historyLoading}
+                  />
                 </Section>
               </>
             )}
@@ -1031,8 +1052,8 @@ export function ModelOnboardingTaskDetailModal({
               </div>
             </SideRow>
 
-            <SideRow label="Due Date">
-              <EditableField value={task.dueDate ?? ''} type="date" placeholder="Not set" onSave={(v) => onUpdate({ ...task, dueDate: v })} />
+            <SideRow label="Launching Date (PST)">
+              <EditableField value={task.dueDate ?? ''} type="datetime-local" placeholder="Not set" displaySuffix="PST" onSave={(v) => onUpdate({ ...task, dueDate: v })} />
             </SideRow>
 
             {socialHandles.length > 0 && (
@@ -1124,7 +1145,7 @@ function ChecklistItemText({
       {item.text}
       {item.completedAt && (
         <span className="ml-2 text-[10px] text-gray-700">
-          {new Date(item.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          {new Date(item.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
         </span>
       )}
     </button>

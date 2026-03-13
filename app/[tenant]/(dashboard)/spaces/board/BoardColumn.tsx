@@ -64,7 +64,7 @@ export function BoardColumn({
 }: BoardColumnProps) {
   const Card = CardComponent ?? BoardTaskCard;
   const router = useRouter();
-  const params = useParams<{ tenant: string }>();
+  const params = useParams<{ tenant: string; slug: string }>();
   const dotColor = DOT_COLORS[column.color ?? 'blue'] ?? 'bg-brand-blue';
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -126,9 +126,12 @@ export function BoardColumn({
   };
 
   const handlePlusClick = () => {
-    // Redirect to submissions for WALL_POST and OTP_PTR templates
-    if (templateType === 'WALL_POST' || templateType === 'OTP_PTR') {
-      router.push(`/${params.tenant}/submissions/new`);
+    // Redirect to submissions for WALL_POST, OTP_PTR, and SEXTING_SETS templates
+    if (templateType === 'WALL_POST' || templateType === 'OTP_PTR' || templateType === 'SEXTING_SETS') {
+      const qp = new URLSearchParams();
+      qp.set('type', templateType);
+      if (params.slug) qp.set('spaces', params.slug);
+      router.push(`/${params.tenant}/submissions/new?${qp.toString()}`);
     } else {
       setIsAdding(true);
     }

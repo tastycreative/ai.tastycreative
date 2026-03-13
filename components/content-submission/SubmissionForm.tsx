@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createSubmissionWithComponentsSchema } from '@/lib/validations/content-submission';
@@ -8,7 +9,7 @@ import type { CreateSubmissionWithComponents } from '@/lib/validations/content-s
 import { useCreateBoardItem } from '@/lib/hooks/useBoardItems.query';
 import { useMultiSpaceBoards } from '@/lib/hooks/useBoards.query';
 import { useCreateSubmission } from '@/lib/hooks/useContentSubmission.query';
-import type { Space } from '@/lib/hooks/useSpaces.query';
+import { useSpaces, type Space } from '@/lib/hooks/useSpaces.query';
 import { getMetadataDefaults } from '@/lib/spaces/template-metadata';
 import { generateSteps, ensureValidStep } from '@/lib/content-submission/step-generator';
 import { ProgressIndicator } from './ProgressIndicator';
@@ -92,6 +93,11 @@ export const SubmissionForm = memo(function SubmissionForm({
     setStyleFields((prev) => ({ ...prev, ...fields }));
   }, []);
 
+  // Read URL search params for pre-selection from board + click
+  const searchParams = useSearchParams();
+  const { data: spacesData } = useSpaces();
+  const prefilledRef = useRef(false);
+
   // Rollback: delete all board items + submission record created in this session
   const handleCancelSubmission = useCallback(async () => {
     cancelRequestedRef.current = true;
@@ -143,6 +149,38 @@ export const SubmissionForm = memo(function SubmissionForm({
       metadata: {},
     },
   });
+
+  // Auto-select template type and spaces from URL params (e.g. from board + click)
+  useEffect(() => {
+    if (prefilledRef.current || !spacesData?.spaces) return;
+    const paramType = searchParams?.get('type') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null;
+    const paramSpaces = searchParams?.get('spaces'); // comma-separated slugs
+
+    if (!paramType) return;
+
+    const validTypes = ['OTP_PTR', 'WALL_POST', 'SEXTING_SETS'] as const;
+    if (validTypes.includes(paramType)) {
+      setSelectedTemplateType(paramType);
+      setValue('submissionType', paramType);
+      const defaults = getMetadataDefaults(paramType as any);
+      setValue('metadata', defaults);
+
+      // Auto-select spaces by slug
+      if (paramSpaces) {
+        const slugs = paramSpaces.split(',').map((s) => s.trim()).filter(Boolean);
+        const matched = new Map<string, Space>();
+        for (const slug of slugs) {
+          const space = spacesData.spaces.find(
+            (s) => s.slug === slug && s.templateType === paramType
+          );
+          if (space) matched.set(space.id, space);
+        }
+        if (matched.size > 0) setSelectedSpaces(matched);
+      }
+
+      prefilledRef.current = true;
+    }
+  }, [searchParams, spacesData, setValue]);
 
   const submissionType = watch('submissionType') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 

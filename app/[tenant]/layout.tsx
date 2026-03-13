@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { Loader2 } from "lucide-react";
 
 const ACTIVITY_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+const AFK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes of no interaction = AFK
 
 export default function TenantLayout({
   children,
@@ -68,15 +69,38 @@ export default function TenantLayout({
     verifyAccess();
   }, [isLoaded, user, tenant, router]);
 
-  // Track activity on mount + when tab becomes visible (with cooldown)
+  // Track activity only when user is not AFK (has recent interactions)
   const lastTrackedRef = useRef(0);
+  const lastInteractionRef = useRef(Date.now());
+
+  const isUserActive = useCallback(() => {
+    return Date.now() - lastInteractionRef.current < AFK_THRESHOLD_MS;
+  }, []);
+
   const trackActivity = useCallback(() => {
+    if (!isUserActive()) return;
     const now = Date.now();
     if (now - lastTrackedRef.current < ACTIVITY_COOLDOWN_MS) return;
     lastTrackedRef.current = now;
     fetch('/api/track-activity', { method: 'POST' }).catch(() => {});
-  }, []);
+  }, [isUserActive]);
 
+  // Listen for user interactions to detect AFK
+  useEffect(() => {
+    if (!hasAccess) return;
+
+    const resetInteraction = () => {
+      lastInteractionRef.current = Date.now();
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach((evt) => window.addEventListener(evt, resetInteraction, { passive: true }));
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetInteraction));
+    };
+  }, [hasAccess]);
+
+  // Track on mount, on visibility change, and periodically (only if active)
   useEffect(() => {
     if (!hasAccess) return;
 
@@ -85,12 +109,19 @@ export default function TenantLayout({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        lastInteractionRef.current = Date.now();
         trackActivity();
       }
     };
 
+    // Periodic check every 2 min — only fires API if user is active
+    const interval = setInterval(trackActivity, ACTIVITY_COOLDOWN_MS);
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+    };
   }, [hasAccess, trackActivity]);
 
   // Show loading state while verifying

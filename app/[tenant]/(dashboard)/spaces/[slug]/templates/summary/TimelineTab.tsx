@@ -46,11 +46,11 @@ function diffDays(a: Date, b: Date): number {
 }
 
 function formatShortDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
 }
 
 function formatMonthYear(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' });
 }
 
 function packRows(tasks: RoadmapTask[]): PackedRow[] {
@@ -301,6 +301,9 @@ export function TimelineTab({
           )}
           <span className="text-[11px] text-gray-500">
             {allTasksList.length} task{allTasksList.length !== 1 ? 's' : ''}
+          </span>
+          <span className="text-[10px] text-gray-500 border border-white/[0.08] rounded px-1.5 py-0.5">
+            PST (Los Angeles)
           </span>
           <button
             onClick={() => setCompact((p) => !p)}
@@ -648,12 +651,12 @@ function RoadmapTooltip({
         <div className="space-y-1 text-[10px]">
           <div className="flex justify-between gap-4">
             <span className="text-gray-500">Created</span>
-            <span className="text-gray-300">{formatShortDate(task.barStart)}</span>
+            <span className="text-gray-300">{formatShortDate(task.barStart)} <span className="text-gray-500">PST</span></span>
           </div>
           <div className="flex justify-between gap-4">
-            <span className="text-gray-500">Due</span>
+            <span className="text-gray-500">Launching Date</span>
             <span className={overdue ? 'text-red-400 font-semibold' : 'text-gray-300'}>
-              {task.dueDate ? formatShortDate(task.barEnd) : 'No due date'}
+              {task.dueDate ? <>{formatShortDate(task.barEnd)} <span className="text-gray-500">PST</span></> : 'No launching date'}
               {overdue && ' (overdue)'}
             </span>
           </div>

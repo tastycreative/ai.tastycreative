@@ -6,8 +6,10 @@ import { Pencil, Check } from 'lucide-react';
 interface EditableFieldProps {
   value: string;
   onSave: (v: string) => void;
-  type?: 'text' | 'date';
+  type?: 'text' | 'date' | 'datetime-local';
   placeholder?: string;
+  /** Optional suffix shown after the display value (e.g. "PST") */
+  displaySuffix?: string;
 }
 
 export function EditableField({
@@ -15,6 +17,7 @@ export function EditableField({
   onSave,
   type = 'text',
   placeholder,
+  displaySuffix,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -36,7 +39,7 @@ export function EditableField({
         className="group/ef flex items-center gap-1.5 w-full text-left"
       >
         <span className="text-sm text-gray-800 dark:text-brand-off-white truncate">
-          {value || <span className="text-gray-400 italic">{placeholder ?? 'None'}</span>}
+          {value ? <>{value}{displaySuffix && <span className="text-gray-400 ml-1 text-xs">{displaySuffix}</span>}</> : <span className="text-gray-400 italic">{placeholder ?? 'None'}</span>}
         </span>
         <Pencil className="h-3 w-3 text-gray-400 opacity-0 group-hover/ef:opacity-100 transition-opacity shrink-0" />
       </button>
