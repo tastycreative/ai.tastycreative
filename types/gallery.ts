@@ -5,6 +5,19 @@ import type {
   GalleryPlatform,
 } from "@/lib/constants/gallery";
 
+/** OTP/PTR board-specific metadata stored as JSON */
+export interface GalleryBoardMetadata {
+  contentLength?: string;
+  contentCount?: string;
+  driveLink?: string;
+  postLinkOnlyfans?: string;
+  postLinkFansly?: string;
+  gifUrl?: string;
+  gifUrlFansly?: string;
+  internalModelTags?: string[];
+  externalCreatorTags?: string[];
+}
+
 /**
  * Gallery Item - Represents a piece of posted content with performance metrics
  */
@@ -41,6 +54,12 @@ export interface GalleryItem {
   postedAt: Date;
   origin: GalleryOrigin | string | null;
   sourceId: string | null;
+
+  // OTP/PTR fields
+  postOrigin: string | null;
+  pricingTier: string | null;
+  pageType: string | null;
+  boardMetadata: GalleryBoardMetadata | null;
 
   // Archive
   isArchived: boolean;

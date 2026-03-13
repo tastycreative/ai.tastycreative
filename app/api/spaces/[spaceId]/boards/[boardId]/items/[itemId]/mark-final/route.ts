@@ -127,7 +127,25 @@ export async function POST(req: NextRequest, { params }: Params) {
       modelId = model?.id ?? null;
     }
 
-    // 6. Move item to "Posted" column and create gallery entries in a transaction
+    // 6. Extract OTP/PTR-specific metadata for gallery
+    const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? null;
+    const pricingTier = (meta.pricingCategory as string) ?? (meta.pricingTier as string) ?? null;
+    const pageType = (meta.pageType as string) ?? null;
+
+    const boardMetadata: Record<string, string | string[]> = {};
+    if (meta.contentLength) boardMetadata.contentLength = String(meta.contentLength);
+    if (meta.contentCount) boardMetadata.contentCount = String(meta.contentCount);
+    if (meta.driveLink) boardMetadata.driveLink = String(meta.driveLink);
+    if (meta.postLinkOnlyfans) boardMetadata.postLinkOnlyfans = String(meta.postLinkOnlyfans);
+    if (meta.postLinkFansly) boardMetadata.postLinkFansly = String(meta.postLinkFansly);
+    if (meta.gifUrl) boardMetadata.gifUrl = String(meta.gifUrl);
+    if (meta.gifUrlFansly) boardMetadata.gifUrlFansly = String(meta.gifUrlFansly);
+    if (Array.isArray(meta.internalModelTags) && meta.internalModelTags.length > 0)
+      boardMetadata.internalModelTags = meta.internalModelTags as string[];
+    if (Array.isArray(meta.externalCreatorTags) && meta.externalCreatorTags.length > 0)
+      boardMetadata.externalCreatorTags = meta.externalCreatorTags as string[];
+
+    // Move item to "Posted" column and create gallery entries in a transaction
     const galleryBase = {
       title: item.title,
       contentType,
@@ -142,6 +160,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       organizationId: item.organizationId,
       modelId,
       createdBy: userId,
+      postOrigin,
+      pricingTier,
+      pageType,
+      boardMetadata: Object.keys(boardMetadata).length > 0 ? boardMetadata : undefined,
     };
 
     const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {

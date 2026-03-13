@@ -55,8 +55,8 @@ model User {
   trackerActivityLogs      TrackerActivityLog[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
-  workspace_members        WorkspaceMember[]
   dailyActivities          UserDailyActivity[]
+  workspace_members        WorkspaceMember[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -1366,10 +1366,10 @@ model SextingSet {
   category      String
   s3FolderPath  String
   status        String         @default("draft")
-  sortOrder     Int            @default(0)
   scheduledDate DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  sortOrder     Int            @default(0)
   images        SextingImage[]
 
   @@index([userId])
@@ -2001,6 +2001,10 @@ model gallery_items {
   updatedAt        DateTime      @updatedAt
   createdBy        String?
   boardItemId      String?       @unique
+  postOrigin       String?
+  pricingTier      String?
+  pageType         String?
+  boardMetadata    Json?
   board_items      BoardItem?    @relation(fields: [boardItemId], references: [id])
   model            of_models?    @relation(fields: [modelId], references: [id])
   organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2010,6 +2014,9 @@ model gallery_items {
   @@index([contentType])
   @@index([platform])
   @@index([postedAt])
+  @@index([postOrigin])
+  @@index([pricingTier])
+  @@index([pageType])
 }
 
 model plan_features {
@@ -2361,20 +2368,20 @@ model TrackerTeam {
 }
 
 model PageTrackerEntry {
-  id             String           @id @default(cuid())
-  profileId      String           @unique
-  teamId         String?
-  platformType   String?
-  managingSystem String?
+  id                  String           @id @default(cuid())
+  profileId           String           @unique
+  teamId              String?
+  platformType        String?
+  managingSystem      String?
   trackerStatus       String           @default("ACTIVE")
-  pausedContentStyles String[]         @default([])
   notes               String?
-  organizationId String
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  team           TrackerTeam?     @relation(fields: [teamId], references: [id])
+  organizationId      String
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  pausedContentStyles String[]         @default([])
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile             InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  team                TrackerTeam?     @relation(fields: [teamId], references: [id])
 
   @@index([teamId])
   @@index([organizationId])
