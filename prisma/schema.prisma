@@ -56,9 +56,21 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
+  dailyActivities          UserDailyActivity[]
 
   @@index([currentOrganizationId])
   @@map("users")
+}
+
+model UserDailyActivity {
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime @db.Date
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("user_daily_activities")
 }
 
 model InfluencerLoRA {

@@ -77,6 +77,7 @@ export async function GET(
         id: member.id,
         userId: member.user.id,
         clerkId: member.user.clerkId,
+        name: member.user.name || null,
         email: clerkUser?.emailAddresses[0]?.emailAddress || member.user.email,
         firstName: clerkUser?.firstName || member.user.firstName,
         lastName: clerkUser?.lastName || member.user.lastName,

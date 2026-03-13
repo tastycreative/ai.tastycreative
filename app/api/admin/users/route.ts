@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       return {
         id: dbUser?.id || clerkUser.id,
         clerkId: clerkUser.id,
+        name: dbUser?.name || null,
         email: clerkUser.emailAddresses[0]?.emailAddress || null,
         firstName: clerkUser.firstName,
         lastName: clerkUser.lastName,
@@ -80,6 +81,7 @@ export async function GET(request: NextRequest) {
     const orphanedUsers = orphanedDbUsers.map(dbUser => ({
       id: dbUser.id,
       clerkId: dbUser.clerkId,
+      name: dbUser.name || null,
       email: dbUser.email,
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,

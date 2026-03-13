@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Mail, Calendar, Eye, Search, Filter } from 'lucide-react';
+import { User, Mail, Calendar, Eye, Search, Filter, BarChart3, TableProperties } from 'lucide-react';
+import UserAnalyticsDashboard from './UserAnalyticsDashboard';
+
+type ViewMode = 'analytics' | 'management';
 
 interface UserData {
   id: string;
   clerkId: string;
+  name: string | null;
   email: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -22,6 +26,7 @@ interface UserData {
 }
 
 export default function UsersTab() {
+  const [viewMode, setViewMode] = useState<ViewMode>('analytics');
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,9 +101,10 @@ export default function UsersTab() {
   const filteredUsers = users
     .filter((user) => {
       const searchLower = searchTerm.toLowerCase();
+      const name = user.name?.toLowerCase() || '';
       const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
       const email = user.email?.toLowerCase() || '';
-      return fullName.includes(searchLower) || email.includes(searchLower);
+      return name.includes(searchLower) || fullName.includes(searchLower) || email.includes(searchLower);
     })
     .sort((a, b) => {
       // First, sort by role priority: SUPER_ADMIN > ADMIN > USER
@@ -121,8 +127,8 @@ export default function UsersTab() {
       // If roles are the same, then sort by the selected criteria
       switch (sortBy) {
         case 'name':
-          const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim();
-          const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+          const nameA = a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim();
+          const nameB = b.name || `${b.firstName || ''} ${b.lastName || ''}`.trim();
           return nameA.localeCompare(nameB);
         case 'email':
           return (a.email || '').localeCompare(b.email || '');
@@ -134,13 +140,13 @@ export default function UsersTab() {
           return activityB - activityA;
         default:
           // Default to name sorting within the same role
-          const defaultNameA = `${a.firstName || ''} ${a.lastName || ''}`.trim();
-          const defaultNameB = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+          const defaultNameA = a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim();
+          const defaultNameB = b.name || `${b.firstName || ''} ${b.lastName || ''}`.trim();
           return defaultNameA.localeCompare(defaultNameB);
       }
     });
 
-  if (loading) {
+  if (loading && viewMode === 'management') {
     return (
       <div className="space-y-3 xs:space-y-4">
         <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Users Management</h3>
@@ -151,7 +157,7 @@ export default function UsersTab() {
     );
   }
 
-  if (error) {
+  if (error && viewMode === 'management') {
     return (
       <div className="space-y-3 xs:space-y-4">
         <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Users Management</h3>
@@ -170,9 +176,39 @@ export default function UsersTab() {
 
   return (
     <div className="space-y-3 xs:space-y-4 sm:space-y-6">
+      {/* View Toggle Tabs */}
+      <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setViewMode('analytics')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            viewMode === 'analytics'
+              ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          Analytics
+        </button>
+        <button
+          onClick={() => setViewMode('management')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            viewMode === 'management'
+              ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <TableProperties className="w-3.5 h-3.5" />
+          Users Management
+        </button>
+      </div>
+
+      {viewMode === 'analytics' ? (
+        <UserAnalyticsDashboard />
+      ) : (
+      <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 xs:gap-4">
         <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-foreground">Users Management</h3>
-        
+
         <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
           {/* Search Bar */}
           <div className="relative">
@@ -261,9 +297,9 @@ export default function UsersTab() {
                       </div>
                       <div>
                         <p className="font-semibold text-foreground text-xs xs:text-sm">
-                          {user.firstName && user.lastName
+                          {user.name || (user.firstName && user.lastName
                             ? `${user.firstName} ${user.lastName}`
-                            : user.firstName || user.lastName || 'Anonymous User'}
+                            : user.firstName || user.lastName || 'Anonymous User')}
                         </p>
                         <p className="text-[10px] xs:text-xs text-muted-foreground">
                           ID: {user.clerkId.slice(-8)}
@@ -366,8 +402,8 @@ export default function UsersTab() {
           </p>
         </div>
       )}
-
-
+      </>
+      )}
     </div>
   );
 }

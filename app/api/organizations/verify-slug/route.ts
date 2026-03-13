@@ -78,7 +78,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ hasAccess: false });
     }
 
-    // User has access
+    // User has access — update activity timestamps
+    const now = new Date();
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    await Promise.all([
+      prisma.user.update({
+        where: { clerkId: userId },
+        data: { lastLoginAt: now },
+      }),
+      prisma.teamMember.updateMany({
+        where: { userId: user.id, organizationId: organization.id },
+        data: { lastActiveAt: now },
+      }),
+      prisma.userDailyActivity.upsert({
+        where: { userId_date: { userId: user.id, date: todayDate } },
+        create: { userId: user.id, date: todayDate },
+        update: {},
+      }),
+    ]);
+
     return NextResponse.json({
       hasAccess: true,
       organization: {
