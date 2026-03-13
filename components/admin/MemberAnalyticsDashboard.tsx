@@ -58,8 +58,8 @@ function ActiveTodayCompact({ members, loading }: { members: RecentMember[]; loa
                 <p className="text-xs font-medium text-foreground truncate">{getMemberName(m.user)}</p>
               </div>
               <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                {m.lastLoginAt
-                  ? new Date(m.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                {m.lastActiveAt
+                  ? new Date(m.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                   : ''}
               </span>
             </div>
@@ -107,11 +107,11 @@ const recentMembersColumns: TableColumn<RecentMember>[] = [
     render: (item) => new Date(item.joinedAt).toLocaleDateString(),
   },
   {
-    key: 'lastLoginAt',
+    key: 'lastActiveAt',
     label: 'Last Active',
     render: (item) =>
-      item.lastLoginAt
-        ? new Date(item.lastLoginAt).toLocaleDateString()
+      item.lastActiveAt
+        ? new Date(item.lastActiveAt).toLocaleDateString()
         : 'Never',
   },
 ];

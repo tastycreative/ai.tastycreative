@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
         id: m.id,
         role: m.role,
         joinedAt: m.joinedAt,
-        lastLoginAt: m.lastActiveAt,
+        lastActiveAt: m.lastActiveAt,
         user: {
           name: m.user.name,
           email: m.user.email,
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
         id: m.id,
         role: m.role,
         joinedAt: m.joinedAt,
-        lastLoginAt: m.lastActiveAt,
+        lastActiveAt: m.lastActiveAt,
         user: {
           name: m.user.name,
           email: m.user.email,

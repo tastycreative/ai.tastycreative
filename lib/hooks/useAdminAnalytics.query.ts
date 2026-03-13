@@ -72,7 +72,7 @@ export interface RecentMember {
   id: string;
   role: string;
   joinedAt: string;
-  lastLoginAt: string | null;
+  lastActiveAt: string | null;
   user: {
     name: string | null;
     email: string | null;
