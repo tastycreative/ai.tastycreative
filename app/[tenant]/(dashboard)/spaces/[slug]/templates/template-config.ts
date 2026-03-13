@@ -31,7 +31,7 @@ const wallPostItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Bo
     title: item.title,
     description: (item.description as string) ?? undefined,
     assignee: (meta.model as string) ?? (item.assigneeId as string) ?? undefined,
-    priority: undefined,
+    priority: item.priority === 'HIGH' ? 'High' : item.priority === 'LOW' ? 'Low' : item.priority === 'URGENT' ? 'Urgent' : 'Normal',
     tags: [
       ...(meta.platform ? [meta.platform as string] : []),
       ...(Array.isArray(meta.hashtags) ? (meta.hashtags as string[]) : []),
@@ -95,7 +95,7 @@ const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Boar
     title: item.title,
     description: (item.description as string) ?? undefined,
     assignee: (item.assigneeId as string) ?? undefined,
-    priority: item.priority === 'HIGH' ? 'High' : item.priority === 'LOW' ? 'Low' : 'Medium',
+    priority: item.priority === 'HIGH' ? 'High' : item.priority === 'LOW' ? 'Low' : item.priority === 'URGENT' ? 'Urgent' : 'Normal',
     tags: [
       ...(typeTag ? [typeTag] : []),
       ...(priceTag ? [priceTag] : []),

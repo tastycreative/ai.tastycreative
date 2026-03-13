@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, useParams } from 'next/navigation';
 import { Draggable } from '@hello-pangea/dnd';
 import {
   Clock,
@@ -13,6 +14,7 @@ import {
   Loader2,
   Trash2,
   Pause,
+  ExternalLink,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
@@ -47,14 +49,16 @@ const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
 };
 
 const PRIORITY_BORDER: Record<string, string> = {
-  High: 'border-l-red-400',
-  Medium: 'border-l-amber-400',
+  Urgent: 'border-l-rose-400',
+  High: 'border-l-amber-400',
+  Normal: 'border-l-sky-400',
   Low: 'border-l-emerald-400',
 };
 
 const PRIORITY_DOT: Record<string, string> = {
-  High: 'bg-red-400',
-  Medium: 'bg-amber-400',
+  Urgent: 'bg-rose-400',
+  High: 'bg-amber-400',
+  Normal: 'bg-sky-400',
   Low: 'bg-emerald-400',
 };
 
@@ -97,6 +101,8 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
   const { pausedModelsMap } = usePausedModels();
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
 
   const isReadyToDeploy = columnTitle?.toLowerCase().includes('ready to deploy') ?? false;
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
@@ -119,6 +125,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
   const deadline = (meta.deadline as string) ?? '';
   const createdAt = typeof meta._createdAt === 'string' ? meta._createdAt : '';
   const captionStatus = (meta.otpPtrCaptionStatus as OtpPtrCaptionStatus) ?? null;
+  const captionTicketId = (meta.captionTicketId as string) ?? null;
   const dl = deadline ? deadlineLabel(deadline) : null;
 
   const assigneeName = (() => {
@@ -306,6 +313,21 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                 )}
 
                 <span className="flex-1" />
+
+                {captionTicketId && (
+                  <button
+                    type="button"
+                    title="Open in Caption Workspace"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`);
+                    }}
+                    className="opacity-0 group-hover/card:opacity-100 transition-opacity inline-flex items-center gap-1 text-[10px] font-semibold text-brand-blue hover:text-brand-blue/80 px-1.5 py-0.5 rounded-md border border-brand-blue/20 hover:bg-brand-blue/10"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Caption
+                  </button>
+                )}
 
                 {assigneeInitial ? (
                   <span

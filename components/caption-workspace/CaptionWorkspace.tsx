@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
@@ -91,7 +92,12 @@ const ResizablePanel = memo(function ResizablePanel({
 });
 
 export default function CaptionWorkspace() {
+  const params = useParams();
+  const tenant = params?.tenant as string;
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [selectedTicket, setSelectedTicket] = useState(0);
+  const deepLinkConsumedRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'context' | 'reference'>('context');
   const [searchQuery, setSearchQuery] = useState('');
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -219,6 +225,23 @@ export default function CaptionWorkspace() {
       setSelectedTicket(queue.length - 1);
     }
   }, [queue.length, selectedTicket]);
+
+  // Deep-link: when ?ticket={captionTicketId} is present, auto-select that ticket once data loads
+  useEffect(() => {
+    if (deepLinkConsumedRef.current) return;
+    const ticketParam = searchParams.get('ticket');
+    if (!ticketParam || queue.length === 0) return;
+    const idx = queue.findIndex((t) => t.id === ticketParam);
+    if (idx !== -1) {
+      setSelectedTicket(idx);
+      deepLinkConsumedRef.current = true;
+      // Clean the param from the URL without a navigation
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete('ticket');
+      const newUrl = next.toString() ? `?${next.toString()}` : window.location.pathname;
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [queue, searchParams, router]);
 
   // Initialize caption drafts from database when queue data loads
   useEffect(() => {
@@ -785,13 +808,13 @@ export default function CaptionWorkspace() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No tasks in queue</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Add caption tasks from the Caption Queue page or wait for tasks to be assigned from OTP/PTR submissions.
+                Create a ticket on the Content Submissions tab to get tasks added to your queue.
               </p>
               <a 
-                href="caption-queue" 
+                href={`/${tenant}/submissions`}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-linear-to-r from-brand-mid-pink to-brand-light-pink hover:from-brand-dark-pink hover:to-brand-mid-pink text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-brand-mid-pink/30"
               >
-                Go to Caption Queue
+                Go to Content Submissions
               </a>
             </div>
           </div>

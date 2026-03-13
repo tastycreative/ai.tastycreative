@@ -301,6 +301,20 @@ interface WallPostPhoto {
 
 const PLATFORM_OPTIONS = ['onlyfans', 'fansly', 'instagram', 'twitter', 'reddit'];
 
+const PRIORITY_PILL: Record<string, string> = {
+  Urgent: 'text-rose-400',
+  High: 'text-amber-400',
+  Normal: 'text-sky-400',
+  Low: 'text-emerald-400',
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  Urgent: 'bg-rose-400',
+  High: 'bg-amber-400',
+  Normal: 'bg-sky-400',
+  Low: 'bg-emerald-400',
+};
+
 /* ── Media + Caption types ───────────────────────────────── */
 
 interface CaptionItem {
@@ -813,7 +827,7 @@ export function WallPostTaskDetailModal({
   onClose,
   onUpdate,
 }: Props) {
-  const params = useParams<{ slug: string }>();
+  const params = useParams<{ tenant: string; slug: string }>();
   const { data: space } = useSpaceBySlug(params.slug);
   const { user } = useUser();
   const spaceId = space?.id;
@@ -2267,12 +2281,27 @@ export function WallPostTaskDetailModal({
 
             {wallPostStatus && WALL_POST_STATUS_CONFIG[wallPostStatus] && (
               <SidebarField label="Caption Status">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border ${WALL_POST_STATUS_CONFIG[wallPostStatus].bgColor} ${WALL_POST_STATUS_CONFIG[wallPostStatus].color}`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${WALL_POST_STATUS_CONFIG[wallPostStatus].dotColor}`} />
-                  {WALL_POST_STATUS_CONFIG[wallPostStatus].label}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border ${WALL_POST_STATUS_CONFIG[wallPostStatus].bgColor} ${WALL_POST_STATUS_CONFIG[wallPostStatus].color}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${WALL_POST_STATUS_CONFIG[wallPostStatus].dotColor}`} />
+                    {WALL_POST_STATUS_CONFIG[wallPostStatus].label}
+                  </span>
+                  {captionTicketId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        window.location.href = `/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`;
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:text-brand-blue/80 px-2 py-1 rounded-md border border-brand-blue/25 hover:bg-brand-blue/10 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open
+                    </button>
+                  )}
+                </div>
               </SidebarField>
             )}
 
@@ -2304,6 +2333,20 @@ export function WallPostTaskDetailModal({
 
             {/* ── Details ── */}
             <SidebarSectionHeader label="Details" />
+
+            <SidebarField label="Priority">
+              <SelectField
+                value={task.priority ?? 'Normal'}
+                options={['Low', 'Normal', 'High', 'Urgent']}
+                onSave={(v) => onUpdate({ ...task, priority: v as BoardTask['priority'] })}
+                renderOption={(v) => (
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${PRIORITY_PILL[v] ?? 'text-gray-300'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[v] ?? ''}`} />
+                    {v}
+                  </span>
+                )}
+              />
+            </SidebarField>
 
             <SidebarField label="Model">
               <EditableField

@@ -94,14 +94,16 @@ const PAGE_TYPE_OPTIONS = [
 ];
 
 const PRIORITY_PILL: Record<string, string> = {
-  High: 'text-red-400',
-  Medium: 'text-amber-400',
+  Urgent: 'text-rose-400',
+  High: 'text-amber-400',
+  Normal: 'text-sky-400',
   Low: 'text-emerald-400',
 };
 
 const PRIORITY_DOT: Record<string, string> = {
-  High: 'bg-red-400',
-  Medium: 'bg-amber-400',
+  Urgent: 'bg-rose-400',
+  High: 'bg-amber-400',
+  Normal: 'bg-sky-400',
   Low: 'bg-emerald-400',
 };
 
@@ -351,7 +353,7 @@ export function OtpPtrTaskDetailModal({
   onClose,
   onUpdate,
 }: Props) {
-  const params = useParams<{ slug: string }>();
+  const params = useParams<{ tenant: string; slug: string }>();
   const { data: space } = useSpaceBySlug(params.slug);
   const { data: orgMembers = [] } = useOrgMembers();
   const { user } = useUser();
@@ -853,8 +855,8 @@ export function OtpPtrTaskDetailModal({
                     <div>
                       <SideLabel>Priority</SideLabel>
                       <SelectField
-                        value={task.priority ?? 'Medium'}
-                        options={['Low', 'Medium', 'High']}
+                        value={task.priority ?? 'Normal'}
+                        options={['Low', 'Normal', 'High', 'Urgent']}
                         onSave={(v) => onUpdate({ ...task, priority: v as BoardTask['priority'] })}
                         renderOption={(v) => (
                           <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${PRIORITY_PILL[v] ?? 'text-gray-300'}`}>
@@ -1610,8 +1612,8 @@ export function OtpPtrTaskDetailModal({
 
             <SideRow label="Priority">
               <SelectField
-                value={task.priority ?? 'Medium'}
-                options={['Low', 'Medium', 'High']}
+                value={task.priority ?? 'Normal'}
+                options={['Low', 'Normal', 'High', 'Urgent']}
                 onSave={(v) => onUpdate({ ...task, priority: v as BoardTask['priority'] })}
                 renderOption={(v) => (
                   <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${PRIORITY_PILL[v] ?? 'text-gray-300'}`}>
@@ -1621,6 +1623,23 @@ export function OtpPtrTaskDetailModal({
                 )}
               />
             </SideRow>
+
+            {captionTicketId && (
+              <SideRow label="Caption Workspace">
+                <a
+                  href={`/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onClose();
+                    window.location.href = `/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`;
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue/80 px-2.5 py-1.5 rounded-lg border border-brand-blue/25 hover:bg-brand-blue/10 transition-colors"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open in Caption Workspace
+                </a>
+              </SideRow>
+            )}
 
             <SideRow label="Post Origin">
               <SelectField

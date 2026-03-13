@@ -123,14 +123,29 @@ export async function POST(req: NextRequest, { params }: Params) {
       // ── Sync / auto-push to Caption Queue ────────────────────
       // 1. If a ticket is already linked → add this file as a content item.
       //    Wall-post items get requiresCaption:true; OTP/PTR items are display-only.
-      // 2. If no ticket exists yet AND this is a WALL_POST board → auto-create the
-      //    ticket (first media upload triggers the push, subsequent ones sync via #1).
+      // 2. If no ticket exists yet AND this is a WALL_POST or OTP_PTR board → auto-create
+      //    the ticket. Priority and deadline from the board item flow through to the ticket.
       try {
         const boardItem = await prisma.boardItem.findUnique({
           where: { id: itemId },
-          select: { metadata: true },
+          select: { metadata: true, priority: true, dueDate: true },
         });
         const meta = (boardItem?.metadata as Record<string, unknown>) ?? {};
+
+        // Map BoardItemPriority enum values → CaptionQueueTicket urgency strings
+        const BOARD_PRIORITY_TO_URGENCY: Record<string, string> = {
+          LOW: 'low', MEDIUM: 'medium', HIGH: 'high', URGENT: 'urgent',
+        };
+        const ticketUrgency =
+          BOARD_PRIORITY_TO_URGENCY[(boardItem?.priority ?? 'MEDIUM') as string] ?? 'medium';
+
+        // Resolve release/deadline date: boardItem.dueDate → meta.deadline → meta.scheduledDate → now
+        const rawDeadline =
+          boardItem?.dueDate ??
+          (meta.deadline && String(meta.deadline) ? new Date(meta.deadline as string) : null) ??
+          (meta.scheduledDate && String(meta.scheduledDate) ? new Date(meta.scheduledDate as string) : null);
+        const ticketReleaseDate =
+          rawDeadline instanceof Date && !isNaN(rawDeadline.getTime()) ? rawDeadline : new Date();
         const captionTicketId = meta.captionTicketId as string | undefined;
 
         // Derive fileType from MIME type (shared for both paths)
@@ -200,14 +215,29 @@ export async function POST(req: NextRequest, { params }: Params) {
               },
             });
           } else {
-          // ── Path B2: no ticket yet — auto-push if this is a WALL_POST board ──
+          // ── Path B2: no ticket yet — auto-push for WALL_POST or OTP_PTR submissions ──
+          // Use meta.submissionType (written by buildMetadata in the submission form) as the
+          // primary signal — this works regardless of the workspace's templateType, so OTP/PTR
+          // submissions into generic KANBAN spaces still get auto-created tickets with the
+          // correct priority. Fall back to workspace.templateType for non-submission board items.
           const workspace = await prisma.workspace.findUnique({
             where: { id: spaceId },
             select: { organizationId: true, templateType: true },
           });
 
-          if (workspace?.templateType === 'WALL_POST' && workspace.organizationId) {
+          const metaSubmissionType = (meta.submissionType as string) || '';
+          const metaIsWallPost = metaSubmissionType === 'WALL_POST';
+          const metaIsOtpPtr  = metaSubmissionType === 'OTP_PTR';
+          const shouldAutoCreate =
+            metaIsWallPost || metaIsOtpPtr ||
+            workspace?.templateType === 'WALL_POST' ||
+            workspace?.templateType === 'OTP_PTR';
+
+          if (shouldAutoCreate && workspace?.organizationId) {
             const orgId = workspace.organizationId;
+            // Prefer the submission-type from metadata; fall back to workspace template
+            const isWallPost = metaIsWallPost ||
+              (!metaSubmissionType && workspace?.templateType === 'WALL_POST');
 
             // Resolve model / profile info from board item metadata
             let profileId: string | null =
@@ -244,6 +274,8 @@ export async function POST(req: NextRequest, { params }: Params) {
               }
             }
 
+            const driveLink = (meta.driveLink as string) || null;
+
             const newTicket = await prisma.$transaction(async (tx) => {
               const created = await tx.captionQueueTicket.create({
                 data: {
@@ -255,18 +287,27 @@ export async function POST(req: NextRequest, { params }: Params) {
                   profileImageUrl,
                   description:
                     (meta.description as string) ||
-                    `Wall Post caption for ${modelName}`,
+                    (isWallPost
+                      ? `Wall Post caption for ${modelName}`
+                      : `OTP/PTR caption for ${modelName}`),
                   contentTypes: [fileType ?? 'image'],
-                  messageTypes: ['wall_post'],
-                  urgency: 'medium',
-                  releaseDate: new Date(),
+                  messageTypes: [isWallPost ? 'wall_post' : 'otp_ptr'],
+                  // Use the submission's priority and deadline/scheduled date
+                  urgency: ticketUrgency,
+                  releaseDate: ticketReleaseDate,
                   status: 'pending',
                   boardItemId: itemId,
-                  // workflowType defaults to 'wall_post' in the schema
+                  workflowType: isWallPost ? 'wall_post' : 'otp_ptr',
+                  // For OTP/PTR: link the Google Drive folder from the submission
+                  ...(isWallPost ? {} : {
+                    contentUrl: driveLink,
+                    contentSourceType: driveLink ? 'gdrive' : null,
+                  }),
                 },
               });
 
               // First content item (this file)
+              // Wall-post items need per-item captions; OTP/PTR items are display-only reference
               await tx.captionQueueContentItem.create({
                 data: {
                   ticketId: created.id,
@@ -275,8 +316,8 @@ export async function POST(req: NextRequest, { params }: Params) {
                   fileName: body.name ?? null,
                   fileType,
                   sortOrder: 0,
-                  requiresCaption: true,
-                  captionStatus: 'pending',
+                  requiresCaption: isWallPost,
+                  captionStatus: isWallPost ? 'pending' : 'not_required',
                 },
               });
 
@@ -288,7 +329,7 @@ export async function POST(req: NextRequest, { params }: Params) {
                     ...meta,
                     captionTicketId: created.id,
                     captionStatus: 'pending',
-                    wallPostStatus: WALL_POST_STATUS.IN_CAPTION,
+                    ...(isWallPost ? { wallPostStatus: WALL_POST_STATUS.IN_CAPTION } : {}),
                   } as unknown as Prisma.InputJsonValue,
                   updatedAt: new Date(),
                 },
@@ -306,7 +347,7 @@ export async function POST(req: NextRequest, { params }: Params) {
                 orgId,
                 senderClerkId: userId,
                 assignedCreatorClerkIds: [],
-                workflowType: 'wall_post',
+                workflowType: isWallPost ? 'wall_post' : 'otp_ptr',
               });
               await broadcastToBoard(boardId, itemId);
             } catch (_) {

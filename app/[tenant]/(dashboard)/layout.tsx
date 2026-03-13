@@ -190,11 +190,6 @@ export default function DashboardLayout({
                     href: `/${tenant}/workspace/caption-workspace`,
                     icon: FileText,
                   },
-                  {
-                    name: "Caption Queue",
-                    href: `/${tenant}/workspace/caption-queue`,
-                    icon: ListChecks,
-                  },
                 ],
               },
             ]

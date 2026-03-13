@@ -215,6 +215,20 @@ export async function POST(req: NextRequest, { params }: Params) {
             }
           }
 
+          // Map BoardItemPriority enum → CaptionQueueTicket urgency string
+          const BOARD_PRIORITY_TO_URGENCY: Record<string, string> = {
+            LOW: 'low', MEDIUM: 'medium', HIGH: 'high', URGENT: 'urgent',
+          };
+          const ticketUrgency = BOARD_PRIORITY_TO_URGENCY[item.priority] ?? 'medium';
+
+          // Use item's due date or metadata deadline for the release date
+          const rawDeadline =
+            item.dueDate ??
+            (meta.deadline && String(meta.deadline) ? new Date(meta.deadline as string) : null) ??
+            (meta.scheduledDate && String(meta.scheduledDate) ? new Date(meta.scheduledDate as string) : null);
+          const ticketReleaseDate =
+            rawDeadline instanceof Date && !isNaN(rawDeadline.getTime()) ? rawDeadline : new Date();
+
           const newTicket = await prisma.$transaction(async (tx) => {
             const created = await tx.captionQueueTicket.create({
               data: {
@@ -232,8 +246,8 @@ export async function POST(req: NextRequest, { params }: Params) {
                   ? [(meta.contentType as string)]
                   : ['content'],
                 messageTypes: ['otp_ptr'],
-                urgency: 'medium',
-                releaseDate: new Date(),
+                urgency: ticketUrgency,
+                releaseDate: ticketReleaseDate,
                 status: 'pending',
                 boardItemId: item.id,
                 workflowType: 'otp_ptr',

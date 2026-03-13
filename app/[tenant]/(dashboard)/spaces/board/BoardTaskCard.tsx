@@ -12,7 +12,7 @@ export interface BoardTask {
   description?: string;
   assignee?: string;
   reporter?: string;
-  priority?: 'Low' | 'Medium' | 'High';
+  priority?: 'Low' | 'Normal' | 'High' | 'Urgent';
   tags?: string[];
   startDate?: string;
   dueDate?: string;
@@ -30,14 +30,16 @@ export interface BoardTaskCardProps {
 }
 
 const PRIORITY_BORDER: Record<string, string> = {
-  High: 'border-l-red-400',
-  Medium: 'border-l-amber-400',
+  Urgent: 'border-l-rose-400',
+  High: 'border-l-amber-400',
+  Normal: 'border-l-sky-400',
   Low: 'border-l-emerald-400',
 };
 
 const PRIORITY_DOT: Record<string, string> = {
-  High: 'bg-red-400',
-  Medium: 'bg-amber-400',
+  Urgent: 'bg-rose-400',
+  High: 'bg-amber-400',
+  Normal: 'bg-sky-400',
   Low: 'bg-emerald-400',
 };
 

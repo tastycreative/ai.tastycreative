@@ -502,7 +502,7 @@ export function BoardLayout({
                       >
                         All
                       </button>
-                      {['Low', 'Medium', 'High'].map((p) => (
+                      {(['Low', 'Normal', 'High', 'Urgent'] as const).map((p) => (
                         <button
                           key={p}
                           type="button"
@@ -510,7 +510,7 @@ export function BoardLayout({
                           className={[
                             'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                             priorityFilter === p
-                              ? p === 'High' ? 'bg-red-500/15 text-red-400' : p === 'Medium' ? 'bg-yellow-500/15 text-yellow-500' : 'bg-emerald-500/15 text-emerald-400'
+                              ? p === 'Urgent' ? 'bg-rose-500/15 text-rose-400' : p === 'High' ? 'bg-amber-500/15 text-amber-400' : p === 'Normal' ? 'bg-sky-500/15 text-sky-400' : 'bg-emerald-500/15 text-emerald-400'
                               : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700',
                           ].join(' ')}
                         >

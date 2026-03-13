@@ -243,6 +243,11 @@ export async function GET(request: NextRequest) {
     //
     // Google always returns 206 + Content-Range, so the browser learns the
     // total file size on the very first response and can seek correctly.
+    // ?full=1 — serve the complete file without Range injection.
+    // Used for images: <img src> receives a 206 Partial Content and fails to decode
+    // truncated image data when the file exceeds the initial 2 MB chunk.
+    const fullFile = request.nextUrl.searchParams.get('full') === '1';
+
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) {
       const m = rangeHeader.match(/bytes=(\d+)-(\d*)/);
@@ -252,11 +257,12 @@ export async function GET(request: NextRequest) {
         const cappedEnd = Math.min(reqEnd, start + MAX_CHUNK_BYTES - 1);
         fetchHeaders['Range'] = `bytes=${start}-${cappedEnd}`;
       } else {
-        // Non-standard Range format — pass through unchanged
         fetchHeaders['Range'] = rangeHeader;
       }
-    } else {
-      // No Range header — serve the first 2 MB so playback begins fast.
+    } else if (!fullFile) {
+      // No Range header and not a full-file request — serve the first 2 MB so video
+      // playback begins fast. Skip this for images (use ?full=1) to avoid 206 breaking
+      // the browser's image decoder on files larger than the initial chunk.
       fetchHeaders['Range'] = `bytes=0-${INITIAL_CHUNK_BYTES - 1}`;
     }
 

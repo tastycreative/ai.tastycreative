@@ -111,7 +111,62 @@ export async function DELETE(
     const { id: setId } = await params;
     const { searchParams } = new URL(request.url);
     const imageId = searchParams.get("imageId");
+    const imageIds = searchParams.get("imageIds"); // comma-separated for bulk delete
 
+    // --- Bulk delete path ---
+    if (imageIds) {
+      const ids = imageIds.split(",").filter(Boolean);
+      if (ids.length === 0) {
+        return NextResponse.json({ error: "No image IDs provided" }, { status: 400 });
+      }
+
+      const existingSet = await prisma.sextingSet.findFirst({ where: { id: setId } });
+      if (!existingSet) {
+        return NextResponse.json({ error: "Set not found" }, { status: 404 });
+      }
+
+      const { hasAccess } = await hasAccessToProfile(userId, existingSet.category);
+      if (!hasAccess && existingSet.userId !== userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+
+      // Fetch all images to get S3 keys
+      const images = await prisma.sextingImage.findMany({
+        where: { id: { in: ids }, setId },
+      });
+
+      // Delete from S3 (fire-and-forget errors so DB always cleans up)
+      const bucket = process.env.AWS_S3_BUCKET!;
+      await Promise.allSettled(
+        images.map((img) => {
+          const s3Key = img.url.replace(`https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/`, "");
+          return s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: s3Key }));
+        })
+      );
+
+      // Delete all + re-sequence in a single transaction
+      await prisma.$transaction(async (tx) => {
+        await tx.sextingImage.deleteMany({ where: { id: { in: ids }, setId } });
+
+        const remaining = await tx.sextingImage.findMany({
+          where: { setId },
+          orderBy: { sequence: "asc" },
+          select: { id: true },
+        });
+
+        // Update sequences one-by-one inside the transaction to avoid deadlocks
+        for (let i = 0; i < remaining.length; i++) {
+          await tx.sextingImage.update({
+            where: { id: remaining[i].id },
+            data: { sequence: i + 1 },
+          });
+        }
+      });
+
+      return NextResponse.json({ success: true, deleted: ids.length });
+    }
+
+    // --- Single delete path ---
     if (!imageId) {
       return NextResponse.json(
         { error: "Image ID is required" },
@@ -184,14 +239,13 @@ export async function DELETE(
         select: { id: true },
       });
 
-      await Promise.all(
-        remainingImages.map((img, i) =>
-          tx.sextingImage.update({
-            where: { id: img.id },
-            data: { sequence: i + 1 },
-          })
-        )
-      );
+      // Update sequences one-by-one to avoid deadlocks
+      for (let i = 0; i < remainingImages.length; i++) {
+        await tx.sextingImage.update({
+          where: { id: remainingImages[i].id },
+          data: { sequence: i + 1 },
+        });
+      }
     });
 
     return NextResponse.json({ success: true });

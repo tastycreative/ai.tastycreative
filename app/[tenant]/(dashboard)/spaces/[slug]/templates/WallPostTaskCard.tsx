@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, useParams } from 'next/navigation';
 import { Draggable } from '@hello-pangea/dnd';
 import {
   Pencil,
@@ -12,9 +13,10 @@ import {
   Calendar,
   AtSign,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
-import type { BoardTaskCardProps } from '../../board/BoardTaskCard';
+import type { BoardTaskCardProps, BoardTask } from '../../board/BoardTaskCard';
 
 const STATUS_DOT: Record<string, { color: string; label: string }> = {
   awaitingCaption: { color: 'bg-gray-400', label: 'Awaiting' },
@@ -23,6 +25,20 @@ const STATUS_DOT: Record<string, { color: string; label: string }> = {
   approved: { color: 'bg-emerald-400', label: 'Approved' },
   rejected: { color: 'bg-red-400', label: 'Rejected' },
   posted: { color: 'bg-purple-400', label: 'Posted' },
+};
+
+const PRIORITY_BORDER: Record<string, string> = {
+  Urgent: 'border-l-rose-400',
+  High: 'border-l-amber-400',
+  Normal: 'border-l-sky-400',
+  Low: 'border-l-emerald-400',
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  Urgent: 'bg-rose-400',
+  High: 'bg-amber-400',
+  Normal: 'bg-sky-400',
+  Low: 'bg-emerald-400',
 };
 
 function timeAgo(dateStr: string): string {
@@ -59,6 +75,8 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
   const [draft, setDraft] = useState(task.title);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
 
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
   const platform = meta.platform as string | undefined;
@@ -68,6 +86,7 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
     ? (meta.hashtags as string[])
     : [];
   const createdAt = typeof meta._createdAt === 'string' ? meta._createdAt : '';
+  const captionTicketId = (meta.captionTicketId as string) ?? null;
 
   // Calculate photo status counts from captionItems
   const captionItems = Array.isArray(meta.captionItems)
@@ -133,6 +152,7 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
             className={[
               'group/card relative rounded-xl cursor-pointer select-none',
               'bg-white/[0.03] dark:bg-[#1a2237]/80 backdrop-blur-sm border border-[#2a3450]/60',
+              task.priority ? `border-l-[3px] ${PRIORITY_BORDER[task.priority] ?? ''}` : '',
               snapshot.isDragging
                 ? 'shadow-2xl shadow-black/40 border-brand-mid-pink/50 ring-1 ring-brand-light-pink/20 scale-[1.02]'
                 : 'hover:bg-white/[0.06] dark:hover:bg-[#1a2237] hover:border-[#2a3450] hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5',
@@ -249,8 +269,14 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
                 </div>
               )}
 
-              {/* Footer: timestamp + assignee */}
+              {/* Footer: priority + timestamp + assignee */}
               <div className="flex items-center gap-2.5 pt-2.5 border-t border-white/[0.06]">
+                {task.priority && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                    <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? ''}`} />
+                    {task.priority}
+                  </span>
+                )}
                 {createdAt && (
                   <span className="text-[11px] text-gray-500 dark:text-gray-500 inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -259,6 +285,21 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
                 )}
 
                 <span className="flex-1" />
+
+                {captionTicketId && (
+                  <button
+                    type="button"
+                    title="Open in Caption Workspace"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`);
+                    }}
+                    className="opacity-0 group-hover/card:opacity-100 transition-opacity inline-flex items-center gap-1 text-[10px] font-semibold text-brand-blue hover:text-brand-blue/80 px-1.5 py-0.5 rounded-md border border-brand-blue/20 hover:bg-brand-blue/10"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Caption
+                  </button>
+                )}
 
                 {assigneeInitial ? (
                   <span

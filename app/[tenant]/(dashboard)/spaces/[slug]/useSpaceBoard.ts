@@ -28,9 +28,19 @@ export type ColumnWithTasks = BoardColumnData & { taskIds: string[] };
 
 export type ItemToTaskFn = (item: BoardItem, spaceKey: string) => BoardTask;
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+const DB_TO_TASK_PRIORITY: Record<string, BoardTask['priority']> = {
+  LOW: 'Low',
+  MEDIUM: 'Normal',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
+const TASK_TO_DB_PRIORITY: Record<string, string> = {
+  Low: 'LOW',
+  Normal: 'MEDIUM',
+  High: 'HIGH',
+  Urgent: 'URGENT',
+};
 
 export const defaultItemToTask: ItemToTaskFn = (item, spaceKey) => {
   const meta = (item.metadata ?? {}) as Record<string, unknown>;
@@ -42,7 +52,7 @@ export const defaultItemToTask: ItemToTaskFn = (item, spaceKey) => {
     title: item.title,
     description: (item.description as string) ?? undefined,
     assignee: (item.assigneeId as string) ?? undefined,
-    priority: capitalize(item.priority) as BoardTask['priority'],
+    priority: DB_TO_TASK_PRIORITY[item.priority] ?? 'Normal',
     tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : undefined,
     startDate: undefined,
     dueDate: item.dueDate ?? undefined,
@@ -235,7 +245,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
         id: tempId,
         taskKey: 'CREATING...',
         title,
-        priority: 'Medium',
+        priority: 'Normal',
         metadata,
       };
 
@@ -298,7 +308,7 @@ export function useSpaceBoard({ space, itemToTask = defaultItemToTask }: UseSpac
         itemId: updated.id,
         title: updated.title,
         description: updated.description,
-        priority: updated.priority?.toUpperCase(),
+        priority: updated.priority ? (TASK_TO_DB_PRIORITY[updated.priority] ?? updated.priority.toUpperCase()) : undefined,
         dueDate: updated.dueDate,
         assigneeId: updated.assignee,
         metadata: updated.metadata,

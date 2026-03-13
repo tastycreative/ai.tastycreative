@@ -46,7 +46,7 @@ const urgencyConfig: Record<UrgencyLevel, { bg: string; textColor: string; borde
     bg: 'bg-green-500/15',
     textColor: 'text-green-400',
     borderColor: 'border-green-500/30',
-    label: 'NORMAL'
+    label: 'LOW'
   }
 };
 

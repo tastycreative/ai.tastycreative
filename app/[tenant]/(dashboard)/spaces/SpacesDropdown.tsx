@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Layers, ChevronUp, ChevronDown, MoreHorizontal, Clock, ChevronRight, Grid3x3, Settings as SettingsIcon, UserPlus, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -59,9 +59,10 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
 
   // Only show spaces the user is a member of, or all spaces if org admin/owner
   const isOrgAdminOrOwner = organizationRole === 'OWNER' || organizationRole === 'ADMIN';
-  const spaces = isOrgAdminOrOwner
-    ? allSpaces
-    : allSpaces.filter((s) => !!s.currentUserRole);
+  const spaces = useMemo(
+    () => isOrgAdminOrOwner ? allSpaces : allSpaces.filter((s) => !!s.currentUserRole),
+    [isOrgAdminOrOwner, allSpaces]
+  );
 
   // Get localStorage key unique to user
   const getStorageKey = () => {
@@ -91,12 +92,15 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
     localStorage.setItem(getStorageKey(), JSON.stringify(updated));
   };
 
+  const lastTrackedSpaceRef = useRef<string | null>(null);
+
   // Track current space if we're on a space page
   useEffect(() => {
     if (pathname?.startsWith(`/${tenant}/spaces/`)) {
       const spaceSlug = pathname.split('/spaces/')[1]?.split('/')[0];
       const currentSpace = spaces.find(s => s.slug === spaceSlug);
-      if (currentSpace?.id) {
+      if (currentSpace?.id && currentSpace.id !== lastTrackedSpaceRef.current) {
+        lastTrackedSpaceRef.current = currentSpace.id;
         trackSpaceAccess(currentSpace.id);
       }
     }

@@ -185,6 +185,9 @@ interface ImageCardProps {
   draggedIndex: number | null;
   dragOverIndex: number | null;
   touchOffsetValue: number;
+  isSelected: boolean;
+  isSelectMode: boolean;
+  onToggleSelect: (imageId: string) => void;
   onDragStart: (e: React.DragEvent, index: number) => void;
   onDragOver: (e: React.DragEvent, index: number) => void;
   onDragEnd: () => void;
@@ -206,6 +209,9 @@ const ImageCard = memo(function ImageCard({
   draggedIndex,
   dragOverIndex,
   touchOffsetValue,
+  isSelected,
+  isSelectMode,
+  onToggleSelect,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -243,15 +249,19 @@ const ImageCard = memo(function ImageCard({
       )}
 
       <div
-        draggable={!isMobile && !isEditingPos}
+        draggable={!isMobile && !isEditingPos && !isSelectMode}
         onDragStart={(e) => onDragStart(e, index)}
         onDragOver={(e) => onDragOver(e, index)}
         onDragEnd={onDragEnd}
-        onClick={() => !isMobile && !isEditingPos && onClick(image)}
+        onClick={() => {
+          if (isSelectMode) { onToggleSelect(image.id); return; }
+          if (!isMobile && !isEditingPos) onClick(image);
+        }}
         onTouchStart={(e) => onTouchStart(e, image.id)}
         onTouchMove={(e) => onTouchMove(e, image.id)}
         onTouchEnd={() => onTouchEnd(image.id)}
         className={`group relative aspect-square rounded-xl overflow-hidden border-2 will-change-transform transition-[border-color,transform,opacity,box-shadow] duration-200 ${
+          isSelected ? 'border-[var(--color-brand-mid-pink)] ring-2 ring-[var(--color-brand-mid-pink)]/50' : ''} ${
           isMobile ? 'active:scale-95' : 'cursor-grab active:cursor-grabbing hover:border-[var(--color-brand-mid-pink)]/50 hover:scale-[1.02]'
         } ${
           isDragging
@@ -283,9 +293,27 @@ const ImageCard = memo(function ImageCard({
           </div>
         )}
 
+        {/* Bulk select checkbox */}
+        <div
+          className={`absolute top-2 left-2 z-20 transition-opacity duration-150 ${
+            isSelectMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(image.id); }}
+        >
+          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors ${
+            isSelected
+              ? 'bg-[var(--color-brand-mid-pink)] border-[var(--color-brand-mid-pink)]'
+              : 'bg-black/50 border-white/70 hover:border-[var(--color-brand-mid-pink)]'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        </div>
+
         {/* Reorder controls - position badge + move arrows */}
         <div
-          className="absolute top-2 left-2 z-10 flex items-center gap-1.5"
+          className={`absolute top-2 left-2 z-10 flex items-center gap-1.5 transition-opacity ${
+            isSelectMode ? 'opacity-0 pointer-events-none' : ''
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Position badge - clickable to jump to position */}
@@ -641,6 +669,11 @@ export default function SextingSetOrganizer({
   // Image detail modal state
   const [showImageDetailModal, setShowImageDetailModal] = useState(false);
   const [selectedImageForDetail, setSelectedImageForDetail] = useState<SextingImage | null>(null);
+
+  // Bulk selection state
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Keycard and Voice modal states
   const [showKeycardModal, setShowKeycardModal] = useState(false);
@@ -1044,6 +1077,58 @@ export default function SextingSetOrganizer({
     });
   };
 
+  // Bulk delete selected images
+  const bulkDeleteImages = async () => {
+    if (!selectedSet || selectedImageIds.size === 0) return;
+    const setId = selectedSet.id;
+    const idsToDelete = [...selectedImageIds];
+    setConfirmModal({
+      title: `Delete ${idsToDelete.length} Images`,
+      message: `Are you sure you want to delete ${idsToDelete.length} selected image${idsToDelete.length !== 1 ? 's' : ''}? This action cannot be undone.`,
+      confirmText: `Delete ${idsToDelete.length}`,
+      isDangerous: true,
+      confirmAction: async () => {
+        setBulkDeleting(true);
+        try {
+          await fetch(
+            `/api/sexting-sets/${setId}?imageIds=${idsToDelete.join(',')}`,
+            { method: 'DELETE' }
+          );
+          // Update local state: remove deleted images and re-sequence
+          const updateImages = (images: SextingImage[]) =>
+            images
+              .filter((img) => !idsToDelete.includes(img.id))
+              .map((img, idx) => ({ ...img, sequence: idx + 1 }));
+          setSets((prev) =>
+            prev.map((s) => s.id !== setId ? s : { ...s, images: updateImages(s.images) })
+          );
+          setSelectedSet((prev) =>
+            prev && prev.id === setId ? { ...prev, images: updateImages(prev.images) } : prev
+          );
+          setSelectedImageIds(new Set());
+          setIsSelectMode(false);
+          showToast(`${idsToDelete.length} image${idsToDelete.length !== 1 ? 's' : ''} deleted`, 'success');
+        } catch (error) {
+          console.error('Bulk delete error:', error);
+          showToast('Failed to delete some images', 'error');
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  };
+
+  // Toggle a single image selection
+  const toggleImageSelection = useCallback((imageId: string) => {
+    setIsSelectMode(true); // auto-activate select mode when any checkbox is touched
+    setSelectedImageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(imageId)) next.delete(imageId);
+      else next.add(imageId);
+      return next;
+    });
+  }, []);
+
   // Rename image
   const renameImage = async (setId: string, imageId: string, newName: string) => {
     if (!newName.trim()) return;
@@ -1104,6 +1189,37 @@ export default function SextingSetOrganizer({
     setSelectedImageForDetail(image);
     setShowImageDetailModal(true);
   }, []);
+
+  // Navigate to prev/next image in the detail modal
+  const navigateImageDetail = useCallback((direction: 'prev' | 'next') => {
+    if (!selectedSet || !selectedImageForDetail) return;
+    const images = selectedSet.images;
+    const currentIdx = images.findIndex((img) => img.id === selectedImageForDetail.id);
+    if (currentIdx === -1) return;
+    const nextIdx = direction === 'next'
+      ? (currentIdx + 1) % images.length
+      : (currentIdx - 1 + images.length) % images.length;
+    setSelectedImageForDetail(images[nextIdx]);
+    setEditingImageId(null);
+    setEditingImageName('');
+  }, [selectedSet, selectedImageForDetail]);
+
+  // Keyboard arrow navigation for image detail modal
+  useEffect(() => {
+    if (!showImageDetailModal) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') navigateImageDetail('next');
+      else if (e.key === 'ArrowLeft') navigateImageDetail('prev');
+      else if (e.key === 'Escape') {
+        setShowImageDetailModal(false);
+        setSelectedImageForDetail(null);
+        setEditingImageId(null);
+        setEditingImageName('');
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showImageDetailModal, navigateImageDetail]);
 
   // Stable ref so useCallback closures always call the latest deleteImage
   const deleteImageRef = useRef(deleteImage);
@@ -1982,17 +2098,47 @@ export default function SextingSetOrganizer({
     return Math.ceil(selectedSet.images.length / gridColumns);
   }, [selectedSet, gridColumns]);
 
+  // Use a ref for row height so ResizeObserver can update it without recreating the virtualizer
+  const estimatedRowHeightRef = useRef(160);
+  const gridVirtualizerRef = useRef<ReturnType<typeof useVirtualizer<HTMLDivElement, Element>> | null>(null);
+
   const gridVirtualizer = useVirtualizer({
     count: gridRowCount,
     getScrollElement: () => contentGridRef.current,
-    estimateSize: () => 160, // Approximate row height (aspect-square items)
+    estimateSize: () => estimatedRowHeightRef.current,
     overscan: 5,
   });
+
+  // Keep the ref up to date so ResizeObserver callback can call measure()
+  gridVirtualizerRef.current = gridVirtualizer;
+
+  // Dynamically measure the grid container so row heights are correct at any zoom level
+  useEffect(() => {
+    const el = contentGridRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (!width) return;
+      const gap = 6; // gap-1.5 = 0.375rem = 6px
+      const innerWidth = width - 16; // p-2 (8px) padding on each side
+      const cellWidth = (innerWidth - (gridColumns - 1) * gap) / gridColumns;
+      const rowHeight = Math.max(40, Math.ceil(cellWidth) + gap);
+      if (Math.abs(rowHeight - estimatedRowHeightRef.current) > 2) {
+        estimatedRowHeightRef.current = rowHeight;
+        gridVirtualizerRef.current?.measure();
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  // Re-run when column count changes or a new set is selected (ref element may change)
+  }, [gridColumns, selectedSet?.id]);
 
   // Stable callbacks for FolderItem to prevent re-renders
   const handleFolderSelect = useCallback((set: SextingSet) => {
     setSelectedSet(set);
     setExpandedSets((prev) => new Set([...prev, set.id]));
+    setSelectedImageIds(new Set());
+    setIsSelectMode(false);
   }, []);
 
   const handleFolderEditStart = useCallback((id: string, name: string) => {
@@ -2336,6 +2482,24 @@ export default function SextingSetOrganizer({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Select mode toggle */}
+                    {selectedSet.images.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setIsSelectMode((v) => !v);
+                          setSelectedImageIds(new Set());
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-xl font-medium text-sm transition-all duration-200 border ${
+                          isSelectMode
+                            ? 'bg-[var(--color-brand-mid-pink)]/10 border-[var(--color-brand-mid-pink)]/50 text-[var(--color-brand-mid-pink)]'
+                            : 'bg-muted hover:bg-muted/80 border-border text-foreground'
+                        }`}
+                        title={isSelectMode ? 'Exit selection' : 'Select images'}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">{isSelectMode ? 'Cancel' : 'Select'}</span>
+                      </button>
+                    )}
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -2435,6 +2599,46 @@ export default function SextingSetOrganizer({
                 </div>
               </div>
 
+              {/* Bulk action bar */}
+              {isSelectMode && (
+                <div className="px-3 py-2 border-b border-border bg-[var(--color-brand-mid-pink)]/5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (selectedImageIds.size === selectedSet.images.length) {
+                          setSelectedImageIds(new Set());
+                        } else {
+                          setSelectedImageIds(new Set(selectedSet.images.map((i) => i.id)));
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted hover:bg-muted/80 border border-border rounded-lg text-sm font-medium text-foreground transition-colors"
+                    >
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        selectedImageIds.size === selectedSet.images.length
+                          ? 'bg-[var(--color-brand-mid-pink)] border-[var(--color-brand-mid-pink)]'
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selectedImageIds.size === selectedSet.images.length && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      {selectedImageIds.size === selectedSet.images.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedImageIds.size > 0 ? `${selectedImageIds.size} selected` : 'None selected'}
+                    </span>
+                  </div>
+                  {selectedImageIds.size > 0 && (
+                    <button
+                      onClick={bulkDeleteImages}
+                      disabled={bulkDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {bulkDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      Delete {selectedImageIds.size}
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Images grid */}
               <div
                 ref={contentGridRef}
@@ -2500,6 +2704,9 @@ export default function SextingSetOrganizer({
                               draggedIndex={draggedIndex}
                               dragOverIndex={dragOverIndex}
                               touchOffsetValue={touchOffset?.id === image.id ? touchOffset.offset : 0}
+                              isSelected={selectedImageIds.has(image.id)}
+                              isSelectMode={isSelectMode}
+                              onToggleSelect={toggleImageSelection}
                               onDragStart={handleDragStart}
                               onDragOver={handleDragOver}
                               onDragEnd={handleDragEnd}
@@ -3366,6 +3573,17 @@ export default function SextingSetOrganizer({
               setEditingImageName("");
             }}
           >
+            {/* Prev button */}
+            {selectedSet.images.length > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigateImageDetail('prev'); }}
+                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
+                aria-label="Previous"
+              >
+                <ChevronRight className="w-6 h-6 rotate-180" />
+              </button>
+            )}
+
             <div 
               className="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
@@ -3380,7 +3598,9 @@ export default function SextingSetOrganizer({
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">Image Details</h3>
-                    <p className="text-xs text-muted-foreground">Click on filename to edit</p>
+                    <p className="text-xs text-muted-foreground">
+                      Click on filename to edit &bull; {selectedSet.images.findIndex(i => i.id === selectedImageForDetail.id) + 1} / {selectedSet.images.length}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -3567,6 +3787,17 @@ export default function SextingSetOrganizer({
                 </a>
               </div>
             </div>
+
+            {/* Next button */}
+            {selectedSet.images.length > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigateImageDetail('next'); }}
+                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
+                aria-label="Next"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
           </div>,
           document.body,
         )}
