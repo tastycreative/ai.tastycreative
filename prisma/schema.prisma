@@ -2001,10 +2001,10 @@ model gallery_items {
   updatedAt        DateTime      @updatedAt
   createdBy        String?
   boardItemId      String?       @unique
+  boardMetadata    Json?
+  pageType         String?
   postOrigin       String?
   pricingTier      String?
-  pageType         String?
-  boardMetadata    Json?
   board_items      BoardItem?    @relation(fields: [boardItemId], references: [id])
   model            of_models?    @relation(fields: [modelId], references: [id])
   organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2766,4 +2766,24 @@ enum BoardItemPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+model FlyerAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  profileId      String
+  clerkId        String
+  boardItemId    String?
+  fileName       String
+  fileType       String
+  url            String
+  s3Key          String
+  fileSize       Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([profileId])
+  @@index([boardItemId])
+  @@map("flyer_assets")
 }
