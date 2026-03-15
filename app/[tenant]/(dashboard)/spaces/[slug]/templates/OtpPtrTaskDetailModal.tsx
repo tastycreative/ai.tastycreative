@@ -43,6 +43,7 @@ import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { MentionDropdown, type MentionDropdownHandle } from '../../board/MentionDropdown';
 import { CommentContent } from '../../board/CommentContent';
 import { extractMentionedClerkIds } from '@/lib/mention-utils';
+import { FlyerPicker } from '@/components/gif-maker-workspace/FlyerPicker';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';
 import {
   useBoardItemComments,
@@ -448,6 +449,8 @@ export function OtpPtrTaskDetailModal({
   const { canManageQueue } = useOrgRole();
   const otpPtrQAMutation = useOtpPtrQAAction();
   const [showRejectInput, setShowRejectInput] = useState(false);
+  const [showFlyerPicker, setShowFlyerPicker] = useState(false);
+  const [flyerPickerTarget, setFlyerPickerTarget] = useState<'gifUrl' | 'gifUrlFansly'>('gifUrl');
   const [rejectReason, setRejectReason] = useState('');
   const [confirmRevoke, setConfirmRevoke] = useState(false);
 
@@ -1344,6 +1347,36 @@ export function OtpPtrTaskDetailModal({
                       </div>
                     </div>
 
+                    {/* Create in GIF Maker + Select from Flyers */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          const matchedProfile = influencerProfiles?.find(
+                            (p) => p.name.toLowerCase() === model.toLowerCase()
+                          );
+                          const profileParam = matchedProfile ? `&profileId=${matchedProfile.id}` : '';
+                          window.open(
+                            `/${params.tenant}/workspace/gif-maker?boardItemId=${task.id}${profileParam}`,
+                            '_blank'
+                          );
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold text-brand-blue bg-brand-blue/10 border border-brand-blue/20 hover:bg-brand-blue/20 transition-colors"
+                      >
+                        <Film className="w-3 h-3" />
+                        Create in GIF Maker
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFlyerPickerTarget('gifUrl');
+                          setShowFlyerPicker(true);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold text-brand-light-pink bg-brand-light-pink/10 border border-brand-light-pink/20 hover:bg-brand-light-pink/20 transition-colors"
+                      >
+                        <ImageIcon className="w-3 h-3" />
+                        Select from Flyers
+                      </button>
+                    </div>
+
                     {/* GIF URLs — show per platform */}
                     <div className="pt-2 border-t border-white/[0.04]">
                       <SideLabel>GIF URL{platforms.length > 1 ? 's' : ''}</SideLabel>
@@ -1351,7 +1384,10 @@ export function OtpPtrTaskDetailModal({
                         <div>
                           <EditableField value={gifUrl} placeholder="https://..." onSave={(v) => updateMeta({ gifUrl: v })} />
                           {gifUrl && (
-                            <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                            <div className="flex items-center gap-2 mt-1">
+                              <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
+                              <img src={gifUrl} alt="Flyer preview" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            </div>
                           )}
                         </div>
                       ) : (
@@ -1360,14 +1396,20 @@ export function OtpPtrTaskDetailModal({
                             <span className="text-[10px] font-medium text-brand-blue">OnlyFans</span>
                             <EditableField value={gifUrl} placeholder="OF GIF URL..." onSave={(v) => updateMeta({ gifUrl: v })} />
                             {gifUrl && (
-                              <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                              <div className="flex items-center gap-2 mt-1">
+                                <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
+                                <img src={gifUrl} alt="OF flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              </div>
                             )}
                           </div>
                           <div>
                             <span className="text-[10px] font-medium text-brand-light-pink">Fansly</span>
                             <EditableField value={gifUrlFansly} placeholder="Fansly GIF URL..." onSave={(v) => updateMeta({ gifUrlFansly: v })} />
                             {gifUrlFansly && (
-                              <a href={gifUrlFansly} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline mt-0.5 inline-block">Open</a>
+                              <div className="flex items-center gap-2 mt-1">
+                                <a href={gifUrlFansly} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
+                                <img src={gifUrlFansly} alt="Fansly flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1375,6 +1417,25 @@ export function OtpPtrTaskDetailModal({
                     </div>
                   </div>
                 </Section>
+
+                {/* Flyer Picker Modal */}
+                {showFlyerPicker && createPortal(
+                  <FlyerPicker
+                    profileId={influencerProfiles?.find((p) => p.name.toLowerCase() === model.toLowerCase())?.id ?? null}
+                    onSelect={(url) => {
+                      updateMeta({ [flyerPickerTarget]: url });
+                      setShowFlyerPicker(false);
+                    }}
+                    onDelete={(deletedUrl) => {
+                      const updates: Record<string, string> = {};
+                      if (gifUrl === deletedUrl) updates.gifUrl = '';
+                      if (gifUrlFansly === deletedUrl) updates.gifUrlFansly = '';
+                      if (Object.keys(updates).length > 0) updateMeta(updates);
+                    }}
+                    onClose={() => setShowFlyerPicker(false)}
+                  />,
+                  document.body
+                )}
 
                 {/* PPV/Bundle Details */}
                 {(postOrigin === 'PPV') && (

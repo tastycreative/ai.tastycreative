@@ -1468,6 +1468,7 @@ model Organization {
   instagramProfiles             InstagramProfile[]
   marketplaceModels             MarketplaceModel[]
   notifications                 Notification[]
+  org_teams                     org_teams[]
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
@@ -1486,20 +1487,21 @@ model Organization {
 }
 
 model TeamMember {
-  id               String       @id @default(cuid())
+  id               String             @id @default(cuid())
   userId           String
   organizationId   String
-  role             TeamRole     @default(MEMBER)
-  canInviteMembers Boolean      @default(false)
-  canManageBilling Boolean      @default(false)
-  canManageMembers Boolean      @default(false)
+  role             TeamRole           @default(MEMBER)
+  canInviteMembers Boolean            @default(false)
+  canManageBilling Boolean            @default(false)
+  canManageMembers Boolean            @default(false)
   lastActiveAt     DateTime?
   invitedBy        String?
-  joinedAt         DateTime     @default(now())
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @default(now()) @updatedAt
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt         DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now()) @updatedAt
+  org_team_members org_team_members[]
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -2419,6 +2421,36 @@ model TrackerActivityLog {
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([userId])
   @@map("tracker_activity_logs")
+}
+
+model org_team_members {
+  id           String     @id
+  teamId       String
+  teamMemberId String
+  assignedAt   DateTime   @default(now())
+  assignedBy   String?
+  org_teams    org_teams  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team_members TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, teamMemberId])
+  @@index([teamId])
+  @@index([teamMemberId])
+}
+
+model org_teams {
+  id               String             @id
+  organizationId   String
+  name             String
+  description      String?
+  color            String?
+  tabPermissions   Json               @default("{}")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  org_team_members org_team_members[]
+  organizations    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 enum SyncStatus {

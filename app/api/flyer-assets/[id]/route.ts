@@ -14,6 +14,14 @@ const s3Client = new S3Client({
 const BUCKET_NAME =
   process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || 'tastycreative';
 
+async function getUserOrg(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+  return user?.currentOrganizationId ?? null;
+}
+
 // GET /api/flyer-assets/[id] — Get a single flyer asset
 export async function GET(
   _request: NextRequest,
@@ -25,10 +33,15 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const orgId = await getUserOrg(userId);
+    if (!orgId) {
+      return NextResponse.json({ error: 'No active organization' }, { status: 400 });
+    }
+
     const { id } = await params;
 
-    const asset = await prisma.flyerAsset.findUnique({
-      where: { id },
+    const asset = await prisma.flyerAsset.findFirst({
+      where: { id, organizationId: orgId },
     });
 
     if (!asset) {
@@ -59,10 +72,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const orgId = await getUserOrg(userId);
+    if (!orgId) {
+      return NextResponse.json({ error: 'No active organization' }, { status: 400 });
+    }
+
     const { id } = await params;
 
-    const asset = await prisma.flyerAsset.findUnique({
-      where: { id },
+    const asset = await prisma.flyerAsset.findFirst({
+      where: { id, organizationId: orgId },
     });
 
     if (!asset) {
@@ -82,7 +100,6 @@ export async function DELETE(
       );
     } catch (s3Error) {
       console.error('Failed to delete S3 object:', s3Error);
-      // Continue with DB deletion even if S3 fails
     }
 
     // Delete from database

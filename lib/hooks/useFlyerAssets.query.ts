@@ -90,7 +90,13 @@ export function useDeleteFlyerAsset() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (assetId: string) => {
+    mutationFn: async ({
+      assetId,
+      profileId,
+    }: {
+      assetId: string;
+      profileId: string;
+    }) => {
       const response = await fetch(`/api/flyer-assets/${assetId}`, {
         method: 'DELETE',
       });
@@ -101,9 +107,9 @@ export function useDeleteFlyerAsset() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['flyer-assets'],
+        queryKey: ['flyer-assets', variables.profileId],
       });
     },
   });

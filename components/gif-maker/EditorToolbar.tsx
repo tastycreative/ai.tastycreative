@@ -195,14 +195,68 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         .toISOString()
         .replace(/[:.]/g, "-")
         .slice(0, 19);
-      downloadBlob(gifBlob, `editor-${timestamp}.gif`);
 
-      setExportState({
-        isExporting: false,
-        progress: 100,
-        phase: "done",
-        message: `Exported! (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
-      });
+      // Check workspace mode — upload to S3 if active
+      const store = useVideoEditorStore.getState();
+      if (store.workspaceMode && store.workspaceProfileId) {
+        setExportState({
+          progress: 95,
+          phase: "encoding",
+          message: "Uploading to flyer library...",
+        });
+
+        try {
+          const formData = new FormData();
+          formData.append("file", new File([gifBlob], `flyer-${timestamp}.gif`, { type: "image/gif" }));
+          formData.append("profileId", store.workspaceProfileId);
+          if (store.workspaceBoardItemId) {
+            formData.append("boardItemId", store.workspaceBoardItemId);
+          }
+
+          const uploadRes = await fetch("/api/flyer-assets/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (uploadRes.ok) {
+            const { asset } = await uploadRes.json();
+            // Copy URL to clipboard
+            await navigator.clipboard.writeText(asset.url).catch(() => {});
+            setExportState({
+              isExporting: false,
+              progress: 100,
+              phase: "done",
+              message: `Saved to flyer library! URL copied. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+            });
+          } else {
+            // Upload failed — fall back to download
+            downloadBlob(gifBlob, `flyer-${timestamp}.gif`);
+            setExportState({
+              isExporting: false,
+              progress: 100,
+              phase: "done",
+              message: `Upload failed — downloaded instead. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+            });
+          }
+        } catch {
+          // Upload error — fall back to download
+          downloadBlob(gifBlob, `flyer-${timestamp}.gif`);
+          setExportState({
+            isExporting: false,
+            progress: 100,
+            phase: "done",
+            message: `Upload error — downloaded instead. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+          });
+        }
+      } else {
+        downloadBlob(gifBlob, `editor-${timestamp}.gif`);
+        setExportState({
+          isExporting: false,
+          progress: 100,
+          phase: "done",
+          message: `Exported! (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+        });
+      }
 
       player.seekToFrame(0);
     } catch (error) {
