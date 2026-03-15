@@ -47,6 +47,7 @@ interface TeamMember {
     id: string;
     firstName: string | null;
     lastName: string | null;
+    name: string | null;
     email: string | null;
     avatarUrl: string | null;
   };
@@ -489,7 +490,7 @@ export default function OrganizationsTab() {
                         <p className="text-sm font-medium text-foreground">
                           {member.user.firstName || member.user.lastName
                             ? `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim()
-                            : 'Unnamed User'}
+                            : member.user.name || member.user.email?.split('@')[0] || 'Unnamed User'}
                         </p>
                         <p className="text-xs text-muted-foreground">{member.user.email}</p>
                       </div>

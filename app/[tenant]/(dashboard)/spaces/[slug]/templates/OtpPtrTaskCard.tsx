@@ -204,15 +204,7 @@ export const OtpPtrTaskCard = memo(function OtpPtrTaskCard({
                   </button>
                 )}
 
-                {captionStatus && OTP_PTR_STATUS_CONFIG[captionStatus] && (
-                  <span
-                    className={`inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5 bg-white/5 border border-white/[0.06] ${OTP_PTR_STATUS_CONFIG[captionStatus].color}`}
-                    title={OTP_PTR_STATUS_CONFIG[captionStatus].label}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${OTP_PTR_STATUS_CONFIG[captionStatus].dotColor}`} />
-                    {OTP_PTR_STATUS_CONFIG[captionStatus].label}
-                  </span>
-                )}
+
               </div>
 
               {/* Row 2: Title */}

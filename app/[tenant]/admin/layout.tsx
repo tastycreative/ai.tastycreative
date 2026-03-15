@@ -97,9 +97,9 @@ export default function AdminLayout({
       icon: Users,
     },
     {
-      name: "Organization Members",
-      href: `/${tenant}/admin/members`,
-      icon: Users,
+      name: "Organization Management",
+      href: `/${tenant}/admin/organization-management`,
+      icon: Building2,
     },
     {
       name: "Model Management",

@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useParams } from 'next/navigation';
 import { usePermissions } from '@/lib/hooks/usePermissions.query';
 import { canAccessRoute } from '@/lib/permissions/routePermissions';
 import { AlertCircle, Lock } from 'lucide-react';
@@ -12,6 +12,8 @@ interface PermissionGuardProps {
 export function PermissionGuard({ children }: PermissionGuardProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { permissions, loading, subscriptionInfo } = usePermissions();
 
   // Show loading state while checking permissions
@@ -43,7 +45,7 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
               </>
             ) : (
               <>
-                Your current plan ({subscriptionInfo?.planDisplayName}) does not include access to this feature.
+                You don&apos;t have access to this feature. This may be due to your plan ({subscriptionInfo?.planDisplayName}) or your team&apos;s permissions.
               </>
             )}
           </p>
@@ -53,13 +55,13 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
               <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                  Upgrade Required
+                  Access Restricted
                 </h3>
                 <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
                   {subscriptionInfo?.planDisplayName === 'No Organization' ? (
                     'Create an organization and subscribe to a plan to unlock all features.'
                   ) : (
-                    'Upgrade your subscription to access this feature and more.'
+                    'Contact your organization admin if you believe you should have access.'
                   )}
                 </p>
               </div>
@@ -68,13 +70,13 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
 
           <div className="mt-8 flex gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(`/${tenant}/dashboard`)}
               className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               Go to Dashboard
             </button>
             <button
-              onClick={() => router.push('/billing')}
+              onClick={() => router.push(`/${tenant}/billing`)}
               className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
               View Plans

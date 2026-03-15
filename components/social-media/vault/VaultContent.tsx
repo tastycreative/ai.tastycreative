@@ -3558,7 +3558,15 @@ export function VaultContent() {
       prompt: item.metadata.prompt || "",
       resolution: item.metadata.resolution || "2K",
       aspectRatio: item.metadata.aspectRatio || null,
-      referenceImageUrls: item.metadata.referenceImageUrls || [],
+      // Use referenceImageUrls array if available; fall back to singular referenceImageUrl
+      referenceImageUrls:
+        (item.metadata.referenceImageUrls && item.metadata.referenceImageUrls.length > 0)
+          ? item.metadata.referenceImageUrls
+          : item.metadata.referenceImageUrl
+            ? [item.metadata.referenceImageUrl]
+            : item.metadata.imageUrl
+              ? [item.metadata.imageUrl]
+              : [],
       outputImageUrl: item.awsS3Url, // The generated image that user wants to reuse settings from
     };
 

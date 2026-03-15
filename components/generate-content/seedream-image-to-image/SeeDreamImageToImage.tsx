@@ -1292,6 +1292,8 @@ export default function SeeDreamImageToImage() {
         aspectRatio: selectedRatio,
         // Store reference image URLs for reuse functionality (using locally tracked URLs)
         referenceImageUrls: referenceImageUrls,
+        // Store user-friendly model version so it can be restored on reuse
+        selectedModelVersion: selectedModel,
         organizationSlug: tenant,
       };
 
@@ -1428,6 +1430,8 @@ export default function SeeDreamImageToImage() {
       refreshCredits();
 
       // Use the images returned from the API (already saved to database)
+      // Use referenceImageUrls from the API response — the server may have uploaded
+      // base64 inputs to S3 and resolved new URLs that the client didn't track.
       const images: GeneratedImage[] = data.images.map((img: any) => ({
         id: img.id,
         imageUrl: img.url,
@@ -1436,6 +1440,16 @@ export default function SeeDreamImageToImage() {
         size: img.size,
         createdAt: img.createdAt,
         status: "completed" as const,
+        metadata: {
+          resolution: selectedResolution,
+          aspectRatio: selectedRatio,
+          watermark: false,
+          numReferenceImages: uploadedImages.length,
+          // Prefer server-resolved URLs (guaranteed to be S3 URLs even for base64 uploads)
+          referenceImageUrls: img.referenceImageUrls ?? referenceImageUrls,
+          selectedModel,
+          outputFormat,
+        },
       }));
 
       console.log('📋 Generated I2I images:', images.length);

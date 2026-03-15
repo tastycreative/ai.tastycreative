@@ -109,6 +109,30 @@ export const PLAN_FEATURES: FeatureDefinition[] = [
     type: 'boolean',
     defaultValue: true,
   },
+  {
+    key: 'hasSpacesTab',
+    label: 'Spaces',
+    description: 'Kanban boards & workspace management',
+    category: 'tab',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
+    key: 'hasSchedulersTab',
+    label: 'Schedulers Tracker',
+    description: 'Scheduler assignment tracking',
+    category: 'tab',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
+    key: 'hasAIToolsTab',
+    label: 'AI Tools',
+    description: 'LoRA models, style transfer & AI utilities',
+    category: 'tab',
+    type: 'boolean',
+    defaultValue: true,
+  },
 
   // ============================================
   // GENERATION FEATURES - AI generation tools

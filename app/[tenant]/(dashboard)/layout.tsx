@@ -147,10 +147,11 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/my-influencers`,
           icon: Users,
         },
-        // Page Tracker - visible to OWNER, ADMIN, MANAGER
+        // Schedulers Tracker - visible to OWNER, ADMIN, MANAGER or via team permission
         ...(currentOrganization?.role === "OWNER" ||
         currentOrganization?.role === "ADMIN" ||
-        currentOrganization?.role === "MANAGER"
+        currentOrganization?.role === "MANAGER" ||
+        permissions.hasSchedulersTab
           ? [
               {
                 name: "Schedulers Tracker",
@@ -194,11 +195,15 @@ export default function DashboardLayout({
               },
             ]
           : []),
-        {
-          name: "Vault",
-          href: `/${tenant}/workspace/vault`,
-          icon: Shield,
-        },
+        ...(permissions.hasVaultTab
+          ? [
+              {
+                name: "Vault",
+                href: `/${tenant}/workspace/vault`,
+                icon: Shield,
+              },
+            ]
+          : []),
         ...(permissions.hasReferenceBank
           ? [
               {
@@ -223,8 +228,8 @@ export default function DashboardLayout({
               },
             ]
           : []),
-        // Content Studio - check Instagram/Planning tab permissions and individual features
-        ...(permissions.hasInstagramTab || permissions.hasPlanningTab
+        // Content Studio - gated by hasInstagramTab (team-restrictable)
+        ...(permissions.hasInstagramTab
           ? [
               {
                 name: "Content Studio",
@@ -582,8 +587,8 @@ export default function DashboardLayout({
               },
             ]
           : []),
-        // AI Tools - show if user has generation features
-        ...(permissions.hasGenerateTab
+        // AI Tools - show if user has AI tools permission
+        ...(permissions.hasAIToolsTab
           ? [
               {
                 name: "AI Tools",
@@ -645,29 +650,16 @@ export default function DashboardLayout({
           href: `/${tenant}/settings`,
           icon: Settings,
         },
-        // Billing - only show to OWNER and ADMIN
-        ...(currentOrganization?.role === "OWNER" ||
-        currentOrganization?.role === "ADMIN"
-          ? [
-              {
-                name: "Billing",
-                href: `/${tenant}/billing`,
-                icon: CreditCard,
-              },
-            ]
-          : []),
-        // Team - only show to OWNER, ADMIN, and MANAGER
-        ...(currentOrganization?.role === "OWNER" ||
-        currentOrganization?.role === "ADMIN" ||
-        currentOrganization?.role === "MANAGER"
-          ? [
-              {
-                name: "Team",
-                href: `/${tenant}/team`,
-                icon: UserCheck,
-              },
-            ]
-          : []),
+        {
+          name: "Billing",
+          href: `/${tenant}/billing`,
+          icon: CreditCard,
+        },
+        {
+          name: "Team",
+          href: `/${tenant}/team`,
+          icon: UserCheck,
+        },
       ];
 
   // Get user's first name or fallback
@@ -1627,7 +1619,7 @@ export default function DashboardLayout({
                   return (
                     <React.Fragment key={item.name}>
                       {rendered}
-                      {!("items" in item) && item.name === "My Influencers" && (
+                      {!("items" in item) && item.name === "My Influencers" && permissions.hasSpacesTab && (
                         <SpacesDropdown tenant={tenant} sidebarOpen={sidebarOpen} />
                       )}
                     </React.Fragment>
@@ -1782,7 +1774,7 @@ export default function DashboardLayout({
                   return (
                     <React.Fragment key={item.name}>
                       {rendered}
-                      {!("items" in item) && item.name === "My Influencers" && (
+                      {!("items" in item) && item.name === "My Influencers" && permissions.hasSpacesTab && (
                         <SpacesDropdown tenant={tenant} sidebarOpen={true} />
                       )}
                     </React.Fragment>

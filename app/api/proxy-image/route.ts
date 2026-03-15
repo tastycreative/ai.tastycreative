@@ -31,16 +31,17 @@ export async function GET(request: NextRequest) {
                  url.includes(".s3.") || 
                  url.includes("s3-") ||
                  url.includes("amazonaws.com");
+    const isCdn = url.includes("cdn.tastycreative.xyz");
     
-    if (!isInstagram && !isS3) {
+    if (!isInstagram && !isS3 && !isCdn) {
       return NextResponse.json(
-        { error: "Only Instagram and S3 image URLs are allowed" },
+        { error: "Only Instagram, S3, and CDN image URLs are allowed" },
         { status: 403 }
       );
     }
 
-    // For S3 URLs, use simple fetch
-    if (isS3) {
+    // For S3 and CDN URLs, use simple fetch
+    if (isS3 || isCdn) {
       try {
         const s3Response = await fetch(url);
         if (!s3Response.ok) {

@@ -8,11 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import TeamList from '@/components/team/TeamList';
 import TeamDetailModal from '@/components/team/TeamDetailModal';
 
-const MANAGER_ROLES = ['OWNER', 'ADMIN', 'MANAGER'];
-const ADMIN_ROLES = ['OWNER', 'ADMIN'];
-
 interface OrgMember {
-  id: string;        // TeamMember.id
+  id: string;
   clerkId: string;
   firstName: string | null;
   lastName: string | null;
@@ -21,20 +18,14 @@ interface OrgMember {
   role: string;
 }
 
-export default function TeamPage() {
+export default function AdminTeamsView() {
   const { currentOrganization, loading: orgLoading } = useOrganization();
   const orgId = currentOrganization?.id;
-  const userRole = currentOrganization?.role ?? 'MEMBER';
-
-  const isManager = MANAGER_ROLES.includes(userRole);
-  const isAdmin   = ADMIN_ROLES.includes(userRole);
 
   const [selectedTeam, setSelectedTeam] = useState<OrgTeam | null>(null);
 
-  // Fetch teams
   const { data: teams = [], isLoading: teamsLoading, error: teamsError } = useOrgTeams(orgId);
 
-  // Fetch all org members for the "add member" dropdown in TeamDetailModal
   const { data: membersData } = useQuery({
     queryKey: ['org-members', orgId],
     queryFn: async () => {
@@ -42,31 +33,19 @@ export default function TeamPage() {
       if (!res.ok) throw new Error('Failed to fetch members');
       return res.json() as Promise<{ members: OrgMember[] }>;
     },
-    enabled: !!orgId && isManager,
+    enabled: !!orgId,
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false,
   });
 
   const orgMembers: OrgMember[] = membersData?.members ?? [];
-
-  // Keep selectedTeam in sync with latest data from useOrgTeams
   const liveSelectedTeam =
     selectedTeam ? (teams.find((t) => t.id === selectedTeam.id) ?? selectedTeam) : null;
 
-  // Wait for org to resolve before enforcing permissions — avoids flash of "Access Denied"
   if (orgLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-6 h-6 text-brand-light-pink animate-spin" />
-      </div>
-    );
-  }
-
-  if (!isManager) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-gray-500 dark:text-gray-400">
-        <AlertCircle className="w-10 h-10 opacity-50" />
-        <p className="text-sm">You don&apos;t have permission to view this page.</p>
       </div>
     );
   }
@@ -81,7 +60,7 @@ export default function TeamPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-brand-off-white">Teams</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Create teams and control which tabs each team can access.
+            Manage teams and control which tabs each team can access.
           </p>
         </div>
       </div>
@@ -100,17 +79,16 @@ export default function TeamPage() {
         <TeamList
           teams={teams}
           orgId={orgId ?? ''}
-          canCreate={isAdmin}
+          canCreate={true}
           onSelectTeam={(team) => setSelectedTeam(team)}
         />
       )}
 
-      {/* Detail modal */}
       {liveSelectedTeam && orgId && (
         <TeamDetailModal
           team={liveSelectedTeam}
           orgId={orgId}
-          canEdit={isAdmin}
+          canEdit={true}
           orgMembers={orgMembers.map((m) => ({
             id: m.id,
             name: [m.firstName, m.lastName].filter(Boolean).join(' ') || m.email || m.clerkId,
@@ -124,4 +102,3 @@ export default function TeamPage() {
     </div>
   );
 }
-

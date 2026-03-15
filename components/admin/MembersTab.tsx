@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle, CheckSquare, Square, BarChart3, TableProperties } from 'lucide-react';
+import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2, AlertCircle, CheckSquare, Square, BarChart3, TableProperties, UsersRound } from 'lucide-react';
+import AdminTeamsView from './AdminTeamsView';
 import { InviteMembersModal } from '../InviteMembersModal';
 import { useOrganization } from '@/lib/hooks/useOrganization';
 import { useBillingInfo } from '@/lib/hooks/useBilling.query';
 import MemberAnalyticsDashboard from './MemberAnalyticsDashboard';
+import { useOrgTeams } from '@/lib/hooks/useOrgTeams.query';
 
-type ViewMode = 'analytics' | 'management';
+type ViewMode = 'analytics' | 'management' | 'teams';
 
 interface MemberData {
   id: string;
@@ -36,6 +38,21 @@ export default function MembersTab() {
   const tenant = params.tenant as string;
   const { currentOrganization, loading: orgLoading } = useOrganization();
   const { data: billingInfo } = useBillingInfo();
+  const { data: teams = [] } = useOrgTeams(currentOrganization?.id);
+
+  // Build a map: clerkId → array of teams the user belongs to
+  const memberTeamsMap = teams.reduce<Record<string, { name: string; color: string | null }[]>>(
+    (acc, team) => {
+      for (const member of team.members ?? []) {
+        const clerkId = member.teamMember?.user?.clerkId;
+        if (!clerkId) continue;
+        if (!acc[clerkId]) acc[clerkId] = [];
+        acc[clerkId].push({ name: team.name, color: team.color });
+      }
+      return acc;
+    },
+    {}
+  );
   const [viewMode, setViewMode] = useState<ViewMode>('analytics');
   const [users, setUsers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -301,10 +318,23 @@ export default function MembersTab() {
           <TableProperties className="w-3.5 h-3.5" />
           Members Management
         </button>
+        <button
+          onClick={() => setViewMode('teams')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            viewMode === 'teams'
+              ? 'bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white shadow-md shadow-[#EC67A1]/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <UsersRound className="w-3.5 h-3.5" />
+          Team Management
+        </button>
       </div>
 
       {viewMode === 'analytics' ? (
         <MemberAnalyticsDashboard tenant={tenant} />
+      ) : viewMode === 'teams' ? (
+        <AdminTeamsView />
       ) : (
       <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 xs:gap-4">
@@ -403,7 +433,7 @@ export default function MembersTab() {
       {/* Users Table */}
       <div className="bg-card/50 backdrop-blur-sm border border-border rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px]">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-gradient-to-r from-[#EC67A1]/5 to-[#5DC3F8]/5 border-b border-border">
               <tr>
                 <th className="px-2 xs:px-3 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider w-12">
@@ -432,6 +462,9 @@ export default function MembersTab() {
                 </th>
                 <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Dates
+                </th>
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                  Teams
                 </th>
                 <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-foreground/70 uppercase tracking-wider">
                   Actions
@@ -565,6 +598,29 @@ export default function MembersTab() {
                         <div className="text-[10px] xs:text-xs text-muted-foreground whitespace-nowrap">
                           Last active: {new Date(user.lastSignInAt).toLocaleDateString()}
                         </div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Teams */}
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+                    <div className="flex flex-wrap gap-1">
+                      {(memberTeamsMap[user.clerkId] ?? []).length === 0 ? (
+                        <span className="text-[10px] xs:text-xs text-muted-foreground italic">No teams</span>
+                      ) : (
+                        (memberTeamsMap[user.clerkId] ?? []).map((team) => (
+                          <span
+                            key={team.name}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] xs:text-xs font-medium border"
+                            style={{
+                              backgroundColor: team.color ? `${team.color}20` : undefined,
+                              borderColor: team.color ? `${team.color}50` : undefined,
+                              color: team.color ?? undefined,
+                            }}
+                          >
+                            {team.name}
+                          </span>
+                        ))
                       )}
                     </div>
                   </td>

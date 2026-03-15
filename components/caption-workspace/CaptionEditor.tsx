@@ -1,9 +1,11 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Send, AlertTriangle, Save, Loader2, AlertCircle, Lock, CheckCircle2, Cloud, CloudOff } from 'lucide-react';
+import { Send, AlertTriangle, Save, Loader2, AlertCircle, Lock, CheckCircle2, Cloud, CloudOff, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModelContext } from './types';
+import { useGrammarCheck } from '@/lib/hooks/useGrammarCheck.query';
+import GrammarCheckPanel from './GrammarCheckPanel';
 
 interface CaptionEditorProps {
   caption: string;
@@ -38,16 +40,18 @@ interface CaptionEditorProps {
 
 const MAX_CAPTION_LENGTH = 2200;
 
-// Highlight restricted words in text
+// Highlight restricted words and grammar fixes in text
 function HighlightedTextarea({ 
   value, 
   restrictedWords, 
+  grammarHighlights = [],
   onChange, 
   placeholder,
   maxLength 
 }: { 
   value: string;
   restrictedWords: string[];
+  grammarHighlights?: string[];
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
   maxLength: number;
@@ -65,20 +69,32 @@ function HighlightedTextarea({
 
   // Create highlighted HTML
   const highlightedHtml = useMemo(() => {
-    if (restrictedWords.length === 0 || !value) return value;
+    const hasHighlights = restrictedWords.length > 0 || grammarHighlights.length > 0;
+    if (!hasHighlights || !value) return value;
 
     let result = value;
-    // Create a regex that matches any restricted word (case-insensitive)
-    const pattern = restrictedWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    const regex = new RegExp(`(${pattern})`, 'gi');
-    
-    result = result.replace(regex, '<mark class="bg-red-300 dark:bg-red-500/50 rounded px-0.5">$1</mark>');
-    
+
+    // Mark grammar fix highlights first (green animated — applied fixes)
+    if (grammarHighlights.length > 0) {
+      const grammarPattern = grammarHighlights
+        .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+      const grammarRegex = new RegExp(`(${grammarPattern})`, 'gi');
+      result = result.replace(grammarRegex, '<mark class="grammar-fix-highlight">$1</mark>');
+    }
+
+    // Mark restricted words on top (static red — overrides green if overlap)
+    if (restrictedWords.length > 0) {
+      const pattern = restrictedWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const regex = new RegExp(`(${pattern})`, 'gi');
+      result = result.replace(regex, '<mark class="bg-red-300 dark:bg-red-500/50 rounded px-0.5">$1</mark>');
+    }
+
     // Replace newlines with <br> for proper display
     result = result.replace(/\n/g, '<br>');
     
     return result;
-  }, [value, restrictedWords]);
+  }, [value, restrictedWords, grammarHighlights]);
 
   return (
     <div className="relative flex-1 min-h-30 mb-3">
@@ -128,6 +144,25 @@ function CaptionEditorComponent({
 }: CaptionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [showGrammarPanel, setShowGrammarPanel] = useState(false);
+  const [grammarHighlights, setGrammarHighlights] = useState<string[]>([]);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const grammarCheck = useGrammarCheck();
+
+  // When the grammar modal closes, start the 3-second fade-out timer for highlights.
+  // This way highlights are visible the whole time the modal is open, regardless of
+  // how many fixes the user applies before dismissing.
+  useEffect(() => {
+    if (!showGrammarPanel && grammarHighlights.length > 0) {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => setGrammarHighlights([]), 3000);
+    }
+    // Cleanup on unmount
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGrammarPanel]);
 
   // Validation state
   const hasRestrictions = restrictedWordsFound.length > 0;
@@ -138,6 +173,45 @@ function CaptionEditorComponent({
   const handleCaptionChange = useCallback((newCaption: string) => {
     onCaptionChange(newCaption);
   }, [onCaptionChange]);
+
+  // Grammar check — clear any stale highlights from a previous session
+  const handleGrammarCheck = useCallback(() => {
+    if (!caption.trim()) return;
+    setGrammarHighlights([]);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setShowGrammarPanel(true);
+    grammarCheck.mutate(caption);
+  }, [caption, grammarCheck]);
+
+  const handleApplySuggestion = useCallback((original: string, suggestion: string, startIndex: number) => {
+    let newCaption: string;
+    if (startIndex >= 0 && caption.slice(startIndex, startIndex + original.length) === original) {
+      newCaption = caption.slice(0, startIndex) + suggestion + caption.slice(startIndex + original.length);
+    } else {
+      // Fallback: replace first exact occurrence
+      newCaption = caption.replace(original, suggestion);
+    }
+    handleCaptionChange(newCaption);
+    // Accumulate highlight — timer starts when modal closes, not here
+    setGrammarHighlights(prev => [...prev, suggestion]);
+  }, [caption, handleCaptionChange]);
+
+  // Apply all suggestions at once — sort descending by startIndex so earlier
+  // positions are never shifted by a fix that came after them in the string.
+  const handleApplyAllSuggestions = useCallback((issues: { original: string; suggestion: string; startIndex: number }[]) => {
+    const sorted = [...issues].sort((a, b) => b.startIndex - a.startIndex);
+    let newCaption = caption;
+    for (const issue of sorted) {
+      if (issue.startIndex >= 0 && newCaption.slice(issue.startIndex, issue.startIndex + issue.original.length) === issue.original) {
+        newCaption = newCaption.slice(0, issue.startIndex) + issue.suggestion + newCaption.slice(issue.startIndex + issue.original.length);
+      } else {
+        newCaption = newCaption.replace(issue.original, issue.suggestion);
+      }
+    }
+    handleCaptionChange(newCaption);
+    // Accumulate all highlights — timer starts when modal closes
+    setGrammarHighlights(prev => [...prev, ...issues.map(i => i.suggestion)]);
+  }, [caption, handleCaptionChange]);
 
   // Manual save draft
   const handleSaveDraft = useCallback(async () => {
@@ -269,9 +343,49 @@ function CaptionEditorComponent({
         <HighlightedTextarea
           value={caption}
           restrictedWords={restrictedWordsFound}
+          grammarHighlights={grammarHighlights}
           onChange={(e) => handleCaptionChange(e.target.value)}
           placeholder="Write your caption here... Use the model context on the right for personality, lingo, and restrictions."
           maxLength={MAX_CAPTION_LENGTH}
+        />
+      )}
+
+      {/* Character count + Grammar check button */}
+      {!isLocked && (
+        <div className="flex items-center justify-between mb-3 -mt-1 px-0.5">
+          <span className={`text-[11px] tabular-nums ${
+            isOverLimit ? 'text-red-500 font-semibold' : 'text-gray-400 dark:text-gray-500'
+          }`}>
+            {caption.length} / {MAX_CAPTION_LENGTH}
+          </span>
+          <button
+            onClick={handleGrammarCheck}
+            disabled={caption.length === 0 || grammarCheck.isPending}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-brand-mid-pink hover:text-brand-dark-pink bg-brand-mid-pink/5 hover:bg-brand-mid-pink/15 border border-brand-mid-pink/20 hover:border-brand-mid-pink/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {grammarCheck.isPending ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Wand2 size={11} />
+            )}
+            {grammarCheck.isPending ? 'Checking…' : 'Check Grammar'}
+          </button>
+        </div>
+      )}
+
+      {/* Grammar check results panel — rendered as a portal, position in JSX has no layout effect */}
+      {showGrammarPanel && (
+        <GrammarCheckPanel
+          result={grammarCheck.data ?? { issues: [], overallScore: 0, summary: '' }}
+          isLoading={grammarCheck.isPending}
+          error={grammarCheck.error?.message ?? null}
+          caption={caption}
+          onApply={handleApplySuggestion}
+          onApplyAll={handleApplyAllSuggestions}
+          onDismiss={() => {
+            setShowGrammarPanel(false);
+            grammarCheck.reset();
+          }}
         />
       )}
 

@@ -90,7 +90,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         permissions: {
           // No feature tabs for users without organization
+          hasSpacesTab: false,
+          hasSchedulersTab: false,
           hasGenerateTab: false,
+          hasAIToolsTab: false,
           hasContentTab: false,
           hasVaultTab: false,
           hasTrainingTab: false,
@@ -167,14 +170,31 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Get organization with plan and custom permissions
-    const organization = await prisma.organization.findUnique({
-      where: { id: user.currentOrganizationId },
-      include: {
-        subscriptionPlan: true,
-        customPermissions: true,
-      },
-    });
+    // Get organization with plan, custom permissions, the user's TeamMember row,
+    // and whether the org uses teams at all.
+    const [organization, teamMember, orgTeamCount] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: user.currentOrganizationId },
+        include: {
+          subscriptionPlan: true,
+          customPermissions: true,
+        },
+      }),
+      prisma.teamMember.findFirst({
+        where: { organizationId: user.currentOrganizationId, user: { clerkId: userId } },
+        select: {
+          role: true,
+          orgTeamMemberships: {
+            include: {
+              team: { select: { tabPermissions: true } },
+            },
+          },
+        },
+      }),
+      prisma.orgTeam.count({
+        where: { organizationId: user.currentOrganizationId },
+      }),
+    ]);
 
     if (!organization) {
       return NextResponse.json(
@@ -182,8 +202,6 @@ export async function GET(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Build plan features map (now stored as JSON)
     const planFeatures: Record<string, any> = {};
     if (organization.subscriptionPlan?.features) {
       const features = typeof organization.subscriptionPlan.features === 'string'
@@ -198,6 +216,122 @@ export async function GET(req: NextRequest) {
       planFeatures,
       organization.customPermissions
     );
+
+    // Default new tab keys to true for backward compatibility
+    // (existing plans in DB may not have these keys yet)
+    const TAB_DEFAULTS: Record<string, boolean> = {
+      hasSpacesTab: true,
+      hasSchedulersTab: true,
+      hasAIToolsTab: true,
+    };
+    for (const [key, val] of Object.entries(TAB_DEFAULTS)) {
+      if (permissions[key] === undefined) {
+        permissions[key] = val;
+      }
+    }
+
+    // ── Team tab restriction layer ────────────────────────────────────────────
+    // OWNER / ADMIN / MANAGER bypass team restrictions.
+    // Users not in any team get no extra access (same as {} — zero tabs granted).
+    // Otherwise intersect the plan permissions with the union of all their teams' tabPermissions.
+    const BYPASS_ROLES = ['OWNER', 'ADMIN', 'MANAGER'];
+    const userRole = teamMember?.role ?? 'MEMBER';
+    const teamMemberships = teamMember?.orgTeamMemberships ?? [];
+    // The org uses teams if at least one OrgTeam exists.
+    // If the org has teams but this user isn't in any, they get zero-tab access
+    // (same as being in a team with {} permissions).
+    const orgUsesTeams = orgTeamCount > 0;
+
+    if (!BYPASS_ROLES.includes(userRole) && orgUsesTeams) {
+      // Tab permission keys that exist in PLAN_FEATURES with category === 'tab'
+      const TAB_KEYS = [
+        'hasSpacesTab', 'hasSchedulersTab',
+        'hasContentTab', 'hasVaultTab', 'hasReferenceBank', 'canCaptionBank',
+        'hasInstagramTab', 'hasGenerateTab', 'hasFeedTab', 'hasTrainingTab',
+        'hasAIToolsTab', 'hasMarketplaceTab',
+      ];
+
+      // Build union of all teams' whitelisted tabs
+      const allowedTabs = new Set<string>();
+      for (const membership of teamMemberships) {
+        const teamPerms = membership.team.tabPermissions as Record<string, unknown>;
+        for (const key of TAB_KEYS) {
+          if (teamPerms[key] === true) {
+            allowedTabs.add(key);
+          }
+        }
+      }
+
+      // Apply restriction: only show tabs explicitly whitelisted by at least one team.
+      // {} means "no tabs granted" — all tab keys become false.
+      for (const key of TAB_KEYS) {
+        if (!allowedTabs.has(key)) {
+          permissions[key] = false;
+        }
+      }
+
+      // ── Derived sub-permissions ─────────────────────────────────────────────
+      // When a parent tab is restricted, also restrict its child features so
+      // direct URL navigation and API calls are blocked.
+
+      // Content Studio → planning, pipeline, analytics, content management
+      if (!allowedTabs.has('hasInstagramTab')) {
+        permissions['hasPlanningTab'] = false;
+        permissions['hasPipelineTab'] = false;
+        permissions['hasAnalyticsTab'] = false;
+        permissions['canContentPipeline'] = false;
+        permissions['canStoryPlanner'] = false;
+        permissions['canReelPlanner'] = false;
+        permissions['canFeedPostPlanner'] = false;
+        permissions['canPerformanceMetrics'] = false;
+        permissions['canHashtagBank'] = false;
+        permissions['canAutoSchedule'] = false;
+        permissions['canBulkUpload'] = false;
+      }
+
+      // Generate Content → all generation sub-features
+      if (!allowedTabs.has('hasGenerateTab')) {
+        permissions['canTextToImage'] = false;
+        permissions['canImageToVideo'] = false;
+        permissions['canImageToImage'] = false;
+        permissions['canTextToVideo'] = false;
+        permissions['canFaceSwap'] = false;
+        permissions['canFluxKontext'] = false;
+        permissions['canVideoFpsBoost'] = false;
+        permissions['canSkinEnhancement'] = false;
+        permissions['canStyleTransfer'] = false;
+        permissions['canSkinEnhancer'] = false;
+        permissions['canImageToImageSkinEnhancer'] = false;
+        permissions['canAIVoice'] = false;
+        permissions['canSeeDreamTextToImage'] = false;
+        permissions['canSeeDreamImageToImage'] = false;
+        permissions['canSeeDreamTextToVideo'] = false;
+        permissions['canSeeDreamImageToVideo'] = false;
+        permissions['canKlingTextToVideo'] = false;
+        permissions['canKlingImageToVideo'] = false;
+        permissions['canKlingMultiImageToVideo'] = false;
+        permissions['canKlingMotionControl'] = false;
+      }
+
+      // Train Models → training features
+      if (!allowedTabs.has('hasTrainingTab')) {
+        permissions['canTrainLoRA'] = false;
+        permissions['canShareLoRA'] = false;
+      }
+
+      // Vault → vault sub-features
+      if (!allowedTabs.has('hasVaultTab')) {
+        permissions['canShareFolders'] = false;
+        permissions['canCreateFolders'] = false;
+        permissions['maxVaultFolders'] = 0;
+      }
+
+      // Marketplace → marketplace access
+      if (!allowedTabs.has('hasMarketplaceTab')) {
+        permissions['canAccessMarketplace'] = false;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Build subscription info
     const subscriptionInfo = {

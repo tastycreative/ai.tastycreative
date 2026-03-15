@@ -262,6 +262,19 @@
     }
   }
 
+  /* Grammar fix highlight — fades green → transparent over 3s */
+  .grammar-fix-highlight {
+    border-radius: 3px;
+    padding: 0 1px;
+    animation: grammar-fix-fade 3s ease-out forwards;
+  }
+
+  @keyframes grammar-fix-fade {
+    0%   { background-color: rgba(74, 222, 128, 0.55); }
+    65%  { background-color: rgba(74, 222, 128, 0.3); }
+    100% { background-color: transparent; }
+  }
+
   .animate-step-in {
     animation: stepIn 0.3s ease-out forwards;
   }

@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
       resolution,
       aspectRatio,
       referenceImageUrls, // Array of reference image URLs for reuse
+      selectedModelVersion, // User-friendly model version: "4.5" or "5.0-lite"
     } = body;
 
     // Validate required fields
@@ -154,6 +155,57 @@ export async function POST(request: NextRequest) {
     } else {
       resolvedImage = await resolveImageInput(image);
     }
+
+    // Ensure every reference image has a persistent S3 URL for reuse.
+    // The client tracks URLs when images come from the reference bank, but when
+    // a user uploads a local file without a profile (so reference-bank save is
+    // skipped client-side), the input arrives as raw base64 with no tracked URL.
+    // We upload those base64 inputs to S3 here so the URL can be stored in
+    // metadata and restored when "Reuse Settings" is clicked later.
+    const rawInputImages = Array.isArray(image) ? image : [image];
+    const finalReferenceImageUrls: string[] = [];
+
+    for (let idx = 0; idx < rawInputImages.length; idx++) {
+      const rawImg = rawInputImages[idx];
+      const clientTrackedUrl = (referenceImageUrls || [])[idx];
+
+      // Prefer the URL already tracked by the client (reference bank upload)
+      if (clientTrackedUrl && clientTrackedUrl.startsWith('http')) {
+        finalReferenceImageUrls.push(clientTrackedUrl);
+        continue;
+      }
+
+      // Raw input is already an HTTP URL — use it directly
+      if (rawImg.startsWith('http')) {
+        finalReferenceImageUrls.push(rawImg);
+        continue;
+      }
+
+      // Input is base64 — upload to S3 so the URL is available for reuse
+      try {
+        const mimeType = rawImg.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+        const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+        const base64Data = rawImg.includes(',') ? rawImg.split(',')[1] : rawImg;
+        const refBuffer = Buffer.from(base64Data, 'base64');
+        const refKey = `reference-images/${userId}/${uuidv4()}.${ext}`;
+
+        await s3Client.send(new PutObjectCommand({
+          Bucket: AWS_S3_BUCKET,
+          Key: refKey,
+          Body: refBuffer,
+          ContentType: mimeType,
+          CacheControl: 'public, max-age=31536000',
+        }));
+
+        const refS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${refKey}`;
+        finalReferenceImageUrls.push(convertS3ToCdnUrl(refS3Url));
+        console.log(`📤 Backed up reference image ${idx} to S3: ${refKey}`);
+      } catch (err) {
+        console.warn(`⚠️ Could not back up reference image ${idx} to S3:`, err);
+      }
+    }
+
+    console.log('🔗 Final reference image URLs for metadata:', finalReferenceImageUrls);
 
     // Prepare BytePlus API request payload
     const payload: any = {
@@ -530,7 +582,9 @@ export async function POST(request: NextRequest) {
                 aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 numReferenceImages: Array.isArray(image) ? image.length : 1,
-                referenceImageUrls: body.referenceImageUrls || [],
+                referenceImageUrls: finalReferenceImageUrls,
+                selectedModelVersion: selectedModelVersion || null,
+                outputFormat: output_format || null,
                 generatedAt: new Date().toISOString(),
                 generatedByClerkId: userId, // Track who actually generated it
               },
@@ -554,6 +608,7 @@ export async function POST(request: NextRequest) {
             model: data.model,
             createdAt: vaultItem.createdAt.toISOString(),
             savedToVault: true,
+            referenceImageUrls: finalReferenceImageUrls,
           };
         } else {
           // Save to regular generated images database
@@ -579,7 +634,9 @@ export async function POST(request: NextRequest) {
                 aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 numReferenceImages: Array.isArray(image) ? image.length : 1,
-                referenceImageUrls: body.referenceImageUrls || [],
+                referenceImageUrls: finalReferenceImageUrls,
+                selectedModelVersion: selectedModelVersion || null,
+                outputFormat: output_format || null,
                 generatedAt: new Date().toISOString(),
                 vaultProfileId: body.vaultProfileId || null,
               },
@@ -595,6 +652,7 @@ export async function POST(request: NextRequest) {
             prompt: body.prompt,
             model: data.model,
             createdAt: savedImage.createdAt.toISOString(),
+            referenceImageUrls: finalReferenceImageUrls,
           };
         }
 
@@ -791,6 +849,8 @@ export async function GET(request: NextRequest) {
           numReferenceImages: metadata?.numReferenceImages || 1,
           referenceImageUrls: metadata?.referenceImageUrls || [],
           profileId: imgProfileId,
+          selectedModel: metadata?.selectedModelVersion || null,
+          outputFormat: metadata?.outputFormat || null,
         },
       };
     });
@@ -817,6 +877,8 @@ export async function GET(request: NextRequest) {
           numReferenceImages: metadata?.numReferenceImages || 1,
           referenceImageUrls: metadata?.referenceImageUrls || [],
           profileId: img.profileId,
+          selectedModel: metadata?.selectedModelVersion || null,
+          outputFormat: metadata?.outputFormat || null,
         },
       };
     });

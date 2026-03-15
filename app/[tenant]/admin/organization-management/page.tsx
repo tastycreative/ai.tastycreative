@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { isUserAdmin } from '@/lib/adminAuth';
 import MembersTab from '@/components/admin/MembersTab';
 
-export default async function AdminMembersPage() {
+export default async function AdminOrganizationManagementPage() {
   const user = await currentUser();
   
   if (!user) {

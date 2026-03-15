@@ -1469,6 +1469,7 @@ model Organization {
   marketplaceModels             MarketplaceModel[]
   notifications                 Notification[]
   invites                       OrganizationInvite[]
+  orgTeams                      OrgTeam[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
   members                       TeamMember[]
@@ -1498,8 +1499,9 @@ model TeamMember {
   joinedAt         DateTime     @default(now())
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @default(now()) @updatedAt
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgTeamMemberships  OrgTeamMember[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -2349,6 +2351,44 @@ model ProfileAssignment {
   @@index([assignedToClerkId])
   @@index([profileId])
   @@map("profile_assignments")
+}
+
+/// Access-control teams within an organization.
+/// Each team has a tabPermissions JSON that whitelists which tabs its members can see.
+/// OWNER/ADMIN/MANAGER roles bypass team restrictions entirely.
+model OrgTeam {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  color          String?         // hex or named color for UI differentiation
+  // JSON whitelist of tab feature keys: { "hasGenerateTab": true, "hasContentTab": false, ... }
+  // Empty object {} means NO tabs are granted — members see nothing.
+  tabPermissions Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        OrgTeamMember[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("org_teams")
+}
+
+/// Membership join table linking OrgTeam ↔ TeamMember (org-scoped).
+model OrgTeamMember {
+  id           String     @id @default(cuid())
+  teamId       String
+  teamMemberId String     // FK → TeamMember.id (org-scoped, prevents cross-org leaks)
+  assignedAt   DateTime   @default(now())
+  assignedBy   String?    // clerkId of the admin who assigned this member (audit trail)
+  team         OrgTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, teamMemberId])
+  @@index([teamId])
+  @@index([teamMemberId])
+  @@map("org_team_members")
 }
 
 model TrackerTeam {
