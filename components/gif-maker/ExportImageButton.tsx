@@ -7,6 +7,7 @@ import {
   useRef,
   useEffect,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ImageDown,
   ChevronDown,
@@ -83,6 +84,7 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
   const [quality, setQuality] = useState<ExportQuality>("max");
   const [isCapturing, setIsCapturing] = useState(false);
   const [justDone, setJustDone] = useState(false);
+  const [doneMessage, setDoneMessage] = useState<string | null>(null);
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -124,7 +126,7 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
           const ctx = outCanvas.getContext("2d");
           ctx?.drawImage(rawCanvas, 0, 0, settings.width, settings.height);
         } else {
-          // Fallback: html2canvas for image/collage compositions
+          // Fallback: try html2canvas, but catch errors from unsupported CSS (lab(), oklch())
           const container = player.getContainerElement();
           if (container) {
             const containerRect = container.getBoundingClientRect();
@@ -132,18 +134,35 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
               containerRect.width > 0
                 ? settings.width / containerRect.width
                 : 1;
-            const captured = await html2canvas(container, {
-              scale,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: "#000000",
-              logging: false,
-            });
-            outCanvas = document.createElement("canvas");
-            outCanvas.width = settings.width;
-            outCanvas.height = settings.height;
-            const ctx = outCanvas.getContext("2d");
-            ctx?.drawImage(captured, 0, 0, settings.width, settings.height);
+            try {
+              const captured = await html2canvas(container, {
+                scale,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: "#000000",
+                logging: false,
+              });
+              outCanvas = document.createElement("canvas");
+              outCanvas.width = settings.width;
+              outCanvas.height = settings.height;
+              const ctx = outCanvas.getContext("2d");
+              ctx?.drawImage(captured, 0, 0, settings.width, settings.height);
+            } catch {
+              // html2canvas failed (e.g. unsupported CSS color functions like lab())
+              // Manual fallback: draw video/image elements directly from the container
+              outCanvas = document.createElement("canvas");
+              outCanvas.width = settings.width;
+              outCanvas.height = settings.height;
+              const ctx = outCanvas.getContext("2d");
+              if (ctx) {
+                ctx.fillStyle = "#000000";
+                ctx.fillRect(0, 0, settings.width, settings.height);
+                const mediaEl = container.querySelector("video, img") as HTMLVideoElement | HTMLImageElement | null;
+                if (mediaEl) {
+                  ctx.drawImage(mediaEl, 0, 0, settings.width, settings.height);
+                }
+              }
+            }
           }
         }
 
@@ -156,24 +175,71 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
         const qualityValue =
           QUALITY_OPTIONS.find((q) => q.id === quality)?.value ?? 0.95;
 
-        if (fmt === "png") {
-          exportCanvasAsPng(outCanvas, `creative-${timestamp}.png`);
-        } else if (fmt === "jpeg") {
-          exportCanvasAsJpg(
-            outCanvas,
-            `creative-${timestamp}.jpg`,
-            qualityValue
-          );
-        } else {
-          exportCanvasAsWebP(
-            outCanvas,
-            `creative-${timestamp}.webp`,
-            qualityValue
-          );
-        }
+        // Check workspace mode — upload to S3 if active
+        const store = useVideoEditorStore.getState();
+        const downloadFallback = (canvas: HTMLCanvasElement) => {
+          if (fmt === "png") exportCanvasAsPng(canvas, `flyer-${timestamp}.png`);
+          else if (fmt === "jpeg") exportCanvasAsJpg(canvas, `flyer-${timestamp}.jpg`, qualityValue);
+          else exportCanvasAsWebP(canvas, `flyer-${timestamp}.webp`, qualityValue);
+          setJustDone(true);
+          setTimeout(() => setJustDone(false), 2000);
+        };
 
-        setJustDone(true);
-        setTimeout(() => setJustDone(false), 2000);
+        if (store.workspaceMode && store.workspaceProfileId) {
+          try {
+            const mimeType = fmt === "png" ? "image/png" : fmt === "jpeg" ? "image/jpeg" : "image/webp";
+            const ext = FORMATS[fmt].ext;
+            const blob = await new Promise<Blob>((resolve, reject) => {
+              outCanvas!.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error("Canvas toBlob failed"))),
+                mimeType,
+                qualityValue
+              );
+            });
+
+            const formData = new FormData();
+            formData.append("file", new File([blob], `flyer-${timestamp}.${ext}`, { type: mimeType }));
+            formData.append("profileId", store.workspaceProfileId);
+            if (store.workspaceBoardItemId) {
+              formData.append("boardItemId", store.workspaceBoardItemId);
+            }
+
+            const uploadRes = await fetch("/api/flyer-assets/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (uploadRes.ok) {
+              const { asset } = await uploadRes.json();
+              await navigator.clipboard.writeText(asset.url).catch(() => {});
+              setJustDone(true);
+              setDoneMessage("Saved! URL copied");
+              setTimeout(() => { setJustDone(false); setDoneMessage(null); }, 3000);
+            } else {
+              downloadFallback(outCanvas!);
+            }
+          } catch {
+            downloadFallback(outCanvas!);
+          }
+        } else {
+          if (fmt === "png") {
+            exportCanvasAsPng(outCanvas, `creative-${timestamp}.png`);
+          } else if (fmt === "jpeg") {
+            exportCanvasAsJpg(
+              outCanvas,
+              `creative-${timestamp}.jpg`,
+              qualityValue
+            );
+          } else {
+            exportCanvasAsWebP(
+              outCanvas,
+              `creative-${timestamp}.webp`,
+              qualityValue
+            );
+          }
+          setJustDone(true);
+          setTimeout(() => setJustDone(false), 2000);
+        }
       } catch (error) {
         console.error("Image export error:", error);
       } finally {
@@ -214,7 +280,7 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
             <ImageDown className="h-3.5 w-3.5" />
           )}
           <span className="font-semibold tracking-wide text-[11px]">
-            {justDone ? "Saved!" : currentFormat.label}
+            {justDone ? (doneMessage ?? "Saved!") : currentFormat.label}
           </span>
         </button>
 
@@ -241,12 +307,15 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
         </button>
       </div>
 
-      {/* Popover */}
-      {isOpen && !disabled && (
+      {/* Popover — rendered via portal to avoid overflow clipping */}
+      {isOpen && !disabled && createPortal(
         <div
           ref={popoverRef}
-          className="absolute top-[calc(100%+6px)] right-0 w-[228px] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50"
+          className="fixed w-[228px] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           style={{
+            zIndex: 9999,
+            top: triggerRef.current ? triggerRef.current.getBoundingClientRect().bottom + 6 : 0,
+            left: triggerRef.current ? triggerRef.current.getBoundingClientRect().right - 228 : 0,
             animation: "popoverIn 0.15s cubic-bezier(0.16,1,0.3,1) forwards",
           }}
         >
@@ -362,7 +431,8 @@ export function ExportImageButton({ playerRef }: ExportImageButtonProps) {
               Export {currentFormat.label}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style>{`

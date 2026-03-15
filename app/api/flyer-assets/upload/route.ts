@@ -39,6 +39,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate file type
+    const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Allowed: PNG, JPEG, GIF, WebP' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (max 100MB)
+    const MAX_FILE_SIZE = 100 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'File too large (max 100MB)' },
+        { status: 413 }
+      );
+    }
+
     // Get user's current org
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },

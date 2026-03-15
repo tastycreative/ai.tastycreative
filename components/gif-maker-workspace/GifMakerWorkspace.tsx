@@ -60,6 +60,8 @@ export function GifMakerWorkspace() {
     }))
   );
   const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
+  const setWorkspaceMode = useVideoEditorStore((s) => s.setWorkspaceMode);
+  const clearWorkspaceMode = useVideoEditorStore((s) => s.clearWorkspaceMode);
 
   // Auto-select profile from URL params
   useEffect(() => {
@@ -68,6 +70,20 @@ export function GifMakerWorkspace() {
       if (profile) setSelectedProfile(profile);
     }
   }, [initialProfileId, profiles, selectedProfile]);
+
+  // Sync workspace mode with store
+  useEffect(() => {
+    if (selectedProfile) {
+      setWorkspaceMode(selectedProfile.id, boardItemId);
+    } else {
+      clearWorkspaceMode();
+    }
+  }, [selectedProfile, boardItemId, setWorkspaceMode, clearWorkspaceMode]);
+
+  // Clean up workspace mode on unmount
+  useEffect(() => {
+    return () => clearWorkspaceMode();
+  }, [clearWorkspaceMode]);
 
   const handleFrameChange = useCallback(
     (frame: number) => {
