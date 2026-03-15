@@ -41,6 +41,13 @@ interface VideoEditorState {
   // Export
   exportState: ExportState;
 
+  // Workspace mode (GIF Maker Workspace)
+  workspaceMode: boolean;
+  workspaceProfileId: string | null;
+  workspaceBoardItemId: string | null;
+  setWorkspaceMode: (profileId: string | null, boardItemId?: string | null) => void;
+  clearWorkspaceMode: () => void;
+
   // ─── Clip Actions ──────────────────
   addClip: (clip: Omit<VideoClip, "startFrame"> | Omit<ImageClip, "startFrame">) => void;
   removeClip: (clipId: string) => void;
@@ -156,6 +163,15 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
   selectedOverlayId: null,
   settings: DEFAULT_SETTINGS,
   exportState: DEFAULT_EXPORT_STATE,
+
+  // Workspace mode defaults
+  workspaceMode: false,
+  workspaceProfileId: null,
+  workspaceBoardItemId: null,
+  setWorkspaceMode: (profileId, boardItemId) =>
+    set({ workspaceMode: !!profileId, workspaceProfileId: profileId, workspaceBoardItemId: boardItemId ?? null }),
+  clearWorkspaceMode: () =>
+    set({ workspaceMode: false, workspaceProfileId: null, workspaceBoardItemId: null }),
 
   // ─── Clip Actions ──────────────────
 

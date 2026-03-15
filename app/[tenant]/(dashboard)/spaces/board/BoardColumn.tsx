@@ -25,6 +25,10 @@ interface BoardColumnProps {
   onTaskDelete?: (taskId: string) => void;
   CardComponent?: ComponentType<BoardTaskCardProps>;
   templateType?: string;
+  isSecondToLastColumn?: boolean;
+  onMoveToColumn?: (taskId: string, columnId: string) => void;
+  lastColumnId?: string;
+  onUpdateTask?: (task: BoardTask) => void;
 }
 
 const STATUS_COLORS = [
@@ -61,6 +65,10 @@ export function BoardColumn({
   onTaskDelete,
   CardComponent,
   templateType,
+  isSecondToLastColumn,
+  onMoveToColumn,
+  lastColumnId,
+  onUpdateTask,
 }: BoardColumnProps) {
   const Card = CardComponent ?? BoardTaskCard;
   const router = useRouter();
@@ -283,6 +291,10 @@ export function BoardColumn({
                   columnTitle={column.title}
                   onMarkFinal={onMarkFinal}
                   onDelete={onTaskDelete}
+                  isSecondToLastColumn={isSecondToLastColumn}
+                  onMoveToColumn={onMoveToColumn}
+                  lastColumnId={lastColumnId}
+                  onUpdateTask={onUpdateTask}
                 />
               ))}
               {provided.placeholder}

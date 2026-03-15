@@ -127,7 +127,7 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
             <input
               type="color"
               value={
-                overlay.backgroundColor === "transparent"
+                !overlay.backgroundColor || overlay.backgroundColor === "transparent"
                   ? "#000000"
                   : overlay.backgroundColor.startsWith("rgba")
                     ? "#000000"

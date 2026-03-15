@@ -27,6 +27,10 @@ export interface BoardTaskCardProps {
   columnTitle?: string;
   onMarkFinal?: (taskId: string) => void;
   onDelete?: (taskId: string) => void;
+  isSecondToLastColumn?: boolean;
+  onMoveToColumn?: (taskId: string, columnId: string) => void;
+  lastColumnId?: string;
+  onUpdateTask?: (task: BoardTask) => void;
 }
 
 const PRIORITY_BORDER: Record<string, string> = {

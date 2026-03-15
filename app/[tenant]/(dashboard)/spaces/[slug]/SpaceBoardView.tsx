@@ -328,6 +328,17 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         return true;
                       });
 
+                    // Check if this column is the second-to-last visible column
+                    const visibleColumnOrder = effectiveColumnOrder.filter(
+                      (cId) => !filters.hiddenColumns.has(cId)
+                    );
+                    const isSecondToLast =
+                      visibleColumnOrder.length >= 2 &&
+                      colId === visibleColumnOrder[visibleColumnOrder.length - 2];
+                    const lastColId = visibleColumnOrder.length >= 2
+                      ? visibleColumnOrder[visibleColumnOrder.length - 1]
+                      : undefined;
+
                     return (
                       <BoardColumn
                         key={col.id}
@@ -342,6 +353,10 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onTaskDelete={handleDeleteTask}
                         CardComponent={CardComponent}
                         templateType={space!.templateType}
+                        isSecondToLastColumn={isSecondToLast}
+                        onMoveToColumn={handleColumnChange}
+                        lastColumnId={lastColId}
+                        onUpdateTask={handleTaskUpdate}
                       />
                     );
                   })}

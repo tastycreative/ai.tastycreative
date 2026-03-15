@@ -191,6 +191,11 @@ export default function DashboardLayout({
                     href: `/${tenant}/workspace/caption-workspace`,
                     icon: FileText,
                   },
+                  {
+                    name: "GIF Maker Workspace",
+                    href: `/${tenant}/workspace/gif-maker`,
+                    icon: Film,
+                  },
                 ],
               },
             ]
