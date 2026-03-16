@@ -75,6 +75,7 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
           name: finalName,
           type: 'real',
           shareWithOrganization: true,
+          ...(meta.fields ? { metadata: { fields: meta.fields, fieldOrder: meta.fieldOrder } } : {}),
         }),
       });
       const newProfile = await res.json();
@@ -97,7 +98,7 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
 
       // Navigate to the newly created profile page
       if (newProfile?.id && params.tenant) {
-        router.push(`/${params.tenant}/workspace/my-influencers/${newProfile.id}`);
+        router.push(`/${params.tenant}/workspace/my-influencers/${newProfile.id}?from_launch=true`);
       }
     } catch (err) {
       console.error('Launch failed:', err);

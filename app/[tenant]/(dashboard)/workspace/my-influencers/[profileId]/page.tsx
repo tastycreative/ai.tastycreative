@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   User,
   DollarSign,
@@ -36,11 +36,16 @@ import {
   Shield,
   Trash2,
   Plus,
+  ClipboardList,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import { useApiClient } from "@/lib/apiClient";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import { ModelCaptionBank } from "@/components/model-profile/ModelCaptionBank";
+import { FormDataMappingModal } from "@/components/model-profile/FormDataMappingModal";
+import { MODEL_BIBLE_FIELDS } from "@/lib/model-bible-fields";
 import { usePausedModels } from "@/lib/hooks/usePausedModels.query";
 import { CONTENT_STYLES } from "@/components/content-submission/ContentStyleSelector";
 
@@ -93,6 +98,12 @@ interface InfluencerProfile {
   customContentTypes?: string[];
   type?: "real" | "ai";
   status?: "active" | "paused" | "pending" | "dropped";
+  metadata?: {
+    fields?: Record<string, string>;
+    fieldOrder?: string[];
+    appliedMappings?: Record<string, string>;
+    appliedEditedValues?: Record<string, string>;
+  };
 }
 
 interface LinkedLoRA {
@@ -3154,11 +3165,17 @@ function ContentTab({
 export default function ModelProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const apiClient = useApiClient();
   const { pausedModelsMap } = usePausedModels();
   const [profile, setProfile] = useState<InfluencerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [mappingModalChecked, setMappingModalChecked] = useState(false);
+  const [appliedMappings, setAppliedMappings] = useState<Record<string, string>>({});
+  const [appliedEditedValues, setAppliedEditedValues] = useState<Record<string, string>>({});
+  const [showFormSidebar, setShowFormSidebar] = useState(false);
   const [pageStrategy, setPageStrategy] = useState<string>("gf_experience");
   const [savingStrategy, setSavingStrategy] = useState(false);
   const [showStrategyModal, setShowStrategyModal] = useState(false);
@@ -3204,7 +3221,6 @@ export default function ModelProfilePage() {
   const [editingBasicInfo, setEditingBasicInfo] = useState(false);
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoForm, setBasicInfoForm] = useState({
-    age: "",
     birthday: "",
     height: "",
     weight: "",
@@ -3318,6 +3334,44 @@ export default function ModelProfilePage() {
     }
   }, [apiClient, profileId]);
 
+  // Auto-open mapping modal when navigated from launch with form data
+  useEffect(() => {
+    if (
+      !mappingModalChecked &&
+      !loading &&
+      profile &&
+      searchParams.get('from_launch') === 'true'
+    ) {
+      setMappingModalChecked(true);
+      const hasFields =
+        profile.metadata?.fields &&
+        Object.keys(profile.metadata.fields).length > 0;
+      const bibleEmpty =
+        !profile.modelBible || Object.keys(profile.modelBible).length === 0;
+
+      if (hasFields && bibleEmpty) {
+        setShowMappingModal(true);
+      }
+
+      // Clean the URL param
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname,
+      );
+    }
+  }, [loading, profile, searchParams, mappingModalChecked]);
+
+  // Restore persisted mapping data from profile metadata
+  useEffect(() => {
+    if (profile?.metadata?.appliedMappings) {
+      setAppliedMappings(profile.metadata.appliedMappings);
+    }
+    if (profile?.metadata?.appliedEditedValues) {
+      setAppliedEditedValues(profile.metadata.appliedEditedValues);
+    }
+  }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (profile?.pageStrategy) {
       setPageStrategy(profile.pageStrategy);
@@ -3340,7 +3394,6 @@ export default function ModelProfilePage() {
     // Initialize basic info form from profile
     if (profile?.modelBible) {
       setBasicInfoForm({
-        age: profile.modelBible.age || "",
         birthday: profile.modelBible.birthday || "",
         height: profile.modelBible.height || "",
         weight: profile.modelBible.weight || "",
@@ -3712,7 +3765,6 @@ export default function ModelProfilePage() {
     try {
       const updatedBible = {
         ...profile.modelBible,
-        age: basicInfoForm.age,
         birthday: basicInfoForm.birthday,
         height: basicInfoForm.height,
         weight: basicInfoForm.weight,
@@ -3745,7 +3797,6 @@ export default function ModelProfilePage() {
     // Reset form to original values
     if (profile?.modelBible) {
       setBasicInfoForm({
-        age: profile.modelBible.age || "",
         birthday: profile.modelBible.birthday || "",
         height: profile.modelBible.height || "",
         weight: profile.modelBible.weight || "",
@@ -4467,12 +4518,19 @@ export default function ModelProfilePage() {
 
   const allContentTypes = [...defaultContentTypes, ...customContentTypes];
 
+  const hasFormData =
+    profile?.metadata?.fields &&
+    Object.keys(profile.metadata.fields).length > 0;
+
   const tabs = [
     { id: "overview", label: "Overview", icon: User },
     { id: "pricing", label: "Pricing", icon: DollarSign },
     { id: "content", label: "Content & Restrictions", icon: FileText },
     { id: "captions", label: "Captions", icon: MessageSquare },
     { id: "gallery", label: "Gallery", icon: Image },
+    ...(hasFormData
+      ? [{ id: "formdata", label: "Form Data", icon: ClipboardList }]
+      : []),
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -5049,7 +5107,9 @@ export default function ModelProfilePage() {
         {/* Content */}
         <div className="px-8 py-8">
           {activeTab === "overview" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex gap-6">
+            {/* Main overview content */}
+            <div className={`flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-6 ${hasFormData && showFormSidebar ? "xl:mr-0" : ""}`}>
               {/* Page Strategy */}
               <div className="lg:col-span-2 bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
                 <div className="flex items-center justify-between mb-5">
@@ -5427,13 +5487,42 @@ export default function ModelProfilePage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
+                  {/* Age - computed from birthday, not editable */}
+                  <div>
+                    <div className="text-[11px] text-[#71717a] mb-1">Age</div>
+                    <div className="text-sm">
+                      {(() => {
+                        const bday = editingBasicInfo ? basicInfoForm.birthday : bible?.birthday;
+                        if (!bday) return "Not set";
+                        // Try parsing as-is first, then try common formats
+                        let birthDate = new Date(bday);
+                        // Handle formats like "MM/DD/YYYY" or "DD-MM-YYYY"
+                        if (isNaN(birthDate.getTime())) {
+                          // Try extracting numbers and re-parsing
+                          const parts = String(bday).match(/(\d{1,4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,4})/);
+                          if (parts) {
+                            const [, a, b, c] = parts;
+                            // If first part is 4 digits, assume YYYY-MM-DD
+                            if (a.length === 4) {
+                              birthDate = new Date(Number(a), Number(b) - 1, Number(c));
+                            } else if (c.length === 4) {
+                              // MM/DD/YYYY or DD/MM/YYYY — assume MM/DD/YYYY
+                              birthDate = new Date(Number(c), Number(a) - 1, Number(b));
+                            }
+                          }
+                        }
+                        if (isNaN(birthDate.getTime())) return `Birthday: ${bday}`;
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const monthDiff = today.getMonth() - birthDate.getMonth();
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                          age--;
+                        }
+                        return `${age} years old`;
+                      })()}
+                    </div>
+                  </div>
                   {[
-                    {
-                      label: "Age",
-                      value: bible?.age,
-                      field: "age",
-                      type: "text",
-                    },
                     {
                       label: "Birthday",
                       value: bible?.birthday,
@@ -6273,6 +6362,93 @@ export default function ModelProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Form Data Sidebar - Overview */}
+            {hasFormData && (() => {
+              const sidebarSourceToTarget: Record<string, string> = {};
+              for (const [targetPath, sourceField] of Object.entries(appliedMappings)) {
+                if (sourceField) sidebarSourceToTarget[sourceField] = targetPath;
+              }
+              const sidebarMappedFields = new Set(Object.keys(sidebarSourceToTarget));
+              const getSidebarTargetLabel = (tp: string) => {
+                const f = MODEL_BIBLE_FIELDS.find((fd) => fd.path === tp);
+                return f?.label || tp;
+              };
+              return (
+              <div className={`shrink-0 transition-all duration-300 ${showFormSidebar ? "w-80" : "w-10"}`}>
+                {showFormSidebar ? (
+                  <div className="bg-[#18181b] rounded-xl border border-[#27272a] h-fit sticky top-4">
+                    <div className="flex items-center justify-between p-4 border-b border-[#27272a]">
+                      <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                        <ClipboardList size={12} className="text-[#3b82f6]" />
+                        Form Data
+                        {sidebarMappedFields.size > 0 && (
+                          <span className="text-[9px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-1.5 py-0.5">
+                            {sidebarMappedFields.size} mapped
+                          </span>
+                        )}
+                      </h4>
+                      <button
+                        onClick={() => setShowFormSidebar(false)}
+                        className="p-1 hover:bg-[#27272a] rounded transition-colors"
+                        title="Collapse sidebar"
+                      >
+                        <PanelRightClose size={14} className="text-[#71717a]" />
+                      </button>
+                    </div>
+                    <div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto space-y-3">
+                      {(Array.isArray(profile?.metadata?.fieldOrder)
+                        ? profile!.metadata!.fieldOrder!.filter(
+                            (k: string) => k in (profile?.metadata?.fields ?? {})
+                          )
+                        : Object.keys(profile?.metadata?.fields ?? {})
+                      ).map((key: string) => {
+                        const isMapped = sidebarMappedFields.has(key);
+                        const targetPath = sidebarSourceToTarget[key];
+                        const originalValue = profile?.metadata?.fields?.[key] || "";
+                        const editedValue = targetPath ? (appliedEditedValues[targetPath] ?? "") : "";
+                        const wasEdited = isMapped && editedValue && editedValue !== String(originalValue);
+                        return (
+                        <div key={key} className={`pb-2.5 border-b border-white/[0.04] last:border-0 ${isMapped ? "pl-2.5 border-l-2 border-l-emerald-500/40" : ""}`}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#71717a]">
+                              {key}
+                            </div>
+                            {isMapped && targetPath && (
+                              <span className="inline-flex items-center gap-0.5 text-[8px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-1 py-0.5">
+                                <Check size={7} />
+                                → {getSidebarTargetLabel(targetPath)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[#a1a1aa] whitespace-pre-wrap break-words leading-relaxed">
+                            {String(originalValue || "—").slice(0, 300)}
+                            {String(originalValue || "").length > 300 ? "…" : ""}
+                          </p>
+                          {wasEdited && (
+                            <div className="mt-1 flex items-start gap-1">
+                              <span className="text-[9px] text-amber-400 font-medium shrink-0 mt-0.5">Applied:</span>
+                              <p className="text-[10px] text-amber-300/80 whitespace-pre-wrap break-words">{editedValue}</p>
+                            </div>
+                          )}
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowFormSidebar(true)}
+                    className="sticky top-4 p-2 bg-[#18181b] border border-[#27272a] rounded-xl hover:bg-[#27272a] transition-colors group"
+                    title="Show Form Data"
+                  >
+                    <PanelRightOpen size={16} className="text-[#71717a] group-hover:text-[#3b82f6]" />
+                  </button>
+                )}
+              </div>
+              );
+            })()}
+            </div>
           )}
 
           {activeTab === "pricing" && profile && (
@@ -6291,32 +6467,123 @@ export default function ModelProfilePage() {
           )}
 
           {activeTab === "content" && (
-            <ContentTab
-              profile={profile}
-              editingRestrictions={editingRestrictions}
-              restrictionsForm={restrictionsForm}
-              setRestrictionsForm={setRestrictionsForm}
-              wordingToAvoidInput={wordingToAvoidInput}
-              setWordingToAvoidInput={setWordingToAvoidInput}
-              onEditRestrictions={handleEditRestrictions}
-              onSaveRestrictions={handleSaveRestrictions}
-              onCancelRestrictions={handleCancelRestrictions}
-              savingRestrictions={savingRestrictions}
-              editingSchedule={editingSchedule}
-              scheduleForm={scheduleForm}
-              setScheduleForm={setScheduleForm}
-              onEditSchedule={handleEditSchedule}
-              onSaveSchedule={handleSaveSchedule}
-              onCancelSchedule={handleCancelSchedule}
-              savingSchedule={savingSchedule}
-              editingNotes={editingNotes}
-              notesForm={notesForm}
-              setNotesForm={setNotesForm}
-              onEditNotes={handleEditNotes}
-              onSaveNotes={handleSaveNotes}
-              onCancelNotes={handleCancelNotes}
-              savingNotes={savingNotes}
-            />
+            <div className="flex gap-6">
+              {/* Main content tab */}
+              <div className="flex-1 min-w-0">
+                <ContentTab
+                  profile={profile}
+                  editingRestrictions={editingRestrictions}
+                  restrictionsForm={restrictionsForm}
+                  setRestrictionsForm={setRestrictionsForm}
+                  wordingToAvoidInput={wordingToAvoidInput}
+                  setWordingToAvoidInput={setWordingToAvoidInput}
+                  onEditRestrictions={handleEditRestrictions}
+                  onSaveRestrictions={handleSaveRestrictions}
+                  onCancelRestrictions={handleCancelRestrictions}
+                  savingRestrictions={savingRestrictions}
+                  editingSchedule={editingSchedule}
+                  scheduleForm={scheduleForm}
+                  setScheduleForm={setScheduleForm}
+                  onEditSchedule={handleEditSchedule}
+                  onSaveSchedule={handleSaveSchedule}
+                  onCancelSchedule={handleCancelSchedule}
+                  savingSchedule={savingSchedule}
+                  editingNotes={editingNotes}
+                  notesForm={notesForm}
+                  setNotesForm={setNotesForm}
+                  onEditNotes={handleEditNotes}
+                  onSaveNotes={handleSaveNotes}
+                  onCancelNotes={handleCancelNotes}
+                  savingNotes={savingNotes}
+                />
+              </div>
+
+              {/* Form Data Sidebar - Content */}
+              {hasFormData && (() => {
+                const sidebarSourceToTarget2: Record<string, string> = {};
+                for (const [targetPath, sourceField] of Object.entries(appliedMappings)) {
+                  if (sourceField) sidebarSourceToTarget2[sourceField] = targetPath;
+                }
+                const sidebarMappedFields2 = new Set(Object.keys(sidebarSourceToTarget2));
+                const getSidebarTargetLabel2 = (tp: string) => {
+                  const f = MODEL_BIBLE_FIELDS.find((fd) => fd.path === tp);
+                  return f?.label || tp;
+                };
+                return (
+                <div className={`shrink-0 transition-all duration-300 ${showFormSidebar ? "w-80" : "w-10"}`}>
+                  {showFormSidebar ? (
+                    <div className="bg-[#18181b] rounded-xl border border-[#27272a] h-fit sticky top-4">
+                      <div className="flex items-center justify-between p-4 border-b border-[#27272a]">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <ClipboardList size={12} className="text-[#3b82f6]" />
+                          Form Data
+                          {sidebarMappedFields2.size > 0 && (
+                            <span className="text-[9px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-1.5 py-0.5">
+                              {sidebarMappedFields2.size} mapped
+                            </span>
+                          )}
+                        </h4>
+                        <button
+                          onClick={() => setShowFormSidebar(false)}
+                          className="p-1 hover:bg-[#27272a] rounded transition-colors"
+                          title="Collapse sidebar"
+                        >
+                          <PanelRightClose size={14} className="text-[#71717a]" />
+                        </button>
+                      </div>
+                      <div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto space-y-3">
+                        {(Array.isArray(profile?.metadata?.fieldOrder)
+                          ? profile!.metadata!.fieldOrder!.filter(
+                              (k: string) => k in (profile?.metadata?.fields ?? {})
+                            )
+                          : Object.keys(profile?.metadata?.fields ?? {})
+                        ).map((key: string) => {
+                          const isMapped = sidebarMappedFields2.has(key);
+                          const targetPath = sidebarSourceToTarget2[key];
+                          const originalValue = profile?.metadata?.fields?.[key] || "";
+                          const editedValue = targetPath ? (appliedEditedValues[targetPath] ?? "") : "";
+                          const wasEdited = isMapped && editedValue && editedValue !== String(originalValue);
+                          return (
+                          <div key={key} className={`pb-2.5 border-b border-white/[0.04] last:border-0 ${isMapped ? "pl-2.5 border-l-2 border-l-emerald-500/40" : ""}`}>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#71717a]">
+                                {key}
+                              </div>
+                              {isMapped && targetPath && (
+                                <span className="inline-flex items-center gap-0.5 text-[8px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-1 py-0.5">
+                                  <Check size={7} />
+                                  → {getSidebarTargetLabel2(targetPath)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#a1a1aa] whitespace-pre-wrap break-words leading-relaxed">
+                              {String(originalValue || "—").slice(0, 300)}
+                              {String(originalValue || "").length > 300 ? "…" : ""}
+                            </p>
+                            {wasEdited && (
+                              <div className="mt-1 flex items-start gap-1">
+                                <span className="text-[9px] text-amber-400 font-medium shrink-0 mt-0.5">Applied:</span>
+                                <p className="text-[10px] text-amber-300/80 whitespace-pre-wrap break-words">{editedValue}</p>
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowFormSidebar(true)}
+                      className="sticky top-4 p-2 bg-[#18181b] border border-[#27272a] rounded-xl hover:bg-[#27272a] transition-colors group"
+                      title="Show Form Data"
+                    >
+                      <PanelRightOpen size={16} className="text-[#71717a] group-hover:text-[#3b82f6]" />
+                    </button>
+                  )}
+                </div>
+                );
+              })()}
+            </div>
           )}
 
           {activeTab === "captions" && profile && (
@@ -6420,6 +6687,94 @@ export default function ModelProfilePage() {
               </div>
             </div>
           )}
+
+          {activeTab === "formdata" && profile?.metadata?.fields && (() => {
+            // Build reverse lookup: sourceFieldName → targetPath
+            const sourceToTarget: Record<string, string> = {};
+            for (const [targetPath, sourceField] of Object.entries(appliedMappings)) {
+              if (sourceField) {
+                sourceToTarget[sourceField] = targetPath;
+              }
+            }
+            const mappedSourceFields = new Set(Object.keys(sourceToTarget));
+            const getTargetLabel = (targetPath: string) => {
+              const field = MODEL_BIBLE_FIELDS.find((f) => f.path === targetPath);
+              return field?.label || targetPath;
+            };
+
+            return (
+            <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <ClipboardList size={16} className="text-[#3b82f6]" />
+                  Form Data
+                  {mappedSourceFields.size > 0 && (
+                    <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
+                      {mappedSourceFields.size} mapped
+                    </span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setShowMappingModal(true)}
+                  className="px-3 py-1.5 bg-[#3b82f6]/10 border border-[#3b82f6]/20 rounded-lg text-[#3b82f6] text-xs font-medium hover:bg-[#3b82f6]/20 transition-colors flex items-center gap-1.5"
+                >
+                  <Sparkles size={12} />
+                  Map to Profile
+                </button>
+              </div>
+              <div className="space-y-3">
+                {(Array.isArray(profile.metadata?.fieldOrder)
+                  ? profile.metadata!.fieldOrder!.filter(
+                      (k) => k in (profile.metadata?.fields ?? {})
+                    )
+                  : Object.keys(profile.metadata?.fields ?? {})
+                ).map((key) => {
+                  const isMapped = mappedSourceFields.has(key);
+                  const targetPath = sourceToTarget[key];
+                  const originalValue = profile.metadata?.fields?.[key] || "";
+                  const editedValue = targetPath ? (appliedEditedValues[targetPath] ?? "") : "";
+                  const wasEdited = isMapped && editedValue && editedValue !== originalValue;
+
+                  return (
+                  <div
+                    key={key}
+                    className={`py-2.5 border-b border-white/[0.04] last:border-0 ${
+                      isMapped ? "pl-3 border-l-2 border-l-emerald-500/40" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#71717a]">
+                        {key}
+                      </div>
+                      {isMapped && targetPath && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-1.5 py-0.5">
+                          <Check size={8} />
+                          → {getTargetLabel(targetPath)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-[#e4e4e7] whitespace-pre-wrap">
+                      {originalValue || "—"}
+                    </p>
+
+                    {/* Show edited/mapped value if different from original */}
+                    {wasEdited && (
+                      <div className="mt-1.5 flex items-start gap-1.5">
+                        <span className="text-[10px] text-amber-400 font-medium shrink-0 mt-0.5">
+                          Applied:
+                        </span>
+                        <p className="text-xs text-amber-300/80 whitespace-pre-wrap">
+                          {editedValue}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  );
+                })}
+              </div>
+            </div>
+            );
+          })()}
 
           {activeTab === "settings" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -6919,6 +7274,49 @@ export default function ModelProfilePage() {
           )}
         </div>
       </div>
+
+      {profile?.metadata?.fields && (
+        <FormDataMappingModal
+          isOpen={showMappingModal}
+          onClose={() => setShowMappingModal(false)}
+          profileId={profile.id}
+          formFields={profile.metadata.fields}
+          fieldOrder={profile.metadata.fieldOrder}
+          existingModelBible={
+            (profile.modelBible as Record<string, unknown>) ?? {}
+          }
+          onApplied={async (updatedBible, mappingsResult, editedVals) => {
+            const updatedMetadata = {
+              ...profile.metadata,
+              appliedMappings: mappingsResult,
+              appliedEditedValues: editedVals,
+            };
+            setProfile((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    modelBible: updatedBible as InfluencerProfile["modelBible"],
+                    metadata: updatedMetadata,
+                  }
+                : prev,
+            );
+            setAppliedMappings(mappingsResult);
+            setAppliedEditedValues(editedVals);
+
+            // Persist mappings to database
+            if (apiClient) {
+              try {
+                await apiClient.patch(
+                  `/api/instagram-profiles/${profile.id}`,
+                  { metadata: updatedMetadata },
+                );
+              } catch (err) {
+                console.error("Failed to persist mapping metadata:", err);
+              }
+            }
+          }}
+        />
+      )}
     </>
   );
 }

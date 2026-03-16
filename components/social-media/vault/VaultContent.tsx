@@ -180,6 +180,7 @@ import {
 import { PlatformExportModal } from "@/components/export";
 import { VaultEnhancements, FavoriteStar } from "./VaultEnhancements";
 import { CompareModal } from "./CompareModal";
+import { PermanentDeleteModal } from "./PermanentDeleteModal";
 
 interface InstagramProfile {
   id: string;
@@ -1316,6 +1317,14 @@ export function VaultContent() {
   const [selectedTrashItems, setSelectedTrashItems] = useState<Set<string>>(
     new Set(),
   );
+
+  // Permanent delete modal state
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [itemsToPermanentlyDelete, setItemsToPermanentlyDelete] = useState<{
+    ids: string[];
+    names: string[];
+    type: 'selected' | 'single' | 'all';
+  }>({ ids: [], names: [], type: 'selected' });
 
   // Trash hooks
   const {
@@ -7557,22 +7566,12 @@ export function VaultContent() {
                         </button>
                         <button
                           onClick={() => {
-                            if (
-                              !confirm(
-                                `Permanently delete ${selectedTrashItems.size} item(s)? This cannot be undone.`,
-                              )
-                            )
-                              return;
                             const ids = Array.from(selectedTrashItems);
-                            animateOutAndAct(ids, () => {
-                              setSelectedTrashItems(new Set());
-                              permanentDeleteMutation.mutate(ids, {
-                                onSuccess: () =>
-                                  showToast("Permanently deleted", "success"),
-                                onError: () =>
-                                  showToast("Failed to delete items", "error"),
-                              });
-                            });
+                            const names = trashItems
+                              .filter((item: TrashItem) => ids.includes(item.id))
+                              .map((item: TrashItem) => item.fileName);
+                            setItemsToPermanentlyDelete({ ids, names, type: 'selected' });
+                            setShowPermanentDeleteModal(true);
                           }}
                           disabled={permanentDeleteMutation.isPending}
                           className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
@@ -7585,22 +7584,10 @@ export function VaultContent() {
                     {trashItems.length > 0 && (
                       <button
                         onClick={() => {
-                          if (
-                            !confirm(
-                              "Permanently delete all items in trash? This cannot be undone.",
-                            )
-                          )
-                            return;
                           const allIds = trashItems.map((i: TrashItem) => i.id);
-                          animateOutAndAct(allIds, () => {
-                            setSelectedTrashItems(new Set());
-                            emptyTrashMutation.mutate(undefined, {
-                              onSuccess: () =>
-                                showToast("Trash emptied", "success"),
-                              onError: () =>
-                                showToast("Failed to empty trash", "error"),
-                            });
-                          });
+                          const allNames = trashItems.map((i: TrashItem) => i.fileName);
+                          setItemsToPermanentlyDelete({ ids: allIds, names: allNames, type: 'all' });
+                          setShowPermanentDeleteModal(true);
                         }}
                         disabled={emptyTrashMutation.isPending}
                         className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
@@ -7771,20 +7758,12 @@ export function VaultContent() {
                             </button>
                             <button
                               onClick={() => {
-                                if (
-                                  !confirm(
-                                    "Permanently delete this item? This cannot be undone.",
-                                  )
-                                )
-                                  return;
-                                animateOutAndAct([item.id], () => {
-                                  permanentDeleteMutation.mutate([item.id], {
-                                    onSuccess: () =>
-                                      showToast("Permanently deleted", "success"),
-                                    onError: () =>
-                                      showToast("Failed to delete", "error"),
-                                  });
+                                setItemsToPermanentlyDelete({
+                                  ids: [item.id],
+                                  names: [item.fileName],
+                                  type: 'single'
                                 });
+                                setShowPermanentDeleteModal(true);
                               }}
                               disabled={permanentDeleteMutation.isPending}
                               className="flex items-center justify-center p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
@@ -8663,6 +8642,53 @@ export function VaultContent() {
           </div>,
           document.body,
         )}
+
+      {/* Permanent Delete Modal */}
+      <PermanentDeleteModal
+        isOpen={showPermanentDeleteModal}
+        onClose={() => {
+          setShowPermanentDeleteModal(false);
+          setItemsToPermanentlyDelete({ ids: [], names: [], type: 'selected' });
+        }}
+        onConfirm={() => {
+          const { ids, type } = itemsToPermanentlyDelete;
+
+          if (type === 'all') {
+            // Empty trash
+            animateOutAndAct(ids, () => {
+              setSelectedTrashItems(new Set());
+              emptyTrashMutation.mutate(undefined, {
+                onSuccess: () => {
+                  showToast("Trash emptied", "success");
+                  setShowPermanentDeleteModal(false);
+                  setItemsToPermanentlyDelete({ ids: [], names: [], type: 'selected' });
+                },
+                onError: () => {
+                  showToast("Failed to empty trash", "error");
+                },
+              });
+            });
+          } else {
+            // Delete selected or single item
+            animateOutAndAct(ids, () => {
+              setSelectedTrashItems(new Set());
+              permanentDeleteMutation.mutate(ids, {
+                onSuccess: () => {
+                  showToast("Permanently deleted", "success");
+                  setShowPermanentDeleteModal(false);
+                  setItemsToPermanentlyDelete({ ids: [], names: [], type: 'selected' });
+                },
+                onError: () => {
+                  showToast("Failed to delete items", "error");
+                },
+              });
+            });
+          }
+        }}
+        itemCount={itemsToPermanentlyDelete.ids.length}
+        itemNames={itemsToPermanentlyDelete.names}
+        isDeleting={permanentDeleteMutation.isPending || emptyTrashMutation.isPending}
+      />
     </>
   );
 }
