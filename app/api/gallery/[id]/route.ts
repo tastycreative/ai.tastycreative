@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE - Delete a gallery item
+// DELETE - Permanently delete a gallery item
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const { userId } = await auth();
@@ -148,7 +148,6 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
-    // Check if item exists
     const existing = await prisma.gallery_items.findUnique({
       where: { id },
     });
@@ -160,11 +159,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await prisma.gallery_items.delete({
-      where: { id },
-    });
+    await prisma.gallery_items.delete({ where: { id } });
 
-    return NextResponse.json({ message: "Gallery item deleted" });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting gallery item:", error);
     return NextResponse.json(

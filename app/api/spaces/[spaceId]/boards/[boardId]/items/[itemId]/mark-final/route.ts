@@ -108,16 +108,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Use first platform for the primary gallery entry
     const platformStr = platforms[0] || 'OF';
 
-    // Look up model — verify modelId exists, fall back to name lookup
-    let modelId: string | null = null;
-    if (meta.modelId && typeof meta.modelId === 'string') {
-      const exists = await prisma.of_models.findUnique({
-        where: { id: meta.modelId as string },
+    // Resolve profile ID — meta.modelId is actually an InstagramProfile ID
+    // (set by the content submission form which uses Instagram profiles)
+    let profileId: string | null =
+      (meta.profileId as string) || (meta.modelId as string) || null;
+    if (profileId) {
+      const profileExists = await prisma.instagramProfile.findUnique({
+        where: { id: profileId },
         select: { id: true },
       });
-      modelId = exists?.id ?? null;
+      if (!profileExists) profileId = null;
     }
-    if (!modelId && meta.model && typeof meta.model === 'string') {
+
+    // Also attempt to resolve of_models ID for backward compatibility
+    let modelId: string | null = null;
+    if (meta.model && typeof meta.model === 'string') {
       const model = await prisma.of_models.findFirst({
         where: {
           name: { equals: meta.model as string, mode: 'insensitive' },
@@ -140,17 +145,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (meta.postLinkFansly) boardMetadata.postLinkFansly = String(meta.postLinkFansly);
     if (meta.gifUrl) boardMetadata.gifUrl = String(meta.gifUrl);
     if (meta.gifUrlFansly) boardMetadata.gifUrlFansly = String(meta.gifUrlFansly);
+    if (meta.captionText) boardMetadata.captionText = String(meta.captionText);
+    if (meta.caption) boardMetadata.caption = String(meta.caption);
     if (Array.isArray(meta.internalModelTags) && meta.internalModelTags.length > 0)
       boardMetadata.internalModelTags = meta.internalModelTags as string[];
     if (Array.isArray(meta.externalCreatorTags) && meta.externalCreatorTags.length > 0)
       boardMetadata.externalCreatorTags = meta.externalCreatorTags as string[];
+    if (profileId) boardMetadata.profileId = profileId;
 
     // Move item to "Posted" column and create gallery entries in a transaction
     const galleryBase = {
       title: item.title,
       contentType,
       pricingAmount: meta.price != null && !isNaN(Number(meta.price)) ? Number(meta.price) : null,
-      captionUsed: (meta.caption as string) ?? null,
+      captionUsed: (meta.captionText as string) || (meta.caption as string) || null,
       tags,
       previewUrl: previewUrl || '/placeholder-gallery.png',
       originalAssetUrl: (meta.driveLink as string) ?? null,
@@ -159,6 +167,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       sourceId: item.id,
       organizationId: item.organizationId,
       modelId,
+      profileId,
       createdBy: userId,
       postOrigin,
       pricingTier,

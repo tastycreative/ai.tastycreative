@@ -13,6 +13,7 @@ interface GalleryGridProps {
   onItemEditType?: (item: GalleryItemWithModel) => void;
   onItemPerformance?: (item: GalleryItemWithModel) => void;
   onItemArchive?: (item: GalleryItemWithModel) => void;
+  gifsPlaying?: boolean;
 }
 
 export function GalleryGrid({
@@ -23,6 +24,7 @@ export function GalleryGrid({
   onItemEditType,
   onItemPerformance,
   onItemArchive,
+  gifsPlaying = false,
 }: GalleryGridProps) {
   if (loading) {
     return (
@@ -76,6 +78,7 @@ export function GalleryGrid({
           onEditType={onItemEditType}
           onPerformance={onItemPerformance}
           onArchive={onItemArchive}
+          gifsPlaying={gifsPlaying}
         />
       ))}
     </div>

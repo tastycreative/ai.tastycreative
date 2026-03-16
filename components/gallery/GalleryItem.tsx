@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { DollarSign, Eye, ShoppingCart, Calendar, BarChart3, Archive, MoreVertical, Tag, Film, Images } from 'lucide-react';
+import { DollarSign, Eye, ShoppingCart, Calendar, BarChart3, Trash2, MoreVertical, Tag, Film, Images } from 'lucide-react';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, type GalleryContentType, type GalleryPlatform } from '@/lib/constants/gallery';
 import type { GalleryItemWithModel, GalleryBoardMetadata } from '@/types/gallery';
+import { GifThumbnail } from './GifThumbnail';
 
 interface GalleryItemProps {
   item: GalleryItemWithModel;
@@ -12,6 +13,7 @@ interface GalleryItemProps {
   onEditType?: (item: GalleryItemWithModel) => void;
   onPerformance?: (item: GalleryItemWithModel) => void;
   onArchive?: (item: GalleryItemWithModel) => void;
+  gifsPlaying?: boolean;
 }
 
 const contentTypeColors: Record<string, string> = {
@@ -71,7 +73,7 @@ const TIER_LABELS: Record<string, string> = {
 const isValidUrl = (url: string | null | undefined) =>
   !!url && url.startsWith('http') && url !== '/placeholder-gallery.png';
 
-export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive }: GalleryItemProps) {
+export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive, gifsPlaying = false }: GalleryItemProps) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
 
@@ -85,6 +87,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
   const contentTypeColor = contentTypeColors[item.contentType] || contentTypeColors.OTHER;
   const platformColor = platformColors[item.platform] || platformColors.OTHER;
   const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
+  const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
 
   return (
     <div
@@ -96,7 +99,15 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
 
       {/* Preview Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-zinc-800/50">
-        {isValidUrl(item.previewUrl) && !imgError ? (
+        {isValidUrl(gifUrl) && !imgError ? (
+          <GifThumbnail
+            src={gifUrl!}
+            alt={item.title || 'Gallery item'}
+            playing={gifsPlaying}
+            className="transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImgError(true)}
+          />
+        ) : isValidUrl(item.previewUrl) && !imgError ? (
           <img
             src={item.previewUrl}
             alt={item.title || 'Gallery item'}
@@ -186,10 +197,10 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
                         setShowMenu(false);
                         onArchive(item);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
                     >
-                      <Archive className="w-4 h-4" />
-                      {item.isArchived ? 'Unarchive' : 'Archive'}
+                      <Trash2 className="w-4 h-4" />
+                      Delete
                     </button>
                   )}
                 </div>
@@ -287,14 +298,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
         </div>
       </div>
 
-      {/* Archived Overlay */}
-      {item.isArchived && (
-        <div className="absolute inset-0 bg-zinc-900/60 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="px-4 py-2 rounded-lg bg-zinc-800/80 border border-zinc-700/50">
-            <span className="text-sm font-medium text-zinc-400">Archived</span>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

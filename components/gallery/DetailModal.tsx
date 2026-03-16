@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   X, ExternalLink, Calendar, DollarSign, Eye, ShoppingCart,
   Tag, User, Copy, Check, ChevronLeft, ChevronRight, Edit2,
-  Archive, BarChart3, Link2, Film, Images, Globe, Users
+  Trash2, BarChart3, Link2, Film, Images, Globe, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, type GalleryContentType, type GalleryPlatform } from '@/lib/constants/gallery';
@@ -47,7 +47,10 @@ export function DetailModal({
   hasNext = false,
 }: DetailModalProps) {
   const [copied, setCopied] = useState<string | null>(null);
-  const hasValidImage = !!item.previewUrl && item.previewUrl.startsWith('http') && item.previewUrl !== '/placeholder-gallery.png';
+  const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
+  const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
+  const displayUrl = gifUrl || item.previewUrl;
+  const hasValidImage = !!displayUrl && displayUrl.startsWith('http') && displayUrl !== '/placeholder-gallery.png';
   const [imageLoaded, setImageLoaded] = useState(!hasValidImage);
   const [imageError, setImageError] = useState(false);
 
@@ -132,7 +135,7 @@ export function DetailModal({
           )}
           {hasValidImage && !imageError ? (
             <img
-              src={item.previewUrl}
+              src={displayUrl}
               alt={item.title || 'Preview'}
               className={`max-w-full max-h-[90vh] object-contain transition-opacity ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setImageLoaded(true)}
@@ -150,7 +153,7 @@ export function DetailModal({
           {/* Image Actions Overlay */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <a
-              href={item.previewUrl}
+              href={displayUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
@@ -159,7 +162,7 @@ export function DetailModal({
               <ExternalLink className="w-4 h-4" />
             </a>
             <button
-              onClick={() => copyToClipboard(item.previewUrl, 'URL')}
+              onClick={() => copyToClipboard(displayUrl, 'URL')}
               className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="Copy URL"
             >
@@ -349,14 +352,8 @@ export function DetailModal({
                       </div>
                     )}
                     {/* Links */}
-                    {(bm?.driveLink || bm?.postLinkOnlyfans || bm?.postLinkFansly || bm?.gifUrl || bm?.gifUrlFansly) && (
+                    {(bm?.postLinkOnlyfans || bm?.postLinkFansly) && (
                       <div className="pt-2 space-y-2">
-                        {bm?.driveLink && (
-                          <a href={bm.driveLink.startsWith('http') ? bm.driveLink : `https://${bm.driveLink}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-brand-blue hover:underline">
-                            <Globe className="w-3.5 h-3.5" />Google Drive
-                            <ExternalLink className="w-3 h-3 ml-auto" />
-                          </a>
-                        )}
                         {bm?.postLinkOnlyfans && (
                           <a href={bm.postLinkOnlyfans} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-sky-400 hover:underline">
                             <Link2 className="w-3.5 h-3.5" />OnlyFans Post
@@ -366,18 +363,6 @@ export function DetailModal({
                         {bm?.postLinkFansly && (
                           <a href={bm.postLinkFansly} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-indigo-400 hover:underline">
                             <Link2 className="w-3.5 h-3.5" />Fansly Post
-                            <ExternalLink className="w-3 h-3 ml-auto" />
-                          </a>
-                        )}
-                        {bm?.gifUrl && (
-                          <a href={bm.gifUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
-                            <Film className="w-3.5 h-3.5" />GIF Preview
-                            <ExternalLink className="w-3 h-3 ml-auto" />
-                          </a>
-                        )}
-                        {bm?.gifUrlFansly && (
-                          <a href={bm.gifUrlFansly} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
-                            <Film className="w-3.5 h-3.5" />GIF Preview (Fansly)
                             <ExternalLink className="w-3 h-3 ml-auto" />
                           </a>
                         )}
@@ -435,6 +420,34 @@ export function DetailModal({
                 </p>
               </div>
             )}
+
+            {/* Google Drive & GIF Preview — below caption */}
+            {(() => {
+              const bm2 = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
+              if (!bm2?.driveLink && !bm2?.gifUrl && !bm2?.gifUrlFansly) return null;
+              return (
+                <div className="pt-2 space-y-2">
+                  {bm2?.driveLink && (
+                    <a href={bm2.driveLink.startsWith('http') ? bm2.driveLink : `https://${bm2.driveLink}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-brand-blue hover:underline">
+                      <Globe className="w-3.5 h-3.5" />Google Drive
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  )}
+                  {bm2?.gifUrl && (
+                    <a href={bm2.gifUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
+                      <Film className="w-3.5 h-3.5" />GIF Preview
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  )}
+                  {bm2?.gifUrlFansly && (
+                    <a href={bm2.gifUrlFansly} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-pink-400 hover:underline">
+                      <Film className="w-3.5 h-3.5" />GIF Preview (Fansly)
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Footer Actions */}
@@ -460,10 +473,10 @@ export function DetailModal({
             {onArchive && (
               <button
                 onClick={onArchive}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors ml-auto"
               >
-                <Archive className="w-4 h-4" />
-                {item.isArchived ? 'Unarchive' : 'Archive'}
+                <Trash2 className="w-4 h-4" />
+                Delete
               </button>
             )}
           </div>

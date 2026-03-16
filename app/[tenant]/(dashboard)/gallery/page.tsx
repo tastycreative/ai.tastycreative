@@ -72,6 +72,7 @@ export default function GalleryPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   // const [topPerformerSort, setTopPerformerSort] = useState<'count' | 'revenue'>('count');
   const [exporting, setExporting] = useState(false);
+  const [gifsPlaying, setGifsPlaying] = useState(false);
 
   const [filters, setFilters] = useState<GalleryFilterValues>({
     search: '',
@@ -190,24 +191,23 @@ export default function GalleryPage() {
     setShowPerformanceModal(true);
   };
 
-  const handleArchive = async (item: GalleryItemWithModel) => {
+  const handleDelete = async (item: GalleryItemWithModel) => {
+    if (!confirm('Delete this item permanently? This cannot be undone.')) return;
     try {
       const response = await fetch(`/api/gallery/${item.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isArchived: !item.isArchived }),
+        method: 'DELETE',
       });
 
       if (response.ok) {
-        toast.success(item.isArchived ? 'Item unarchived' : 'Item archived');
+        toast.success('Item deleted');
         loadItems();
         loadStats();
       } else {
-        toast.error('Failed to update item');
+        toast.error('Failed to delete item');
       }
     } catch (error) {
-      console.error('Error archiving item:', error);
-      toast.error('Failed to update item');
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete item');
     }
   };
 
@@ -341,6 +341,26 @@ export default function GalleryPage() {
               </span>{' '}
               of <span className="text-zinc-300 font-medium">{totalItems}</span> items
             </p>
+            <button
+              onClick={() => setGifsPlaying(p => !p)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 ${
+                gifsPlaying
+                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300 hover:bg-violet-500/30'
+                  : 'bg-zinc-900/80 border-zinc-800/50 text-zinc-400 hover:text-white hover:border-zinc-700'
+              }`}
+            >
+              {gifsPlaying ? (
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
+                  <rect x="0" y="0" width="3" height="12" />
+                  <rect x="7" y="0" width="3" height="12" />
+                </svg>
+              ) : (
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
+                  <polygon points="1,0 10,6 1,12" />
+                </svg>
+              )}
+              {gifsPlaying ? 'Pause GIFs' : 'Play GIFs'}
+            </button>
           </div>
         )}
 
@@ -348,10 +368,11 @@ export default function GalleryPage() {
         <GalleryGrid
           items={items}
           loading={loading}
+          gifsPlaying={gifsPlaying}
           onItemClick={handleViewDetail}
           onItemEditType={handleEditContentType}
           onItemPerformance={handlePerformance}
-          onItemArchive={handleArchive}
+          onItemArchive={handleDelete}
         />
 
         {/* Pagination */}
@@ -457,9 +478,9 @@ export default function GalleryPage() {
             setShowPerformanceModal(true);
           }}
           onArchive={() => {
-            handleArchive(selectedItem);
             setShowDetailModal(false);
             setSelectedItem(null);
+            handleDelete(selectedItem);
           }}
           onNavigate={handleNavigateDetail}
           hasPrev={items.findIndex(i => i.id === selectedItem.id) > 0}

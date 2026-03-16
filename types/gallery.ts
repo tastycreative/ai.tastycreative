@@ -14,8 +14,11 @@ export interface GalleryBoardMetadata {
   postLinkFansly?: string;
   gifUrl?: string;
   gifUrlFansly?: string;
+  caption?: string;
+  captionText?: string;
   internalModelTags?: string[];
   externalCreatorTags?: string[];
+  profileId?: string;
 }
 
 /**
@@ -41,6 +44,7 @@ export interface GalleryItem {
 
   // Relations
   modelId: string | null;
+  profileId: string | null;
   pipelineItemId: string | null;
   captionUsed: string | null;
 
@@ -97,6 +101,7 @@ export interface GalleryItemCreateInput {
   platform: GalleryPlatform | string;
   pricingAmount?: number;
   modelId?: string;
+  profileId?: string;
   pipelineItemId?: string;
   captionUsed?: string;
   revenue?: number;
@@ -158,6 +163,7 @@ export interface GalleryPerformanceSummary {
 export interface GalleryFilters {
   organizationId?: string;
   modelId?: string;
+  profileId?: string;
   contentType?: GalleryContentType | string;
   platform?: GalleryPlatform | string;
   isArchived?: boolean;

@@ -1,0 +1,612 @@
+"use client";
+
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import {
+  Search,
+  X,
+  TrendingUp,
+  DollarSign,
+  Tag,
+  MessageSquare,
+  Filter,
+  Copy,
+  Check,
+  Eye,
+  Folder,
+} from "lucide-react";
+
+interface GalleryCaption {
+  id: string;
+  captionUsed: string;
+  contentType: string | null;
+  platform: string | null;
+  postOrigin: string | null;
+  pricingTier: string | null;
+  title: string | null;
+  tags: string[] | null;
+  revenue: number | null;
+  salesCount: number | null;
+  postedAt: string | null;
+  createdAt: string;
+  profileId: string | null;
+  profile: { id: string; name: string; profileImageUrl: string | null } | null;
+}
+
+interface ModelCaptionBankProps {
+  profileId: string;
+  profileName: string;
+}
+
+export function ModelCaptionBank({
+  profileId,
+  profileName,
+}: ModelCaptionBankProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedContentType, setSelectedContentType] = useState("all");
+  const [selectedPlatform, setSelectedPlatform] = useState("all");
+  const [selectedPostOrigin, setSelectedPostOrigin] = useState("all");
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewingCaption, setViewingCaption] = useState<GalleryCaption | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Data state
+  const [captions, setCaptions] = useState<GalleryCaption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dynamicContentTypes, setDynamicContentTypes] = useState<string[]>([]);
+  const [dynamicPlatforms, setDynamicPlatforms] = useState<string[]>([]);
+  const [dynamicPostOrigins, setDynamicPostOrigins] = useState<string[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Lock body scroll when detail modal is open
+  useEffect(() => {
+    if (showDetailModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [showDetailModal]);
+
+  // Fetch gallery captions for this profile
+  const fetchCaptions = useCallback(async () => {
+    if (!profileId) return;
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        profileId,
+        sortBy: 'postedAt',
+        sortOrder: 'desc',
+        pageSize: '500',
+      });
+      const response = await fetch(`/api/gallery/captions?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCaptions(data.captions || []);
+        if (data.filters) {
+          setDynamicContentTypes(data.filters.contentTypes || []);
+          setDynamicPlatforms(data.filters.platforms || []);
+          setDynamicPostOrigins(data.filters.postOrigins || []);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch gallery captions:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    fetchCaptions();
+  }, [fetchCaptions]);
+
+  // Filtered data
+  const filteredCaptions = useMemo(() => {
+    return captions.filter((c) => {
+      const matchesSearch = !searchQuery ||
+        c.captionUsed?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.title?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesContentType = selectedContentType === "all" || c.contentType === selectedContentType;
+      const matchesPlatform = selectedPlatform === "all" || c.platform === selectedPlatform;
+      const matchesPostOrigin = selectedPostOrigin === "all" || c.postOrigin === selectedPostOrigin;
+      return matchesSearch && matchesContentType && matchesPlatform && matchesPostOrigin;
+    });
+  }, [captions, searchQuery, selectedContentType, selectedPlatform, selectedPostOrigin]);
+
+  // Analytics summary
+  const analytics = useMemo(() => {
+    const totalCaptions = filteredCaptions.length;
+    const totalSales = filteredCaptions.reduce(
+      (sum, c) => sum + (c.salesCount || 0),
+      0,
+    );
+    const totalRevenue = filteredCaptions.reduce(
+      (sum, c) => sum + (c.revenue || 0),
+      0,
+    );
+    const avgRevenuePerCaption =
+      totalCaptions > 0 ? totalRevenue / totalCaptions : 0;
+
+    return {
+      totalCaptions,
+      totalSales,
+      totalRevenue,
+      avgRevenuePerCaption,
+    };
+  }, [filteredCaptions]);
+
+  const handleCopyCaption = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(value);
+  };
+
+  const openDetailModal = (caption: GalleryCaption) => {
+    setViewingCaption(caption);
+    setShowDetailModal(true);
+  };
+
+  const getTruncatedCaption = (text: string, maxLines: number = 3) => {
+    const lines = text.split("\n");
+    if (lines.length > maxLines) {
+      return lines.slice(0, maxLines).join("\n") + "...";
+    }
+    if (text.length > 150) {
+      return text.substring(0, 150) + "...";
+    }
+    return text;
+  };
+
+  const activeFilterCount = [
+    selectedContentType !== "all",
+    selectedPlatform !== "all",
+    selectedPostOrigin !== "all",
+  ].filter(Boolean).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Analytics */}
+      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white mb-4">
+          Caption Bank for {profileName}
+        </h2>
+
+        {/* Analytics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="w-4 h-4 text-brand-light-pink" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Total Captions
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
+              {analytics.totalCaptions}
+            </p>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-brand-blue" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Total Sales
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
+              {analytics.totalSales}
+            </p>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="w-4 h-4 text-brand-mid-pink" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Total Revenue
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
+              {formatCurrency(analytics.totalRevenue)}
+            </p>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="w-4 h-4 text-brand-light-pink" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Avg per Caption
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
+              {formatCurrency(analytics.avgRevenuePerCaption)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search captions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+              />
+            </div>
+          </div>
+
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg hover:bg-gray-50 dark:hover:bg-brand-dark-pink/5 text-gray-700 dark:text-brand-off-white transition-colors"
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="bg-brand-light-pink text-white text-xs px-2 py-0.5 rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Filter Dropdowns */}
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-brand-mid-pink/20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Content Type Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Content Type
+                </label>
+                <select
+                  value={selectedContentType}
+                  onChange={(e) => setSelectedContentType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                >
+                  <option value="all">All Content Types</option>
+                  {dynamicContentTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Platform Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Platform
+                </label>
+                <select
+                  value={selectedPlatform}
+                  onChange={(e) => setSelectedPlatform(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                >
+                  <option value="all">All Platforms</option>
+                  {dynamicPlatforms.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Post Origin Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Post Origin
+                </label>
+                <select
+                  value={selectedPostOrigin}
+                  onChange={(e) => setSelectedPostOrigin(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
+                >
+                  <option value="all">All Origins</option>
+                  {dynamicPostOrigins.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Clear Filters Button */}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedContentType("all");
+                  setSelectedPlatform("all");
+                  setSelectedPostOrigin("all");
+                }}
+                disabled={activeFilterCount === 0}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Results count */}
+      <div className="text-sm text-gray-500 dark:text-gray-400">
+        {filteredCaptions.length} caption{filteredCaptions.length !== 1 ? "s" : ""} from gallery
+      </div>
+
+      {/* Captions List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading ? (
+          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+            Loading captions...
+          </div>
+        ) : filteredCaptions.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+            {searchQuery || activeFilterCount > 0
+              ? "No captions match your filters"
+              : "No gallery items with captions found for this profile."}
+          </div>
+        ) : (
+          filteredCaptions.map((caption) => (
+            <div
+              key={caption.id}
+              className="relative bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4 hover:shadow-lg transition-all flex flex-col h-[280px] cursor-pointer group"
+              onClick={() => openDetailModal(caption)}
+            >
+              {/* Caption Preview */}
+              <div className="flex-1 min-h-0 mb-3">
+                <p className="text-sm text-gray-900 dark:text-brand-off-white line-clamp-3 whitespace-pre-wrap break-words">
+                  {getTruncatedCaption(caption.captionUsed)}
+                </p>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1.5 mb-3 min-h-[28px]">
+                {caption.contentType && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-light-pink/10 text-brand-light-pink dark:bg-brand-light-pink/20 dark:text-brand-light-pink text-xs rounded-full">
+                    <Tag className="w-3 h-3" />
+                    {caption.contentType}
+                  </span>
+                )}
+                {caption.postOrigin && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue text-xs rounded-full">
+                    <MessageSquare className="w-3 h-3" />
+                    {caption.postOrigin}
+                  </span>
+                )}
+                {caption.platform && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">
+                    <Folder className="w-3 h-3" />
+                    {caption.platform}
+                  </span>
+                )}
+              </div>
+
+              {/* Mini Stats */}
+              <div className="grid grid-cols-2 gap-3 text-xs border-t border-gray-200 dark:border-brand-mid-pink/20 pt-3">
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400 block">
+                    Sales
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-brand-off-white">
+                    {caption.salesCount || 0}x
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400 block">
+                    Revenue
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-brand-off-white">
+                    {formatCurrency(caption.revenue || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Hover Actions Overlay - Top Right */}
+              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div
+                  className="flex items-center gap-1 pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyCaption(caption.captionUsed, caption.id);
+                    }}
+                    className="p-2 bg-white dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-brand-blue dark:hover:text-brand-blue shadow-lg transition-colors"
+                    title="Copy caption"
+                  >
+                    {copiedId === caption.id ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDetailModal(caption);
+                    }}
+                    className="p-2 bg-white dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-brand-light-pink dark:hover:text-brand-light-pink shadow-lg transition-colors"
+                    title="View details"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Caption Detail Modal */}
+      {isMounted &&
+        showDetailModal &&
+        viewingCaption &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setShowDetailModal(false);
+              setViewingCaption(null);
+            }}
+          >
+            <div
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white">
+                    Caption Details
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setViewingCaption(null);
+                    }}
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Full Caption Text */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Caption Text
+                  </label>
+                  <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4 max-h-60 overflow-y-auto">
+                    <p className="text-gray-900 dark:text-brand-off-white whitespace-pre-wrap break-words">
+                      {viewingCaption.captionUsed}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tags Section */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Details
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingCaption.contentType && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-light-pink/10 text-brand-light-pink dark:bg-brand-light-pink/20 dark:text-brand-light-pink text-sm rounded-full">
+                        <Tag className="w-3.5 h-3.5" />
+                        {viewingCaption.contentType}
+                      </span>
+                    )}
+                    {viewingCaption.postOrigin && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue text-sm rounded-full">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {viewingCaption.postOrigin}
+                      </span>
+                    )}
+                    {viewingCaption.platform && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm rounded-full">
+                        <Folder className="w-3.5 h-3.5" />
+                        {viewingCaption.platform}
+                      </span>
+                    )}
+                    {viewingCaption.pricingTier && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded-full">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        {viewingCaption.pricingTier}
+                      </span>
+                    )}
+                    {!viewingCaption.contentType &&
+                      !viewingCaption.postOrigin &&
+                      !viewingCaption.platform && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                          No details available
+                        </span>
+                      )}
+                  </div>
+                </div>
+
+                {/* Analytics Grid */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Analytics
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp className="w-4 h-4 text-brand-light-pink" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Sales
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
+                        {viewingCaption.salesCount || 0}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="w-4 h-4 text-brand-blue" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Revenue
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
+                        {formatCurrency(viewingCaption.revenue || 0)}
+                      </p>
+                    </div>
+                    {viewingCaption.postedAt && (
+                      <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-4 h-4 text-brand-mid-pink" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            Posted
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-brand-off-white">
+                          {new Date(viewingCaption.postedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-brand-mid-pink/20">
+                  <button
+                    onClick={() => {
+                      handleCopyCaption(viewingCaption.captionUsed, viewingCaption.id);
+                      setShowDetailModal(false);
+                      setViewingCaption(null);
+                    }}
+                    className="px-4 py-2 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy Caption
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}

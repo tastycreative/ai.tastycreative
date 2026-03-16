@@ -1,42 +1,55 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Search,
-  Plus,
-  Edit,
-  Trash2,
   X,
-  Check,
-  Star,
   TrendingUp,
   DollarSign,
   Tag,
   MessageSquare,
   Filter,
   Copy,
+  Check,
+  Folder,
   ChevronDown,
   ChevronUp,
-  CheckSquare,
-  Square,
-  Eye,
 } from "lucide-react";
-import {
-  useModelCaptions,
-  useContentTypes,
-  useMessageTypes,
-  useCreateCaption,
-  useUpdateCaption,
-  useDeleteCaption,
-  useCreateContentType,
-  useCreateMessageType,
-} from "@/lib/hooks/useModelCaptions.query";
-import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+
+interface GalleryCaption {
+  id: string;
+  captionUsed: string;
+  contentType: string | null;
+  platform: string | null;
+  postOrigin: string | null;
+  pricingTier: string | null;
+  title: string | null;
+  tags: string[] | null;
+  revenue: number | null;
+  salesCount: number | null;
+  postedAt: string | null;
+  createdAt: string;
+  profileId: string | null;
+  profile: { id: string; name: string; profileImageUrl: string | null } | null;
+}
 
 interface ModelCaptionBankProps {
   profileId: string;
   profileName: string;
+}
+
+function getCategoryStyle(category: string) {
+  const hash = category.split("").reduce((a, b) => a + b.charCodeAt(0), 0);
+  const variants = [
+    { bg: "bg-brand-light-pink/10 dark:bg-brand-light-pink/15", text: "text-brand-light-pink", border: "border-brand-light-pink/25" },
+    { bg: "bg-brand-blue/10 dark:bg-brand-blue/15", text: "text-brand-blue", border: "border-brand-blue/25" },
+    { bg: "bg-brand-mid-pink/10 dark:bg-brand-mid-pink/15", text: "text-brand-mid-pink", border: "border-brand-mid-pink/25" },
+    { bg: "bg-brand-dark-pink/10 dark:bg-brand-dark-pink/15", text: "text-brand-dark-pink", border: "border-brand-dark-pink/25" },
+    { bg: "bg-emerald-500/10 dark:bg-emerald-500/15", text: "text-emerald-500 dark:text-emerald-400", border: "border-emerald-500/25" },
+    { bg: "bg-amber-500/10 dark:bg-amber-500/15", text: "text-amber-500 dark:text-amber-400", border: "border-amber-500/25" },
+  ];
+  return variants[hash % variants.length];
 }
 
 export function ModelCaptionBank({
@@ -45,69 +58,28 @@ export function ModelCaptionBank({
 }: ModelCaptionBankProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedContentTypes, setSelectedContentTypes] = useState<string[]>(
-    [],
-  );
-  const [selectedMessageTypes, setSelectedMessageTypes] = useState<string[]>(
-    [],
-  );
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedContentType, setSelectedContentType] = useState("all");
+  const [selectedPlatform, setSelectedPlatform] = useState("all");
+  const [selectedPostOrigin, setSelectedPostOrigin] = useState("all");
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showContentTypeModal, setShowContentTypeModal] = useState(false);
-  const [showMessageTypeModal, setShowMessageTypeModal] = useState(false);
-  const [editingCaption, setEditingCaption] = useState<any>(null);
-  const [viewingCaption, setViewingCaption] = useState<any>(null);
+  const [viewingCaption, setViewingCaption] = useState<GalleryCaption | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
-  // Form states
-  const [captionForm, setCaptionForm] = useState({
-    caption: "",
-    contentTypeIds: [] as string[],
-    messageTypeIds: [] as string[],
-    originalModelName: profileName,
-    notes: "",
-  });
-  const [newContentType, setNewContentType] = useState("");
-  const [newMessageType, setNewMessageType] = useState("");
+  // Data state
+  const [captions, setCaptions] = useState<GalleryCaption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dynamicContentTypes, setDynamicContentTypes] = useState<string[]>([]);
+  const [dynamicPlatforms, setDynamicPlatforms] = useState<string[]>([]);
+  const [dynamicPostOrigins, setDynamicPostOrigins] = useState<string[]>([]);
 
-  // Queries
-  const {
-    data: captions = [],
-    isLoading: loadingCaptions,
-    error: captionsError,
-  } = useModelCaptions(
-    profileId,
-    selectedContentTypes,
-    selectedMessageTypes,
-    searchQuery,
-  );
-
-  const { data: contentTypes = [] } = useContentTypes();
-  const { data: messageTypes = [] } = useMessageTypes();
-  const { profiles } = useInstagramProfile();
-
-  // Mutations
-  const createCaption = useCreateCaption();
-  const updateCaption = useUpdateCaption();
-  const deleteCaption = useDeleteCaption();
-  const createContentType = useCreateContentType();
-  const createMessageType = useCreateMessageType();
-
-  // Handle SSR - only render portals on client
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Lock body scroll when detail modal is open
   useEffect(() => {
-    if (
-      showDetailModal ||
-      showAddModal ||
-      showEditModal ||
-      showContentTypeModal ||
-      showMessageTypeModal
-    ) {
+    if (showDetailModal) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -115,153 +87,74 @@ export function ModelCaptionBank({
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [
-    showDetailModal,
-    showAddModal,
-    showEditModal,
-    showContentTypeModal,
-    showMessageTypeModal,
-  ]);
+  }, [showDetailModal]);
 
-  // Filtered data
+  const fetchCaptions = useCallback(async () => {
+    if (!profileId) return;
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        profileId,
+        sortBy: "postedAt",
+        sortOrder: "desc",
+        pageSize: "500",
+      });
+      const response = await fetch(`/api/gallery/captions?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCaptions(data.captions || []);
+        if (data.filters) {
+          setDynamicContentTypes(data.filters.contentTypes || []);
+          setDynamicPlatforms(data.filters.platforms || []);
+          setDynamicPostOrigins(data.filters.postOrigins || []);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch gallery captions:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    fetchCaptions();
+  }, [fetchCaptions]);
+
   const filteredCaptions = useMemo(() => {
-    return captions;
-  }, [captions]);
+    return captions.filter((c) => {
+      const matchesSearch =
+        !searchQuery ||
+        c.captionUsed?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.title?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesContentType =
+        selectedContentType === "all" || c.contentType === selectedContentType;
+      const matchesPlatform =
+        selectedPlatform === "all" || c.platform === selectedPlatform;
+      const matchesPostOrigin =
+        selectedPostOrigin === "all" || c.postOrigin === selectedPostOrigin;
+      return matchesSearch && matchesContentType && matchesPlatform && matchesPostOrigin;
+    });
+  }, [captions, searchQuery, selectedContentType, selectedPlatform, selectedPostOrigin]);
 
-  // Analytics summary
   const analytics = useMemo(() => {
     const totalCaptions = filteredCaptions.length;
-    const totalUsage = filteredCaptions.reduce(
-      (sum, c) => sum + c.usageCount,
+    const totalSales = filteredCaptions.reduce(
+      (sum, c) => sum + (c.salesCount || 0),
       0,
     );
     const totalRevenue = filteredCaptions.reduce(
-      (sum, c) => sum + Number(c.totalRevenue),
+      (sum, c) => sum + (c.revenue || 0),
       0,
     );
     const avgRevenuePerCaption =
       totalCaptions > 0 ? totalRevenue / totalCaptions : 0;
-
-    return {
-      totalCaptions,
-      totalUsage,
-      totalRevenue,
-      avgRevenuePerCaption,
-    };
+    return { totalCaptions, totalSales, totalRevenue, avgRevenuePerCaption };
   }, [filteredCaptions]);
 
-  // Handlers
-  const handleAddCaption = async () => {
-    if (!captionForm.caption.trim()) return;
-
-    try {
-      await createCaption.mutateAsync({
-        profileId,
-        caption: captionForm.caption,
-        contentTypeIds:
-          captionForm.contentTypeIds.length > 0
-            ? captionForm.contentTypeIds
-            : undefined,
-        messageTypeIds:
-          captionForm.messageTypeIds.length > 0
-            ? captionForm.messageTypeIds
-            : undefined,
-        originalModelName: captionForm.originalModelName || undefined,
-        notes: captionForm.notes || undefined,
-      });
-
-      // Reset form and close modal
-      setCaptionForm({
-        caption: "",
-        contentTypeIds: [],
-        messageTypeIds: [],
-        originalModelName: profileName,
-        notes: "",
-      });
-      setShowAddModal(false);
-    } catch (error) {
-      console.error("Error creating caption:", error);
-    }
-  };
-
-  const handleUpdateCaption = async () => {
-    if (!editingCaption || !captionForm.caption.trim()) return;
-
-    try {
-      await updateCaption.mutateAsync({
-        id: editingCaption.id,
-        profileId,
-        caption: captionForm.caption,
-        contentTypeIds: captionForm.contentTypeIds,
-        messageTypeIds: captionForm.messageTypeIds,
-        originalModelName: captionForm.originalModelName || undefined,
-        notes: captionForm.notes || undefined,
-      });
-
-      setShowEditModal(false);
-      setEditingCaption(null);
-      setCaptionForm({
-        caption: "",
-        contentTypeIds: [],
-        messageTypeIds: [],
-        originalModelName: profileName,
-        notes: "",
-      });
-    } catch (error) {
-      console.error("Error updating caption:", error);
-    }
-  };
-
-  const handleDeleteCaption = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this caption?")) return;
-
-    try {
-      await deleteCaption.mutateAsync({ id, profileId });
-    } catch (error) {
-      console.error("Error deleting caption:", error);
-    }
-  };
-
-  const openEditModal = (caption: any) => {
-    setEditingCaption(caption);
-    setCaptionForm({
-      caption: caption.caption,
-      contentTypeIds:
-        caption.contentTypes?.map((ct: any) => ct.contentType.id) || [],
-      messageTypeIds:
-        caption.messageTypes?.map((mt: any) => mt.messageType.id) || [],
-      originalModelName: caption.originalModelName || "",
-      notes: caption.notes || "",
-    });
-    setShowEditModal(true);
-  };
-
-  const handleCopyCaption = (text: string) => {
+  const handleCopyCaption = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
-  };
-
-  const handleAddContentType = async () => {
-    if (!newContentType.trim()) return;
-
-    try {
-      await createContentType.mutateAsync(newContentType);
-      setNewContentType("");
-      setShowContentTypeModal(false);
-    } catch (error) {
-      console.error("Error creating content type:", error);
-    }
-  };
-
-  const handleAddMessageType = async () => {
-    if (!newMessageType.trim()) return;
-
-    try {
-      await createMessageType.mutateAsync(newMessageType);
-      setNewMessageType("");
-      setShowMessageTypeModal(false);
-    } catch (error) {
-      console.error("Error creating message type:", error);
-    }
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const formatCurrency = (value: number) => {
@@ -271,38 +164,47 @@ export function ModelCaptionBank({
     }).format(value);
   };
 
-  const openDetailModal = (caption: any) => {
+  const openDetailModal = (caption: GalleryCaption) => {
     setViewingCaption(caption);
     setShowDetailModal(true);
   };
 
-  const getTruncatedCaption = (text: string, maxLines: number = 3) => {
-    const lines = text.split("\n");
-    if (lines.length > maxLines) {
-      return lines.slice(0, maxLines).join("\n") + "...";
-    }
-    // If no newlines, truncate by characters (roughly 3 lines = 150 chars)
-    if (text.length > 150) {
-      return text.substring(0, 150) + "...";
-    }
-    return text;
+  const toggleExpand = (id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
+  const isLongCaption = (text: string) =>
+    text.length > 220 || text.split("\n").length > 4;
+
+  const activeFilterCount = [
+    selectedContentType !== "all",
+    selectedPlatform !== "all",
+    selectedPostOrigin !== "all",
+  ].filter(Boolean).length;
+
   return (
-    <div className="space-y-6">
-      {/* Header with Analytics */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white mb-4">
-          Caption Bank for {profileName}
+    <div className="min-h-[40vh] bg-white dark:bg-[#0a0a0f] border border-gray-200 dark:border-brand-mid-pink/15 rounded-2xl overflow-hidden">
+      {/* Vault Header + Analytics */}
+      <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100 dark:border-white/[0.06]">
+        <p className="font-mono text-[11px] tracking-[0.2em] text-brand-light-pink uppercase mb-1">
+          caption vault
+        </p>
+        <h2 className="text-[24px] sm:text-[28px] font-extrabold tracking-tight text-gray-900 dark:text-brand-off-white leading-none">
+          {profileName}
         </h2>
 
         {/* Analytics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+          <div className="bg-gray-50/80 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06]">
             <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="w-4 h-4 text-brand-light-pink" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Total Captions
+              <MessageSquare className="w-3.5 h-3.5 text-brand-light-pink" />
+              <span className="font-mono text-[10px] tracking-[0.1em] text-gray-500 dark:text-gray-500 uppercase">
+                Captions
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
@@ -310,23 +212,23 @@ export function ModelCaptionBank({
             </p>
           </div>
 
-          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+          <div className="bg-gray-50/80 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06]">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-brand-blue" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Times Used
+              <TrendingUp className="w-3.5 h-3.5 text-brand-blue" />
+              <span className="font-mono text-[10px] tracking-[0.1em] text-gray-500 dark:text-gray-500 uppercase">
+                Sales
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
-              {analytics.totalUsage}
+              {analytics.totalSales}
             </p>
           </div>
 
-          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+          <div className="bg-gray-50/80 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06]">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-brand-mid-pink" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Total Revenue
+              <DollarSign className="w-3.5 h-3.5 text-brand-mid-pink" />
+              <span className="font-mono text-[10px] tracking-[0.1em] text-gray-500 dark:text-gray-500 uppercase">
+                Revenue
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
@@ -334,11 +236,11 @@ export function ModelCaptionBank({
             </p>
           </div>
 
-          <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
+          <div className="bg-gray-50/80 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06]">
             <div className="flex items-center gap-2 mb-2">
-              <Star className="w-4 h-4 text-brand-light-pink" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Avg per Caption
+              <DollarSign className="w-3.5 h-3.5 text-brand-light-pink" />
+              <span className="font-mono text-[10px] tracking-[0.1em] text-gray-500 dark:text-gray-500 uppercase">
+                Avg/Caption
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-brand-off-white">
@@ -348,678 +250,258 @@ export function ModelCaptionBank({
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search captions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-              />
-            </div>
+      {/* Controls Bar */}
+      <div className="px-6 sm:px-8 py-4 border-b border-gray-100 dark:border-white/[0.06]">
+        <div className="flex gap-3 flex-wrap items-center">
+          <div className="flex-1 min-w-[200px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="search captions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg text-gray-900 dark:text-brand-off-white font-mono text-[13px] py-2.5 pl-9 pr-3 outline-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:border-brand-light-pink/50 dark:focus:border-brand-light-pink/40"
+            />
           </div>
 
-          {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg hover:bg-gray-50 dark:hover:bg-brand-dark-pink/5 text-gray-700 dark:text-brand-off-white transition-colors"
+            className={`h-10 px-4 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+              showFilters || activeFilterCount > 0
+                ? "bg-brand-light-pink/10 dark:bg-brand-light-pink/15 text-brand-light-pink border border-brand-light-pink/30"
+                : "bg-gray-50 dark:bg-white/[0.04] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/[0.08] hover:bg-gray-100 dark:hover:bg-white/[0.08]"
+            }`}
           >
             <Filter className="w-4 h-4" />
             Filters
-            {(selectedContentTypes.length > 0 ||
-              selectedMessageTypes.length > 0) && (
-              <span className="bg-brand-light-pink text-white text-xs px-2 py-0.5 rounded-full">
-                {selectedContentTypes.length + selectedMessageTypes.length}
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 bg-brand-light-pink text-white text-xs rounded-full flex items-center justify-center">
+                {activeFilterCount}
               </span>
             )}
           </button>
-
-          {/* Add Caption Button */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Caption
-          </button>
         </div>
 
-        {/* Filter Checkboxes */}
+        {/* Expanded Filters */}
         {showFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-brand-mid-pink/20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Content Type Filter */}
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/[0.06]">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Content Type
-                  </label>
-                  <button
-                    onClick={() => setShowContentTypeModal(true)}
-                    className="p-1 text-xs text-brand-light-pink hover:text-brand-mid-pink transition-colors"
-                    title="Add new content type"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/50">
-                  {contentTypes.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                      No content types yet
-                    </p>
-                  ) : (
-                    contentTypes.map((type) => {
-                      const isSelected = selectedContentTypes.includes(type.id);
-                      const toggleSelection = () => {
-                        setSelectedContentTypes((prev) =>
-                          prev.includes(type.id)
-                            ? prev.filter((id) => id !== type.id)
-                            : [...prev, type.id],
-                        );
-                      };
-
-                      return (
-                        <div
-                          key={type.id}
-                          onClick={toggleSelection}
-                          className="flex items-center gap-2 cursor-pointer hover:bg-white dark:hover:bg-gray-800 p-2 rounded transition-colors"
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-brand-light-pink flex-shrink-0" />
-                          ) : (
-                            <Square className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                          )}
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {type.name}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 dark:text-gray-500 uppercase mb-2">
+                  Content Type
+                </label>
+                <select
+                  value={selectedContentType}
+                  onChange={(e) => setSelectedContentType(e.target.value)}
+                  className="w-full h-10 px-3 bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg text-sm text-gray-900 dark:text-brand-off-white focus:outline-none focus:border-brand-light-pink/50"
+                >
+                  <option value="all">All Content Types</option>
+                  {dynamicContentTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              {/* Message Type Filter */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Message Type
-                  </label>
-                  <button
-                    onClick={() => setShowMessageTypeModal(true)}
-                    className="p-1 text-xs text-brand-light-pink hover:text-brand-mid-pink transition-colors"
-                    title="Add new message type"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/50">
-                  {messageTypes.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                      No message types yet
-                    </p>
-                  ) : (
-                    messageTypes.map((type) => {
-                      const isSelected = selectedMessageTypes.includes(type.id);
-                      const toggleSelection = () => {
-                        setSelectedMessageTypes((prev) =>
-                          prev.includes(type.id)
-                            ? prev.filter((id) => id !== type.id)
-                            : [...prev, type.id],
-                        );
-                      };
-
-                      return (
-                        <div
-                          key={type.id}
-                          onClick={toggleSelection}
-                          className="flex items-center gap-2 cursor-pointer hover:bg-white dark:hover:bg-gray-800 p-2 rounded transition-colors"
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-brand-blue flex-shrink-0" />
-                          ) : (
-                            <Square className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                          )}
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {type.name}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 dark:text-gray-500 uppercase mb-2">
+                  Platform
+                </label>
+                <select
+                  value={selectedPlatform}
+                  onChange={(e) => setSelectedPlatform(e.target.value)}
+                  className="w-full h-10 px-3 bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg text-sm text-gray-900 dark:text-brand-off-white focus:outline-none focus:border-brand-light-pink/50"
+                >
+                  <option value="all">All Platforms</option>
+                  {dynamicPlatforms.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 dark:text-gray-500 uppercase mb-2">
+                  Post Origin
+                </label>
+                <select
+                  value={selectedPostOrigin}
+                  onChange={(e) => setSelectedPostOrigin(e.target.value)}
+                  className="w-full h-10 px-3 bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg text-sm text-gray-900 dark:text-brand-off-white focus:outline-none focus:border-brand-light-pink/50"
+                >
+                  <option value="all">All Origins</option>
+                  {dynamicPostOrigins.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-
-            {/* Clear Filters Button */}
-            <div className="mt-4 flex justify-end">
+            {activeFilterCount > 0 && (
               <button
                 onClick={() => {
-                  setSelectedContentTypes([]);
-                  setSelectedMessageTypes([]);
+                  setSelectedContentType("all");
+                  setSelectedPlatform("all");
+                  setSelectedPostOrigin("all");
                 }}
-                disabled={
-                  selectedContentTypes.length === 0 &&
-                  selectedMessageTypes.length === 0
-                }
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-3 text-sm font-mono text-brand-light-pink hover:text-brand-mid-pink transition-colors tracking-wide"
               >
-                Clear All Filters
+                clear all filters
               </button>
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Captions List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loadingCaptions ? (
-          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
-            Loading captions...
+      {/* Stats Bar */}
+      <div className="px-6 sm:px-8 pt-4 flex gap-6 flex-wrap">
+        <span className="font-mono text-[11px] tracking-[0.08em] text-gray-400 dark:text-gray-600">
+          <span className="text-gray-600 dark:text-gray-400">
+            {filteredCaptions.length}
+          </span>{" "}
+          caption{filteredCaptions.length !== 1 ? "s" : ""} from gallery
+        </span>
+        {analytics.totalSales > 0 && (
+          <span className="font-mono text-[11px] tracking-[0.08em] text-gray-400 dark:text-gray-600">
+            <span className="text-gray-600 dark:text-gray-400">
+              {analytics.totalSales}
+            </span>{" "}
+            sales
+          </span>
+        )}
+      </div>
+
+      {/* Content Grid */}
+      <div className="px-6 sm:px-8 py-5">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-4 border-brand-light-pink/30 border-t-brand-light-pink rounded-full animate-spin" />
           </div>
         ) : filteredCaptions.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
-            {searchQuery ||
-            selectedContentTypes.length > 0 ||
-            selectedMessageTypes.length > 0
-              ? "No captions match your filters"
-              : "No captions yet. Add your first caption to get started!"}
+          <div className="text-center py-16 font-mono text-[13px] tracking-[0.05em] text-gray-400 dark:text-gray-600">
+            {searchQuery || activeFilterCount > 0
+              ? "no captions match your filters"
+              : "no gallery items with captions found"}
           </div>
         ) : (
-          filteredCaptions.map((caption) => (
-            <div
-              key={caption.id}
-              className="relative bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4 hover:shadow-lg transition-all flex flex-col h-[280px] cursor-pointer group"
-              onClick={() => openDetailModal(caption)}
-            >
-              {/* Caption Preview */}
-              <div className="flex-1 min-h-0 mb-3">
-                <p className="text-sm text-gray-900 dark:text-brand-off-white line-clamp-3 whitespace-pre-wrap break-words">
-                  {getTruncatedCaption(caption.caption)}
-                </p>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredCaptions.map((caption) => {
+              const catStyle = caption.contentType
+                ? getCategoryStyle(caption.contentType)
+                : null;
+              const long = isLongCaption(caption.captionUsed);
+              const expanded = expandedCards.has(caption.id);
 
-              {/* Tags */}
-              <div className="flex flex-wrap gap-1.5 mb-3 min-h-[28px]">
-                {caption.contentTypes &&
-                  caption.contentTypes.length > 0 &&
-                  caption.contentTypes.slice(0, 2).map((ct: any) => (
-                    <span
-                      key={ct.contentType.id}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-light-pink/10 text-brand-light-pink dark:bg-brand-light-pink/20 dark:text-brand-light-pink text-xs rounded-full"
-                    >
-                      <Tag className="w-3 h-3" />
-                      {ct.contentType.name}
-                    </span>
-                  ))}
-                {caption.contentTypes && caption.contentTypes.length > 2 && (
-                  <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">
-                    +{caption.contentTypes.length - 2}
-                  </span>
-                )}
-                {caption.messageTypes &&
-                  caption.messageTypes.length > 0 &&
-                  caption.messageTypes.slice(0, 2).map((mt: any) => (
-                    <span
-                      key={mt.messageType.id}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue text-xs rounded-full"
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                      {mt.messageType.name}
-                    </span>
-                  ))}
-                {caption.messageTypes && caption.messageTypes.length > 2 && (
-                  <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">
-                    +{caption.messageTypes.length - 2}
-                  </span>
-                )}
-              </div>
-
-              {/* Mini Stats */}
-              <div className="grid grid-cols-2 gap-3 text-xs border-t border-gray-200 dark:border-brand-mid-pink/20 pt-3">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400 block">
-                    Used
-                  </span>
-                  <span className="font-semibold text-gray-900 dark:text-brand-off-white">
-                    {caption.usageCount}x
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400 block">
-                    Revenue
-                  </span>
-                  <span className="font-semibold text-gray-900 dark:text-brand-off-white">
-                    {formatCurrency(Number(caption.totalRevenue))}
-                  </span>
-                </div>
-              </div>
-
-              {/* Hover Actions Overlay - Top Right */}
-              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              return (
                 <div
-                  className="flex items-center gap-1 pointer-events-auto"
-                  onClick={(e) => e.stopPropagation()}
+                  key={caption.id}
+                  className="group bg-gray-50/50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.06] rounded-[14px] p-5 flex flex-col gap-3.5 transition-all duration-200 hover:border-gray-300 dark:hover:border-white/[0.12] hover:-translate-y-0.5 relative overflow-hidden cursor-pointer"
+                  onClick={() => openDetailModal(caption)}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCopyCaption(caption.caption);
-                    }}
-                    className="p-2 bg-white dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-brand-blue dark:hover:text-brand-blue shadow-lg transition-colors"
-                    title="Copy caption"
+                  <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-light-pink to-brand-mid-pink" />
+
+                  {/* Caption Text */}
+                  <div
+                    className={`font-mono text-[13px] leading-[1.75] text-gray-600 dark:text-gray-300 font-light italic whitespace-pre-wrap break-words ${
+                      long && !expanded ? "line-clamp-4" : ""
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditModal(caption);
-                    }}
-                    className="p-2 bg-white dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-brand-light-pink dark:hover:text-brand-light-pink shadow-lg transition-colors"
-                    title="Edit caption"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCaption(caption.id);
-                    }}
-                    className="p-2 bg-white dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-red-500 shadow-lg transition-colors"
-                    title="Delete caption"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    {caption.captionUsed}
+                  </div>
+
+                  {long && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand(caption.id);
+                      }}
+                      className="font-mono text-[11px] text-brand-light-pink hover:text-brand-mid-pink transition-colors tracking-[0.05em] text-left flex items-center gap-1"
+                    >
+                      {expanded ? (
+                        <>
+                          <ChevronUp className="w-3 h-3" /> show less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3 h-3" /> show more
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Tags + Copy */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap mt-auto">
+                    <div className="flex gap-1.5 flex-wrap flex-1">
+                      {caption.contentType && catStyle && (
+                        <span
+                          className={`font-mono text-[10px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                        >
+                          {caption.contentType}
+                        </span>
+                      )}
+                      {caption.postOrigin && (
+                        <span className="font-mono text-[10px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full border bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue border-brand-blue/25">
+                          {caption.postOrigin}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyCaption(caption.captionUsed, caption.id);
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-mono text-[11px] tracking-[0.05em] transition-all flex-shrink-0 ${
+                        copiedId === caption.id
+                          ? "border-emerald-500/40 text-emerald-500 dark:text-emerald-400"
+                          : "border-gray-200 dark:border-white/[0.08] text-gray-400 dark:text-gray-600 hover:border-brand-light-pink/40 hover:text-brand-light-pink"
+                      }`}
+                    >
+                      {copiedId === caption.id ? (
+                        <>
+                          <Check className="w-3 h-3" /> copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" /> copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Mini Stats Footer */}
+                  <div className="flex items-center gap-4 text-[10px] font-mono text-gray-400 dark:text-gray-600 tracking-[0.05em]">
+                    {(caption.salesCount || 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        {caption.salesCount} sales
+                      </span>
+                    )}
+                    {(caption.revenue || 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <DollarSign className="w-3 h-3" />
+                        {formatCurrency(caption.revenue || 0)}
+                      </span>
+                    )}
+                    {caption.platform && (
+                      <span className="flex items-center gap-1">
+                        <Folder className="w-3 h-3" />
+                        {caption.platform}
+                      </span>
+                    )}
+                    {caption.postedAt && (
+                      <span>
+                        {new Date(caption.postedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))
+              );
+            })}
+          </div>
         )}
       </div>
-
-      {/* Add/Edit Caption Modal */}
-      {isMounted &&
-        (showAddModal || showEditModal) &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => {
-              setShowAddModal(false);
-              setShowEditModal(false);
-              setEditingCaption(null);
-              setCaptionForm({
-                caption: "",
-                contentTypeIds: [],
-                messageTypeIds: [],
-                originalModelName: profileName,
-                notes: "",
-              });
-            }}
-          >
-            <div
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white">
-                    {showAddModal ? "Add New Caption" : "Edit Caption"}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setShowEditModal(false);
-                      setEditingCaption(null);
-                      setCaptionForm({
-                        caption: "",
-                        contentTypeIds: [],
-                        messageTypeIds: [],
-                        originalModelName: "",
-                        notes: "",
-                      });
-                    }}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Caption Text *
-                    </label>
-                    <textarea
-                      value={captionForm.caption}
-                      onChange={(e) =>
-                        setCaptionForm({
-                          ...captionForm,
-                          caption: e.target.value,
-                        })
-                      }
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-                      placeholder="Enter caption text..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Content Types
-                      </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/50">
-                        {contentTypes.map((type) => {
-                          const isSelected =
-                            captionForm.contentTypeIds.includes(type.id);
-                          const toggleSelection = () => {
-                            setCaptionForm((prev) => ({
-                              ...prev,
-                              contentTypeIds: isSelected
-                                ? prev.contentTypeIds.filter(
-                                    (id) => id !== type.id,
-                                  )
-                                : [...prev.contentTypeIds, type.id],
-                            }));
-                          };
-
-                          return (
-                            <div
-                              key={type.id}
-                              onClick={toggleSelection}
-                              className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded transition-colors"
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-brand-light-pink flex-shrink-0" />
-                              ) : (
-                                <Square className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                              )}
-                              <span className="text-sm text-gray-700 dark:text-gray-300">
-                                {type.name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Message Types
-                      </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/50">
-                        {messageTypes.map((type) => {
-                          const isSelected =
-                            captionForm.messageTypeIds.includes(type.id);
-                          const toggleSelection = () => {
-                            setCaptionForm((prev) => ({
-                              ...prev,
-                              messageTypeIds: isSelected
-                                ? prev.messageTypeIds.filter(
-                                    (id) => id !== type.id,
-                                  )
-                                : [...prev.messageTypeIds, type.id],
-                            }));
-                          };
-
-                          return (
-                            <div
-                              key={type.id}
-                              onClick={toggleSelection}
-                              className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded transition-colors"
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-brand-light-pink flex-shrink-0" />
-                              ) : (
-                                <Square className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                              )}
-                              <span className="text-sm text-gray-700 dark:text-gray-300">
-                                {type.name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Originally Written For
-                    </label>
-                    <select
-                      value={captionForm.originalModelName}
-                      onChange={(e) =>
-                        setCaptionForm({
-                          ...captionForm,
-                          originalModelName: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-                    >
-                      <option value="">-- Select Profile --</option>
-                      {profiles
-                        .filter((p) => p.id !== "all")
-                        .map((profile) => (
-                          <option key={profile.id} value={profile.name}>
-                            {profile.name}
-                            {profile.isDefault ? " ⭐ (Default)" : ""}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      value={captionForm.notes}
-                      onChange={(e) =>
-                        setCaptionForm({
-                          ...captionForm,
-                          notes: e.target.value,
-                        })
-                      }
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-                      placeholder="Optional notes about this caption..."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setShowEditModal(false);
-                      setEditingCaption(null);
-                      setCaptionForm({
-                        caption: "",
-                        contentTypeIds: [],
-                        messageTypeIds: [],
-                        originalModelName: profileName,
-                        notes: "",
-                      });
-                    }}
-                    className="px-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg text-gray-700 dark:text-brand-off-white hover:bg-gray-50 dark:hover:bg-brand-dark-pink/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={
-                      showAddModal ? handleAddCaption : handleUpdateCaption
-                    }
-                    disabled={
-                      !captionForm.caption.trim() ||
-                      createCaption.isPending ||
-                      updateCaption.isPending
-                    }
-                    className="px-4 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {createCaption.isPending || updateCaption.isPending
-                      ? "Saving..."
-                      : showAddModal
-                        ? "Add Caption"
-                        : "Update Caption"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {/* Add Content Type Modal */}
-      {isMounted &&
-        showContentTypeModal &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => {
-              setShowContentTypeModal(false);
-              setNewContentType("");
-            }}
-          >
-            <div
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg max-w-md w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white">
-                    Add Content Type
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setShowContentTypeModal(false);
-                      setNewContentType("");
-                    }}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Content Type Name
-                    </label>
-                    <input
-                      type="text"
-                      value={newContentType}
-                      onChange={(e) => setNewContentType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-                      placeholder="e.g., Fully Nude"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => {
-                      setShowContentTypeModal(false);
-                      setNewContentType("");
-                    }}
-                    className="px-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg text-gray-700 dark:text-brand-off-white hover:bg-gray-50 dark:hover:bg-brand-dark-pink/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddContentType}
-                    disabled={
-                      !newContentType.trim() || createContentType.isPending
-                    }
-                    className="px-4 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {createContentType.isPending ? "Adding..." : "Add Type"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {/* Add Message Type Modal */}
-      {isMounted &&
-        showMessageTypeModal &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => {
-              setShowMessageTypeModal(false);
-              setNewMessageType("");
-            }}
-          >
-            <div
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg max-w-md w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white">
-                    Add Message Type
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setShowMessageTypeModal(false);
-                      setNewMessageType("");
-                    }}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Message Type Name
-                    </label>
-                    <input
-                      type="text"
-                      value={newMessageType}
-                      onChange={(e) => setNewMessageType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-brand-off-white focus:outline-none focus:ring-2 focus:ring-brand-light-pink"
-                      placeholder="e.g., Mass DM"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => {
-                      setShowMessageTypeModal(false);
-                      setNewMessageType("");
-                    }}
-                    className="px-4 py-2 border border-gray-200 dark:border-brand-mid-pink/30 rounded-lg text-gray-700 dark:text-brand-off-white hover:bg-gray-50 dark:hover:bg-brand-dark-pink/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddMessageType}
-                    disabled={
-                      !newMessageType.trim() || createMessageType.isPending
-                    }
-                    className="px-4 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {createMessageType.isPending ? "Adding..." : "Add Type"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
 
       {/* Caption Detail Modal */}
       {isMounted &&
@@ -1027,189 +509,145 @@ export function ModelCaptionBank({
         viewingCaption &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
             onClick={() => {
               setShowDetailModal(false);
               setViewingCaption(null);
             }}
           >
             <div
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/[0.1] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-brand-off-white">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-brand-light-pink/10 dark:bg-brand-light-pink/15 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-brand-light-pink" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
                     Caption Details
                   </h3>
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      setViewingCaption(null);
-                    }}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-brand-off-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
                 </div>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setViewingCaption(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-white/[0.04] rounded-lg"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
 
+              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-100px)]">
                 {/* Full Caption Text */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <div>
+                  <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 uppercase mb-2">
                     Caption Text
                   </label>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4 max-h-60 overflow-y-auto">
-                    <p className="text-gray-900 dark:text-brand-off-white whitespace-pre-wrap break-words">
-                      {viewingCaption.caption}
+                  <div className="bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-xl p-5 max-h-60 overflow-y-auto">
+                    <p className="font-mono text-[13px] leading-[1.75] text-gray-700 dark:text-gray-300 font-light italic whitespace-pre-wrap break-words">
+                      {viewingCaption.captionUsed}
                     </p>
                   </div>
                 </div>
 
-                {/* Tags Section */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Tags
+                {/* Detail Tags */}
+                <div>
+                  <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 uppercase mb-3">
+                    Details
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {viewingCaption.contentTypes &&
-                    viewingCaption.contentTypes.length > 0
-                      ? viewingCaption.contentTypes.map((ct: any) => (
-                          <span
-                            key={ct.contentType.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-light-pink/10 text-brand-light-pink dark:bg-brand-light-pink/20 dark:text-brand-light-pink text-sm rounded-full"
-                          >
-                            <Tag className="w-3.5 h-3.5" />
-                            {ct.contentType.name}
-                          </span>
-                        ))
-                      : null}
-                    {viewingCaption.messageTypes &&
-                    viewingCaption.messageTypes.length > 0
-                      ? viewingCaption.messageTypes.map((mt: any) => (
-                          <span
-                            key={mt.messageType.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-blue/10 text-brand-blue dark:bg-brand-blue/20 dark:text-brand-blue text-sm rounded-full"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            {mt.messageType.name}
-                          </span>
-                        ))
-                      : null}
-                    {(!viewingCaption.contentTypes ||
-                      viewingCaption.contentTypes.length === 0) &&
-                      (!viewingCaption.messageTypes ||
-                        viewingCaption.messageTypes.length === 0) && (
-                        <span className="text-sm text-gray-500 dark:text-gray-400 italic">
-                          No tags
+                    {viewingCaption.contentType && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-light-pink/10 dark:bg-brand-light-pink/15 text-brand-light-pink text-sm font-mono rounded-full border border-brand-light-pink/25">
+                        <Tag className="w-3.5 h-3.5" />
+                        {viewingCaption.contentType}
+                      </span>
+                    )}
+                    {viewingCaption.postOrigin && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue text-sm font-mono rounded-full border border-brand-blue/25">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {viewingCaption.postOrigin}
+                      </span>
+                    )}
+                    {viewingCaption.platform && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/[0.04] text-gray-600 dark:text-gray-400 text-sm font-mono rounded-full border border-gray-200 dark:border-white/[0.08]">
+                        <Folder className="w-3.5 h-3.5" />
+                        {viewingCaption.platform}
+                      </span>
+                    )}
+                    {viewingCaption.pricingTier && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-sm font-mono rounded-full border border-emerald-500/25">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        {viewingCaption.pricingTier}
+                      </span>
+                    )}
+                    {!viewingCaption.contentType &&
+                      !viewingCaption.postOrigin &&
+                      !viewingCaption.platform && (
+                        <span className="text-sm font-mono text-gray-400 dark:text-gray-600 italic tracking-wide">
+                          No details available
                         </span>
                       )}
                   </div>
                 </div>
 
                 {/* Analytics Grid */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                <div>
+                  <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 uppercase mb-3">
                     Analytics
                   </label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <TrendingUp className="w-4 h-4 text-brand-light-pink" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          Times Used
-                        </span>
-                      </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06] text-center">
                       <p className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
-                        {viewingCaption.usageCount}
+                        {viewingCaption.salesCount || 0}
+                      </p>
+                      <p className="text-[10px] font-mono tracking-[0.1em] text-gray-500 mt-1 uppercase flex items-center justify-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-brand-light-pink" />
+                        Sales
                       </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <DollarSign className="w-4 h-4 text-brand-blue" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          Total Revenue
-                        </span>
-                      </div>
+                    <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06] text-center">
                       <p className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
-                        {formatCurrency(Number(viewingCaption.totalRevenue))}
+                        {formatCurrency(viewingCaption.revenue || 0)}
+                      </p>
+                      <p className="text-[10px] font-mono tracking-[0.1em] text-gray-500 mt-1 uppercase flex items-center justify-center gap-1">
+                        <DollarSign className="w-3 h-3 text-brand-blue" />
+                        Revenue
                       </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <DollarSign className="w-4 h-4 text-brand-mid-pink" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          Avg Revenue
-                        </span>
-                      </div>
-                      <p className="text-xl font-bold text-gray-900 dark:text-brand-off-white">
-                        {formatCurrency(viewingCaption.averageRevenuePerUse)}
-                      </p>
-                    </div>
-                    {viewingCaption.originalModelName && (
-                      <div className="bg-gray-50 dark:bg-brand-dark-pink/5 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Star className="w-4 h-4 text-brand-light-pink" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">
-                            Originally For
-                          </span>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-brand-off-white truncate">
-                          {viewingCaption.originalModelName}
+                    {viewingCaption.postedAt && (
+                      <div className="bg-gray-50 dark:bg-white/[0.03] rounded-xl p-4 border border-gray-100 dark:border-white/[0.06] text-center">
+                        <p className="text-sm font-bold text-gray-900 dark:text-brand-off-white">
+                          {new Date(
+                            viewingCaption.postedAt,
+                          ).toLocaleDateString()}
+                        </p>
+                        <p className="text-[10px] font-mono tracking-[0.1em] text-gray-500 mt-1 uppercase flex items-center justify-center gap-1">
+                          <MessageSquare className="w-3 h-3 text-brand-mid-pink" />
+                          Posted
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Notes */}
-                {viewingCaption.notes && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Notes
-                    </label>
-                    <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-brand-mid-pink/20 rounded-lg p-4">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 italic break-words">
-                        {viewingCaption.notes}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-brand-mid-pink/20">
+                {/* Copy Action */}
+                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-white/[0.06]">
                   <button
                     onClick={() => {
-                      handleCopyCaption(viewingCaption.caption);
+                      handleCopyCaption(
+                        viewingCaption.captionUsed,
+                        viewingCaption.id,
+                      );
                       setShowDetailModal(false);
                       setViewingCaption(null);
                     }}
-                    className="px-4 py-2 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg transition-colors flex items-center gap-2"
+                    className="px-5 py-2.5 bg-brand-light-pink hover:bg-brand-mid-pink text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
                   >
                     <Copy className="w-4 h-4" />
                     Copy Caption
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      openEditModal(viewingCaption);
-                      setViewingCaption(null);
-                    }}
-                    className="px-4 py-2 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit Caption
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      handleDeleteCaption(viewingCaption.id);
-                      setViewingCaption(null);
-                    }}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
                   </button>
                 </div>
               </div>

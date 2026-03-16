@@ -375,7 +375,6 @@ export function OtpPtrTaskDetailModal({
   const [mounted, setMounted] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
-  const [editingCaption, setEditingCaption] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [newComment, setNewComment] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -385,7 +384,6 @@ export function OtpPtrTaskDetailModal({
   const mentionDropdownRef = useRef<MentionDropdownHandle>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
-  const captionRef = useRef<HTMLTextAreaElement>(null);
   const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
 
   /* ── Metadata ────────────────────────────────────────── */
@@ -428,7 +426,6 @@ export function OtpPtrTaskDetailModal({
   const tier = pricingCategory || pricingTier;
 
   const [notesDraft, setNotesDraft] = useState(notes);
-  const [captionDraft, setCaptionDraft] = useState(caption);
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
 
   // Content Tags multi-select dropdown
@@ -494,20 +491,18 @@ export function OtpPtrTaskDetailModal({
   useEffect(() => {
     setTitleDraft(task.title);
     setNotesDraft(notes);
-    setCaptionDraft(caption);
-  }, [task, notes, caption]);
+  }, [task, notes]);
   useEffect(() => { if (editingTitle) titleRef.current?.focus(); }, [editingTitle]);
   useEffect(() => { if (editingNotes) notesRef.current?.focus(); }, [editingNotes]);
-  useEffect(() => { if (editingCaption) captionRef.current?.focus(); }, [editingCaption]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !editingTitle && !editingNotes && !editingCaption && !internalModelsModalOpen) onClose();
+      if (e.key === 'Escape' && !editingTitle && !editingNotes && !internalModelsModalOpen) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, editingTitle, editingNotes, editingCaption, internalModelsModalOpen, onClose]);
+  }, [isOpen, editingTitle, editingNotes, internalModelsModalOpen, onClose]);
 
   // Fetch influencer profiles for internal models selector
   const { data: influencerProfiles } = useInstagramProfiles();
@@ -586,11 +581,6 @@ export function OtpPtrTaskDetailModal({
   const saveNotes = () => {
     setEditingNotes(false);
     if (notesDraft !== notes) updateMeta({ fulfillmentNotes: notesDraft });
-  };
-
-  const saveCaption = () => {
-    setEditingCaption(false);
-    if (captionDraft !== caption) updateMeta({ caption: captionDraft });
   };
 
   const getTagInput = (key: string) => tagInputs[key] ?? '';
@@ -1228,7 +1218,7 @@ export function OtpPtrTaskDetailModal({
                     </div>
 
                     <div>
-                      <SideLabel>Caption</SideLabel>
+                      <SideLabel>Workspace Caption</SideLabel>
                       {workspaceCaptionText ? (
                         <p className="text-[13px] text-gray-300 whitespace-pre-wrap leading-relaxed bg-white/[0.02] border border-white/[0.05] rounded-lg px-3 py-2">
                           {workspaceCaptionText}
