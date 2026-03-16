@@ -57,11 +57,12 @@ export function SpacesDropdown({ tenant, sidebarOpen }: SpacesDropdownProps) {
   const isActive = pathname?.startsWith(`/${tenant}/spaces`);
   const organizationRole = currentOrganization?.role;
 
-  // Only show spaces the user is a member of, or all spaces if org admin/owner
-  const isOrgAdminOrOwner = organizationRole === 'OWNER' || organizationRole === 'ADMIN';
+  // Show all spaces that user has access to (where currentUserRole is not null)
+  // This includes: explicit workspace members (OWNER, ADMIN, MEMBER, VIEWER)
+  // and org admins/owners (who get implicit ADMIN access to all spaces)
   const spaces = useMemo(
-    () => isOrgAdminOrOwner ? allSpaces : allSpaces.filter((s) => !!s.currentUserRole),
-    [isOrgAdminOrOwner, allSpaces]
+    () => allSpaces.filter((s) => s.currentUserRole !== null),
+    [allSpaces]
   );
 
   // Get localStorage key unique to user

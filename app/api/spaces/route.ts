@@ -29,6 +29,17 @@ export async function GET() {
       return NextResponse.json({ spaces: [] });
     }
 
+    // Get user's org membership to check admin/owner status
+    const orgMembership = await prisma.teamMember.findFirst({
+      where: {
+        organizationId: user.currentOrganizationId,
+        userId: user.id,
+      },
+      select: { role: true },
+    });
+
+    const isOrgAdminOrOwner = orgMembership?.role === 'OWNER' || orgMembership?.role === 'ADMIN';
+
     const workspaces = await prisma.workspace.findMany({
       where: { organizationId: user.currentOrganizationId, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -41,19 +52,29 @@ export async function GET() {
       },
     });
 
-    const spaces = workspaces.map((ws) => ({
-      id: ws.id,
-      name: ws.name,
-      slug: ws.slug,
-      description: ws.description,
-      templateType: ws.templateType,
-      key: ws.key,
-      access: ws.access,
-      config: ws.config,
-      createdAt: ws.createdAt.toISOString(),
-      _count: ws._count,
-      currentUserRole: ws.members[0]?.role || null,
-    }));
+    const spaces = workspaces
+      .map((ws) => {
+        // User has explicit role if they're a workspace member
+        const explicitRole = ws.members[0]?.role || null;
+
+        // Only org admins/owners can see spaces they're not a member of
+        const currentUserRole = explicitRole || (isOrgAdminOrOwner ? 'ADMIN' : null);
+
+        return {
+          id: ws.id,
+          name: ws.name,
+          slug: ws.slug,
+          description: ws.description,
+          templateType: ws.templateType,
+          key: ws.key,
+          access: ws.access,
+          config: ws.config,
+          createdAt: ws.createdAt.toISOString(),
+          _count: ws._count,
+          currentUserRole,
+        };
+      })
+      .filter((space) => space.currentUserRole !== null); // Only return spaces user has access to
 
     return NextResponse.json({ spaces });
   } catch (error) {
