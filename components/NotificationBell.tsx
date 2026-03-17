@@ -290,9 +290,11 @@ export function NotificationBell() {
         <Bell className="h-5 w-5" />
         {totalUnreadItems > 0 && (
           <>
-            <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-xs font-bold flex items-center justify-center ring-2 ring-header">
+            <span className="absolute z-2 top-0 right-0 h-5 w-5 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-xs font-bold flex items-center justify-center ring-2 ring-header">
               {totalUnreadItems > 9 ? '9+' : totalUnreadItems}
             </span>
+            <span className="absolute -z-1 animate-ping top-0 right-0 h-5 w-5 rounded-full bg-gradient-to-r from-[#EC67A1] to-[#F774B9] text-white text-xs font-bold flex items-center justify-center ring-2 ring-header"/>
+         
             {/* Pulse animation for overdue tasks */}
             {taskStats.overdue > 0 && (
               <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-[#EC67A1] animate-ping"></span>
