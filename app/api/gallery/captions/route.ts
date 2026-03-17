@@ -164,6 +164,67 @@ export async function GET(req: NextRequest) {
       prisma.gallery_items.count({ where: where as any }),
     ]);
 
+    // Expand Wall Post carousel items: each media item with a caption
+    // becomes its own row in the caption bank (like OTP/PTR 1:1 mapping).
+    type GalleryItem = (typeof items)[number];
+    const expandedItems: Array<
+      Omit<GalleryItem, 'id' | 'captionUsed' | 'contentType' | 'previewUrl' | 'title'> & {
+        id: string;
+        captionUsed: string | null;
+        contentType: string | null;
+        previewUrl: string | null;
+        title: string | null;
+      }
+    > = [];
+
+    for (const item of items) {
+      const metadata = item.boardMetadata as Record<string, unknown> | null;
+      const mediaItems = (metadata?.mediaItems ?? []) as Array<{
+        url?: string;
+        captionText?: string | null;
+        contentType?: string;
+        fileName?: string | null;
+        contentItemId?: string;
+      }>;
+
+      if (mediaItems.length > 1) {
+        // Wall Post carousel: expand each captioned media item into its own row
+        let expandedAny = false;
+        for (let i = 0; i < mediaItems.length; i++) {
+          const mi = mediaItems[i];
+          if (!mi.captionText?.trim()) continue;
+          expandedAny = true;
+          expandedItems.push({
+            ...item,
+            id: `${item.id}-${i}`,
+            captionUsed: mi.captionText,
+            contentType: mi.contentType || item.contentType,
+            previewUrl: mi.url || item.previewUrl,
+            title: item.title
+              ? `${item.title} (${i + 1}/${mediaItems.length})`
+              : `Media ${i + 1}/${mediaItems.length}`,
+          });
+        }
+        if (!expandedAny) {
+          expandedItems.push(item);
+        }
+      } else if (mediaItems.length === 1 && mediaItems[0].captionText?.trim()) {
+        // Single-media wall post: use the media item's caption
+        const mi = mediaItems[0];
+        expandedItems.push({
+          ...item,
+          captionUsed: mi.captionText!,
+          contentType: mi.contentType || item.contentType,
+          previewUrl: mi.url || item.previewUrl,
+        });
+      } else {
+        // OTP/PTR or no mediaItems: pass through unchanged
+        expandedItems.push(item);
+      }
+    }
+
+    const expandedTotal = total + (expandedItems.length - items.length);
+
     // Get unique filter values for the frontend dropdowns
     const [contentTypes, postOrigins, platforms] = await Promise.all([
       prisma.gallery_items.findMany({
@@ -184,12 +245,12 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      captions: items,
+      captions: expandedItems,
       pagination: {
         page,
         pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
+        total: expandedTotal,
+        totalPages: Math.ceil(expandedTotal / pageSize),
       },
       filters: {
         contentTypes: contentTypes.map((c) => c.contentType).filter(Boolean),

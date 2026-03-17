@@ -14,6 +14,9 @@ import {
   AtSign,
   Trash2,
   ExternalLink,
+  BadgeCheck,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import type { BoardTaskCardProps, BoardTask } from '../../board/BoardTaskCard';
@@ -69,15 +72,20 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
   index,
   onClick,
   onTitleUpdate,
+  columnTitle,
+  onMarkFinal,
   onDelete,
 }: BoardTaskCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
+  const [markingFinal, setMarkingFinal] = useState(false);
+  const [showMarkFinalConfirm, setShowMarkFinalConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
   const router = useRouter();
   const params = useParams<{ tenant: string }>();
 
+  const isReadyToDeploy = columnTitle?.toLowerCase().includes('ready to post') ?? false;
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
   const platform = meta.platform as string | undefined;
   const scheduledDate =
@@ -96,6 +104,8 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
         isPosted?: boolean;
       }>)
     : [];
+
+  const unpostedCount = captionItems.filter((ci) => !ci.isPosted).length;
 
   const statusCounts = captionItems.reduce(
     (counts, item) => {
@@ -267,6 +277,64 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
                     </span>
                   )}
                 </div>
+              )}
+
+              {/* Mark as Final */}
+              {isReadyToDeploy && onMarkFinal && (
+                showMarkFinalConfirm ? (
+                  // Inline confirmation when some items are un-posted
+                  <div
+                    className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] p-2.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start gap-2 mb-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-amber-300 leading-snug">
+                        <span className="font-semibold">{unpostedCount} content{unpostedCount !== 1 ? 's' : ''}</span> not yet posted.
+                        Only posted contents will be saved to the gallery.
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMarkFinalConfirm(false);
+                          setMarkingFinal(true);
+                          onMarkFinal(task.id);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-md bg-emerald-500/[0.1] border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/[0.18] px-2 py-1 text-[11px] font-semibold transition-colors"
+                      >
+                        <BadgeCheck className="h-3 w-3" />
+                        Proceed
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowMarkFinalConfirm(false)}
+                        className="flex-1 flex items-center justify-center rounded-md bg-white/[0.04] border border-white/[0.08] text-gray-400 hover:text-gray-200 hover:bg-white/[0.08] px-2 py-1 text-[11px] font-semibold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (unpostedCount > 0) {
+                        setShowMarkFinalConfirm(true);
+                      } else {
+                        setMarkingFinal(true);
+                        onMarkFinal(task.id);
+                      }
+                    }}
+                    disabled={markingFinal}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] text-emerald-400 px-2.5 py-1.5 text-xs font-semibold transition-colors mb-2 disabled:opacity-40"
+                  >
+                    {markingFinal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+                    {markingFinal ? 'Posting...' : 'Mark as Final'}
+                  </button>
+                )
               )}
 
               {/* Footer: priority + timestamp + assignee */}

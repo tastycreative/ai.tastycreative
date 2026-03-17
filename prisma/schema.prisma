@@ -57,6 +57,7 @@ model User {
   trainingJobs             TrainingJob[]
   dailyActivities          UserDailyActivity[]
   workspace_members        WorkspaceMember[]
+  modelPresets              ModelPreset[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -545,6 +546,7 @@ model InstagramProfile {
   feedPosts              FeedPost[]
   receivedFriendRequests Friendship[]          @relation("ReceivedFriendRequests")
   sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
+  galleryItems           gallery_items[]
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
@@ -552,8 +554,8 @@ model InstagramProfile {
   trackerEntry           PageTrackerEntry?
   assignments            ProfileAssignment[]
   groupMemberships       ProfileGroupMember[]
+  modelPresetMemberships ModelPresetMember[]
   profilePins            ProfilePin[]
-  galleryItems            gallery_items[]
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -1473,6 +1475,8 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
+  pod_tracker_configs           pod_tracker_configs?
+  pod_tracker_tasks             pod_tracker_tasks[]
   members                       TeamMember[]
   trackerActivityLogs           TrackerActivityLog[]
   trackerConfig                 TrackerConfig?
@@ -1545,26 +1549,26 @@ model CustomOrganizationPermission {
 }
 
 model Workspace {
-  id                  String                @id @default(cuid())
-  organizationId      String
-  name                String
-  slug                String
-  description         String?
-  color               String?
-  icon                String?
-  isActive            Boolean               @default(true)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @default(now()) @updatedAt
-  access              SpaceAccess           @default(OPEN)
-  config              Json?
-  key                 String?
-  templateType        SpaceTemplateType     @default(KANBAN)
-  boards              Board[]
-  contentSubmissions  content_submissions[]
-  events              WorkspaceEvent[]
-  members             WorkspaceMember[]
-  resources           WorkspaceResource[]
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                 String                @id @default(cuid())
+  organizationId     String
+  name               String
+  slug               String
+  description        String?
+  color              String?
+  icon               String?
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @default(now()) @updatedAt
+  access             SpaceAccess           @default(OPEN)
+  config             Json?
+  key                String?
+  templateType       SpaceTemplateType     @default(KANBAN)
+  boards             Board[]
+  contentSubmissions content_submissions[]
+  events             WorkspaceEvent[]
+  members            WorkspaceMember[]
+  resources          WorkspaceResource[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
   @@unique([organizationId, key])
@@ -2017,32 +2021,32 @@ model of_models {
 }
 
 model gallery_items {
-  id               String        @id @default(cuid())
+  id               String            @id @default(cuid())
   organizationId   String?
   previewUrl       String
   thumbnailUrl     String?
   originalAssetUrl String?
   title            String?
   contentType      String
-  tags             String[]      @default([])
+  tags             String[]          @default([])
   platform         String
-  pricingAmount    Decimal?      @db.Decimal(10, 2)
+  pricingAmount    Decimal?          @db.Decimal(10, 2)
   modelId          String?
-  pipelineItemId   String?       @unique
+  pipelineItemId   String?           @unique
   captionUsed      String?
-  revenue          Decimal       @default(0) @db.Decimal(12, 2)
-  salesCount       Int           @default(0)
-  conversionRate   Decimal?      @db.Decimal(5, 4)
-  viewCount        Int           @default(0)
+  revenue          Decimal           @default(0) @db.Decimal(12, 2)
+  salesCount       Int               @default(0)
+  conversionRate   Decimal?          @db.Decimal(5, 4)
+  viewCount        Int               @default(0)
   postedAt         DateTime
   origin           String?
   sourceId         String?
-  isArchived       Boolean       @default(false)
+  isArchived       Boolean           @default(false)
   archivedAt       DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   createdBy        String?
-  boardItemId      String?       @unique
+  boardItemId      String?           @unique
   boardMetadata    Json?
   pageType         String?
   postOrigin       String?
@@ -2522,6 +2526,38 @@ model FlyerAsset {
   @@map("flyer_assets")
 }
 
+model pod_tracker_configs {
+  id             String       @id
+  organizationId String       @unique
+  teamNames      String[]     @default([])
+  rotationOffset Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now())
+  organizations  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model pod_tracker_tasks {
+  id             String        @id
+  organizationId String
+  weekStartDate  DateTime      @db.Date
+  dayOfWeek      Int
+  slotLabel      String
+  team           String        @default("")
+  taskName       String        @default("")
+  taskType       String        @default("")
+  status         PodTaskStatus @default(PENDING)
+  startTime      DateTime?
+  endTime        DateTime?
+  notes          String        @default("")
+  updatedBy      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now())
+  organizations  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
+  @@index([organizationId, weekStartDate])
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -2867,4 +2903,39 @@ enum BoardItemPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum PodTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+model ModelPreset {
+  id        String               @id @default(cuid())
+  name      String
+  createdBy String
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  user      User                 @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
+  members   ModelPresetMember[]
+
+  @@unique([createdBy, name])
+  @@index([createdBy])
+  @@map("model_presets")
+}
+
+model ModelPresetMember {
+  id        String      @id @default(cuid())
+  presetId  String
+  profileId String
+  addedAt   DateTime    @default(now())
+  preset    ModelPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([presetId, profileId])
+  @@index([presetId])
+  @@index([profileId])
+  @@map("model_preset_members")
 }

@@ -2,10 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { publishBoardEvent } from '@/lib/ably';
+import { saveCaptionFromWallPost } from '@/lib/caption-bank-sync';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
 };
+
+/* ── Helpers ─────────────────────────────────────────────── */
+
+interface CaptionItemMeta {
+  contentItemId?: string;
+  url?: string;
+  fileName?: string | null;
+  captionText?: string | null;
+  captionStatus?: string | null;
+  isPosted?: boolean;
+}
+
+/**
+ * Detect whether a board item belongs to a Wall Post board.
+ * Only `wallPostStatus` is exclusively set on Wall Post tickets.
+ * `captionItems` is NOT a reliable discriminator — OTP/PTR tickets can also
+ * have caption arrays in their metadata. The primary check is templateType.
+ */
+function isWallPostItem(meta: Record<string, unknown>): boolean {
+  return meta.wallPostStatus !== undefined;
+}
+
+/**
+ * Determine gallery-friendly content type from a MIME type string.
+ */
+function contentTypeFromMime(mime: string | null | undefined): string {
+  if (!mime) return 'PHOTO';
+  if (mime.startsWith('video/')) return 'VIDEO';
+  if (mime.startsWith('image/gif')) return 'GIF';
+  return 'PHOTO';
+}
 
 /* ------------------------------------------------------------------ */
 /*  POST /api/spaces/:spaceId/boards/:boardId/items/:itemId/mark-final */
@@ -30,6 +62,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             board: {
               include: {
                 columns: { orderBy: { position: 'asc' } },
+                workspace: { select: { templateType: true } },
               },
             },
           },
@@ -41,11 +74,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    // 2. Validate item is in a "Ready to Deploy"-named column
+    // 2. Validate item is in a "Ready to Deploy" or "Ready to Post" column
     const currentColumnName = item.column.name.toLowerCase();
-    if (!currentColumnName.includes('ready to deploy')) {
+    const isValidSourceColumn =
+      currentColumnName.includes('ready to deploy') ||
+      currentColumnName.includes('ready to post');
+    if (!isValidSourceColumn) {
       return NextResponse.json(
-        { error: 'Item must be in a "Ready to Deploy" column' },
+        { error: 'Item must be in a "Ready to Deploy" or "Ready to Post" column' },
         { status: 400 },
       );
     }
@@ -62,6 +98,283 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
+    const meta = (item.metadata ?? {}) as Record<string, unknown>;
+    const isWallPost =
+      item.column.board.workspace?.templateType === 'WALL_POST' ||
+      isWallPostItem(meta);
+
+    /* ═══════════════════════════════════════════════════════ */
+    /*  Wall Post flow: one gallery item per ticket (carousel) */
+    /* ═══════════════════════════════════════════════════════ */
+
+    if (isWallPost) {
+      // 4a. Dedup: one gallery item per board item
+      const existingWallPostGallery = await prisma.gallery_items.findFirst({
+        where: { boardItemId: itemId },
+      });
+      if (existingWallPostGallery) {
+        return NextResponse.json(
+          { error: 'This item has already been marked as final' },
+          { status: 409 },
+        );
+      }
+
+      // 5a. Resolve profile & model IDs
+      let profileId: string | null =
+        (meta.profileId as string) || (meta.modelId as string) || null;
+      if (profileId) {
+        const profileExists = await prisma.instagramProfile.findUnique({
+          where: { id: profileId },
+          select: { id: true },
+        });
+        if (!profileExists) profileId = null;
+      }
+
+      let modelId: string | null = null;
+      const modelName = (meta.model as string) || '';
+      if (modelName) {
+        const model = await prisma.of_models.findFirst({
+          where: { name: { equals: modelName, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        modelId = model?.id ?? null;
+      }
+
+      // Platform — Wall Post uses singular `platform`
+      const PLATFORM_MAP: Record<string, string> = { onlyfans: 'OF', fansly: 'FANSLY' };
+      const rawPlatform = (meta.platform as string) || 'onlyfans';
+      const platformStr = PLATFORM_MAP[rawPlatform] || rawPlatform.toUpperCase();
+
+      // Build tags from metadata
+      const tags: string[] = ['WALL_POST'];
+      if (Array.isArray(meta.hashtags)) {
+        tags.push(...(meta.hashtags as string[]));
+      }
+
+      // Merge media with caption data
+      const captionItems: CaptionItemMeta[] = Array.isArray(meta.captionItems)
+        ? (meta.captionItems as CaptionItemMeta[])
+        : [];
+
+      // Build per-media entries from BoardItemMedia + matched captions.
+      // Only include entries where the matched captionItem has isPosted === true
+      // (or where there is no captionItem tracking at all).
+      const hasCaptionTracking = captionItems.length > 0;
+
+      const mediaEntries: {
+        url: string;
+        mimeType: string | null;
+        name: string | null;
+        captionText: string | null;
+        contentItemId: string | null;
+      }[] = item.media
+        .map((m, idx) => {
+          const match =
+            captionItems.find((ci) => ci.url === m.url) ??
+            captionItems.find((ci) => ci.fileName === m.name) ??
+            captionItems[idx] ??
+            null;
+          return {
+            url: m.url,
+            mimeType: m.type,
+            name: m.name,
+            captionText: match?.captionText ?? null,
+            contentItemId: match?.contentItemId ?? null,
+            // If no captionItem tracking, treat as included
+            isPosted: match ? (match.isPosted ?? false) : !hasCaptionTracking,
+          };
+        })
+        .filter((e) => e.isPosted);
+
+      // Fall back to captionItems URLs if no BoardItemMedia — only posted ones
+      if (mediaEntries.length === 0 && captionItems.length > 0) {
+        for (const ci of captionItems) {
+          if (ci.url && ci.isPosted) {
+            mediaEntries.push({
+              url: ci.url,
+              mimeType: null,
+              name: ci.fileName ?? null,
+              captionText: ci.captionText ?? null,
+              contentItemId: ci.contentItemId ?? null,
+            });
+          }
+        }
+      }
+
+      // Final fallback: placeholder entry so we always have at least one
+      if (mediaEntries.length === 0) {
+        mediaEntries.push({
+          url: (meta.driveLink as string) || '/placeholder-gallery.png',
+          mimeType: null,
+          name: null,
+          captionText: (meta.caption as string) || null,
+          contentItemId: null,
+        });
+      }
+
+      // Build the carousel mediaItems array for boardMetadata
+      const carouselItems = mediaEntries.map((e) => ({
+        url: e.url,
+        captionText: e.captionText ?? null,
+        contentType: contentTypeFromMime(e.mimeType),
+        fileName: e.name ?? null,
+        contentItemId: e.contentItemId ?? null,
+      }));
+
+      const firstEntry = mediaEntries[0];
+      const primaryContentType = contentTypeFromMime(firstEntry.mimeType);
+      const primaryCaption = mediaEntries.find((e) => e.captionText)?.captionText ?? null;
+
+      const wallPostBoardMetadata: Record<string, unknown> = {
+        mediaItems: carouselItems,
+      };
+      if (meta.captionTicketId) wallPostBoardMetadata.captionTicketId = meta.captionTicketId;
+      if (profileId) wallPostBoardMetadata.profileId = profileId;
+      const boardMetadataJson = JSON.parse(JSON.stringify(wallPostBoardMetadata));
+
+      // 6a. Transaction: move to "Posted" + create single gallery item
+      const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
+        const updated = await tx.boardItem.update({
+          where: { id: itemId },
+          data: { columnId: postedColumn.id },
+        });
+
+        const gallery = await tx.gallery_items.create({
+          data: {
+            title: item.title,
+            contentType: primaryContentType,
+            captionUsed: primaryCaption,
+            tags,
+            previewUrl: firstEntry.url || '/placeholder-gallery.png',
+            originalAssetUrl: firstEntry.url || null,
+            platform: platformStr,
+            postedAt: new Date(),
+            origin: 'wall_post',
+            boardItemId: item.id,
+            organizationId: item.organizationId,
+            modelId,
+            profileId,
+            createdBy: userId,
+            postOrigin: 'WALL_POST',
+            boardMetadata: boardMetadataJson,
+          },
+          select: { id: true, title: true, contentType: true, platform: true, previewUrl: true },
+        });
+
+        return { updatedItem: updated, galleryItem: gallery };
+      });
+
+      // 7a. History entry
+      await prisma.boardItemHistory.create({
+        data: {
+          itemId: item.id,
+          userId,
+          action: 'MOVED',
+          field: 'column',
+          oldValue: item.column.name,
+          newValue: postedColumn.name,
+        },
+      });
+
+      // 8a. Caption Bank: save each captioned content item
+      const captionTicketId = (meta.captionTicketId as string) || null;
+      let ticketData: {
+        id: string;
+        profileId: string | null;
+        modelName: string;
+        boardItemId: string | null;
+        organizationId: string | null;
+      } | null = null;
+
+      if (captionTicketId) {
+        const ticket = await prisma.captionQueueTicket.findUnique({
+          where: { id: captionTicketId },
+          select: { id: true, profileId: true, modelName: true, boardItemId: true, organizationId: true },
+        });
+        if (ticket) ticketData = ticket;
+      }
+
+      const fallbackTicket = ticketData ?? {
+        id: captionTicketId || itemId,
+        profileId,
+        modelName,
+        boardItemId: itemId,
+        organizationId: item.organizationId,
+      };
+
+      // Primary path: save captions from mediaEntries (matched from item.media + captionItems metadata)
+      const savedContentItemIds = new Set<string>();
+      for (const entry of mediaEntries) {
+        if (!entry.captionText?.trim() || !entry.contentItemId) continue;
+        try {
+          await saveCaptionFromWallPost({
+            contentItemId: entry.contentItemId,
+            captionText: entry.captionText,
+            ticket: fallbackTicket,
+            clerkId: userId,
+          });
+          savedContentItemIds.add(entry.contentItemId);
+        } catch (e) {
+          console.error('[mark-final] Failed to save wall post caption to bank:', e);
+        }
+      }
+
+      // Fallback: query CaptionQueueContentItem DB records directly.
+      // This catches posted items whose captionText/contentItemId weren't
+      // carried through the metadata matching (e.g. Drive files where the
+      // URL or filename didn't match between BoardItemMedia and captionItems).
+      if (captionTicketId) {
+        try {
+          const dbContentItems = await prisma.captionQueueContentItem.findMany({
+            where: { ticketId: captionTicketId, isPosted: true },
+            select: { id: true, captionText: true },
+          });
+          for (const ci of dbContentItems) {
+            if (savedContentItemIds.has(ci.id)) continue;
+            if (!ci.captionText?.trim()) continue;
+            try {
+              await saveCaptionFromWallPost({
+                contentItemId: ci.id,
+                captionText: ci.captionText,
+                ticket: fallbackTicket,
+                clerkId: userId,
+              });
+            } catch (e) {
+              console.error('[mark-final] Failed to save caption from DB fallback:', e);
+            }
+          }
+        } catch (e) {
+          console.error('[mark-final] Failed to query caption queue content items:', e);
+        }
+      }
+
+      // Publish realtime event
+      const senderTab = req.headers.get('x-tab-id') ?? undefined;
+      try {
+        publishBoardEvent(boardId, 'item.updated', {
+          userId,
+          entityId: item.id,
+          tabId: senderTab,
+        });
+      } catch (_) {
+        // Ably not configured
+      }
+
+      return NextResponse.json({
+        item: {
+          id: updatedItem.id,
+          columnId: updatedItem.columnId,
+          title: updatedItem.title,
+        },
+        galleryItem,
+        totalGalleryItems: 1,
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════ */
+    /*  OTP/PTR flow (existing): one gallery item per ticket   */
+    /* ═══════════════════════════════════════════════════════ */
+
     // 4. Check if a gallery item already exists for this board item
     const existingGallery = await prisma.gallery_items.findFirst({
       where: { boardItemId: itemId },
@@ -75,7 +388,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // 5. Extract metadata for gallery entry
-    const meta = (item.metadata ?? {}) as Record<string, unknown>;
     const firstMedia = item.media[0];
     const previewUrl =
       firstMedia?.url ||

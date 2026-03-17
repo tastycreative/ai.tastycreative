@@ -73,6 +73,33 @@ const TIER_LABELS: Record<string, string> = {
 const isValidUrl = (url: string | null | undefined) =>
   !!url && url.startsWith('http') && url !== '/placeholder-gallery.png';
 
+/* ── Google Drive URL helpers ──────────────────────────────── */
+function extractDriveFileId(url: string): string | null {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)\//,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function isDriveUrl(url: string): boolean {
+  return url.includes('drive.google.com') || url.includes('lh3.googleusercontent.com/d/');
+}
+
+function toDisplayUrl(url: string | null | undefined): string | null | undefined {
+  if (!url) return url;
+  if (isDriveUrl(url)) {
+    const id = extractDriveFileId(url);
+    if (id) return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
+  }
+  return url;
+}
+
 export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive, gifsPlaying = false }: GalleryItemProps) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
@@ -88,6 +115,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
   const platformColor = platformColors[item.platform] || platformColors.OTHER;
   const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
   const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
+  const mediaItemCount = boardMeta?.mediaItems?.length ?? 0;
 
   return (
     <div
@@ -109,7 +137,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
           />
         ) : isValidUrl(item.previewUrl) && !imgError ? (
           <img
-            src={item.previewUrl}
+            src={toDisplayUrl(item.previewUrl) ?? item.previewUrl!}
             alt={item.title || 'Gallery item'}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgError(true)}
@@ -125,6 +153,14 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
 
         {/* Overlay Gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent" />
+
+        {/* Content count badge (Wall Post multi-media) */}
+        {mediaItemCount >= 2 && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm border border-white/10">
+            <Images className="w-3 h-3 text-brand-light-pink" />
+            <span className="text-[10px] font-semibold text-white leading-none">{mediaItemCount}</span>
+          </div>
+        )}
 
         {/* Top Badges */}
         <div className="absolute top-2 left-2 right-2 flex items-start justify-between">

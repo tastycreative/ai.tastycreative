@@ -5,7 +5,16 @@ import type {
   GalleryPlatform,
 } from "@/lib/constants/gallery";
 
-/** OTP/PTR board-specific metadata stored as JSON */
+/** Wall Post carousel media item stored inside boardMetadata */
+export interface WallPostMediaItem {
+  url: string;
+  captionText: string | null;
+  contentType: string;
+  fileName: string | null;
+  contentItemId: string | null;
+}
+
+/** OTP/PTR and Wall Post board-specific metadata stored as JSON */
 export interface GalleryBoardMetadata {
   contentLength?: string;
   contentCount?: string;
@@ -19,6 +28,8 @@ export interface GalleryBoardMetadata {
   internalModelTags?: string[];
   externalCreatorTags?: string[];
   profileId?: string;
+  /** Wall Post: all media items for the carousel */
+  mediaItems?: WallPostMediaItem[];
 }
 
 /**
