@@ -1479,6 +1479,8 @@ model Organization {
   trackerTeams                  TrackerTeam[]
   vaultFolders                  VaultFolder[]
   workspaces                    Workspace[]
+  podTrackerTasks               PodTrackerTask[]
+  podTrackerConfig              PodTrackerConfig?
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -2867,4 +2869,50 @@ enum BoardItemPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+// ── POD Tracker ─────────────────────────────────────────────────────────────
+
+model PodTrackerTask {
+  id             String          @id @default(cuid())
+  organizationId String
+  weekStartDate  DateTime        @db.Date
+  dayOfWeek      Int             // 0=Mon, 1=Tue, ..., 6=Sun
+  slotLabel      String          // "1A", "1B", ..., "1G"
+  team           String          @default("")
+  taskName       String          @default("")
+  taskType       String          @default("")
+  status         PodTaskStatus   @default(PENDING)
+  startTime      DateTime?
+  endTime        DateTime?
+  notes          String          @default("")
+  updatedBy      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
+  @@index([organizationId, weekStartDate])
+  @@map("pod_tracker_tasks")
+}
+
+model PodTrackerConfig {
+  id              String   @id @default(cuid())
+  organizationId  String   @unique
+  teamNames       String[] @default([])
+  rotationOffset  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("pod_tracker_configs")
+}
+
+enum PodTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
 }

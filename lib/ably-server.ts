@@ -6,6 +6,9 @@ export const queueChannel = (orgId: string) => `caption-queue:org:${orgId}`;
 /** Board real-time channel — matches what useBoardRealtime subscribes to. */
 export const boardChannel = (boardId: string) => `board:${boardId}`;
 
+/** POD Tracker real-time channel per org. */
+export const podTrackerChannel = (orgId: string) => `pod-tracker:org:${orgId}`;
+
 /**
  * Per-user generation channel.
  * The /process worker publishes progress + completion events here.
@@ -53,6 +56,21 @@ export async function broadcastToBoard(
     await channel.publish('item.updated', { entityId, tabId: '__server__' });
   } catch (err) {
     console.error('[Ably] Failed to publish board event:', err);
+  }
+}
+
+/**
+ * Publish a POD Tracker event so usePodTrackerRealtime invalidates caches.
+ */
+export async function broadcastToPodTracker(
+  orgId: string,
+  event: { type: string; [key: string]: unknown },
+): Promise<void> {
+  try {
+    const channel = getAblyRest().channels.get(podTrackerChannel(orgId));
+    await channel.publish(event.type, event);
+  } catch (err) {
+    console.error('[Ably] Failed to publish pod-tracker event:', err);
   }
 }
 
