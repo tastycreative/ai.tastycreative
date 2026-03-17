@@ -44,6 +44,8 @@ import {
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
+import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
+import { QuickCreateProfileModal } from '@/components/content-submission/QuickCreateProfileModal';
 import {
   useBoardItemComments,
   useAddComment,
@@ -833,6 +835,11 @@ export function WallPostTaskDetailModal({
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
   const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+  const { data: influencerProfiles } = useInstagramProfiles();
+  const sortedProfiles = useMemo(() => {
+    const profiles = influencerProfiles ?? [];
+    return [...profiles].sort((a, b) => a.name.localeCompare(b.name));
+  }, [influencerProfiles]);
   const { profile: gDriveProfile, isSignedIn: isGDriveSignedIn, signIn: gDriveSignIn, signOut: gDriveSignOut, switchAccount: gDriveSwitchAccount } = useGoogleDriveAccount();
 
   const getMemberName = (id?: string) => {
@@ -852,6 +859,7 @@ export function WallPostTaskDetailModal({
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingCaption, setEditingCaption] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
+  const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -2349,10 +2357,24 @@ export function WallPostTaskDetailModal({
             </SidebarField>
 
             <SidebarField label="Model">
-              <EditableField
+              <SearchableDropdown
+                options={
+                  sortedProfiles.length > 0
+                    ? [...sortedProfiles.map((p) => p.name), '+ Create new profile']
+                    : ['+ Create new profile']
+                }
                 value={model}
-                placeholder="Model name"
-                onSave={(v) => updateMeta({ model: v })}
+                onChange={(selected) => {
+                  if (selected === '+ Create new profile') {
+                    setShowCreateProfileModal(true);
+                  } else {
+                    updateMeta({ model: selected });
+                    const profile = sortedProfiles.find((p) => p.name === selected);
+                    if (profile) updateMeta({ model: selected, modelId: profile.id });
+                  }
+                }}
+                placeholder="Select model..."
+                searchPlaceholder="Search models..."
               />
             </SidebarField>
 
@@ -2418,6 +2440,15 @@ export function WallPostTaskDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Quick Create Profile Modal */}
+      <QuickCreateProfileModal
+        isOpen={showCreateProfileModal}
+        onClose={() => setShowCreateProfileModal(false)}
+        onCreated={(profile) => {
+          updateMeta({ model: profile.name, modelId: profile.id });
+        }}
+      />
     </div>,
     document.body,
   );

@@ -61,6 +61,7 @@ import {
 } from '@/lib/otp-ptr-caption-status';
 import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
 import { CONTENT_STYLES } from '@/components/content-submission/ContentStyleSelector';
+import { QuickCreateProfileModal } from '@/components/content-submission/QuickCreateProfileModal';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -435,6 +436,9 @@ export function OtpPtrTaskDetailModal({
   const contentTagsTriggerRef = useRef<HTMLButtonElement>(null);
   const contentTagsDropdownRef = useRef<HTMLDivElement>(null);
   const [contentTagsPos, setContentTagsPos] = useState({ top: 0, left: 0, width: 0 });
+
+  // Quick create profile modal
+  const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
 
   // Internal Models modal multi-select
   const [internalModelsModalOpen, setInternalModelsModalOpen] = useState(false);
@@ -1729,9 +1733,25 @@ export function OtpPtrTaskDetailModal({
             </SideRow>
 
             <SideRow label="Model">
-              <span className="text-sm font-semibold text-brand-off-white">
-                <EditableField value={model} placeholder="Model name" onSave={(v) => updateMeta({ model: v })} />
-              </span>
+              <SearchableDropdown
+                options={
+                  sortedProfiles.length > 0
+                    ? [...sortedProfiles.map((p) => p.name), '+ Create new profile']
+                    : ['+ Create new profile']
+                }
+                value={model}
+                onChange={(selected) => {
+                  if (selected === '+ Create new profile') {
+                    setShowCreateProfileModal(true);
+                  } else {
+                    updateMeta({ model: selected });
+                    const profile = sortedProfiles.find((p) => p.name === selected);
+                    if (profile) updateMeta({ model: selected, modelId: profile.id });
+                  }
+                }}
+                placeholder="Select model..."
+                searchPlaceholder="Search models..."
+              />
             </SideRow>
 
             <SideRow label="Price">
@@ -1898,6 +1918,15 @@ export function OtpPtrTaskDetailModal({
           </div>
         </div>
       )}
+
+      {/* Quick Create Profile Modal */}
+      <QuickCreateProfileModal
+        isOpen={showCreateProfileModal}
+        onClose={() => setShowCreateProfileModal(false)}
+        onCreated={(profile) => {
+          updateMeta({ model: profile.name, modelId: profile.id });
+        }}
+      />
     </div>,
     document.body,
   );

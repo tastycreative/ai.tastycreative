@@ -33,6 +33,8 @@ import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from '../../boa
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useBoardItemComments, useAddComment, useBoardItemHistory, useBoardItemMedia, boardItemKeys } from '@/lib/hooks/useBoardItems.query';
+import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
+import { QuickCreateProfileModal } from '@/components/content-submission/QuickCreateProfileModal';
 
 interface Props {
   task: BoardTask;
@@ -101,6 +103,7 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
   const [editingDesc, setEditingDesc] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description ?? '');
+  const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -111,6 +114,11 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
   const { data: spaceMembers = [] } = useSpaceMembers(spaceId);
+  const { data: influencerProfiles } = useInstagramProfiles();
+  const sortedProfiles = useMemo(() => {
+    const profiles = influencerProfiles ?? [];
+    return [...profiles].sort((a, b) => a.name.localeCompare(b.name));
+  }, [influencerProfiles]);
 
   const getMemberName = (id?: string) => {
     if (!id) return undefined;
@@ -245,6 +253,7 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
 
   const meta = task.metadata ?? {};
   const storyPoints = (meta.storyPoints as number) ?? 0;
+  const model = (meta.model as string) ?? '';
   const labels = Array.isArray(meta.labels) ? (meta.labels as string[]) : [];
 
   useEffect(() => setMounted(true), []);
@@ -491,6 +500,28 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
               <EditableField value={String(storyPoints)} placeholder="0" onSave={(v) => updateMeta({ storyPoints: Number(v) || 0 })} />
             </div>
             <div>
+              <SidebarLabel icon={User} label="Model" />
+              <SearchableDropdown
+                options={
+                  sortedProfiles.length > 0
+                    ? [...sortedProfiles.map((p) => p.name), '+ Create new profile']
+                    : ['+ Create new profile']
+                }
+                value={model}
+                onChange={(selected) => {
+                  if (selected === '+ Create new profile') {
+                    setShowCreateProfileModal(true);
+                  } else {
+                    updateMeta({ model: selected });
+                    const profile = sortedProfiles.find((p) => p.name === selected);
+                    if (profile) updateMeta({ model: selected, modelId: profile.id });
+                  }
+                }}
+                placeholder="Select model..."
+                searchPlaceholder="Search models..."
+              />
+            </div>
+            <div>
               <SidebarLabel icon={Tag} label="Tags" />
               {task.tags && task.tags.length > 0 ? (
                 <div className="flex items-center gap-1.5 flex-wrap">{task.tags.map((t) => (<span key={t} className="inline-flex items-center rounded-full bg-brand-light-pink/10 text-brand-light-pink px-2 py-0.5 text-[10px] font-medium">{t}</span>))}</div>
@@ -499,6 +530,15 @@ export function KanbanTaskDetailModal({ task, columnTitle, isOpen, onClose, onUp
           </div>
         </div>
       </div>
+
+      {/* Quick Create Profile Modal */}
+      <QuickCreateProfileModal
+        isOpen={showCreateProfileModal}
+        onClose={() => setShowCreateProfileModal(false)}
+        onCreated={(profile) => {
+          updateMeta({ model: profile.name, modelId: profile.id });
+        }}
+      />
     </div>,
     document.body,
   );

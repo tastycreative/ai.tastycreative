@@ -36,6 +36,7 @@ import { CONTENT_TAGS } from '@/lib/constants/contentTags';
 import { PlatformSelector } from './PlatformSelector';
 import { usePausedModels } from '@/lib/hooks/usePausedModels.query';
 import { CONTENT_STYLES } from './ContentStyleSelector';
+import { QuickCreateProfileModal } from './QuickCreateProfileModal';
 
 type SubmissionTemplateType = 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -175,8 +176,8 @@ export function ContentDetailsFields({
   const contentTagsRef = useRef<HTMLDivElement>(null);
   const selectedContentTags: string[] = watch('contentTags') || [];
 
-  // Model selector (OTP_PTR only)
-  const [manualModelEntry, setManualModelEntry] = useState(false);
+  // Model selector — quick create profile modal
+  const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
 
   // Internal Models modal multi-select (OTP_PTR only)
   const [internalModelsModalOpen, setInternalModelsModalOpen] = useState(false);
@@ -484,45 +485,25 @@ export function ContentDetailsFields({
             <label className="block text-sm font-medium text-zinc-300 mb-2">
               Model <span className="text-brand-light-pink">*</span>
             </label>
-            {manualModelEntry ? (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={(metadata.model as string) || ''}
-                  onChange={(e) => handleMetadataChange('model', e.target.value)}
-                  placeholder="Enter model name manually..."
-                  className="w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 transition-all duration-150"
-                />
-                <button
-                  type="button"
-                  onClick={() => setManualModelEntry(false)}
-                  className="text-[11px] text-brand-light-pink hover:text-brand-mid-pink transition-colors"
-                >
-                  Back to dropdown
-                </button>
-              </div>
-            ) : (
-              <SearchableDropdown
-                options={
-                  sortedProfiles.length > 0
-                    ? [...sortedProfiles.map((p) => p.name), '+ Add model manually']
-                    : ['+ Add model manually']
+            <SearchableDropdown
+              options={
+                sortedProfiles.length > 0
+                  ? [...sortedProfiles.map((p) => p.name), '+ Create new profile']
+                  : ['+ Create new profile']
+              }
+              value={(metadata.model as string) || ''}
+              onChange={(selected) => {
+                if (selected === '+ Create new profile') {
+                  setShowCreateProfileModal(true);
+                } else {
+                  handleMetadataChange('model', selected);
+                  const profile = sortedProfiles.find((p) => p.name === selected);
+                  if (profile) setValue('modelId', profile.id);
                 }
-                value={(metadata.model as string) || ''}
-                onChange={(selected) => {
-                  if (selected === '+ Add model manually') {
-                    setManualModelEntry(true);
-                  } else {
-                    setManualModelEntry(false);
-                    handleMetadataChange('model', selected);
-                    const profile = sortedProfiles.find((p) => p.name === selected);
-                    if (profile) setValue('modelId', profile.id);
-                  }
-                }}
-                placeholder="Search influencer profiles..."
-                searchPlaceholder="Type to search profiles..."
-              />
-            )}
+              }}
+              placeholder="Search influencer profiles..."
+              searchPlaceholder="Type to search profiles..."
+            />
             <p className="text-[11px] text-zinc-500 mt-1">Select the model associated with this content</p>
 
             {/* Model pause warning — only shown when the selected content style is paused */}
@@ -1173,6 +1154,7 @@ export function ContentDetailsFields({
                     ? (profileId: string) => setValue('modelId', profileId)
                     : undefined
                 }
+                onCreateProfile={field.key === 'model' ? () => setShowCreateProfileModal(true) : undefined}
               />
             ))}
           </div>
@@ -1231,6 +1213,16 @@ export function ContentDetailsFields({
           />
         )}
       </div>
+
+      {/* Quick Create Profile Modal */}
+      <QuickCreateProfileModal
+        isOpen={showCreateProfileModal}
+        onClose={() => setShowCreateProfileModal(false)}
+        onCreated={(profile) => {
+          handleMetadataChange('model', profile.name);
+          setValue('modelId', profile.id);
+        }}
+      />
     </div>
   );
 }
@@ -1242,6 +1234,7 @@ const MetadataFieldInput = memo(function MetadataFieldInput({
   onChange,
   profiles,
   onProfileSelect,
+  onCreateProfile,
 }: {
   field: MetadataFieldDescriptor;
   value: any;
@@ -1249,6 +1242,7 @@ const MetadataFieldInput = memo(function MetadataFieldInput({
   profiles?: { id: string; name: string; username?: string | null }[];
   /** Called with the profile ID when a model is selected from the searchable dropdown */
   onProfileSelect?: (profileId: string) => void;
+  onCreateProfile?: () => void;
 }) {
   const inputClass =
     'w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-light-pink focus:ring-2 focus:ring-brand-light-pink/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 transition-all duration-150';
@@ -1329,20 +1323,26 @@ const MetadataFieldInput = memo(function MetadataFieldInput({
     );
   }
 
-  // Model field with profiles → searchable dropdown
-  if (field.key === 'model' && profiles && profiles.length > 0) {
+  // Model field → always show dropdown (with loading state while profiles load)
+  if (field.key === 'model' && profiles) {
     return (
       <div>
         {label}
         <SearchableDropdown
-          options={profiles.map((p) => p.name)}
+          options={profiles.length > 0
+            ? [...profiles.map((p) => p.name), '+ Create new profile']
+            : ['+ Create new profile']
+          }
           value={(value as string) || ''}
           onChange={(selected) => {
-            onChange(selected);
-            // Also set the profile ID so the caption workspace can load the model bible
-            const profile = profiles.find((p) => p.name === selected);
-            if (profile && onProfileSelect) {
-              onProfileSelect(profile.id);
+            if (selected === '+ Create new profile') {
+              onCreateProfile?.();
+            } else {
+              onChange(selected);
+              const profile = profiles.find((p) => p.name === selected);
+              if (profile && onProfileSelect) {
+                onProfileSelect(profile.id);
+              }
             }
           }}
           placeholder="Search models..."
