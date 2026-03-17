@@ -104,27 +104,58 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create membership and mark invite as accepted in a transaction
-    await prisma.$transaction([
-      prisma.teamMember.create({
+    // Create membership, mark invite accepted, and auto-assign teams in an interactive transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Create org membership
+      const newMember = await tx.teamMember.create({
         data: {
           organizationId: invite.organizationId,
-          userId: dbUser.id,
+          userId: dbUser!.id,
           role: invite.role,
         },
-      }),
-      prisma.organizationInvite.update({
+      });
+
+      // 2. Mark invite as accepted
+      await tx.organizationInvite.update({
         where: { id: invite.id },
         data: { acceptedAt: new Date() },
-      }),
-      // Set as current organization if user doesn't have one
-      prisma.user.update({
-        where: { id: dbUser.id },
+      });
+
+      // 3. Set as current organization if user doesn't have one
+      await tx.user.update({
+        where: { id: dbUser!.id },
         data: {
-          currentOrganizationId: dbUser.currentOrganizationId || invite.organizationId,
+          currentOrganizationId: dbUser!.currentOrganizationId || invite.organizationId,
         },
-      }),
-    ]);
+      });
+
+      // 4. Auto-assign to teams if teamIds were specified on the invite
+      const rawTeamIds = invite.teamIds as string[] | null;
+      if (rawTeamIds && Array.isArray(rawTeamIds) && rawTeamIds.length > 0) {
+        // Verify teams still exist in this org
+        const validTeams = await tx.orgTeam.findMany({
+          where: {
+            id: { in: rawTeamIds },
+            organizationId: invite.organizationId,
+          },
+          select: { id: true },
+        });
+
+        if (validTeams.length > 0) {
+          await Promise.all(
+            validTeams.map((team) =>
+              tx.orgTeamMember.create({
+                data: {
+                  teamId: team.id,
+                  teamMemberId: newMember.id,
+                  assignedBy: invite.invitedBy,
+                },
+              })
+            )
+          );
+        }
+      }
+    });
 
     return NextResponse.json({
       success: true,

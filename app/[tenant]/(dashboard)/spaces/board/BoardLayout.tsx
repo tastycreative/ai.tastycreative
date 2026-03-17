@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react';
-import { Search, SlidersHorizontal, X, ChevronDown, MoreHorizontal, Settings, ArrowUpDown, User, Columns3, Sparkles, LayoutGrid, BarChart3, FileText } from 'lucide-react';
+import { Search, SlidersHorizontal, X, ChevronDown, MoreHorizontal, Settings, ArrowUpDown, User, Columns3, Sparkles, LayoutGrid, BarChart3, FileText, Link2, CalendarDays, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 
 export interface BoardTab {
   id: string;
@@ -59,7 +59,13 @@ export function BoardLayout({
   children,
 }: BoardLayoutProps) {
   const params = useParams<{ tenant: string }>();
-  const [activeTab, setActiveTab] = useState(defaultTab ?? tabs[0]?.id ?? '');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // URL-param driven tab: ?tab=calendar, ?tab=board, etc.
+  const validTabIds = useMemo(() => new Set(tabs.map((t) => t.id)), [tabs]);
+  const urlTab = searchParams.get('tab');
+  const activeTab = urlTab && validTabIds.has(urlTab) ? urlTab : (defaultTab ?? tabs[0]?.id ?? '');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -164,7 +170,16 @@ export function BoardLayout({
   };
 
   const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
+    const newParams = new URLSearchParams(searchParams.toString());
+    if (tabId === (defaultTab ?? tabs[0]?.id)) {
+      newParams.delete('tab');
+    } else {
+      newParams.set('tab', tabId);
+    }
+    // Clear event deep-link param when switching tabs
+    newParams.delete('event');
+    const qs = newParams.toString();
+    router.replace(`${window.location.pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
     onTabChange?.(tabId);
   };
 
@@ -220,7 +235,10 @@ export function BoardLayout({
   const tabIcons: Record<string, React.ReactNode> = {
     summary: <FileText className="h-4 w-4" />,
     board: <LayoutGrid className="h-4 w-4" />,
+    timeline: <Clock className="h-4 w-4" />,
+    calendar: <CalendarDays className="h-4 w-4" />,
     financials: <BarChart3 className="h-4 w-4" />,
+    resources: <Link2 className="h-4 w-4" />,
   };
 
   return (

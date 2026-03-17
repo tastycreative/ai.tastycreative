@@ -653,6 +653,7 @@ export default function MembersTab() {
         <InviteMembersModal
           organizationSlug={currentOrganization.slug}
           organizationName={currentOrganization.name}
+          organizationId={currentOrganization.id}
           isOpen={isInviteModalOpen}
           onClose={() => setIsInviteModalOpen(false)}
           onSuccess={fetchUsers}

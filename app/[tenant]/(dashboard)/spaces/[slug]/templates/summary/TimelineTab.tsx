@@ -14,6 +14,10 @@ import {
 } from 'lucide-react';
 import type { SummaryTabProps } from './types';
 import type { BoardTask } from '../../../board';
+import { useWorkspaceEvents } from '@/lib/hooks/useWorkspaceEvents.query';
+import { useTimezoneStore } from '@/stores/timezone-store';
+import { formatShortDateInTz, formatMonthYearInTz, getTimezoneAbbreviation, getTodayDateInTimezone } from '@/lib/timezone-utils';
+import { TimezonePicker } from '@/components/TimezonePicker';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -43,14 +47,6 @@ function addDays(d: Date, n: number): Date {
 
 function diffDays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / DAY_MS);
-}
-
-function formatShortDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
-}
-
-function formatMonthYear(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Los_Angeles' });
 }
 
 function packRows(tasks: RoadmapTask[]): PackedRow[] {
@@ -105,7 +101,9 @@ export function TimelineTab({
   columnOrder,
   resolveMemberName,
   onTaskClick,
-}: SummaryTabProps) {
+  workspaceId,
+}: SummaryTabProps & { workspaceId?: string }) {
+  const resolvedTz = useTimezoneStore((s) => s.getResolvedTimezone());
   const scrollRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ task: RoadmapTask; x: number; y: number } | null>(null);
@@ -114,6 +112,9 @@ export function TimelineTab({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  // Fetch workspace events for overlay swimlane
+  const { data: workspaceEvents = [] } = useWorkspaceEvents(workspaceId, undefined, undefined, !!workspaceId);
 
   const allTasksList = Object.values(tasks);
   const autoCompact = allTasksList.length > 40;
@@ -168,15 +169,47 @@ export function TimelineTab({
       });
     });
 
+    // Events swimlane — prepend if there are workspace events
+    if (workspaceEvents.length > 0) {
+      const eventColor = COL_COLORS[1]; // brand-blue
+      const eventTasks: RoadmapTask[] = workspaceEvents.map((ev) => {
+        const start = startOfDay(new Date(ev.startDate));
+        const end = startOfDay(new Date(ev.endDate));
+        const safeEnd = end.getTime() <= start.getTime() ? addDays(start, 1) : end;
+        if (start < earliest) earliest = start;
+        if (safeEnd > latest) latest = safeEnd;
+        return {
+          id: ev.id,
+          taskKey: 'EVT',
+          title: ev.title,
+          tags: [],
+          barStart: start,
+          barEnd: safeEnd,
+          columnTitle: 'Events',
+          columnColor: eventColor.hex,
+          colIndex: -1,
+          metadata: { _isEvent: true },
+        };
+      });
+      eventTasks.sort((a, b) => a.barStart.getTime() - b.barStart.getTime());
+      lanesArr.unshift({
+        id: '__events__',
+        title: 'Events',
+        color: eventColor,
+        tasks: eventTasks,
+        packedRows: packRows(eventTasks),
+      });
+    }
+
     const rangeStart = addDays(earliest, -3);
     addDays(latest, 7);
     const totalDays = diffDays(rangeStart, addDays(latest, 7));
 
     return { lanes: lanesArr, rangeStart, totalDays };
-  }, [tasks, columns, columnOrder]);
+  }, [tasks, columns, columnOrder, workspaceEvents]);
 
   const totalWidth = totalDays * DAY_WIDTH;
-  const today = startOfDay(new Date());
+  const today = getTodayDateInTimezone(resolvedTz);
   const todayOffset = diffDays(rangeStart, today) * DAY_WIDTH;
 
   const toggleLane = useCallback((laneId: string) => {
@@ -249,7 +282,7 @@ export function TimelineTab({
       if (key !== currentMonth) {
         if (currentMonth && i > startIdx) {
           months.push({
-            label: formatMonthYear(addDays(rangeStart, startIdx)),
+            label: formatMonthYearInTz(addDays(rangeStart, startIdx), resolvedTz),
             widthPx: (i - startIdx) * DAY_WIDTH,
           });
         }
@@ -259,12 +292,12 @@ export function TimelineTab({
     }
     if (totalDays > startIdx) {
       months.push({
-        label: formatMonthYear(addDays(rangeStart, startIdx)),
+        label: formatMonthYearInTz(addDays(rangeStart, startIdx), resolvedTz),
         widthPx: (totalDays - startIdx) * DAY_WIDTH,
       });
     }
     return months;
-  }, [rangeStart, totalDays]);
+  }, [rangeStart, totalDays, resolvedTz]);
 
   const overdueTasks = allTasksList.filter((t) => t.dueDate && new Date(t.dueDate) < today);
 
@@ -302,9 +335,7 @@ export function TimelineTab({
           <span className="text-[11px] text-gray-500">
             {allTasksList.length} task{allTasksList.length !== 1 ? 's' : ''}
           </span>
-          <span className="text-[10px] text-gray-500 border border-white/[0.08] rounded px-1.5 py-0.5">
-            PST (Los Angeles)
-          </span>
+          <TimezonePicker />
           <button
             onClick={() => setCompact((p) => !p)}
             className={`p-1 rounded transition-colors ${
@@ -536,6 +567,7 @@ export function TimelineTab({
                               const width = durationDays * DAY_WIDTH;
                               const overdue = task.dueDate && new Date(task.dueDate) < today;
                               const assigneeName = resolveMemberName(task.assignee);
+                              const isEvent = !!(task.metadata as Record<string, unknown>)?._isEvent;
 
                               const totalMs = task.barEnd.getTime() - task.barStart.getTime();
                               const elapsedMs = Math.min(Date.now() - task.barStart.getTime(), totalMs);
@@ -556,9 +588,11 @@ export function TimelineTab({
                                 >
                                   <div
                                     className={`relative w-full h-full rounded-md border cursor-pointer transition-all hover:brightness-125 hover:shadow-lg ${
-                                      overdue
-                                        ? 'border-red-500/40 bg-red-500/20'
-                                        : 'border-white/[0.12] bg-white/[0.06]'
+                                      isEvent
+                                        ? 'border-dashed border-brand-blue/40 bg-brand-blue/10'
+                                        : overdue
+                                          ? 'border-red-500/40 bg-red-500/20'
+                                          : 'border-white/[0.12] bg-white/[0.06]'
                                     }`}
                                     onClick={() => onTaskClick?.(task)}
                                     onMouseEnter={(e) => {
@@ -605,7 +639,7 @@ export function TimelineTab({
 
       {/* Tooltip — portalled to body so it's never clipped by overflow */}
       {mounted && tooltip && createPortal(
-        <RoadmapTooltip task={tooltip.task} x={tooltip.x} y={tooltip.y} resolveMemberName={resolveMemberName} />,
+        <RoadmapTooltip task={tooltip.task} x={tooltip.x} y={tooltip.y} resolveMemberName={resolveMemberName} timezone={resolvedTz} />,
         document.body,
       )}
     </div>
@@ -621,15 +655,18 @@ function RoadmapTooltip({
   x,
   y,
   resolveMemberName,
+  timezone,
 }: {
   task: RoadmapTask;
   x: number;
   y: number;
   resolveMemberName: (id?: string) => string | undefined;
+  timezone: string;
 }) {
   const assigneeName = resolveMemberName(task.assignee);
   const overdue = task.dueDate && new Date(task.dueDate) < new Date();
   const duration = diffDays(task.barStart, task.barEnd);
+  const tzAbbr = getTimezoneAbbreviation(timezone);
 
   // Position above the bar, clamped within viewport
   const tooltipStyle: React.CSSProperties = {
@@ -651,12 +688,12 @@ function RoadmapTooltip({
         <div className="space-y-1 text-[10px]">
           <div className="flex justify-between gap-4">
             <span className="text-gray-500">Created</span>
-            <span className="text-gray-300">{formatShortDate(task.barStart)} <span className="text-gray-500">PST</span></span>
+            <span className="text-gray-300">{formatShortDateInTz(task.barStart, timezone)} <span className="text-gray-500">{tzAbbr}</span></span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-gray-500">Launching Date</span>
             <span className={overdue ? 'text-red-400 font-semibold' : 'text-gray-300'}>
-              {task.dueDate ? <>{formatShortDate(task.barEnd)} <span className="text-gray-500">PST</span></> : 'No launching date'}
+              {task.dueDate ? <>{formatShortDateInTz(task.barEnd, timezone)} <span className="text-gray-500">{tzAbbr}</span></> : 'No launching date'}
               {overdue && ' (overdue)'}
             </span>
           </div>

@@ -45,12 +45,23 @@ export async function GET(
       );
     }
 
+    // Resolve team names if teamIds are present
+    let teams: { id: string; name: string; color: string | null }[] = [];
+    const rawTeamIds = invite.teamIds as string[] | null;
+    if (rawTeamIds && Array.isArray(rawTeamIds) && rawTeamIds.length > 0) {
+      teams = await prisma.orgTeam.findMany({
+        where: { id: { in: rawTeamIds }, organizationId: invite.organizationId },
+        select: { id: true, name: true, color: true },
+      });
+    }
+
     return NextResponse.json({
       invite: {
         email: invite.email,
         role: invite.role,
         expiresAt: invite.expiresAt,
         organization: invite.organization,
+        teams,
       },
     });
   } catch (error) {

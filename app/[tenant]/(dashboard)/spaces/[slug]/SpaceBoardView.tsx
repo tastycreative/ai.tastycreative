@@ -21,6 +21,8 @@ import {
 import { useSpaceBoard } from './useSpaceBoard';
 import { TEMPLATE_CONFIG } from './templates/template-config';
 import { TimelineTab } from './templates/summary';
+import { ResourcesTab } from './templates/ResourcesTab';
+import { CalendarTab } from './templates/CalendarTab';
 import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
 
 interface SpaceBoardViewProps {
@@ -247,8 +249,19 @@ function TemplateBoardView({ slug }: { slug: string }) {
                 columnOrder={effectiveColumnOrder}
                 resolveMemberName={resolveMemberName}
                 onTaskClick={handleTaskClick}
+                workspaceId={space!.id}
               />
             );
+          }
+
+          // Calendar tab
+          if (activeTab === 'calendar') {
+            return <CalendarTab workspaceId={space!.id} />;
+          }
+
+          // Resources tab
+          if (activeTab === 'resources') {
+            return <ResourcesTab workspaceId={space!.id} />;
           }
 
           // Any non-board tab → placeholder

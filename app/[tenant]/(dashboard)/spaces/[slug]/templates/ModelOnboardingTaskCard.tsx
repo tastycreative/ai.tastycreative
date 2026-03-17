@@ -80,6 +80,19 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
       });
       const newProfile = await res.json();
 
+      // Notify org members about the new model launch (fire-and-forget)
+      if (newProfile?.id && newProfile?.organizationId) {
+        fetch('/api/notifications/model-launched', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelName: finalName,
+            profileId: newProfile.id,
+            organizationId: newProfile.organizationId,
+          }),
+        }).catch(() => {});
+      }
+
       // Update task metadata with launched flag and final model name
       if (onUpdateTask) {
         onUpdateTask({

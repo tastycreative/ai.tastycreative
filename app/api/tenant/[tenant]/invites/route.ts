@@ -75,7 +75,7 @@ export async function POST(
     }
 
     const { tenant } = await params;
-    const { emails, role = 'MEMBER' } = await req.json();
+    const { emails, role = 'MEMBER', teamIds } = await req.json();
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return NextResponse.json(
@@ -110,6 +110,19 @@ export async function POST(
     }
 
     const inviterName = `${membership.user.firstName || ''} ${membership.user.lastName || ''}`.trim() || 'Someone';
+
+    // Validate teamIds if provided
+    let validatedTeamIds: string[] | undefined;
+    if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+      const existingTeams = await prisma.orgTeam.findMany({
+        where: {
+          id: { in: teamIds },
+          organizationId: organization.id,
+        },
+        select: { id: true },
+      });
+      validatedTeamIds = existingTeams.map((t: { id: string }) => t.id);
+    }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -179,6 +192,7 @@ export async function POST(
                 token,
                 expiresAt,
                 acceptedAt: null,
+                teamIds: validatedTeamIds ?? undefined,
               },
             })
           : await prisma.organizationInvite.create({
@@ -189,6 +203,7 @@ export async function POST(
                 invitedBy: membership.userId,
                 token,
                 expiresAt,
+                teamIds: validatedTeamIds ?? undefined,
               },
             });
 

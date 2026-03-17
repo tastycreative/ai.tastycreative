@@ -1561,9 +1561,9 @@ model Workspace {
   templateType        SpaceTemplateType     @default(KANBAN)
   boards              Board[]
   contentSubmissions  content_submissions[]
-  workspace_events    workspace_events[]
+  events              WorkspaceEvent[]
   members             WorkspaceMember[]
-  workspace_resources workspace_resources[]
+  resources           WorkspaceResource[]
   organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, slug])
@@ -1572,6 +1572,42 @@ model Workspace {
   @@index([isActive])
   @@index([templateType])
   @@map("workspaces")
+}
+
+model WorkspaceResource {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  url         String
+  description String?
+  category    String?
+  position    Int       @default(0)
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("workspace_resources")
+}
+
+model WorkspaceEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  allDay      Boolean   @default(false)
+  color       String?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, startDate])
+  @@map("workspace_events")
 }
 
 model WorkspaceMember {
@@ -2484,40 +2520,6 @@ model FlyerAsset {
   @@index([profileId])
   @@index([boardItemId])
   @@map("flyer_assets")
-}
-
-model workspace_events {
-  id          String    @id
-  workspaceId String
-  title       String
-  description String?
-  startDate   DateTime
-  endDate     DateTime
-  allDay      Boolean   @default(false)
-  color       String?
-  createdBy   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now())
-  workspaces  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId])
-  @@index([workspaceId, startDate])
-}
-
-model workspace_resources {
-  id          String    @id
-  workspaceId String
-  name        String
-  url         String
-  description String?
-  category    String?
-  position    Int       @default(0)
-  createdBy   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now())
-  workspaces  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId])
 }
 
 enum SyncStatus {

@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Mail, UserPlus, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { X, Mail, UserPlus, Loader2, CheckCircle, XCircle, AlertCircle, Users } from "lucide-react";
+import { useOrgTeams } from "@/lib/hooks/useOrgTeams.query";
 
 interface InviteMembersModalProps {
   organizationSlug: string;
   organizationName: string;
+  organizationId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -17,6 +19,7 @@ interface InviteMembersModalProps {
 export function InviteMembersModal({
   organizationSlug,
   organizationName,
+  organizationId,
   isOpen,
   onClose,
   onSuccess,
@@ -31,8 +34,10 @@ export function InviteMembersModal({
     failed: Array<{ email: string; error: string }>;
     skipped: string[];
   } | null>(null);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const { data: teams } = useOrgTeams(organizationId);
 
   useEffect(() => {
     setMounted(true);
@@ -100,7 +105,7 @@ export function InviteMembersModal({
       const response = await fetch(`/api/tenant/${organizationSlug}/invites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails, role }),
+        body: JSON.stringify({ emails, role, teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined }),
       });
 
       const data = await response.json();
@@ -128,6 +133,7 @@ export function InviteMembersModal({
     setEmailInput("");
     setResult(null);
     setRole("MEMBER");
+    setSelectedTeamIds([]);
     onClose();
   };
 
@@ -228,7 +234,7 @@ export function InviteMembersModal({
 
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={() => setResult(null)}
+                  onClick={() => { setResult(null); setSelectedTeamIds([]); }}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#F774B9] hover:to-[#EC67A1] text-white rounded-lg transition-all shadow-md shadow-[#EC67A1]/25"
                 >
                   Invite More
@@ -319,6 +325,52 @@ export function InviteMembersModal({
                   {role === 'VIEWER' && 'Read-only access to view spaces and content.'}
                 </p>
               </div>
+
+              {/* Team Assignment (optional) */}
+              {teams && teams.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <span className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-muted-foreground" />
+                      Assign to Teams <span className="text-muted-foreground font-normal">(optional)</span>
+                    </span>
+                  </label>
+                  <div className="bg-accent border border-border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {teams.map((team) => (
+                      <label
+                        key={team.id}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-background/50 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamIds.includes(team.id)}
+                          onChange={(e) => {
+                            setSelectedTeamIds((prev) =>
+                              e.target.checked
+                                ? [...prev, team.id]
+                                : prev.filter((id) => id !== team.id)
+                            );
+                          }}
+                          className="rounded border-border text-brand-mid-pink focus:ring-brand-light-pink"
+                        />
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: team.color || '#6B7280' }}
+                        />
+                        <span className="text-sm text-foreground flex-1">{team.name}</span>
+                        {team._count?.members !== undefined && (
+                          <span className="text-xs text-muted-foreground">
+                            {team._count.members} member{team._count.members !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Selected members will be automatically added to these teams upon accepting the invite
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button

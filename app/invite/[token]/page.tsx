@@ -11,7 +11,8 @@ import {
   Building2,
   Mail,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Users
 } from "lucide-react";
 
 interface InviteData {
@@ -24,6 +25,7 @@ interface InviteData {
     slug: string;
     logoUrl?: string;
   };
+  teams?: { id: string; name: string; color: string | null }[];
 }
 
 export default function AcceptInvitePage() {
@@ -226,6 +228,29 @@ export default function AcceptInvitePage() {
                 </p>
               </div>
             </div>
+
+            {inviteData.teams && inviteData.teams.length > 0 && (
+              <div className="flex items-start gap-3">
+                <Users className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-400">Teams</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {inviteData.teams.map((team) => (
+                      <span
+                        key={team.id}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-700 text-sm text-white"
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: team.color || '#6B7280' }}
+                        />
+                        {team.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {emailMismatch && (
