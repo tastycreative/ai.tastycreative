@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Users } from 'lucide-react';
 import * as Ably from 'ably';
 
@@ -9,25 +9,37 @@ interface PresenceUser {
   name?: string;
 }
 
+/** Shared Ably client for presence — reuses one connection across mounts. */
+let sharedPresenceClient: Ably.Realtime | null = null;
+
+function getPresenceClient(): Ably.Realtime {
+  if (
+    !sharedPresenceClient ||
+    sharedPresenceClient.connection.state === 'failed' ||
+    sharedPresenceClient.connection.state === 'closed'
+  ) {
+    sharedPresenceClient = new Ably.Realtime({
+      authUrl: '/api/ably/auth',
+      autoConnect: true,
+    });
+  }
+  return sharedPresenceClient;
+}
+
 interface SchedulerPresenceBarProps {
   orgId: string | undefined;
 }
 
 export function SchedulerPresenceBar({ orgId }: SchedulerPresenceBarProps) {
   const [members, setMembers] = useState<PresenceUser[]>([]);
+  const channelRef = useRef<Ably.RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!orgId) return;
 
-    let client: Ably.Realtime | null = null;
-    try {
-      client = new Ably.Realtime({ authUrl: '/api/ably/auth', autoConnect: true });
-    } catch {
-      return;
-    }
-
-    const ablyClient = client;
-    const channel = ablyClient.channels.get(`scheduler:org:${orgId}`);
+    const client = getPresenceClient();
+    const channel = client.channels.get(`scheduler:org:${orgId}`);
+    channelRef.current = channel;
 
     const syncPresence = async () => {
       try {
@@ -49,9 +61,8 @@ export function SchedulerPresenceBar({ orgId }: SchedulerPresenceBarProps) {
     return () => {
       channel.presence.leave().catch(() => {});
       channel.presence.unsubscribe();
-      if (ablyClient.connection.state !== 'closed' && ablyClient.connection.state !== 'closing') {
-        ablyClient.close();
-      }
+      channelRef.current = null;
+      // Don't close the shared client — it's reused across mounts
     };
   }, [orgId]);
 
