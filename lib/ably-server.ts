@@ -6,6 +6,9 @@ export const queueChannel = (orgId: string) => `caption-queue:org:${orgId}`;
 /** Board real-time channel — matches what useBoardRealtime subscribes to. */
 export const boardChannel = (boardId: string) => `board:${boardId}`;
 
+/** Scheduler real-time channel per org. */
+export const schedulerChannel = (orgId: string) => `scheduler:org:${orgId}`;
+
 /**
  * Per-user generation channel.
  * The /process worker publishes progress + completion events here.
@@ -53,6 +56,21 @@ export async function broadcastToBoard(
     await channel.publish('item.updated', { entityId, tabId: '__server__' });
   } catch (err) {
     console.error('[Ably] Failed to publish board event:', err);
+  }
+}
+
+/**
+ * Publish a Scheduler event so useSchedulerRealtime invalidates caches.
+ */
+export async function broadcastToScheduler(
+  orgId: string,
+  event: { type: string; [key: string]: unknown },
+): Promise<void> {
+  try {
+    const channel = getAblyRest().channels.get(schedulerChannel(orgId));
+    await channel.publish(event.type, event);
+  } catch (err) {
+    console.error('[Ably] Failed to publish scheduler event:', err);
   }
 }
 

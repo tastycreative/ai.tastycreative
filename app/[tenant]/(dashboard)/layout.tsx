@@ -147,6 +147,19 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/my-influencers`,
           icon: Users,
         },
+        // Scheduler - visible to OWNER, ADMIN, MANAGER or via hasSchedulersTab
+        ...(currentOrganization?.role === "OWNER" ||
+        currentOrganization?.role === "ADMIN" ||
+        currentOrganization?.role === "MANAGER" ||
+        permissions.hasSchedulersTab
+          ? [
+              {
+                name: "Scheduler",
+                href: `/${tenant}/scheduler`,
+                icon: Activity,
+              },
+            ]
+          : []),
         // Schedulers Tracker - visible to OWNER, ADMIN, MANAGER or via team permission
         ...(currentOrganization?.role === "OWNER" ||
         currentOrganization?.role === "ADMIN" ||

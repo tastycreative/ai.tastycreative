@@ -44,6 +44,7 @@ model User {
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
   modelOnboardingDrafts    ModelOnboardingDraft[]
+  modelPresets             ModelPreset[]
   notifications            Notification[]
   onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
@@ -57,7 +58,6 @@ model User {
   trainingJobs             TrainingJob[]
   dailyActivities          UserDailyActivity[]
   workspace_members        WorkspaceMember[]
-  modelPresets              ModelPreset[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -551,10 +551,10 @@ model InstagramProfile {
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   organization           Organization?         @relation(fields: [organizationId], references: [id])
+  modelPresetMemberships ModelPresetMember[]
   trackerEntry           PageTrackerEntry?
   assignments            ProfileAssignment[]
   groupMemberships       ProfileGroupMember[]
-  modelPresetMemberships ModelPresetMember[]
   profilePins            ProfilePin[]
 
   @@index([clerkId])
@@ -1475,8 +1475,8 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
-  pod_tracker_configs           pod_tracker_configs?
-  pod_tracker_tasks             pod_tracker_tasks[]
+  schedulerConfig               SchedulerConfig?
+  schedulerTasks                SchedulerTask[]
   members                       TeamMember[]
   trackerActivityLogs           TrackerActivityLog[]
   trackerConfig                 TrackerConfig?
@@ -2526,36 +2526,67 @@ model FlyerAsset {
   @@map("flyer_assets")
 }
 
-model pod_tracker_configs {
-  id             String       @id
+model SchedulerTask {
+  id             String              @id @default(cuid())
+  organizationId String
+  weekStartDate  DateTime            @db.Date
+  dayOfWeek      Int
+  slotLabel      String
+  team           String              @default("")
+  taskName       String              @default("")
+  taskType       String              @default("")
+  status         SchedulerTaskStatus @default(PENDING)
+  startTime      DateTime?
+  endTime        DateTime?
+  notes          String              @default("")
+  updatedBy      String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @default(now()) @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
+  @@index([organizationId, weekStartDate])
+  @@map("scheduler_tasks")
+}
+
+model SchedulerConfig {
+  id             String       @id @default(cuid())
   organizationId String       @unique
   teamNames      String[]     @default([])
   rotationOffset Int          @default(0)
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now())
-  organizations  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedAt      DateTime     @default(now()) @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("scheduler_configs")
 }
 
-model pod_tracker_tasks {
-  id             String        @id
-  organizationId String
-  weekStartDate  DateTime      @db.Date
-  dayOfWeek      Int
-  slotLabel      String
-  team           String        @default("")
-  taskName       String        @default("")
-  taskType       String        @default("")
-  status         PodTaskStatus @default(PENDING)
-  startTime      DateTime?
-  endTime        DateTime?
-  notes          String        @default("")
-  updatedBy      String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @default(now())
-  organizations  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model ModelPreset {
+  id        String              @id @default(cuid())
+  name      String
+  createdBy String
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  members   ModelPresetMember[]
+  user      User                @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
 
-  @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
-  @@index([organizationId, weekStartDate])
+  @@unique([createdBy, name])
+  @@index([createdBy])
+  @@map("model_presets")
+}
+
+model ModelPresetMember {
+  id        String           @id @default(cuid())
+  presetId  String
+  profileId String
+  addedAt   DateTime         @default(now())
+  preset    ModelPreset      @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([presetId, profileId])
+  @@index([presetId])
+  @@index([profileId])
+  @@map("model_preset_members")
 }
 
 enum SyncStatus {
@@ -2905,37 +2936,9 @@ enum BoardItemPriority {
   URGENT
 }
 
-enum PodTaskStatus {
+enum SchedulerTaskStatus {
   PENDING
   IN_PROGRESS
   DONE
   SKIPPED
-}
-
-model ModelPreset {
-  id        String               @id @default(cuid())
-  name      String
-  createdBy String
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  user      User                 @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
-  members   ModelPresetMember[]
-
-  @@unique([createdBy, name])
-  @@index([createdBy])
-  @@map("model_presets")
-}
-
-model ModelPresetMember {
-  id        String      @id @default(cuid())
-  presetId  String
-  profileId String
-  addedAt   DateTime    @default(now())
-  preset    ModelPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([presetId, profileId])
-  @@index([presetId])
-  @@index([profileId])
-  @@map("model_preset_members")
 }
