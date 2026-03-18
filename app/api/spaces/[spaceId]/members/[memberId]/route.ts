@@ -15,18 +15,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { spaceId, memberId } = await params;
 
-    // Check caller is OWNER or ADMIN
+    // Check caller is OWNER or ADMIN (space-level or org-level)
     const caller = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true },
+      select: { id: true, currentOrganizationId: true },
     });
     if (!caller) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const callerMembership = await prisma.workspaceMember.findFirst({
+    const callerSpaceMembership = await prisma.workspaceMember.findFirst({
       where: { workspaceId: spaceId, userId: caller.id, role: { in: ['OWNER', 'ADMIN'] } },
     });
-    if (!callerMembership) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+
+    if (!callerSpaceMembership) {
+      // Fallback: allow org OWNER/ADMIN to manage space members
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: spaceId },
+        select: { organizationId: true },
+      });
+      if (!workspace || workspace.organizationId !== caller.currentOrganizationId) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      }
+      const orgMembership = await prisma.teamMember.findFirst({
+        where: { organizationId: workspace.organizationId, userId: caller.id, role: { in: ['OWNER', 'ADMIN'] } },
+        select: { role: true },
+      });
+      if (!orgMembership) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      }
     }
 
     const body = await req.json().catch(() => null);
@@ -71,18 +86,33 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     const { spaceId, memberId } = await params;
 
-    // Check caller is OWNER or ADMIN
+    // Check caller is OWNER or ADMIN (space-level or org-level)
     const caller = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true },
+      select: { id: true, currentOrganizationId: true },
     });
     if (!caller) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const callerMembership = await prisma.workspaceMember.findFirst({
+    const callerSpaceMembership = await prisma.workspaceMember.findFirst({
       where: { workspaceId: spaceId, userId: caller.id, role: { in: ['OWNER', 'ADMIN'] } },
     });
-    if (!callerMembership) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+
+    if (!callerSpaceMembership) {
+      // Fallback: allow org OWNER/ADMIN to manage space members
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: spaceId },
+        select: { organizationId: true },
+      });
+      if (!workspace || workspace.organizationId !== caller.currentOrganizationId) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      }
+      const orgMembership = await prisma.teamMember.findFirst({
+        where: { organizationId: workspace.organizationId, userId: caller.id, role: { in: ['OWNER', 'ADMIN'] } },
+        select: { role: true },
+      });
+      if (!orgMembership) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      }
     }
 
     // Prevent removing the last OWNER

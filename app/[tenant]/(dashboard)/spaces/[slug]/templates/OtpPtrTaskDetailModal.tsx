@@ -448,6 +448,8 @@ export function OtpPtrTaskDetailModal({
   /* ── API hooks ───────────────────────────────────────── */
 
   const { canManageQueue } = useOrgRole();
+  const spaceRole = space?.currentUserRole ?? null;
+  const canQA = canManageQueue || spaceRole === 'OWNER' || spaceRole === 'ADMIN';
   const otpPtrQAMutation = useOtpPtrQAAction();
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [showFlyerPicker, setShowFlyerPicker] = useState(false);
@@ -1249,7 +1251,7 @@ export function OtpPtrTaskDetailModal({
                     )}
 
                     {/* QA actions */}
-                    {canManageQueue && otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.AWAITING_APPROVAL && captionTicketId && (
+                    {canQA && otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.AWAITING_APPROVAL && captionTicketId && (
                       <div className="space-y-2">
                         {showRejectInput ? (
                           <div className="space-y-2">
@@ -1300,7 +1302,7 @@ export function OtpPtrTaskDetailModal({
                       </div>
                     )}
 
-                    {otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.APPROVED && canManageQueue && (
+                    {otpPtrCaptionStatus === OTP_PTR_CAPTION_STATUS.APPROVED && canQA && (
                       confirmRevoke ? (
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-amber-400 flex-1">Revoke approval?</span>

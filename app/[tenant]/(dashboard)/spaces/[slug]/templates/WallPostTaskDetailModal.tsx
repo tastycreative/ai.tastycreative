@@ -905,7 +905,9 @@ export function WallPostTaskDetailModal({
 
   /* ── RBAC + Caption Workspace hooks ────────────────── */
 
-  const { canCreateQueue: canPush, canManageQueue: canQA } = useOrgRole();
+  const { canCreateQueue: canPush, canManageQueue: canQAOrg } = useOrgRole();
+  const spaceRole = space?.currentUserRole ?? null;
+  const canQA = canQAOrg || spaceRole === 'OWNER' || spaceRole === 'ADMIN';
   const pushToCaptionMutation = usePushToCaptionWorkspace();
   const qaActionMutation = useQAAction();
   const qaItemActionMutation = useQAItemAction();

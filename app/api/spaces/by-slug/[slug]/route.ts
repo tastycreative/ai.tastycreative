@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { currentOrganizationId: true },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!user?.currentOrganizationId) {
@@ -34,7 +34,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
           },
         },
         members: {
-          where: { role: 'OWNER' },
           include: {
             users: {
               select: {
@@ -53,7 +52,23 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Space not found' }, { status: 404 });
     }
 
-    const owner = workspace.members[0]?.users;
+    const ownerMember = workspace.members.find((m) => m.role === 'OWNER');
+    const owner = ownerMember?.users;
+
+    // Determine the current user's role in this space
+    const myMembership = workspace.members.find((m) => m.userId === user.id);
+    let currentUserRole: string | null = myMembership?.role ?? null;
+
+    if (!currentUserRole) {
+      // Org OWNER/ADMIN implicitly get ADMIN access to all spaces
+      const orgMembership = await prisma.teamMember.findFirst({
+        where: { organizationId: user.currentOrganizationId, userId: user.id },
+        select: { role: true },
+      });
+      if (orgMembership?.role === 'OWNER' || orgMembership?.role === 'ADMIN') {
+        currentUserRole = 'ADMIN';
+      }
+    }
 
     return NextResponse.json({
       id: workspace.id,
@@ -73,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
             email: owner.email,
           }
         : null,
+      currentUserRole,
       boards: workspace.boards.map((b) => ({
         id: b.id,
         name: b.name,

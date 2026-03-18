@@ -43,3 +43,11 @@ export function canManageQueue(role: OrgRole | null | undefined): boolean {
 export function isCreatorRole(role: OrgRole | null | undefined): boolean {
   return role === 'CREATOR';
 }
+
+/** Space roles that grant QA (approve/reject) permissions */
+export const SPACE_QA_ROLES: string[] = ['OWNER', 'ADMIN'];
+
+/** Whether the given space role can perform QA (approve/reject) actions */
+export function canQAInSpace(spaceRole: string | null | undefined): boolean {
+  return !!spaceRole && SPACE_QA_ROLES.includes(spaceRole);
+}
