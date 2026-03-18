@@ -122,6 +122,7 @@ export default function DashboardLayout({
 
   // Check if we're on a space settings page
   const isSpaceSettings = pathname.includes('/spaces/') && pathname.includes('/settings');
+  const isSchedulerPage = pathname.includes('/scheduler');
 
   // Check if organization payment is required
   // Exclude billing page from payment block so users can access it to pay
@@ -147,15 +148,15 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/my-influencers`,
           icon: Users,
         },
-        // Scheduler - visible to OWNER, ADMIN, MANAGER or via hasSchedulersTab
+        // POD Tracker - visible to OWNER, ADMIN, MANAGER or via hasSchedulersTab
         ...(currentOrganization?.role === "OWNER" ||
         currentOrganization?.role === "ADMIN" ||
         currentOrganization?.role === "MANAGER" ||
         permissions.hasSchedulersTab
           ? [
               {
-                name: "Scheduler",
-                href: `/${tenant}/scheduler`,
+                name: "POD Tracker",
+                href: `/${tenant}/pod-tracker`,
                 icon: Activity,
               },
             ]
@@ -1980,7 +1981,7 @@ export default function DashboardLayout({
           )}
 
           {/* Content */}
-          <div className={!isSpaceSettings ? "px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn relative" : ""}>
+          <div className={!isSpaceSettings && !isSchedulerPage ? "px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn relative" : "animate-fadeIn relative"}>
             {isPaymentRequired ? (
               <PaymentRequiredOverlay tenant={tenant} isAdmin={isAdmin} />
             ) : (

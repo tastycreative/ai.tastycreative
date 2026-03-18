@@ -32,7 +32,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { taskName, taskType, status, startTime, endTime, notes, tabId } = body;
+  const { taskName, taskType, status, startTime, endTime, notes, sortOrder, tabId } = body;
 
   const task = await prisma.schedulerTask.update({
     where: { id, organizationId: orgId },
@@ -43,6 +43,7 @@ export async function PATCH(
       ...(startTime !== undefined && { startTime: startTime ? new Date(startTime) : null }),
       ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
       ...(notes !== undefined && { notes }),
+      ...(sortOrder !== undefined && { sortOrder }),
       updatedBy: user.name || userId,
     },
   });

@@ -23,6 +23,7 @@ export interface SchedulerTask {
   startTime: string | null;
   endTime: string | null;
   notes: string;
+  sortOrder: number;
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -185,6 +186,79 @@ export function useSeedPodWeek() {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
+export function useCreateSchedulerTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      weekStart: string;
+      dayOfWeek: number;
+      taskType?: string;
+      taskName?: string;
+      tabId?: string;
+    }) => {
+      const res = await fetch('/api/scheduler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create task');
+      }
+      return res.json() as Promise<SchedulerTask>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
+export function useDeleteSchedulerTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, tabId }: { id: string; tabId?: string }) => {
+      const res = await fetch(`/api/scheduler/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tabId }),
+      });
+      if (!res.ok) throw new Error('Failed to delete task');
+      return res.json();
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: schedulerKeys.all });
+      const snapshots = queryClient.getQueriesData<WeekResponse>({
+        queryKey: schedulerKeys.all,
+      });
+
+      queryClient.setQueriesData<WeekResponse>(
+        { queryKey: schedulerKeys.all },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: old.tasks.filter((t) => t.id !== variables.id),
+          };
+        },
+      );
+
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, data] of context.snapshots) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
   });

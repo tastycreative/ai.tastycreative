@@ -8,6 +8,7 @@ import {
   SkipForward,
   ChevronDown,
   MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
@@ -26,7 +27,22 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   SKIPPED: <SkipForward className="h-2.5 w-2.5" />,
 };
 
-const TASK_TYPES = ['', 'Chatting', 'PPV', 'Feed Post', 'Story', 'Reel', 'Custom'];
+export const TASK_TYPES = ['MM', 'WP', 'ST', 'SP'] as const;
+export type TaskType = (typeof TASK_TYPES)[number];
+
+export const TASK_TYPE_COLORS: Record<string, string> = {
+  MM: '#f472b6',
+  WP: '#38bdf8',
+  ST: '#c084fc',
+  SP: '#fb923c',
+};
+
+export const TASK_TYPE_LABELS: Record<string, string> = {
+  MM: 'MM',
+  WP: 'WP',
+  ST: 'ST',
+  SP: 'SP',
+};
 
 const LA_TZ = 'America/Los_Angeles';
 
@@ -34,9 +50,11 @@ interface SchedulerTaskCardProps {
   task: SchedulerTask;
   team: string;
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
+  onDelete?: (id: string) => void;
+  compact?: boolean;
 }
 
-export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardProps) {
+export function SchedulerTaskCard({ task, team, onUpdate, onDelete, compact }: SchedulerTaskCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -44,6 +62,8 @@ export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardPro
   const [localNotes, setLocalNotes] = useState(task.notes);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const typeMenuRef = useRef<HTMLDivElement>(null);
+
+  const typeColor = TASK_TYPE_COLORS[task.taskType] || '#3a3a5a';
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,7 +95,41 @@ export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardPro
   const statusOpt = STATUS_OPTIONS.find((s) => s.key === task.status) || STATUS_OPTIONS[0];
 
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className="flex flex-col gap-2 rounded-lg border p-2.5 bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#111124]"
+      style={{ borderLeftWidth: 3, borderLeftColor: typeColor }}
+    >
+      {/* Top row: type badge + delete */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {/* Type badge */}
+          <span
+            className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans"
+            style={{
+              background: typeColor + '20',
+              color: typeColor,
+              border: `1px solid ${typeColor}40`,
+            }}
+          >
+            {task.taskType || 'N/A'}
+          </span>
+          {task.status === 'DONE' && (
+            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full font-sans bg-green-100 text-green-600 border border-green-200 dark:bg-[#4ade8018] dark:text-[#4ade80] dark:border-[#4ade8030]">
+              DONE
+            </span>
+          )}
+        </div>
+        {onDelete && (
+          <button
+            onClick={() => onDelete(task.id)}
+            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Delete task"
+          >
+            <Trash2 className="h-3 w-3 text-red-400 dark:text-red-500" />
+          </button>
+        )}
+      </div>
+
       {/* Task name */}
       {isEditing ? (
         <input
@@ -130,11 +184,16 @@ export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardPro
           )}
         </div>
 
-        {/* Task type */}
+        {/* Task type selector */}
         <div className="relative" ref={typeMenuRef}>
           <button
             onClick={() => setShowTypeMenu(!showTypeMenu)}
-            className="flex items-center gap-0.5 text-[9px] font-bold tracking-wide px-2 py-0.5 rounded-full border transition-colors font-sans text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-600 dark:text-gray-500 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:text-gray-400"
+            className="flex items-center gap-0.5 text-[9px] font-bold tracking-wide px-2 py-0.5 rounded-full border transition-colors font-sans"
+            style={{
+              color: typeColor,
+              borderColor: typeColor + '40',
+              background: typeColor + '10',
+            }}
           >
             {task.taskType || 'TYPE'}
             <ChevronDown className="h-2 w-2" />
@@ -145,9 +204,14 @@ export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardPro
                 <button
                   key={type}
                   onClick={() => { onUpdate(task.id, { taskType: type }); setShowTypeMenu(false); }}
-                  className="w-full px-3 py-1.5 text-[10px] text-left font-sans text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+                  style={{ color: TASK_TYPE_COLORS[type] }}
                 >
-                  {type || 'None'}
+                  <span
+                    className="h-2 w-2 rounded-full flex-shrink-0"
+                    style={{ background: TASK_TYPE_COLORS[type] }}
+                  />
+                  {type}
                 </button>
               ))}
             </div>
@@ -155,52 +219,57 @@ export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardPro
         </div>
       </div>
 
-      {/* Time info (start/end) */}
-      {task.startTime && (
-        <div className="flex items-center gap-1 text-[9px] px-1 font-mono text-gray-500 dark:text-gray-600">
-          <Clock className="h-2.5 w-2.5" />
-          {formatTimeInTz(task.startTime, LA_TZ)}
-          {task.endTime && (
-            <>
-              <span>→</span>
-              <span>{formatTimeInTz(task.endTime, LA_TZ)}</span>
-              <span className="text-green-600 dark:text-[#4ade80]">
-                ({formatDuration(task.startTime, task.endTime)})
-              </span>
-            </>
+      {/* Compact mode hides time/notes */}
+      {!compact && (
+        <>
+          {/* Time info (start/end) */}
+          {task.startTime && (
+            <div className="flex items-center gap-1 text-[9px] px-1 font-mono text-gray-500 dark:text-gray-600">
+              <Clock className="h-2.5 w-2.5" />
+              {formatTimeInTz(task.startTime, LA_TZ)}
+              {task.endTime && (
+                <>
+                  <span>→</span>
+                  <span>{formatTimeInTz(task.endTime, LA_TZ)}</span>
+                  <span className="text-green-600 dark:text-[#4ade80]">
+                    ({formatDuration(task.startTime, task.endTime)})
+                  </span>
+                </>
+              )}
+              {!task.endTime && task.status === 'IN_PROGRESS' && (
+                <span className="animate-pulse text-brand-blue dark:text-[#38bdf8]">
+                  {formatDuration(task.startTime, new Date().toISOString())}
+                </span>
+              )}
+            </div>
           )}
-          {!task.endTime && task.status === 'IN_PROGRESS' && (
-            <span className="animate-pulse text-brand-blue dark:text-[#38bdf8]">
-              {formatDuration(task.startTime, new Date().toISOString())}
-            </span>
+
+          {/* Notes */}
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className="flex items-center gap-1 text-[9px] transition-colors px-1 text-gray-400 hover:text-gray-600 dark:text-gray-700 dark:hover:text-gray-500"
+          >
+            <MessageSquare className="h-2.5 w-2.5" />
+            {task.notes ? 'notes' : 'add note'}
+          </button>
+          {showNotes && (
+            <textarea
+              value={localNotes}
+              onChange={(e) => setLocalNotes(e.target.value)}
+              onBlur={handleNotesBlur}
+              className="w-full text-[10px] rounded p-1.5 resize-none outline-none font-mono bg-gray-50 border border-gray-200 text-gray-600 focus:border-gray-400 dark:bg-gray-950 dark:border-gray-800 dark:text-gray-400 dark:focus:border-gray-700"
+              rows={2}
+              placeholder="Add notes..."
+            />
           )}
-        </div>
-      )}
 
-      {/* Notes */}
-      <button
-        onClick={() => setShowNotes(!showNotes)}
-        className="flex items-center gap-1 text-[9px] transition-colors px-1 text-gray-400 hover:text-gray-600 dark:text-gray-700 dark:hover:text-gray-500"
-      >
-        <MessageSquare className="h-2.5 w-2.5" />
-        {task.notes ? 'notes' : 'add note'}
-      </button>
-      {showNotes && (
-        <textarea
-          value={localNotes}
-          onChange={(e) => setLocalNotes(e.target.value)}
-          onBlur={handleNotesBlur}
-          className="w-full text-[10px] rounded p-1.5 resize-none outline-none font-mono bg-gray-50 border border-gray-200 text-gray-600 focus:border-gray-400 dark:bg-gray-950 dark:border-gray-800 dark:text-gray-400 dark:focus:border-gray-700"
-          rows={2}
-          placeholder="Add notes..."
-        />
-      )}
-
-      {/* Updated by */}
-      {task.updatedBy && (
-        <div className="text-[8px] px-1 truncate font-mono text-gray-400 dark:text-gray-700">
-          updated by {task.updatedBy}
-        </div>
+          {/* Updated by */}
+          {task.updatedBy && (
+            <div className="text-[8px] px-1 truncate font-mono text-gray-400 dark:text-gray-700">
+              updated by {task.updatedBy}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
