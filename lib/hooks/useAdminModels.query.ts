@@ -96,6 +96,14 @@ export interface ModelsFilters {
   includeRelations?: boolean;
 }
 
+export interface ModelPreset {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  profileIds: string[];
+}
+
 // Query keys factory for better cache management
 export const adminModelsKeys = {
   all: ['admin-models'] as const,
@@ -103,6 +111,7 @@ export const adminModelsKeys = {
   list: (filters: ModelsFilters) => [...adminModelsKeys.lists(), filters] as const,
   creators: () => [...adminModelsKeys.all, 'creators'] as const,
   organizations: () => [...adminModelsKeys.all, 'organizations'] as const,
+  modelPresets: () => [...adminModelsKeys.all, 'model-presets'] as const,
 };
 
 // Fetch models with filters
@@ -312,5 +321,67 @@ export function useAdminOrganizations() {
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 15, // 15 minutes
+  });
+}
+
+// ── Model Presets ───────────────────────────────────────────────
+
+export function useModelPresets() {
+  return useQuery<ModelPreset[]>({
+    queryKey: adminModelsKeys.modelPresets(),
+    queryFn: async (): Promise<ModelPreset[]> => {
+      const response = await fetch('/api/admin/models/model-presets');
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to fetch model presets');
+      }
+      return data.data.presets;
+    },
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+  });
+}
+
+export function useCreateModelPreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name, profileIds }: { name: string; profileIds: string[] }) => {
+      const response = await fetch('/api/admin/models/model-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, profileIds }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create preset');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminModelsKeys.modelPresets() });
+    },
+  });
+}
+
+export function useDeleteModelPreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (presetId: string) => {
+      const response = await fetch('/api/admin/models/model-presets', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ presetId }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete preset');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminModelsKeys.modelPresets() });
+    },
   });
 }

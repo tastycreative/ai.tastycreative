@@ -18,6 +18,31 @@ const TIER_LABELS: Record<string, string> = {
   GF_SCAM: 'GF Scam',
 };
 
+/* ── Google Drive URL helpers ──────────────────────────────── */
+function extractDriveFileId(url: string): string | null {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)\//,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function isDriveUrl(url: string): boolean {
+  return url.includes('drive.google.com') || url.includes('lh3.googleusercontent.com/d/');
+}
+
+/** Convert a Drive view URL to a streamable proxy URL. */
+function toDriveProxyUrl(url: string): string {
+  const id = extractDriveFileId(url);
+  if (!id) return url;
+  return `/api/google-drive/stream?fileId=${encodeURIComponent(id)}`;
+}
+
 const PAGE_TYPE_LABELS: Record<string, string> = {
   ALL_PAGES: 'All Pages',
   FREE: 'Free',
@@ -49,10 +74,24 @@ export function DetailModal({
   const [copied, setCopied] = useState<string | null>(null);
   const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
   const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
-  const displayUrl = gifUrl || item.previewUrl;
+  const rawDisplayUrl = gifUrl || item.previewUrl;
+  // Convert Drive view URLs to streamable proxy URLs
+  const displayUrl = rawDisplayUrl && isDriveUrl(rawDisplayUrl)
+    ? toDriveProxyUrl(rawDisplayUrl)
+    : rawDisplayUrl;
   const hasValidImage = !!displayUrl && displayUrl.startsWith('http') && displayUrl !== '/placeholder-gallery.png';
   const [imageLoaded, setImageLoaded] = useState(!hasValidImage);
   const [imageError, setImageError] = useState(false);
+
+  // Carousel (Wall Post multi-media)
+  const carouselItems = boardMeta?.mediaItems ?? null;
+  const isCarousel = !!carouselItems && carouselItems.length > 1;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselImgLoaded, setCarouselImgLoaded] = useState(false);
+  const [carouselImgError, setCarouselImgError] = useState(false);
+  const activeCaption = isCarousel
+    ? (carouselItems![carouselIndex]?.captionText ?? null)
+    : item.captionUsed;
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -91,12 +130,24 @@ export function DetailModal({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft' && hasPrev && onNavigate) onNavigate('prev');
-      if (e.key === 'ArrowRight' && hasNext && onNavigate) onNavigate('next');
+      if (isCarousel) {
+        // Arrow keys navigate within the multi-media thumbnail strip
+        if (e.key === 'ArrowLeft') setCarouselIndex(i => Math.max(0, i - 1));
+        if (e.key === 'ArrowRight') setCarouselIndex(i => Math.min(carouselItems!.length - 1, i + 1));
+      } else {
+        if (e.key === 'ArrowLeft' && hasPrev && onNavigate) onNavigate('prev');
+        if (e.key === 'ArrowRight' && hasNext && onNavigate) onNavigate('next');
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, onNavigate, hasPrev, hasNext]);
+  }, [onClose, onNavigate, hasPrev, hasNext, isCarousel, carouselItems]);
+
+  // Reset carousel image loading state when slide changes
+  React.useEffect(() => {
+    setCarouselImgLoaded(false);
+    setCarouselImgError(false);
+  }, [carouselIndex]);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden" style={{ isolation: 'isolate' }}>
@@ -127,49 +178,212 @@ export function DetailModal({
       {/* Modal */}
       <div className="relative w-full max-w-5xl mx-4 my-4 h-[calc(100vh-2rem)] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Image Section */}
-        <div className="lg:w-1/2 bg-black flex items-center justify-center relative min-h-[200px] max-h-[35vh] lg:max-h-none lg:min-h-0">
-          {!imageLoaded && !imageError && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-          {hasValidImage && !imageError ? (
-            <img
-              src={displayUrl}
-              alt={item.title || 'Preview'}
-              className={`max-w-full max-h-[90vh] object-contain transition-opacity ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => { setImageError(true); setImageLoaded(true); }}
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/[0.06]">
-                <BarChart3 className="w-10 h-10 text-brand-light-pink/50" />
-              </div>
-              <span className="text-sm text-zinc-500">{item.title || 'No Preview Available'}</span>
-            </div>
-          )}
+        {isCarousel ? (
+          // ── Multi-media (Wall Post): large preview + thumbnail strip ──
+          <div className="lg:w-1/2 bg-black flex flex-col relative min-h-[200px] max-h-[40vh] lg:max-h-none lg:min-h-0">
+            {/* Main preview */}
+            <div className="flex-1 relative flex items-center justify-center overflow-hidden min-h-0">
+              {!carouselImgLoaded && !carouselImgError && carouselItems![carouselIndex]?.contentType !== 'VIDEO' && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {(() => {
+                const ci = carouselItems![carouselIndex];
+                const cUrl = ci?.url;
+                const isVideo = ci?.contentType === 'VIDEO';
+                const isGif = ci?.contentType === 'GIF';
+                const isDrive = !!cUrl && isDriveUrl(cUrl);
+                const isValidUrl = !!cUrl && cUrl.startsWith('http');
+                // Convert Drive view URLs to streamable proxy URLs
+                const displaySrc = cUrl && isDrive ? toDriveProxyUrl(cUrl) : cUrl;
 
-          {/* Image Actions Overlay */}
-          <div className="absolute top-4 right-4 flex items-center gap-2">
-            <a
-              href={displayUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
-              title="Open in new tab"
+                // Drive videos: show icon + open link (can't embed Drive video)
+                // Non-Drive videos: show video placeholder
+                if (isVideo) {
+                  return (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                      <Film className="w-10 h-10 text-zinc-500" />
+                      <span className="text-xs text-zinc-500">Video content</span>
+                      {cUrl && (
+                        <a href={cUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-brand-blue hover:underline flex items-center gap-1">
+                          Open video <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Image failed to load: show Drive link if available, else generic placeholder
+                if (carouselImgError) {
+                  return (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                      <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/6">
+                        <Images className="w-10 h-10 text-brand-light-pink/50" />
+                      </div>
+                      {isDrive && cUrl ? (
+                        <a href={cUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-brand-blue hover:underline flex items-center gap-1">
+                          Open in Google Drive <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        <span className="text-sm text-zinc-500">No Preview Available</span>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (isValidUrl && displaySrc) {
+                  return (
+                    <img
+                      key={`${carouselIndex}-${cUrl}`}
+                      src={displaySrc}
+                      alt={ci?.fileName || `${item.title || 'Preview'} ${carouselIndex + 1}`}
+                      className={`max-w-full max-h-full object-contain transition-opacity ${carouselImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setCarouselImgLoaded(true)}
+                      onError={() => { setCarouselImgError(true); setCarouselImgLoaded(true); }}
+                    />
+                  );
+                }
+
+                return (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                    <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/6">
+                      <Images className="w-10 h-10 text-brand-light-pink/50" />
+                    </div>
+                    <span className="text-sm text-zinc-500">No Preview Available</span>
+                  </div>
+                );
+              })()}
+              {/* Counter */}
+              <div className="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-black/60 text-xs text-white font-medium">
+                {carouselIndex + 1} / {carouselItems!.length}
+              </div>
+              {/* Actions */}
+              {carouselItems![carouselIndex]?.url && (
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  <a
+                    href={carouselItems![carouselIndex].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="Open in new tab"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <button
+                    onClick={() => copyToClipboard(carouselItems![carouselIndex].url, 'URL')}
+                    className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="Copy URL"
+                  >
+                    {copied === 'URL' ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />}
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* Thumbnail strip */}
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 overflow-x-auto shrink-0"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.5)' }}
             >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-            <button
-              onClick={() => copyToClipboard(displayUrl, 'URL')}
-              className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
-              title="Copy URL"
-            >
-              {copied === 'URL' ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />}
-            </button>
+              {carouselItems!.map((ci, i) => {
+                const isSelected = i === carouselIndex;
+                const isVideo = ci.contentType === 'VIDEO';
+                const isGif = ci.contentType === 'GIF';
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    title={ci.fileName || `Item ${i + 1}`}
+                    onClick={() => {
+                      setCarouselImgLoaded(false);
+                      setCarouselImgError(false);
+                      setCarouselIndex(i);
+                    }}
+                    className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden transition-all"
+                    style={isSelected
+                      ? { border: '2px solid rgba(247,116,185,0.75)', outline: '1px solid rgba(247,116,185,0.2)' }
+                      : { border: '2px solid rgba(255,255,255,0.08)' }
+                    }
+                  >
+                    {isVideo && !isDriveUrl(ci.url) ? (
+                      <div className="w-full h-full bg-zinc-800 flex flex-col items-center justify-center gap-0.5">
+                        <Film className="w-4 h-4 text-zinc-400" />
+                        <span className="text-[8px] font-bold text-zinc-500 tracking-wider">VID</span>
+                      </div>
+                    ) : ci.url.startsWith('http') ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={isDriveUrl(ci.url) ? toDriveProxyUrl(ci.url) : ci.url}
+                        alt={ci.fileName || `Item ${i + 1}`}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                        <Images className="w-4 h-4 text-zinc-600" />
+                      </div>
+                    )}
+                    {isGif && (
+                      <span className="absolute bottom-0.5 left-0.5 text-[7px] font-bold leading-none bg-black/70 text-pink-400 px-0.5 rounded">GIF</span>
+                    )}
+                    <span
+                      className="absolute top-0.5 left-0.5 text-[9px] font-semibold text-white/70 leading-none"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                    >
+                      {i + 1}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          // ── Single image mode ──
+          <div className="lg:w-1/2 bg-black flex items-center justify-center relative min-h-[200px] max-h-[35vh] lg:max-h-none lg:min-h-0">
+            {!imageLoaded && !imageError && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {hasValidImage && !imageError ? (
+              <img
+                src={displayUrl}
+                alt={item.title || 'Preview'}
+                className={`max-w-full max-h-[90vh] object-contain transition-opacity ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => { setImageError(true); setImageLoaded(true); }}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center border border-white/[0.06]">
+                  <BarChart3 className="w-10 h-10 text-brand-light-pink/50" />
+                </div>
+                <span className="text-sm text-zinc-500">{item.title || 'No Preview Available'}</span>
+              </div>
+            )}
+            {/* Image Actions Overlay */}
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <a
+                href={displayUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
+                title="Open in new tab"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <button
+                onClick={() => copyToClipboard(displayUrl, 'URL')}
+                className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
+                title="Copy URL"
+              >
+                {copied === 'URL' ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Details Section */}
         <div className="lg:w-1/2 flex flex-col overflow-hidden">
@@ -403,12 +617,14 @@ export function DetailModal({
             })()}
 
             {/* Caption */}
-            {item.captionUsed && (
+            {activeCaption && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Caption</h3>
+                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    Caption{isCarousel ? ` (${carouselIndex + 1}/${carouselItems!.length})` : ''}
+                  </h3>
                   <button
-                    onClick={() => copyToClipboard(item.captionUsed!, 'Caption')}
+                    onClick={() => copyToClipboard(activeCaption!, 'Caption')}
                     className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 transition-colors"
                   >
                     {copied === 'Caption' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -416,7 +632,7 @@ export function DetailModal({
                   </button>
                 </div>
                 <p className="text-sm text-zinc-400 p-4 rounded-xl bg-zinc-800/50 whitespace-pre-wrap">
-                  {item.captionUsed}
+                  {activeCaption}
                 </p>
               </div>
             )}

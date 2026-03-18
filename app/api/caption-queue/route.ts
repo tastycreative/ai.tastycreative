@@ -114,11 +114,64 @@ export async function GET(_request: NextRequest) {
       whereClause = { organizationId: ctx.organizationId };
     }
 
-    const rawItems = await prisma.captionQueueTicket.findMany({
+    let rawItems = await prisma.captionQueueTicket.findMany({
       where: whereClause,
       include: TICKET_INCLUDE,
       orderBy: [{ createdAt: 'desc' }],
     });
+
+    // ── Board-access filter for CREATORs ──
+    // Restrict the "available pool" (Bucket 2) so CREATORs only see tickets
+    // from boards/spaces they are a member of.  Assigned (Bucket 1) and
+    // claimed (Bucket 3) tickets remain visible regardless.
+    if (isCreatorRole(ctx.role)) {
+      // Collect boardItemIds from pool tickets (not assigned / not claimed by this creator)
+      const poolBoardItemIds = [
+        ...new Set(
+          rawItems
+            .filter(item => {
+              const isAssigned = item.assignees.some(a => a.clerkId === clerkId);
+              const isClaimed = item.claimedBy === clerkId;
+              return !isAssigned && !isClaimed && item.boardItemId;
+            })
+            .map(item => item.boardItemId!),
+        ),
+      ];
+
+      if (poolBoardItemIds.length > 0) {
+        // Workspace IDs this creator is a member of
+        const creatorWorkspaces = await prisma.workspaceMember.findMany({
+          where: { userId: ctx.userId },
+          select: { workspaceId: true },
+        });
+        const accessibleWsIds = creatorWorkspaces.map(m => m.workspaceId);
+
+        // Which of the pool board-items live inside accessible workspaces?
+        const accessibleBoardItems = await prisma.boardItem.findMany({
+          where: {
+            id: { in: poolBoardItemIds },
+            column: {
+              board: {
+                workspaceId: { in: accessibleWsIds },
+              },
+            },
+          },
+          select: { id: true },
+        });
+        const accessibleSet = new Set(accessibleBoardItems.map(bi => bi.id));
+
+        rawItems = rawItems.filter(item => {
+          const isAssigned = item.assignees.some(a => a.clerkId === clerkId);
+          const isClaimed = item.claimedBy === clerkId;
+          // Always keep assigned / claimed tickets
+          if (isAssigned || isClaimed) return true;
+          // Manual tickets (no boardItemId) stay visible
+          if (!item.boardItemId) return true;
+          // Pool ticket: only keep if board is accessible
+          return accessibleSet.has(item.boardItemId);
+        });
+      }
+    }
 
     // Apply this user's personal sort order when available
     const userOrder = await prisma.captionQueueUserOrder.findFirst({

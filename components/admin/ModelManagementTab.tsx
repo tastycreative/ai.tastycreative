@@ -16,6 +16,9 @@ import {
   Check,
   Loader2,
   Image as ImageIcon,
+  Save,
+  FolderOpen,
+  Trash,
 } from 'lucide-react';
 import {
   useAdminModels,
@@ -27,9 +30,13 @@ import {
   useBulkShareModels,
   useBulkUpdateModels,
   usePrefetchNextPage,
+  useModelPresets,
+  useCreateModelPreset,
+  useDeleteModelPreset,
   type ModelProfile,
   type Creator,
   type Organization,
+  type ModelPreset,
 } from '@/lib/hooks/useAdminModels.query';
 
 // Custom hook for debounced value
@@ -68,6 +75,8 @@ export default function ModelManagementTab() {
   const [creatorSearchTerm, setCreatorSearchTerm] = useState('');
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
   const [selectedOrganization, setSelectedOrganization] = useState<string>('');
+  const [presetName, setPresetName] = useState('');
+  const [showSavePreset, setShowSavePreset] = useState(false);
 
   // Success notification
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -96,6 +105,11 @@ export default function ModelManagementTab() {
   const unassignCreatorMutation = useUnassignCreator();
   const bulkShareMutation = useBulkShareModels();
   const bulkUpdateMutation = useBulkUpdateModels();
+
+  // Model presets
+  const { data: modelPresets = [] } = useModelPresets();
+  const createPresetMutation = useCreateModelPreset();
+  const deletePresetMutation = useDeleteModelPreset();
 
   // Extract data from query response
   const models = modelsData?.data?.profiles || [];
@@ -168,6 +182,8 @@ export default function ModelManagementTab() {
     setSelectedCreators(new Set());
     setCreatorSearchTerm('');
     setSelectedOrganization('');
+    setPresetName('');
+    setShowSavePreset(false);
     if (profileId) setViewingProfileId(profileId);
   };
 
@@ -498,6 +514,39 @@ export default function ModelManagementTab() {
         </select>
       </div>
 
+      {/* Model Presets */}
+      {modelPresets.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-muted-foreground">Presets:</span>
+          {modelPresets.map((preset) => (
+            <div key={preset.id} className="group flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setSelectedIds(new Set(preset.profileIds));
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border border-brand-light-pink/30 bg-brand-light-pink/5 text-brand-light-pink hover:bg-brand-light-pink/15 transition-colors"
+                title={`Select ${preset.profileIds.length} model(s)`}
+              >
+                <FolderOpen className="w-3 h-3" />
+                {preset.name}
+                <span className="text-brand-light-pink/60">({preset.profileIds.length})</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete preset "${preset.name}"?`)) {
+                    deletePresetMutation.mutate(preset.id);
+                  }
+                }}
+                className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all"
+                title="Delete preset"
+              >
+                <Trash className="w-3 h-3 text-muted-foreground hover:text-red-500" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="bg-gradient-to-r from-brand-light-pink/5 to-brand-blue/5 border border-brand-light-pink/20 rounded-lg px-4 py-3">
         <p className="text-sm text-foreground/80">
@@ -755,6 +804,79 @@ export default function ModelManagementTab() {
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
+                  {showSavePreset ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Preset name..."
+                        value={presetName}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && presetName.trim()) {
+                            createPresetMutation.mutate(
+                              { name: presetName.trim(), profileIds: Array.from(selectedIds) },
+                              {
+                                onSuccess: () => {
+                                  setPresetName('');
+                                  setShowSavePreset(false);
+                                },
+                                onError: (err) => {
+                                  setModalError(err instanceof Error ? err.message : 'Failed to save preset');
+                                },
+                              }
+                            );
+                          }
+                          if (e.key === 'Escape') {
+                            setShowSavePreset(false);
+                            setPresetName('');
+                          }
+                        }}
+                        className="w-40 px-3 py-1.5 border border-border bg-background rounded-md text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-brand-light-pink focus:border-transparent"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          if (!presetName.trim()) return;
+                          createPresetMutation.mutate(
+                            { name: presetName.trim(), profileIds: Array.from(selectedIds) },
+                            {
+                              onSuccess: () => {
+                                setPresetName('');
+                                setShowSavePreset(false);
+                              },
+                              onError: (err) => {
+                                setModalError(err instanceof Error ? err.message : 'Failed to save preset');
+                              },
+                            }
+                          );
+                        }}
+                        disabled={!presetName.trim() || createPresetMutation.isPending}
+                        className="px-3 py-1.5 bg-brand-light-pink hover:bg-brand-mid-pink text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {createPresetMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span className="hidden sm:inline">Save</span>
+                      </button>
+                      <button
+                        onClick={() => { setShowSavePreset(false); setPresetName(''); }}
+                        className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSavePreset(true)}
+                      className="px-3 py-1.5 border border-brand-light-pink/30 hover:bg-brand-light-pink/10 text-brand-light-pink rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"
+                      title="Save selection as preset"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span className="hidden sm:inline">Save Preset</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => openModal('delete')}
                     className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"
@@ -938,6 +1060,7 @@ export default function ModelManagementTab() {
               <label className="block text-sm font-medium text-foreground/80 mb-2">
                 Select Creators to Assign
               </label>
+
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
