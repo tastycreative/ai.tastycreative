@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { canManageQueue, type OrgRole } from '@/lib/rbac';
+import { canManageQueue, canQAInSpace, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import {
   OTP_PTR_CAPTION_STATUS,
@@ -69,12 +69,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!ctx.organizationId || !canManageQueue(ctx.role)) {
+    if (!ctx.organizationId) {
       return NextResponse.json(
-        {
-          error:
-            'Forbidden: Only Owners, Admins, and Managers can perform QA actions',
-        },
+        { error: 'Forbidden: No organization context' },
         { status: 403 },
       );
     }
@@ -111,6 +108,23 @@ export async function PATCH(
 
     if (ticket.organizationId !== ctx.organizationId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Check space-level role first, then fall back to org-level role
+    let hasSpaceQA = false;
+    if (ticket.boardItemId) {
+      const boardItem = await prisma.boardItem.findUnique({
+        where: { id: ticket.boardItemId },
+        select: { column: { select: { board: { select: { workspace: { select: { members: { where: { userId: ctx.userId }, select: { role: true }, take: 1 } } } } } } } },
+      });
+      const spaceRole = boardItem?.column?.board?.workspace?.members?.[0]?.role ?? null;
+      hasSpaceQA = canQAInSpace(spaceRole);
+    }
+    if (!hasSpaceQA && !canManageQueue(ctx.role)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Only Owners, Admins, and Managers can perform QA actions' },
+        { status: 403 },
+      );
     }
 
     if (ticket.workflowType !== 'otp_ptr') {
