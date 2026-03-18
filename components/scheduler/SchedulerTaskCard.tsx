@@ -9,8 +9,8 @@ import {
   ChevronDown,
   MessageSquare,
 } from 'lucide-react';
-import { PodTrackerTask } from '@/lib/hooks/usePodTracker.query';
-import { formatTimeInTz, formatDuration } from '@/lib/pod-tracker/time-helpers';
+import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
+import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 
 const STATUS_OPTIONS: { key: string; label: string; color: string }[] = [
   { key: 'PENDING', label: 'Pending', color: '#3a3a5a' },
@@ -30,13 +30,13 @@ const TASK_TYPES = ['', 'Chatting', 'PPV', 'Feed Post', 'Story', 'Reel', 'Custom
 
 const LA_TZ = 'America/Los_Angeles';
 
-interface TrackerTaskCardProps {
-  task: PodTrackerTask;
+interface SchedulerTaskCardProps {
+  task: SchedulerTask;
   team: string;
-  onUpdate: (id: string, data: Partial<PodTrackerTask>) => void;
+  onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
 }
 
-export function TrackerTaskCard({ task, team, onUpdate }: TrackerTaskCardProps) {
+export function SchedulerTaskCard({ task, team, onUpdate }: SchedulerTaskCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -55,7 +55,7 @@ export function TrackerTaskCard({ task, team, onUpdate }: TrackerTaskCardProps) 
   }, []);
 
   const handleStatusChange = useCallback((newStatus: string) => {
-    const updates: Partial<PodTrackerTask> = { status: newStatus as PodTrackerTask['status'] };
+    const updates: Partial<SchedulerTask> = { status: newStatus as SchedulerTask['status'] };
     if (newStatus === 'IN_PROGRESS' && !task.startTime) updates.startTime = new Date().toISOString();
     if (newStatus === 'DONE' && task.startTime && !task.endTime) updates.endTime = new Date().toISOString();
     onUpdate(task.id, updates);

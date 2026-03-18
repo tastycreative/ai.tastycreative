@@ -9,24 +9,25 @@ interface PresenceUser {
   name?: string;
 }
 
-interface TrackerPresenceBarProps {
+interface SchedulerPresenceBarProps {
   orgId: string | undefined;
 }
 
-export function TrackerPresenceBar({ orgId }: TrackerPresenceBarProps) {
+export function SchedulerPresenceBar({ orgId }: SchedulerPresenceBarProps) {
   const [members, setMembers] = useState<PresenceUser[]>([]);
 
   useEffect(() => {
     if (!orgId) return;
 
-    let client: Ably.Realtime;
+    let client: Ably.Realtime | null = null;
     try {
       client = new Ably.Realtime({ authUrl: '/api/ably/auth', autoConnect: true });
     } catch {
       return;
     }
 
-    const channel = client.channels.get(`pod-tracker:org:${orgId}`);
+    const ablyClient = client;
+    const channel = ablyClient.channels.get(`scheduler:org:${orgId}`);
 
     const syncPresence = async () => {
       try {
@@ -48,7 +49,9 @@ export function TrackerPresenceBar({ orgId }: TrackerPresenceBarProps) {
     return () => {
       channel.presence.leave().catch(() => {});
       channel.presence.unsubscribe();
-      try { client.close(); } catch {}
+      if (ablyClient.connection.state !== 'closed' && ablyClient.connection.state !== 'closing') {
+        ablyClient.close();
+      }
     };
   }, [orgId]);
 

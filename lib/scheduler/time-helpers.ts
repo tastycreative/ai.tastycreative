@@ -1,5 +1,5 @@
 /**
- * Time helpers for POD Tracker.
+ * Time helpers for Scheduler.
  * Uses the shared timezone-utils for timezone-aware formatting.
  * Reset time: 5:00 PM LA time (always LA regardless of user tz selection).
  */

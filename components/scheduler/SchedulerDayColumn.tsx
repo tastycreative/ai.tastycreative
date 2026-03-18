@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
-import { PodTrackerTask } from '@/lib/hooks/usePodTracker.query';
-import { TrackerTaskCard } from './TrackerTaskCard';
-import { getSlotForDay, DAY_NAMES } from '@/lib/pod-tracker/rotation';
-import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/pod-tracker/time-helpers';
+import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTaskCard } from './SchedulerTaskCard';
+import { getSlotForDay, DAY_NAMES } from '@/lib/scheduler/rotation';
+import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
 
 const TEAM_COLORS: Record<string, string> = {
   'Running Queue': '#4ade80',
@@ -17,17 +17,17 @@ const TEAM_COLORS: Record<string, string> = {
   'Not Running': '#3a3a5a',
 };
 
-interface TrackerDayColumnProps {
+interface SchedulerDayColumnProps {
   dayIndex: number;
   date: Date;
-  task: PodTrackerTask | undefined;
+  task: SchedulerTask | undefined;
   team: string;
-  onUpdate: (id: string, data: Partial<PodTrackerTask>) => void;
+  onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   isToday: boolean;
   timeZone: string;
 }
 
-export function TrackerDayColumn({
+export function SchedulerDayColumn({
   dayIndex,
   date,
   task,
@@ -35,7 +35,7 @@ export function TrackerDayColumn({
   onUpdate,
   isToday,
   timeZone,
-}: TrackerDayColumnProps) {
+}: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
   const isRunningQueue = team === 'Running Queue';
@@ -163,7 +163,7 @@ export function TrackerDayColumn({
       {/* Task card area */}
       <div className="p-2.5 flex-1">
         {task ? (
-          <TrackerTaskCard task={task} team={team} onUpdate={onUpdate} />
+          <SchedulerTaskCard task={task} team={team} onUpdate={onUpdate} />
         ) : (
           <div className="flex flex-col items-center justify-center py-4 gap-1">
             <span className="text-[10px] italic font-mono text-gray-300 dark:text-[#1e1e35]">

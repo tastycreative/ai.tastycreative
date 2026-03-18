@@ -3,16 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, GripVertical } from 'lucide-react';
-import { useUpdatePodConfig, PodTrackerConfig } from '@/lib/hooks/usePodTracker.query';
-import { tabId } from '@/lib/hooks/usePodTrackerRealtime';
+import { useUpdatePodConfig, SchedulerConfig } from '@/lib/hooks/useScheduler.query';
+import { tabId } from '@/lib/hooks/useSchedulerRealtime';
 
-interface TrackerConfigModalProps {
-  config: PodTrackerConfig | null;
+interface SchedulerConfigModalProps {
+  config: SchedulerConfig | null;
   open: boolean;
   onClose: () => void;
 }
 
-export function TrackerConfigModal({ config, open, onClose }: TrackerConfigModalProps) {
+export function SchedulerConfigModal({ config, open, onClose }: SchedulerConfigModalProps) {
   const [teamNames, setTeamNames] = useState<string[]>(['']);
   const [offset, setOffset] = useState(0);
   const updateConfig = useUpdatePodConfig();
@@ -56,7 +56,7 @@ export function TrackerConfigModal({ config, open, onClose }: TrackerConfigModal
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-[#111124]">
           <h2 className="text-sm font-bold font-sans text-gray-900 dark:text-zinc-300">
-            {config ? 'Edit Teams' : 'Setup POD Tracker'}
+            {config ? 'Edit Teams' : 'Setup Scheduler'}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5">
             <X className="h-4 w-4 text-gray-400 dark:text-[#555]" />

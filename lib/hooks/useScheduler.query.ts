@@ -10,7 +10,7 @@ import { useUser } from '@clerk/nextjs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export interface PodTrackerTask {
+export interface SchedulerTask {
   id: string;
   organizationId: string;
   weekStartDate: string;
@@ -28,7 +28,7 @@ export interface PodTrackerTask {
   updatedAt: string;
 }
 
-export interface PodTrackerConfig {
+export interface SchedulerConfig {
   id: string;
   organizationId: string;
   teamNames: string[];
@@ -36,11 +36,11 @@ export interface PodTrackerConfig {
 }
 
 interface WeekResponse {
-  tasks: PodTrackerTask[];
+  tasks: SchedulerTask[];
 }
 
 interface ConfigResponse {
-  config: PodTrackerConfig | null;
+  config: SchedulerConfig | null;
 }
 
 interface ActivityLogItem {
@@ -61,33 +61,33 @@ interface ActivityLogPage {
 
 // ─── Query Keys ────────────────────────────────────────────────────────────
 
-export const podTrackerKeys = {
-  all: ['pod-tracker'] as const,
-  week: (weekStart: string) => [...podTrackerKeys.all, 'week', weekStart] as const,
-  config: () => [...podTrackerKeys.all, 'config'] as const,
-  activity: () => [...podTrackerKeys.all, 'activity'] as const,
+export const schedulerKeys = {
+  all: ['scheduler'] as const,
+  week: (weekStart: string) => [...schedulerKeys.all, 'week', weekStart] as const,
+  config: () => [...schedulerKeys.all, 'config'] as const,
+  activity: () => [...schedulerKeys.all, 'activity'] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
 
 async function fetchWeekTasks(weekStart: string): Promise<WeekResponse> {
-  const res = await fetch(`/api/pod-tracker?weekStart=${encodeURIComponent(weekStart)}`);
+  const res = await fetch(`/api/scheduler?weekStart=${encodeURIComponent(weekStart)}`);
   if (!res.ok) throw new Error('Failed to fetch POD tracker tasks');
   return res.json();
 }
 
 async function fetchConfig(): Promise<ConfigResponse> {
-  const res = await fetch('/api/pod-tracker/config');
+  const res = await fetch('/api/scheduler/config');
   if (!res.ok) throw new Error('Failed to fetch POD tracker config');
   return res.json();
 }
 
 // ─── Query Hooks ───────────────────────────────────────────────────────────
 
-export function usePodTrackerWeek(weekStart: string) {
+export function useSchedulerWeek(weekStart: string) {
   const { user } = useUser();
   return useQuery({
-    queryKey: podTrackerKeys.week(weekStart),
+    queryKey: schedulerKeys.week(weekStart),
     queryFn: () => fetchWeekTasks(weekStart),
     enabled: !!user && !!weekStart,
     staleTime: 1000 * 60 * 2,
@@ -96,10 +96,10 @@ export function usePodTrackerWeek(weekStart: string) {
   });
 }
 
-export function usePodTrackerConfig() {
+export function useSchedulerConfig() {
   const { user } = useUser();
   return useQuery({
-    queryKey: podTrackerKeys.config(),
+    queryKey: schedulerKeys.config(),
     queryFn: fetchConfig,
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
@@ -118,24 +118,24 @@ export function useUpdatePodTask() {
       id,
       tabId,
       ...data
-    }: Partial<PodTrackerTask> & { id: string; tabId?: string }) => {
-      const res = await fetch(`/api/pod-tracker/${id}`, {
+    }: Partial<SchedulerTask> & { id: string; tabId?: string }) => {
+      const res = await fetch(`/api/scheduler/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, tabId }),
       });
       if (!res.ok) throw new Error('Failed to update task');
-      return res.json() as Promise<PodTrackerTask>;
+      return res.json() as Promise<SchedulerTask>;
     },
     onMutate: async (variables) => {
       // Optimistic update
-      await queryClient.cancelQueries({ queryKey: podTrackerKeys.all });
+      await queryClient.cancelQueries({ queryKey: schedulerKeys.all });
       const snapshots = queryClient.getQueriesData<WeekResponse>({
-        queryKey: podTrackerKeys.all,
+        queryKey: schedulerKeys.all,
       });
 
       queryClient.setQueriesData<WeekResponse>(
-        { queryKey: podTrackerKeys.all },
+        { queryKey: schedulerKeys.all },
         (old) => {
           if (!old) return old;
           return {
@@ -157,7 +157,7 @@ export function useUpdatePodTask() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: podTrackerKeys.all });
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
   });
 }
@@ -173,7 +173,7 @@ export function useSeedPodWeek() {
       weekStart: string;
       tabId?: string;
     }) => {
-      const res = await fetch('/api/pod-tracker/seed-week', {
+      const res = await fetch('/api/scheduler/seed-week', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weekStart, tabId }),
@@ -185,7 +185,7 @@ export function useSeedPodWeek() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: podTrackerKeys.all });
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
   });
 }
@@ -203,7 +203,7 @@ export function useUpdatePodConfig() {
       rotationOffset?: number;
       tabId?: string;
     }) => {
-      const res = await fetch('/api/pod-tracker/config', {
+      const res = await fetch('/api/scheduler/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamNames, rotationOffset, tabId }),
@@ -212,20 +212,20 @@ export function useUpdatePodConfig() {
       return res.json() as Promise<ConfigResponse>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: podTrackerKeys.config() });
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.config() });
     },
   });
 }
 
-export function usePodTrackerActivity() {
+export function useSchedulerActivity() {
   const { user } = useUser();
 
   return useInfiniteQuery<ActivityLogPage>({
-    queryKey: podTrackerKeys.activity(),
+    queryKey: schedulerKeys.activity(),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30' });
       if (pageParam) params.set('cursor', pageParam as string);
-      const res = await fetch(`/api/pod-tracker/activity?${params}`);
+      const res = await fetch(`/api/scheduler/activity?${params}`);
       if (!res.ok) throw new Error('Failed to fetch activity log');
       return res.json();
     },

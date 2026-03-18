@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { broadcastToPodTracker } from '@/lib/ably-server';
+import { broadcastToScheduler } from '@/lib/ably-server';
 
-// PATCH /api/pod-tracker/[id] — update a task
+// PATCH /api/scheduler/[id] — update a task
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -34,7 +34,7 @@ export async function PATCH(
   const body = await request.json();
   const { taskName, taskType, status, startTime, endTime, notes, tabId } = body;
 
-  const task = await prisma.podTrackerTask.update({
+  const task = await prisma.schedulerTask.update({
     where: { id, organizationId: orgId },
     data: {
       ...(taskName !== undefined && { taskName }),
@@ -61,7 +61,7 @@ export async function PATCH(
   });
 
   // Broadcast real-time update
-  await broadcastToPodTracker(orgId, {
+  await broadcastToScheduler(orgId, {
     type: 'task.updated',
     taskId: task.id,
     dayOfWeek: task.dayOfWeek,
@@ -72,7 +72,7 @@ export async function PATCH(
   return NextResponse.json(task);
 }
 
-// DELETE /api/pod-tracker/[id]
+// DELETE /api/scheduler/[id]
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -102,11 +102,11 @@ export async function DELETE(
 
   const body = await request.json().catch(() => ({}));
 
-  const task = await prisma.podTrackerTask.delete({
+  const task = await prisma.schedulerTask.delete({
     where: { id, organizationId: orgId },
   });
 
-  await broadcastToPodTracker(orgId, {
+  await broadcastToScheduler(orgId, {
     type: 'task.deleted',
     taskId: id,
     tabId: body.tabId || '__server__',

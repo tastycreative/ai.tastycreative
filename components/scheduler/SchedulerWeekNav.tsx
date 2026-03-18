@@ -2,21 +2,35 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getWeekStart, formatDateKey } from '@/lib/pod-tracker/rotation';
-import { getCountdownToReset } from '@/lib/pod-tracker/time-helpers';
+import { getWeekStart, formatDateKey } from '@/lib/scheduler/rotation';
+import { getCountdownToReset } from '@/lib/scheduler/time-helpers';
 import { getTimezoneAbbreviation } from '@/lib/timezone-utils';
 
-interface TrackerWeekNavProps {
+interface SchedulerWeekNavProps {
   weekStart: string;
+  /** Scheduler "today" key — advances at 5 PM LA, not midnight */
   todayKey: string;
   onWeekChange: (weekStart: string) => void;
 }
 
-export function TrackerWeekNav({ weekStart, todayKey, onWeekChange }: TrackerWeekNavProps) {
+export function SchedulerWeekNav({ weekStart, todayKey, onWeekChange }: SchedulerWeekNavProps) {
   const [countdown, setCountdown] = React.useState('');
+  const [utcTime, setUtcTime] = React.useState('');
 
   React.useEffect(() => {
-    const update = () => setCountdown(getCountdownToReset());
+    const update = () => {
+      setCountdown(getCountdownToReset());
+      const now = new Date();
+      setUtcTime(
+        now.toLocaleString('en-US', {
+          timeZone: 'UTC',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        }) + ' UTC'
+      );
+    };
     update();
     const interval = setInterval(update, 1_000);
     return () => clearInterval(interval);
@@ -82,15 +96,22 @@ export function TrackerWeekNav({ weekStart, todayKey, onWeekChange }: TrackerWee
         )}
       </div>
 
-      {/* Reset countdown */}
-      {countdown && (
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse bg-brand-mid-pink dark:bg-[#f472b6]" />
+      {/* Clocks & Reset countdown */}
+      <div className="flex items-center gap-3">
+        {utcTime && (
           <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
-            resets in {countdown} (5 PM {getTimezoneAbbreviation('America/Los_Angeles', new Date())})
+            {utcTime}
           </span>
-        </div>
-      )}
+        )}
+        {countdown && (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse bg-brand-mid-pink dark:bg-[#f472b6]" />
+            <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
+              resets in {countdown} (5 PM {getTimezoneAbbreviation('America/Los_Angeles', new Date())})
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

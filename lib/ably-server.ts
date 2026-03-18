@@ -6,8 +6,8 @@ export const queueChannel = (orgId: string) => `caption-queue:org:${orgId}`;
 /** Board real-time channel — matches what useBoardRealtime subscribes to. */
 export const boardChannel = (boardId: string) => `board:${boardId}`;
 
-/** POD Tracker real-time channel per org. */
-export const podTrackerChannel = (orgId: string) => `pod-tracker:org:${orgId}`;
+/** Scheduler real-time channel per org. */
+export const schedulerChannel = (orgId: string) => `scheduler:org:${orgId}`;
 
 /**
  * Per-user generation channel.
@@ -60,17 +60,17 @@ export async function broadcastToBoard(
 }
 
 /**
- * Publish a POD Tracker event so usePodTrackerRealtime invalidates caches.
+ * Publish a Scheduler event so useSchedulerRealtime invalidates caches.
  */
-export async function broadcastToPodTracker(
+export async function broadcastToScheduler(
   orgId: string,
   event: { type: string; [key: string]: unknown },
 ): Promise<void> {
   try {
-    const channel = getAblyRest().channels.get(podTrackerChannel(orgId));
+    const channel = getAblyRest().channels.get(schedulerChannel(orgId));
     await channel.publish(event.type, event);
   } catch (err) {
-    console.error('[Ably] Failed to publish pod-tracker event:', err);
+    console.error('[Ably] Failed to publish scheduler event:', err);
   }
 }
 

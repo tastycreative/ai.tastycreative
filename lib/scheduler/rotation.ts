@@ -1,12 +1,14 @@
 /**
- * POD Tracker rotation algorithm.
+ * Scheduler rotation algorithm.
  * Each day maps to one slot: Sun=1A, Mon=1B, ..., Sat=1G.
- * Teams are assigned relative to TODAY:
- *   teamNames[0] ("Running Queue") = today
- *   teamNames[1] ("Upcoming Day")  = tomorrow
- *   teamNames[2]                   = day after tomorrow
+ * Teams are assigned relative to the "scheduler day" which resets at 5 PM LA.
+ * After 5 PM LA, the scheduler day advances to the next calendar day.
+ *
+ *   teamNames[0] ("Running Queue") = current scheduler day
+ *   teamNames[1] ("Upcoming Day")  = next day
+ *   teamNames[2]                   = day after that
  *   ...
- *   teamNames[6] ("Not Running")   = yesterday
+ *   teamNames[6] ("Not Running")   = previous day
  */
 
 const MS_PER_DAY = 86_400_000;
@@ -69,6 +71,44 @@ export function getTeamForDay(
   const diffDays = Math.round((target.getTime() - today.getTime()) / MS_PER_DAY);
   const index = (((diffDays + offset) % teamNames.length) + teamNames.length) % teamNames.length;
   return teamNames[index];
+}
+
+/**
+ * Get the "scheduler today" key (YYYY-MM-DD) based on the 5 PM LA reset.
+ * Before 5 PM LA → returns today's date in LA.
+ * After 5 PM LA  → returns tomorrow's date in LA (the rotation has advanced).
+ */
+export function getSchedulerTodayKey(): string {
+  const now = new Date();
+  // Get current LA time components
+  const laFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = laFormatter.formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
+  const hour = parseInt(get('hour'));
+
+  // Get today's date in LA as YYYY-MM-DD
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayLA = dateFormatter.format(now);
+
+  if (hour >= 17) {
+    // Past 5 PM LA — scheduler day is tomorrow
+    const tomorrow = new Date(now.getTime() + MS_PER_DAY);
+    return dateFormatter.format(tomorrow);
+  }
+
+  return todayLA;
 }
 
 /**

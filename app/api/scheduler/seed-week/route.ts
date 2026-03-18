@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { broadcastToPodTracker } from '@/lib/ably-server';
-import { getSlotForDay } from '@/lib/pod-tracker/rotation';
+import { broadcastToScheduler } from '@/lib/ably-server';
+import { getSlotForDay } from '@/lib/scheduler/rotation';
 
-// POST /api/pod-tracker/seed-week — auto-generate 7 task slots (one per day)
+// POST /api/scheduler/seed-week — auto-generate 7 task slots (one per day)
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const weekStartDate = new Date(weekStart);
 
   // Check if tasks already exist for this week
-  const existing = await prisma.podTrackerTask.count({
+  const existing = await prisma.schedulerTask.count({
     where: { organizationId: orgId, weekStartDate },
   });
 
@@ -57,9 +57,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const result = await prisma.podTrackerTask.createMany({ data });
+  const result = await prisma.schedulerTask.createMany({ data });
 
-  await broadcastToPodTracker(orgId, {
+  await broadcastToScheduler(orgId, {
     type: 'tasks.seeded',
     weekStart,
     count: result.count,

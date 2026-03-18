@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET /api/pod-tracker/activity?limit=30&cursor=xxx
+// GET /api/scheduler?weekStart=2024-01-01
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
@@ -18,25 +18,26 @@ export async function GET(request: NextRequest) {
   }
 
   const orgId = user.currentOrganizationId;
-  const limit = parseInt(request.nextUrl.searchParams.get('limit') || '30', 10);
-  const cursor = request.nextUrl.searchParams.get('cursor');
 
-  const logs = await prisma.trackerActivityLog.findMany({
+  const member = await prisma.teamMember.findUnique({
+    where: { userId_organizationId: { userId: user.id, organizationId: orgId } },
+  });
+  if (!member) {
+    return NextResponse.json({ error: 'Not a member' }, { status: 403 });
+  }
+
+  const weekStart = request.nextUrl.searchParams.get('weekStart');
+  if (!weekStart) {
+    return NextResponse.json({ error: 'weekStart param required' }, { status: 400 });
+  }
+
+  const tasks = await prisma.schedulerTask.findMany({
     where: {
       organizationId: orgId,
-      entityType: 'pod-task',
+      weekStartDate: new Date(weekStart),
     },
-    orderBy: { createdAt: 'desc' },
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    include: {
-      user: { select: { name: true, imageUrl: true } },
-    },
+    orderBy: [{ dayOfWeek: 'asc' }, { slotLabel: 'asc' }],
   });
 
-  const hasMore = logs.length > limit;
-  const items = hasMore ? logs.slice(0, limit) : logs;
-  const nextCursor = hasMore ? items[items.length - 1].id : null;
-
-  return NextResponse.json({ items, nextCursor });
+  return NextResponse.json({ tasks });
 }

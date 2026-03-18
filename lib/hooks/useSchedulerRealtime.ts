@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Ably from 'ably';
-import { podTrackerKeys } from './usePodTracker.query';
+import { schedulerKeys } from './useScheduler.query';
 import { setConnectionState } from './useConnectionStatus';
 
 // Unique ID per browser tab — skip events published by this tab
@@ -37,10 +37,10 @@ function getAblyClient(): Ably.Realtime {
 }
 
 /**
- * Subscribe to real-time POD Tracker events for an organization.
+ * Subscribe to real-time Scheduler events for an organization.
  * Invalidates TanStack Query caches when remote changes arrive.
  */
-export function usePodTrackerRealtime(orgId: string | undefined) {
+export function useSchedulerRealtime(orgId: string | undefined) {
   const queryClient = useQueryClient();
   const channelRef = useRef<Ably.RealtimeChannel | null>(null);
 
@@ -48,7 +48,7 @@ export function usePodTrackerRealtime(orgId: string | undefined) {
     if (!orgId) return;
 
     const client = getAblyClient();
-    const channel = client.channels.get(`pod-tracker:org:${orgId}`);
+    const channel = client.channels.get(`scheduler:org:${orgId}`);
     channelRef.current = channel;
 
     const listener = (message: Ably.Message) => {
@@ -58,11 +58,11 @@ export function usePodTrackerRealtime(orgId: string | undefined) {
       const eventName = message.name ?? '';
 
       if (eventName === 'task.updated' || eventName === 'task.deleted' || eventName === 'tasks.seeded') {
-        queryClient.invalidateQueries({ queryKey: podTrackerKeys.all });
+        queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
       }
 
       if (eventName === 'config.updated') {
-        queryClient.invalidateQueries({ queryKey: podTrackerKeys.config() });
+        queryClient.invalidateQueries({ queryKey: schedulerKeys.config() });
       }
     };
 
@@ -73,7 +73,7 @@ export function usePodTrackerRealtime(orgId: string | undefined) {
       if (channel.state !== 'attached') {
         channel.attach().catch(() => {});
       }
-      queryClient.invalidateQueries({ queryKey: podTrackerKeys.all });
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     };
     client.connection.on('connected', onConnected);
 

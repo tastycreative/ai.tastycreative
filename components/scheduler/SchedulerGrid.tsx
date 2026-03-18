@@ -1,48 +1,59 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Settings, History, Loader2, Plus } from 'lucide-react';
 import {
-  usePodTrackerWeek,
-  usePodTrackerConfig,
+  useSchedulerWeek,
+  useSchedulerConfig,
   useUpdatePodTask,
   useSeedPodWeek,
-  PodTrackerTask,
-} from '@/lib/hooks/usePodTracker.query';
-import { usePodTrackerRealtime, tabId } from '@/lib/hooks/usePodTrackerRealtime';
+  SchedulerTask,
+} from '@/lib/hooks/useScheduler.query';
+import { useSchedulerRealtime, tabId } from '@/lib/hooks/useSchedulerRealtime';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';
-import { getTodayKeyInTimezone } from '@/lib/timezone-utils';
 import {
   getWeekStart,
   getWeekDays,
   getTeamForDay,
   formatDateKey,
-} from '@/lib/pod-tracker/rotation';
-import { TrackerDayColumn } from './TrackerDayColumn';
-import { TrackerWeekNav } from './TrackerWeekNav';
-import { TrackerPresenceBar } from './TrackerPresenceBar';
-import { TrackerConfigModal } from './TrackerConfigModal';
-import { TrackerActivityLog } from './TrackerActivityLog';
+  getSchedulerTodayKey,
+} from '@/lib/scheduler/rotation';
+import { SchedulerDayColumn } from './SchedulerDayColumn';
+import { SchedulerWeekNav } from './SchedulerWeekNav';
+import { SchedulerPresenceBar } from './SchedulerPresenceBar';
+import { SchedulerConfigModal } from './SchedulerConfigModal';
+import { SchedulerActivityLog } from './SchedulerActivityLog';
 
-export function TrackerGrid() {
+export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
-  const todayKey = useMemo(() => getTodayKeyInTimezone(LA_TZ), []);
+
+  // Scheduler "today" advances at 5 PM LA, not midnight.
+  // Re-check every 30s so rotation auto-updates when reset happens.
+  const [schedulerToday, setSchedulerToday] = useState(() => getSchedulerTodayKey());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newToday = getSchedulerTodayKey();
+      setSchedulerToday((prev) => (prev !== newToday ? newToday : prev));
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [weekStart, setWeekStart] = useState(() => {
-    const today = new Date(todayKey + 'T00:00:00Z');
+    const today = new Date(schedulerToday + 'T00:00:00Z');
     return formatDateKey(getWeekStart(today));
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
 
   // Real-time subscription
-  usePodTrackerRealtime(orgId);
+  useSchedulerRealtime(orgId);
 
   // Data
-  const { data: weekData, isLoading: weekLoading } = usePodTrackerWeek(weekStart);
-  const { data: configData, isLoading: configLoading } = usePodTrackerConfig();
+  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart);
+  const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
   const config = configData?.config ?? null;
   const tasks = weekData?.tasks ?? [];
@@ -59,11 +70,9 @@ export function TrackerGrid() {
     [weekStart],
   );
 
-  const todayStr = todayKey;
-
   // Map tasks by dayOfWeek — each day has one task
   const taskByDay = useMemo(() => {
-    const map = new Map<number, PodTrackerTask>();
+    const map = new Map<number, SchedulerTask>();
     for (const t of tasks) {
       map.set(t.dayOfWeek, t);
     }
@@ -71,7 +80,7 @@ export function TrackerGrid() {
   }, [tasks]);
 
   const handleUpdate = useCallback(
-    (id: string, data: Partial<PodTrackerTask>) => {
+    (id: string, data: Partial<SchedulerTask>) => {
       updateTask.mutate({ id, ...data, tabId });
     },
     [updateTask],
@@ -90,11 +99,8 @@ export function TrackerGrid() {
       <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-3 bg-white border-gray-200 dark:bg-[#090912] dark:border-[#111122]">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-extrabold tracking-tight font-sans text-brand-dark-pink dark:text-[#ff9a6c]">
-              POD
-            </span>
-            <span className="text-sm font-extrabold tracking-tight font-sans text-gray-900 dark:text-zinc-300">
-              Tracker
+            <span className="text-sm font-extrabold tracking-tight font-sans text-brand-dark-pink dark:text-brand-light-pink">
+              Scheduler
             </span>
           </div>
           <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
@@ -104,7 +110,7 @@ export function TrackerGrid() {
         </div>
 
         <div className="flex items-center gap-2">
-          <TrackerPresenceBar orgId={orgId} />
+          <SchedulerPresenceBar orgId={orgId} />
 
           {/* Seed button */}
           {!isLoading && tasks.length === 0 && teamNames.length > 0 && (
@@ -147,7 +153,7 @@ export function TrackerGrid() {
       </div>
 
       {/* Week nav */}
-      <TrackerWeekNav weekStart={weekStart} todayKey={todayKey} onWeekChange={setWeekStart} />
+      <SchedulerWeekNav weekStart={weekStart} todayKey={schedulerToday} onWeekChange={setWeekStart} />
 
       {/* Grid */}
       {isLoading ? (
@@ -161,18 +167,18 @@ export function TrackerGrid() {
         >
           {weekDays.map((date, dayIndex) => {
             const task = taskByDay.get(dayIndex);
-            const team = getTeamForDay(date, teamNames, todayKey, rotationOffset);
+            const team = getTeamForDay(date, teamNames, schedulerToday, rotationOffset);
             const dateStr = formatDateKey(date);
 
             return (
-              <TrackerDayColumn
+              <SchedulerDayColumn
                 key={dayIndex}
                 dayIndex={dayIndex}
                 date={date}
                 task={task}
                 team={team}
                 onUpdate={handleUpdate}
-                isToday={dateStr === todayStr}
+                isToday={dateStr === schedulerToday}
                 timeZone={LA_TZ}
               />
             );
@@ -181,12 +187,12 @@ export function TrackerGrid() {
       )}
 
       {/* Modals / Panels */}
-      <TrackerConfigModal
+      <SchedulerConfigModal
         config={config}
         open={showConfig || showSetup}
         onClose={() => setShowConfig(false)}
       />
-      <TrackerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
+      <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
     </div>
   );
 }

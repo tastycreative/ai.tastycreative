@@ -40,8 +40,8 @@ export function getRequiredPermission(pathname: string): keyof Permissions | nul
     return 'hasSpacesTab';
   }
 
-  // ── POD Tracker ──────────────────────────────────────────────────────────
-  if (route.startsWith('/pod-tracker')) {
+  // ── Scheduler ──────────────────────────────────────────────────────────
+  if (route.startsWith('/scheduler')) {
     return 'hasSchedulersTab';
   }
 

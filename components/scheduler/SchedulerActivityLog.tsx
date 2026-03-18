@@ -3,16 +3,16 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
-import { usePodTrackerActivity } from '@/lib/hooks/usePodTracker.query';
+import { useSchedulerActivity } from '@/lib/hooks/useScheduler.query';
 
-interface TrackerActivityLogProps {
+interface SchedulerActivityLogProps {
   open: boolean;
   onClose: () => void;
 }
 
-export function TrackerActivityLog({ open, onClose }: TrackerActivityLogProps) {
+export function SchedulerActivityLog({ open, onClose }: SchedulerActivityLogProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    usePodTrackerActivity();
+    useSchedulerActivity();
 
   if (!open) return null;
 

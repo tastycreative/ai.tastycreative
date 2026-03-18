@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { broadcastToPodTracker } from '@/lib/ably-server';
+import { broadcastToScheduler } from '@/lib/ably-server';
 
-// GET /api/pod-tracker/config
+// GET /api/scheduler/config
 export async function GET() {
   const { userId } = await auth();
   if (!userId) {
@@ -18,14 +18,14 @@ export async function GET() {
     return NextResponse.json({ error: 'No organization selected' }, { status: 400 });
   }
 
-  const config = await prisma.podTrackerConfig.findUnique({
+  const config = await prisma.schedulerConfig.findUnique({
     where: { organizationId: user.currentOrganizationId },
   });
 
   return NextResponse.json({ config });
 }
 
-// PUT /api/pod-tracker/config
+// PUT /api/scheduler/config
 export async function PUT(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const { teamNames, rotationOffset, tabId } = body;
 
-  const config = await prisma.podTrackerConfig.upsert({
+  const config = await prisma.schedulerConfig.upsert({
     where: { organizationId: orgId },
     create: {
       organizationId: orgId,
@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest) {
     },
   });
 
-  await broadcastToPodTracker(orgId, {
+  await broadcastToScheduler(orgId, {
     type: 'config.updated',
     tabId: tabId || '__server__',
   });
