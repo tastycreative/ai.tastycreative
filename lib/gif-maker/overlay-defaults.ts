@@ -70,6 +70,21 @@ export function createDefaultBlurOverlay(
   };
 }
 
+export function createDefaultPaintBlurOverlay(
+  partial: Partial<BlurOverlay> & { trackId: string }
+): BlurOverlay {
+  return createDefaultBlurOverlay({
+    ...partial,
+    shape: "paint",
+    brushSize: 3,
+    paintPath: [],
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  });
+}
+
 export function createDefaultStickerOverlay(
   partial: Partial<StickerOverlay> & { trackId: string }
 ): StickerOverlay {

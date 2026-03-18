@@ -11,8 +11,14 @@ import type {
   ExportState,
   TransitionType,
   PlatformPreset,
+  GifExportSettings,
 } from "@/lib/gif-maker/types";
-import { PLATFORM_DIMENSIONS, COLLAGE_PRESETS } from "@/lib/gif-maker/types";
+import {
+  PLATFORM_DIMENSIONS,
+  COLLAGE_PRESETS,
+  DEFAULT_GIF_EXPORT_SETTINGS,
+  GIF_QUALITY_PRESETS,
+} from "@/lib/gif-maker/types";
 import {
   computeClipStartFrames,
   computeTotalDuration,
@@ -40,6 +46,16 @@ interface VideoEditorState {
 
   // Export
   exportState: ExportState;
+  gifExportSettings: GifExportSettings;
+  updateGifExportSettings: (updates: Partial<GifExportSettings>) => void;
+  setGifQualityPreset: (quality: "high" | "medium" | "low") => void;
+
+  // Crop
+  cropRect: { x: number; y: number; width: number; height: number } | null;
+  setCropRect: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  isCropping: boolean;
+  setIsCropping: (cropping: boolean) => void;
+  applyCrop: () => void;
 
   // Workspace mode (GIF Maker Workspace)
   workspaceMode: boolean;
@@ -163,6 +179,53 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
   selectedOverlayId: null,
   settings: DEFAULT_SETTINGS,
   exportState: DEFAULT_EXPORT_STATE,
+  gifExportSettings: { ...DEFAULT_GIF_EXPORT_SETTINGS },
+
+  // Crop defaults
+  cropRect: null,
+  isCropping: false,
+  setCropRect: (rect) => set({ cropRect: rect }),
+  setIsCropping: (cropping) =>
+    set({ isCropping: cropping, cropRect: cropping ? { x: 10, y: 10, width: 80, height: 80 } : null }),
+  applyCrop: () => {
+    const state = get();
+    if (!state.cropRect) {
+      set({ isCropping: false });
+      return;
+    }
+    const { x, y, width: cw, height: ch } = state.cropRect;
+    const newWidth = Math.max(1, Math.round((cw / 100) * state.settings.width));
+    const newHeight = Math.max(1, Math.round((ch / 100) * state.settings.height));
+
+    // Calculate zoom and offset so clips show only the cropped region.
+    // Scale = original size / crop size (e.g. cropping to 80% means 1.25x zoom)
+    const scaleX = state.settings.width / newWidth;
+    const scaleY = state.settings.height / newHeight;
+    const scale = Math.max(scaleX, scaleY);
+
+    // Offset: move content so the crop region's top-left aligns with viewport origin.
+    // x/y are percentages of original canvas, convert to zoom-offset percentages.
+    const offsetX = -(x / cw) * 50;
+    const offsetY = -(y / ch) * 50;
+
+    // Apply zoom/offset to all clips so the cropped area is what's visible
+    const updatedClips = state.clips.map((clip) => ({
+      ...clip,
+      zoom: { scale, x: offsetX, y: offsetY },
+    })) as typeof state.clips;
+
+    set({
+      settings: {
+        ...state.settings,
+        width: newWidth,
+        height: newHeight,
+        platform: "custom" as PlatformPreset,
+      },
+      clips: updatedClips,
+      cropRect: null,
+      isCropping: false,
+    });
+  },
 
   // Workspace mode defaults
   workspaceMode: false,
@@ -428,6 +491,23 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
       exportState: { ...state.exportState, ...updates },
     }));
   },
+
+  updateGifExportSettings: (updates) =>
+    set((state) => ({
+      gifExportSettings: {
+        ...state.gifExportSettings,
+        ...updates,
+        quality: "custom" as const,
+      },
+    })),
+
+  setGifQualityPreset: (quality) =>
+    set(() => ({
+      gifExportSettings: {
+        ...GIF_QUALITY_PRESETS[quality],
+        quality,
+      },
+    })),
 
   // ─── Timeline Recalculation ────────
 

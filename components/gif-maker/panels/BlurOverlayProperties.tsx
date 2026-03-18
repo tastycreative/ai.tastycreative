@@ -14,6 +14,7 @@ const BLUR_SHAPE_OPTIONS: { value: BlurShape; label: string }[] = [
   { value: "rectangle", label: "Rectangle" },
   { value: "ellipse", label: "Ellipse" },
   { value: "rounded-rect", label: "Rounded Rect" },
+  { value: "paint", label: "Paint" },
 ];
 
 const inputClass =
@@ -65,11 +66,11 @@ export function BlurOverlayProperties({ overlay }: BlurOverlayPropertiesProps) {
       {/* Shape */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Shape</label>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           {BLUR_SHAPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => update({ shape: opt.value })}
+              onClick={() => update({ shape: opt.value, ...(opt.value === "paint" ? { x: 0, y: 0, width: 100, height: 100, paintPath: overlay.paintPath ?? [] } : {}) })}
               className={`flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-lg transition-all duration-150 ${
                 overlay.shape === opt.value
                   ? "bg-indigo-500 text-white"
@@ -82,6 +83,61 @@ export function BlurOverlayProperties({ overlay }: BlurOverlayPropertiesProps) {
           ))}
         </div>
       </div>
+
+      {/* Brush Size (paint only) */}
+      {overlay.shape === "paint" && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-400">Brush Size: {overlay.brushSize ?? 3}%</label>
+          <input
+            type="range"
+            min={1}
+            max={15}
+            step={0.5}
+            value={overlay.brushSize ?? 3}
+            onChange={(e) => update({ brushSize: Number(e.target.value) })}
+            className="w-full h-1.5 pro-slider"
+          />
+        </div>
+      )}
+
+      {/* Draw / Move toggle (paint only) */}
+      {overlay.shape === "paint" && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-400">Tool</label>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => update({ paintMode: "draw" })}
+              className={`flex-1 h-8 rounded-lg text-xs font-medium transition-all ${
+                (overlay.paintMode ?? "draw") === "draw"
+                  ? "bg-indigo-500 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-slate-100"
+              }`}
+            >
+              ✏️ Draw
+            </button>
+            <button
+              onClick={() => update({ paintMode: "move" })}
+              className={`flex-1 h-8 rounded-lg text-xs font-medium transition-all ${
+                overlay.paintMode === "move"
+                  ? "bg-indigo-500 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-slate-100"
+              }`}
+            >
+              ✋ Move
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Paint */}
+      {overlay.shape === "paint" && overlay.paintPath && overlay.paintPath.length > 0 && (
+        <button
+          onClick={() => update({ paintPath: [] })}
+          className="w-full h-8 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+        >
+          Clear Paint ({overlay.paintPath.length} points)
+        </button>
+      )}
 
       {/* Intensity (not for solid) */}
       {overlay.blurMode !== "solid" && (
@@ -111,31 +167,35 @@ export function BlurOverlayProperties({ overlay }: BlurOverlayPropertiesProps) {
         </div>
       )}
 
-      {/* Rotation */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-slate-400">Rotation: {overlay.rotation}°</label>
-        <input
-          type="range"
-          min={-180}
-          max={180}
-          value={overlay.rotation}
-          onChange={(e) => update({ rotation: Number(e.target.value) })}
-          className="w-full h-1.5 pro-slider"
-        />
-      </div>
+      {/* Rotation (not for paint) */}
+      {overlay.shape !== "paint" && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-400">Rotation: {overlay.rotation}°</label>
+          <input
+            type="range"
+            min={-180}
+            max={180}
+            value={overlay.rotation}
+            onChange={(e) => update({ rotation: Number(e.target.value) })}
+            className="w-full h-1.5 pro-slider"
+          />
+        </div>
+      )}
 
-      {/* Feather */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-slate-400">Feather (soft edge): {overlay.feather}%</label>
-        <input
-          type="range"
-          min={0}
-          max={50}
-          value={overlay.feather}
-          onChange={(e) => update({ feather: Number(e.target.value) })}
-          className="w-full h-1.5 pro-slider"
-        />
-      </div>
+      {/* Feather (not for paint) */}
+      {overlay.shape !== "paint" && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-400">Feather (soft edge): {overlay.feather}%</label>
+          <input
+            type="range"
+            min={0}
+            max={50}
+            value={overlay.feather}
+            onChange={(e) => update({ feather: Number(e.target.value) })}
+            className="w-full h-1.5 pro-slider"
+          />
+        </div>
+      )}
 
       {/* Border Radius (rounded-rect only) */}
       {overlay.shape === "rounded-rect" && (
@@ -154,58 +214,60 @@ export function BlurOverlayProperties({ overlay }: BlurOverlayPropertiesProps) {
         </div>
       )}
 
-      {/* Position & Size */}
-      <div className="space-y-2.5 pt-3 border-t border-[#2d3142]">
-        <h5 className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-          Position & Size
-        </h5>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500">X (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={overlay.x}
-              onChange={(e) => update({ x: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500">Y (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={overlay.y}
-              onChange={(e) => update({ y: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500">Width (%)</label>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={overlay.width}
-              onChange={(e) => update({ width: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500">Height (%)</label>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={overlay.height}
-              onChange={(e) => update({ height: Number(e.target.value) })}
-              className={inputClass}
-            />
+      {/* Position & Size (not for paint — paint uses full canvas) */}
+      {overlay.shape !== "paint" && (
+        <div className="space-y-2.5 pt-3 border-t border-[#2d3142]">
+          <h5 className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            Position & Size
+          </h5>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500">X (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={overlay.x}
+                onChange={(e) => update({ x: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500">Y (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={overlay.y}
+                onChange={(e) => update({ y: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500">Width (%)</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={overlay.width}
+                onChange={(e) => update({ width: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500">Height (%)</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={overlay.height}
+                onChange={(e) => update({ height: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Timing */}
       <div className="space-y-2.5 pt-3 border-t border-[#2d3142]">
@@ -267,6 +329,13 @@ function ShapeIcon({ shape, active }: { shape: BlurShape; active: boolean }) {
       return (
         <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
           <rect x="1" y="2" width="12" height="10" rx="4" stroke={color} strokeWidth="1.5" />
+        </svg>
+      );
+    case "paint":
+      return (
+        <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+          <path d="M3 11 L6 4 L8 6 L11 3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="3" cy="11" r="1.5" fill={color} />
         </svg>
       );
   }

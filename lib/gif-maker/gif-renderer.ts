@@ -9,6 +9,8 @@ export interface GifRenderOptions {
   fps: number;
   quality?: number; // 1-30, lower is better quality
   workerScript?: string;
+  colorCount?: number; // max colors (default 256)
+  dithering?: boolean; // apply dithering (default true)
 }
 
 export interface GifRenderProgress {
@@ -18,22 +20,181 @@ export interface GifRenderProgress {
   totalFrames?: number;
 }
 
+// ─── Optimization Utilities ───────────────────────────────────────
+
+/**
+ * Resize canvas frames to target dimensions
+ */
+function resizeFrames(
+  frames: HTMLCanvasElement[],
+  targetWidth: number,
+  targetHeight: number
+): HTMLCanvasElement[] {
+  if (frames.length === 0) return frames;
+  if (frames[0].width === targetWidth && frames[0].height === targetHeight) return frames;
+
+  return frames.map((frame) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      console.warn("resizeFrames: Failed to get 2d context — returning original frame");
+      return frame;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
+    return canvas;
+  });
+}
+
+/**
+ * Reduce color count in frames by posterizing via canvas operations.
+ * Uses Floyd-Steinberg dithering with a float buffer to avoid Uint8ClampedArray
+ * clamping artifacts during error diffusion.
+ */
+function quantizeFrameColors(
+  frames: HTMLCanvasElement[],
+  colorCount: number,
+  dithering: boolean
+): HTMLCanvasElement[] {
+  if (colorCount >= 256) return frames;
+
+  const levels = Math.max(2, Math.round(Math.pow(colorCount, 1 / 3)));
+  const step = 255 / (levels - 1);
+
+  return frames.map((frame) => {
+    const ctx = frame.getContext("2d");
+    if (!ctx) {
+      console.warn("quantizeFrameColors: Failed to get 2d context — returning unquantized frame");
+      return frame;
+    }
+
+    const imageData = ctx.getImageData(0, 0, frame.width, frame.height);
+    const data = imageData.data;
+    const w = frame.width;
+    const len = data.length;
+
+    if (dithering) {
+      // Use float buffer for accurate error diffusion
+      const buf = new Float32Array(len);
+      for (let i = 0; i < len; i++) buf[i] = data[i];
+
+      for (let i = 0; i < len; i += 4) {
+        if (buf[i + 3] === 0) continue;
+
+        const oldR = buf[i];
+        const oldG = buf[i + 1];
+        const oldB = buf[i + 2];
+
+        const newR = Math.round(Math.round(oldR / step) * step);
+        const newG = Math.round(Math.round(oldG / step) * step);
+        const newB = Math.round(Math.round(oldB / step) * step);
+
+        buf[i] = newR;
+        buf[i + 1] = newG;
+        buf[i + 2] = newB;
+
+        const errR = oldR - newR;
+        const errG = oldG - newG;
+        const errB = oldB - newB;
+        const px = (i / 4) % w;
+
+        // Right
+        if (px < w - 1) {
+          buf[i + 4] += errR * 7 / 16;
+          buf[i + 5] += errG * 7 / 16;
+          buf[i + 6] += errB * 7 / 16;
+        }
+        // Below-left
+        if (px > 0 && i + w * 4 - 4 < len) {
+          const bi = i + w * 4 - 4;
+          buf[bi] += errR * 3 / 16;
+          buf[bi + 1] += errG * 3 / 16;
+          buf[bi + 2] += errB * 3 / 16;
+        }
+        // Below
+        if (i + w * 4 < len) {
+          const bi = i + w * 4;
+          buf[bi] += errR * 5 / 16;
+          buf[bi + 1] += errG * 5 / 16;
+          buf[bi + 2] += errB * 5 / 16;
+        }
+        // Below-right
+        if (px < w - 1 && i + w * 4 + 4 < len) {
+          const bi = i + w * 4 + 4;
+          buf[bi] += errR / 16;
+          buf[bi + 1] += errG / 16;
+          buf[bi + 2] += errB / 16;
+        }
+      }
+
+      // Write clamped results back
+      for (let i = 0; i < len; i++) {
+        data[i] = Math.max(0, Math.min(255, Math.round(buf[i])));
+      }
+    } else {
+      // Simple quantization without dithering
+      for (let i = 0; i < len; i += 4) {
+        if (data[i + 3] === 0) continue;
+        data[i] = Math.round(Math.round(data[i] / step) * step);
+        data[i + 1] = Math.round(Math.round(data[i + 1] / step) * step);
+        data[i + 2] = Math.round(Math.round(data[i + 2] / step) * step);
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return frame;
+  });
+}
+
+// ─── GIF Encoding ─────────────────────────────────────────────────
+
 /**
  * Render frames to GIF using gif.js (client-side)
+ * Includes optimization pipeline: resize → color quantization → encoding
  */
 export async function renderFramesToGif(
-  frames: ImageData[] | HTMLCanvasElement[],
+  inputFrames: ImageData[] | HTMLCanvasElement[],
   options: GifRenderOptions,
   onProgress?: (progress: GifRenderProgress) => void
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    // ── Optimization pipeline ──────────────────────────────
+    let frames: HTMLCanvasElement[] = inputFrames.map((frame) => {
+      if (frame instanceof HTMLCanvasElement) return frame;
+      const canvas = document.createElement("canvas");
+      canvas.width = options.width;
+      canvas.height = options.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        console.warn("renderFramesToGif: Failed to get 2d context for ImageData conversion");
+        return canvas;
+      }
+      ctx.putImageData(frame, 0, 0);
+      return canvas;
+    });
+
+    // 1. Resize if needed
+    frames = resizeFrames(frames, options.width, options.height);
+
+    // 2. Color quantization
+    if (options.colorCount && options.colorCount < 256) {
+      frames = quantizeFrameColors(frames, options.colorCount, options.dithering ?? true);
+    }
+
+    // ── Encoding ───────────────────────────────────────────
     const workerCount = Math.min(
       4,
       typeof navigator !== "undefined" ? (navigator.hardwareConcurrency || 2) : 2
     );
+
+    const quality = options.quality || 10;
+
     const gif = new GIF({
       workers: workerCount,
-      quality: options.quality || 10,
+      quality,
       width: options.width,
       height: options.height,
       workerScript: options.workerScript || "/gif.worker.js",
@@ -42,21 +203,8 @@ export async function renderFramesToGif(
     const frameDelay = Math.round(1000 / options.fps);
     const PROGRESS_BATCH = 5;
 
-    // Add frames
     frames.forEach((frame, index) => {
-      if (frame instanceof HTMLCanvasElement) {
-        gif.addFrame(frame, { delay: frameDelay, copy: true });
-      } else {
-        // ImageData - need to create canvas
-        const canvas = document.createElement("canvas");
-        canvas.width = options.width;
-        canvas.height = options.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.putImageData(frame, 0, 0);
-          gif.addFrame(canvas, { delay: frameDelay, copy: true });
-        }
-      }
+      gif.addFrame(frame, { delay: frameDelay, copy: true });
 
       const isLastFrame = index === frames.length - 1;
       if (onProgress && (index % PROGRESS_BATCH === 0 || isLastFrame)) {
@@ -77,17 +225,11 @@ export async function renderFramesToGif(
     });
 
     gif.on("finished", (blob: Blob) => {
-      onProgress?.({
-        phase: "complete",
-        progress: 100,
-      });
+      onProgress?.({ phase: "complete", progress: 100 });
       resolve(blob);
     });
 
-    gif.on("error", (error: Error) => {
-      reject(error);
-    });
-
+    gif.on("error", (error: Error) => reject(error));
     gif.render();
   });
 }
@@ -460,10 +602,12 @@ export interface BlurRegionDef {
   width: number; // percentage
   height: number; // percentage
   intensity: number; // blur pixels
-  shape: "rectangle" | "ellipse" | "rounded-rect";
+  shape: "rectangle" | "ellipse" | "rounded-rect" | "paint";
   borderRadius?: number;
   blurMode?: "gaussian" | "heavy" | "pixelate" | "solid";
   fillColor?: string;
+  paintPath?: { x: number; y: number }[]; // percentage points
+  brushSize?: number;                      // percentage radius
 }
 
 /**
@@ -570,7 +714,57 @@ export async function captureVideoWithBlur(
       let blurCanvas: HTMLCanvasElement | null = null;
       let blurCtx: CanvasRenderingContext2D | null = null;
 
-      if (!(region.blurMode === "solid" && region.fillColor) && rw > 0 && rh > 0) {
+      // Pre-allocate paint-specific reusable canvases
+      let paintMaskCanvas: HTMLCanvasElement | null = null;
+      let paintMaskCtx: CanvasRenderingContext2D | null = null;
+      let paintSmallCanvas: HTMLCanvasElement | null = null;
+      let paintSmallCtx: CanvasRenderingContext2D | null = null;
+      let paintBlurCanvas: HTMLCanvasElement | null = null;
+      let paintBlurCtx: CanvasRenderingContext2D | null = null;
+      let paintTempCanvas: HTMLCanvasElement | null = null;
+      let paintTempCtx: CanvasRenderingContext2D | null = null;
+
+      if (region.shape === "paint" && region.paintPath && region.paintPath.length > 0) {
+        // Paint regions use full-frame canvases — allocate once, reuse per frame
+        const brushR = ((region.brushSize ?? 3) / 100) * width;
+
+        paintMaskCanvas = document.createElement("canvas");
+        paintMaskCanvas.width = width;
+        paintMaskCanvas.height = height;
+        paintMaskCtx = paintMaskCanvas.getContext("2d");
+
+        // Pre-draw the static mask (paint path doesn't change per frame)
+        if (paintMaskCtx) {
+          paintMaskCtx.fillStyle = "white";
+          for (const pt of region.paintPath) {
+            paintMaskCtx.beginPath();
+            paintMaskCtx.arc((pt.x / 100) * width, (pt.y / 100) * height, brushR, 0, Math.PI * 2);
+            paintMaskCtx.fill();
+          }
+        }
+
+        const paintScale = Math.max(1, Math.min(intensity / 2, 10));
+        const pSmallW = Math.max(1, Math.floor(width / paintScale));
+        const pSmallH = Math.max(1, Math.floor(height / paintScale));
+
+        paintSmallCanvas = document.createElement("canvas");
+        paintSmallCanvas.width = pSmallW;
+        paintSmallCanvas.height = pSmallH;
+        paintSmallCtx = paintSmallCanvas.getContext("2d");
+
+        paintBlurCanvas = document.createElement("canvas");
+        paintBlurCanvas.width = width;
+        paintBlurCanvas.height = height;
+        paintBlurCtx = paintBlurCanvas.getContext("2d");
+        if (paintBlurCtx) {
+          paintBlurCtx.filter = `blur(${Math.max(2, intensity / 4)}px)`;
+        }
+
+        paintTempCanvas = document.createElement("canvas");
+        paintTempCanvas.width = width;
+        paintTempCanvas.height = height;
+        paintTempCtx = paintTempCanvas.getContext("2d");
+      } else if (!(region.blurMode === "solid" && region.fillColor) && rw > 0 && rh > 0) {
         smallCanvas = document.createElement("canvas");
         smallCanvas.width = smallW;
         smallCanvas.height = smallH;
@@ -588,24 +782,28 @@ export async function captureVideoWithBlur(
       return {
         ...region, rx, ry, rw, rh, intensity, scale, smallW, smallH,
         smallCanvas, smallCtx, blurCanvas, blurCtx,
+        paintMaskCanvas, paintMaskCtx, paintSmallCanvas, paintSmallCtx,
+        paintBlurCanvas, paintBlurCtx, paintTempCanvas, paintTempCtx,
       };
     });
 
-    // Pre-compute video aspect ratio (constant across all frames)
+    // Pre-compute video sizing using "cover" mode (fill canvas, crop excess)
     let drawWidth = width, drawHeight = height, drawX = 0, drawY = 0;
     if (videoToCapture.videoWidth > 0) {
       const videoAspect = videoToCapture.videoWidth / videoToCapture.videoHeight;
       const canvasAspect = width / height;
       if (videoAspect > canvasAspect) {
-        drawWidth = width;
-        drawHeight = width / videoAspect;
-        drawX = 0;
-        drawY = (height - drawHeight) / 2;
-      } else {
+        // Video is wider — match height, crop sides
         drawHeight = height;
         drawWidth = height * videoAspect;
         drawX = (width - drawWidth) / 2;
         drawY = 0;
+      } else {
+        // Video is taller — match width, crop top/bottom
+        drawWidth = width;
+        drawHeight = width / videoAspect;
+        drawX = 0;
+        drawY = (height - drawHeight) / 2;
       }
     }
 
@@ -657,6 +855,29 @@ export async function captureVideoWithBlur(
 
         // Skip invalid regions
         if (rw <= 0 || rh <= 0) continue;
+
+        // Paint blur: freehand mask-based blur using pre-allocated canvases
+        if (region.shape === "paint" && region.paintMaskCanvas && region.paintSmallCtx && region.paintBlurCtx && region.paintTempCtx) {
+          const { paintMaskCanvas, paintSmallCanvas, paintSmallCtx, paintBlurCanvas, paintBlurCtx, paintTempCanvas, paintTempCtx } = region;
+          if (!paintSmallCanvas || !paintBlurCanvas || !paintTempCanvas) continue;
+
+          // Downsample current frame for blur
+          paintSmallCtx.clearRect(0, 0, paintSmallCanvas.width, paintSmallCanvas.height);
+          paintSmallCtx.drawImage(canvas, 0, 0, paintSmallCanvas.width, paintSmallCanvas.height);
+
+          // Upsample with blur filter (filter already set during pre-allocation)
+          paintBlurCtx.clearRect(0, 0, width, height);
+          paintBlurCtx.drawImage(paintSmallCanvas, 0, 0, paintSmallCanvas.width, paintSmallCanvas.height, 0, 0, width, height);
+
+          // Composite: apply pre-drawn mask to blurred frame, then draw over original
+          paintTempCtx.globalCompositeOperation = "source-over";
+          paintTempCtx.clearRect(0, 0, width, height);
+          paintTempCtx.drawImage(paintBlurCanvas, 0, 0);
+          paintTempCtx.globalCompositeOperation = "destination-in";
+          paintTempCtx.drawImage(paintMaskCanvas, 0, 0);
+          ctx.drawImage(paintTempCanvas, 0, 0);
+          continue;
+        }
 
         if (region.blurMode === "solid" && region.fillColor) {
           // Solid fill

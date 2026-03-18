@@ -5,6 +5,7 @@ import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { useShallow } from "zustand/react/shallow";
 import { PreviewPlayer, type PreviewPlayerRef } from "./PreviewPlayer";
 import { CanvasOverlayLayer } from "./overlays/CanvasOverlayLayer";
+import { CropOverlay } from "./CropOverlay";
 import type { Clip, Transition, Overlay, CollageLayout } from "@/lib/gif-maker/types";
 
 interface EditorPreviewProps {
@@ -36,6 +37,7 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
     // Actions are stable Zustand references — select separately, no shallow needed
     const setCurrentFrame = useVideoEditorStore((s) => s.setCurrentFrame);
     const setPlaying = useVideoEditorStore((s) => s.setPlaying);
+    const isCropping = useVideoEditorStore((s) => s.isCropping);
 
     // Sync frame from Remotion Player → Zustand store
     const handleFrameUpdate = useCallback(
@@ -95,6 +97,8 @@ export const EditorPreview = forwardRef<PreviewPlayerRef, EditorPreviewProps>(
             <CanvasOverlayLayer containerWidth={cw} containerHeight={ch} />
           )}
         />
+
+        {isCropping && <CropOverlay />}
       </div>
     );
   }
