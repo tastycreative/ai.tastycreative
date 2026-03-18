@@ -24,6 +24,7 @@ import { TimelineTab } from './templates/summary';
 import { ResourcesTab } from './templates/ResourcesTab';
 import { CalendarTab } from './templates/CalendarTab';
 import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
+import { SubmissionFormModal } from '@/components/content-submission/SubmissionFormModal';
 
 interface SpaceBoardViewProps {
   slug: string;
@@ -90,6 +91,25 @@ function TemplateBoardView({ slug }: { slug: string }) {
   // Drag-to-scroll state
   const [isDragging, setIsDragging] = useState(false);
   const dragState = useRef({ startX: 0, scrollLeft: 0, hasMoved: false });
+
+  // Submission form modal state (for + button on OTP_PTR / WALL_POST / SEXTING_SETS boards)
+  const [submissionModal, setSubmissionModal] = useState<{
+    isOpen: boolean;
+    templateType: 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
+    spaceSlugs: string[];
+  }>({ isOpen: false, templateType: 'OTP_PTR', spaceSlugs: [] });
+
+  const handleOpenSubmissionModal = useCallback((templateType: string, spaceSlug: string) => {
+    setSubmissionModal({
+      isOpen: true,
+      templateType: templateType as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS',
+      spaceSlugs: [spaceSlug],
+    });
+  }, []);
+
+  const handleCloseSubmissionModal = useCallback(() => {
+    setSubmissionModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only grab-scroll on the board background / column headers, not on task cards (handled by dnd)
@@ -370,6 +390,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
                         onMoveToColumn={handleColumnChange}
                         lastColumnId={lastColId}
                         onUpdateTask={handleTaskUpdate}
+                        onOpenSubmissionModal={handleOpenSubmissionModal}
                       />
                     );
                   })}
@@ -399,6 +420,13 @@ function TemplateBoardView({ slug }: { slug: string }) {
           onUpdate={handleTaskUpdate}
         />
       )}
+
+      <SubmissionFormModal
+        isOpen={submissionModal.isOpen}
+        onClose={handleCloseSubmissionModal}
+        templateType={submissionModal.templateType}
+        spaceSlugs={submissionModal.spaceSlugs}
+      />
     </>
   );
 }

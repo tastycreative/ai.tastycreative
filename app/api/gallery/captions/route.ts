@@ -149,7 +149,6 @@ export async function GET(req: NextRequest) {
           postedAt: true,
           createdAt: true,
           profileId: true,
-          modelId: true,
           boardMetadata: true,
           previewUrl: true,
           profile: {

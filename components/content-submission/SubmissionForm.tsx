@@ -58,6 +58,12 @@ interface SubmissionFormProps {
   initialData?: Partial<FormData>;
   onSuccess?: (submissionId: string) => void;
   onCancel?: () => void;
+  /** Pre-select template type (bypasses URL params) */
+  defaultTemplateType?: 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
+  /** Pre-select spaces by slug (bypasses URL params) */
+  defaultSpaceSlugs?: string[];
+  /** Starting step index (0-based). Use to skip the Type & Spaces step. */
+  initialStep?: number;
 }
 
 export const SubmissionForm = memo(function SubmissionForm({
@@ -65,8 +71,11 @@ export const SubmissionForm = memo(function SubmissionForm({
   initialData,
   onSuccess,
   onCancel,
+  defaultTemplateType,
+  defaultSpaceSlugs,
+  initialStep = 0,
 }: SubmissionFormProps) {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -150,11 +159,13 @@ export const SubmissionForm = memo(function SubmissionForm({
     },
   });
 
-  // Auto-select template type and spaces from URL params (e.g. from board + click)
+  // Auto-select template type and spaces from props or URL params (e.g. from board + click)
   useEffect(() => {
     if (prefilledRef.current || !spacesData?.spaces) return;
-    const paramType = searchParams?.get('type') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null;
-    const paramSpaces = searchParams?.get('spaces'); // comma-separated slugs
+
+    // Props take precedence over URL params
+    const paramType = defaultTemplateType ?? searchParams?.get('type') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS' | null;
+    const paramSpaces = defaultSpaceSlugs?.join(',') ?? searchParams?.get('spaces'); // comma-separated slugs
 
     if (!paramType) return;
 
@@ -180,7 +191,7 @@ export const SubmissionForm = memo(function SubmissionForm({
 
       prefilledRef.current = true;
     }
-  }, [searchParams, spacesData, setValue]);
+  }, [searchParams, spacesData, setValue, defaultTemplateType, defaultSpaceSlugs]);
 
   const submissionType = watch('submissionType') as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS';
 
@@ -286,11 +297,11 @@ export const SubmissionForm = memo(function SubmissionForm({
   }, [currentStep, steps, submissionType, watch, pendingFiles, driveFiles]);
 
   const handlePrevious = useCallback(() => {
-    if (currentStep > 0) {
+    if (currentStep > initialStep) {
       setSubmitError(null);
       setCurrentStep((prev) => prev - 1);
     }
-  }, [currentStep]);
+  }, [currentStep, initialStep]);
 
   useKeyboardShortcut(
     { key: 'ArrowRight', ctrl: true },
@@ -301,7 +312,7 @@ export const SubmissionForm = memo(function SubmissionForm({
   useKeyboardShortcut(
     { key: 'ArrowLeft', ctrl: true },
     handlePrevious,
-    currentStep > 0
+    currentStep > initialStep
   );
 
   const PRIORITY_MAP: Record<string, string> = {
@@ -364,6 +375,9 @@ export const SubmissionForm = memo(function SubmissionForm({
       // Hoist top-level form fields into metadata so board items can access them
       modelId: data.modelId ?? null,
       platforms: data.platform ?? ['onlyfans'],
+      // Include content details so mark-final can propagate them to gallery
+      ...(data.contentLength ? { contentLength: data.contentLength } : {}),
+      ...(data.contentCount ? { contentCount: data.contentCount } : {}),
       // Wall post workflow: set initial status so it appears in Caption Workspace flow
       ...(data.submissionType === 'WALL_POST' ? { wallPostStatus: 'PENDING_CAPTION' } : {}),
       ...extraFields,
@@ -739,7 +753,7 @@ if (cancelRequestedRef.current) break;
         <ProgressIndicator
           steps={steps}
           currentStep={currentStep}
-          onStepClick={(index) => setCurrentStep(index)}
+          onStepClick={(index) => { if (index >= initialStep) setCurrentStep(index); }}
           allowStepNavigation={true}
         />
 
@@ -876,7 +890,7 @@ if (cancelRequestedRef.current) break;
             )}
 
             <div className="flex items-center space-x-3">
-              {currentStep > 0 && !isSubmitting && !isRollingBack && (
+              {currentStep > initialStep && !isSubmitting && !isRollingBack && (
                 <button
                   type="button"
                   onClick={handlePrevious}

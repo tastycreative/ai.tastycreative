@@ -9,6 +9,8 @@ interface GifThumbnailProps {
   onError?: () => void;
   /** Controlled from outside — true = play, false = freeze */
   playing?: boolean;
+  /** When false, skip loading the GIF entirely (for lazy/viewport gating) */
+  inView?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ interface GifThumbnailProps {
  * valid thumbnail, just animated.
  * When playing, canvas hides and the GIF animates freely.
  */
-export function GifThumbnail({ src, alt, className = '', onError, playing = false }: GifThumbnailProps) {
+export function GifThumbnail({ src, alt, className = '', onError, playing = false, inView = true }: GifThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -55,6 +57,15 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
     }
   }
 
+  // Don't load GIF until the card is in the viewport
+  if (!inView) {
+    return (
+      <div className={`relative w-full h-full overflow-hidden ${className}`}>
+        <div className="absolute inset-0 bg-zinc-800/50 animate-pulse" />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative w-full h-full overflow-hidden ${className}`}>
       {/* Hidden loader — draws first frame to canvas, never visible */}
@@ -64,6 +75,7 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
         src={src}
         alt=""
         aria-hidden
+        loading="lazy"
         onLoad={drawToCanvas}
         onError={onError}
         className="absolute w-0 h-0 opacity-0 pointer-events-none"
@@ -75,6 +87,7 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
         <img
           src={src}
           alt={alt}
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-cover"
         />
       )}

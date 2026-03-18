@@ -69,7 +69,7 @@ export function GalleryGrid({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <GalleryItem
           key={item.id}
           item={item}
@@ -79,6 +79,7 @@ export function GalleryGrid({
           onPerformance={onItemPerformance}
           onArchive={onItemArchive}
           gifsPlaying={gifsPlaying}
+          loadDelay={Math.floor(index / 4) * 150}
         />
       ))}
     </div>

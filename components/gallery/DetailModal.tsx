@@ -74,12 +74,18 @@ export function DetailModal({
   const [copied, setCopied] = useState<string | null>(null);
   const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
   const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
+  const resolvedThumb = boardMeta?.resolvedThumbnailUrl || null;
   const rawDisplayUrl = gifUrl || item.previewUrl;
   // Convert Drive view URLs to streamable proxy URLs
   const displayUrl = rawDisplayUrl && isDriveUrl(rawDisplayUrl)
     ? toDriveProxyUrl(rawDisplayUrl)
     : rawDisplayUrl;
-  const hasValidImage = !!displayUrl && displayUrl.startsWith('http') && displayUrl !== '/placeholder-gallery.png';
+  // Resolved thumbnail from Drive folder or category placeholder (set at mark-final time)
+  const fallbackThumbUrl = resolvedThumb && (resolvedThumb.startsWith('http') || resolvedThumb.startsWith('/'))
+    ? resolvedThumb
+    : null;
+  const hasValidImage = (!!displayUrl && (displayUrl.startsWith('http') || displayUrl.startsWith('/api/')) && displayUrl !== '/placeholder-gallery.png')
+    || !!fallbackThumbUrl;
   const [imageLoaded, setImageLoaded] = useState(!hasValidImage);
   const [imageError, setImageError] = useState(false);
 
@@ -349,7 +355,7 @@ export function DetailModal({
             )}
             {hasValidImage && !imageError ? (
               <img
-                src={displayUrl}
+                src={displayUrl && (displayUrl.startsWith('http') || displayUrl.startsWith('/api/')) ? displayUrl : (fallbackThumbUrl || displayUrl)}
                 alt={item.title || 'Preview'}
                 className={`max-w-full max-h-[90vh] object-contain transition-opacity ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                 onLoad={() => setImageLoaded(true)}
@@ -417,27 +423,32 @@ export function DetailModal({
 
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-            {/* Model Info */}
-            {item.model && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/50">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border-2 border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
-                  {item.model.profileImageUrl?.startsWith('http') ? (
-                    <img
-                      src={item.model.profileImageUrl}
-                      alt={item.model.displayName || item.model.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  ) : (
-                    <User className="w-5 h-5 text-violet-400" />
-                  )}
+            {/* Model Info — from Instagram profile */}
+            {(() => {
+              const displayName = item.profile?.name || null;
+              const avatarUrl = item.profile?.profileImageUrl ?? null;
+              if (!displayName) return null;
+              return (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/50">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border-2 border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+                    {avatarUrl?.startsWith('http') ? (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <User className="w-5 h-5 text-violet-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{displayName}</p>
+                    <p className="text-sm text-zinc-500">Model</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-white font-medium">{item.model.displayName || item.model.name}</p>
-                  <p className="text-sm text-zinc-500">Model</p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Performance Stats */}
             <div className="space-y-2">

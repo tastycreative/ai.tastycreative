@@ -131,7 +131,7 @@ export function ContentTypeEditor({ item, onClose, onSuccess }: ContentTypeEdito
                 {item.title || 'Untitled Content'}
               </p>
               <p className="text-sm text-zinc-500 mt-1">
-                {item.model?.displayName || item.model?.name || 'Unknown Model'}
+                {item.profile?.name || 'Unknown Model'}
               </p>
               {item.captionUsed && (
                 <p className="text-xs text-zinc-600 mt-2 line-clamp-2">

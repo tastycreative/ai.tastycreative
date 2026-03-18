@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ImageIcon, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GalleryFilters, type GalleryFilterValues } from '@/components/gallery/GalleryFilters';
@@ -10,67 +11,24 @@ import { PerformanceModal } from '@/components/gallery/PerformanceModal';
 // import { TopPerformers } from '@/components/gallery/TopPerformers';
 import { ContentTypeEditor } from '@/components/gallery/ContentTypeEditor';
 import { DetailModal } from '@/components/gallery/DetailModal';
+import {
+  useGalleryItems,
+  useGalleryStats,
+  useGalleryModels,
+  useDeleteGalleryItem,
+  ITEMS_PER_PAGE,
+} from '@/lib/hooks/useGallery.query';
 import type { GalleryItemWithModel } from '@/types/gallery';
 
-interface ModelStats {
-  model: {
-    id: string;
-    name: string;
-    displayName: string;
-    profileImageUrl: string | null;
-  } | null;
-  count: number;
-  revenue: number;
-  salesCount: number;
-}
-
-interface GalleryStats {
-  totals: {
-    itemCount: number;
-    totalRevenue: number;
-    totalSales: number;
-    totalViews: number;
-    averageRevenue: number;
-    averageConversionRate: number;
-  };
-  byContentType: {
-    contentType: string;
-    count: number;
-    revenue: number;
-    salesCount: number;
-  }[];
-  byPlatform: {
-    platform: string;
-    count: number;
-    revenue: number;
-    salesCount: number;
-  }[];
-  byModel?: ModelStats[];
-}
-
-interface Model {
-  id: string;
-  name: string;
-  displayName: string;
-}
-
-const ITEMS_PER_PAGE = 24;
-
 export default function GalleryPage() {
-  const [items, setItems] = useState<GalleryItemWithModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<GalleryStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [models, setModels] = useState<Model[]>([]);
+  const queryClient = useQueryClient();
+
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GalleryItemWithModel | null>(null);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [showContentTypeEditor, setShowContentTypeEditor] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  // const [topPerformerSort, setTopPerformerSort] = useState<'count' | 'revenue'>('count');
   const [exporting, setExporting] = useState(false);
   const [gifsPlaying, setGifsPlaying] = useState(false);
 
@@ -94,93 +52,28 @@ export default function GalleryPage() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  // The filters object we pass to the query (uses debounced search)
+  const queryFilters: GalleryFilterValues = { ...filters, search: debouncedSearch };
+
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, filters.contentType, filters.platform, filters.modelId, filters.isArchived]);
 
-  // Load stats
-  useEffect(() => {
-    loadStats();
-  }, []);
+  // ── TanStack Query hooks ──
+  const {
+    data: galleryData,
+    isLoading: loading,
+    isFetching,
+  } = useGalleryItems(queryFilters, currentPage);
 
-  // Load models for filter
-  useEffect(() => {
-    loadModels();
-  }, []);
+  const { data: stats, isLoading: statsLoading } = useGalleryStats();
+  const { data: models = [] } = useGalleryModels();
+  const deleteMutation = useDeleteGalleryItem();
 
-  // Load items when filters or page changes
-  useEffect(() => {
-    loadItems();
-  }, [
-    currentPage,
-    debouncedSearch,
-    filters.contentType,
-    filters.platform,
-    filters.modelId,
-    filters.isArchived,
-    filters.sortField,
-    filters.sortOrder,
-  ]);
-
-  const loadStats = async () => {
-    try {
-      setStatsLoading(true);
-      const response = await fetch('/api/gallery/stats');
-      if (response.ok) {
-        const result = await response.json();
-        setStats(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  const loadModels = async () => {
-    try {
-      const response = await fetch('/api/of-models?limit=500');
-      if (response.ok) {
-        const result = await response.json();
-        setModels(result.data || []);
-      }
-    } catch (error) {
-      console.error('Error loading models:', error);
-    }
-  };
-
-  const loadItems = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      params.set('page', String(currentPage));
-      params.set('pageSize', String(ITEMS_PER_PAGE));
-
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (filters.contentType !== 'all') params.set('contentType', filters.contentType);
-      if (filters.platform !== 'all') params.set('platform', filters.platform);
-      if (filters.modelId) params.set('modelId', filters.modelId);
-      params.set('isArchived', String(filters.isArchived));
-      params.set('sortField', filters.sortField);
-      params.set('sortOrder', filters.sortOrder);
-
-      const response = await fetch(`/api/gallery?${params.toString()}`);
-      if (response.ok) {
-        const result = await response.json();
-        setItems(result.data.items || []);
-        setTotalPages(result.data.pagination.totalPages);
-        setTotalItems(result.data.pagination.total);
-      } else {
-        toast.error('Failed to load gallery');
-      }
-    } catch (error) {
-      console.error('Error loading gallery:', error);
-      toast.error('Failed to load gallery');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const items = galleryData?.items ?? [];
+  const totalPages = galleryData?.pagination.totalPages ?? 1;
+  const totalItems = galleryData?.pagination.total ?? 0;
 
   const handleFiltersChange = useCallback((newFilters: Partial<GalleryFilterValues>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
@@ -194,19 +87,9 @@ export default function GalleryPage() {
   const handleDelete = async (item: GalleryItemWithModel) => {
     if (!confirm('Delete this item permanently? This cannot be undone.')) return;
     try {
-      const response = await fetch(`/api/gallery/${item.id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        toast.success('Item deleted');
-        loadItems();
-        loadStats();
-      } else {
-        toast.error('Failed to delete item');
-      }
-    } catch (error) {
-      console.error('Error deleting item:', error);
+      await deleteMutation.mutateAsync(item.id);
+      toast.success('Item deleted');
+    } catch {
       toast.error('Failed to delete item');
     }
   };
@@ -221,6 +104,11 @@ export default function GalleryPage() {
     setShowContentTypeEditor(true);
   };
 
+  const invalidateGallery = () => {
+    queryClient.invalidateQueries({ queryKey: ['gallery', 'items'] });
+    queryClient.invalidateQueries({ queryKey: ['gallery', 'stats'] });
+  };
+
   const handleExport = async (format: 'csv' | 'json' = 'csv') => {
     try {
       setExporting(true);
@@ -228,7 +116,7 @@ export default function GalleryPage() {
       params.set('format', format);
       if (filters.contentType !== 'all') params.set('contentType', filters.contentType);
       if (filters.platform !== 'all') params.set('platform', filters.platform);
-      if (filters.modelId) params.set('modelId', filters.modelId);
+      if (filters.modelId) params.set('profileId', filters.modelId);
       params.set('isArchived', String(filters.isArchived));
 
       const response = await fetch(`/api/gallery/export?${params.toString()}`);
@@ -247,8 +135,7 @@ export default function GalleryPage() {
       } else {
         toast.error('Failed to export');
       }
-    } catch (error) {
-      console.error('Error exporting:', error);
+    } catch {
       toast.error('Failed to export gallery');
     } finally {
       setExporting(false);
@@ -318,7 +205,7 @@ export default function GalleryPage() {
         </header>
 
         {/* Stats Overview */}
-        <StatsOverview stats={stats} loading={statsLoading} />
+        <StatsOverview stats={stats ?? null} loading={statsLoading} />
 
         {/* Filters */}
         <div className="mb-8">
@@ -438,8 +325,7 @@ export default function GalleryPage() {
           onSuccess={() => {
             setShowPerformanceModal(false);
             setSelectedItem(null);
-            loadItems();
-            loadStats();
+            invalidateGallery();
           }}
         />
       )}
@@ -455,8 +341,7 @@ export default function GalleryPage() {
           onSuccess={() => {
             setShowContentTypeEditor(false);
             setSelectedItem(null);
-            loadItems();
-            loadStats();
+            invalidateGallery();
           }}
         />
       )}

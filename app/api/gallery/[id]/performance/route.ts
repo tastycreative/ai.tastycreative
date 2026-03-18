@@ -54,11 +54,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         }),
       },
       include: {
-        model: {
+        profile: {
           select: {
             id: true,
             name: true,
-            displayName: true,
             profileImageUrl: true,
           },
         },

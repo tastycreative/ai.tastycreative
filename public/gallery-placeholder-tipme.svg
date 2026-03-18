@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <rect x="0" y="0" width="400" height="4" fill="url(#accent)" opacity="0.6"/>
+  <!-- Dollar sign in circle -->
+  <circle cx="200" cy="120" r="35" fill="none" stroke="#06b6d4" stroke-width="2" opacity="0.5"/>
+  <text x="200" y="134" text-anchor="middle" font-family="system-ui, sans-serif" font-size="36" font-weight="700" fill="#06b6d4" opacity="0.7">$</text>
+  <text x="200" y="205" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#06b6d4" opacity="0.8">TIP ME</text>
+  <text x="200" y="230" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">Tip menu content</text>
+</svg>

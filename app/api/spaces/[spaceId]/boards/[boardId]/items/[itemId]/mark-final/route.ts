@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { Prisma } from '@/lib/generated/prisma';
 import { publishBoardEvent } from '@/lib/ably';
 import { saveCaptionFromWallPost } from '@/lib/caption-bank-sync';
+import { resolveDriveThumbnail, getCategoryPlaceholder } from '@/lib/google-drive-thumbnail';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -130,16 +132,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (!profileExists) profileId = null;
       }
 
-      let modelId: string | null = null;
-      const modelName = (meta.model as string) || '';
-      if (modelName) {
-        const model = await prisma.of_models.findFirst({
-          where: { name: { equals: modelName, mode: 'insensitive' } },
-          select: { id: true },
-        });
-        modelId = model?.id ?? null;
-      }
-
       // Platform — Wall Post uses singular `platform`
       const PLATFORM_MAP: Record<string, string> = { onlyfans: 'OF', fansly: 'FANSLY' };
       const rawPlatform = (meta.platform as string) || 'onlyfans';
@@ -225,12 +217,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       const primaryContentType = contentTypeFromMime(firstEntry.mimeType);
       const primaryCaption = mediaEntries.find((e) => e.captionText)?.captionText ?? null;
 
-      const wallPostBoardMetadata: Record<string, unknown> = {
+      const wallPostBoardMetadata = {
         mediaItems: carouselItems,
-      };
+      } as Record<string, unknown>;
       if (meta.captionTicketId) wallPostBoardMetadata.captionTicketId = meta.captionTicketId;
       if (profileId) wallPostBoardMetadata.profileId = profileId;
-      const boardMetadataJson = JSON.parse(JSON.stringify(wallPostBoardMetadata));
 
       // 6a. Transaction: move to "Posted" + create single gallery item
       const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
@@ -252,11 +243,10 @@ export async function POST(req: NextRequest, { params }: Params) {
             origin: 'wall_post',
             boardItemId: item.id,
             organizationId: item.organizationId,
-            modelId,
             profileId,
             createdBy: userId,
             postOrigin: 'WALL_POST',
-            boardMetadata: boardMetadataJson,
+            boardMetadata: wallPostBoardMetadata as unknown as Prisma.InputJsonValue,
           },
           select: { id: true, title: true, contentType: true, platform: true, previewUrl: true },
         });
@@ -297,7 +287,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const fallbackTicket = ticketData ?? {
         id: captionTicketId || itemId,
         profileId,
-        modelName,
+        modelName: (meta.modelName as string) || '',
         boardItemId: itemId,
         organizationId: item.organizationId,
       };
@@ -389,7 +379,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // 5. Extract metadata for gallery entry
     const firstMedia = item.media[0];
-    const previewUrl =
+    let previewUrl =
       firstMedia?.url ||
       (meta.driveLink as string) ||
       '';
@@ -432,18 +422,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (!profileExists) profileId = null;
     }
 
-    // Also attempt to resolve of_models ID for backward compatibility
-    let modelId: string | null = null;
-    if (meta.model && typeof meta.model === 'string') {
-      const model = await prisma.of_models.findFirst({
-        where: {
-          name: { equals: meta.model as string, mode: 'insensitive' },
-        },
-        select: { id: true },
-      });
-      modelId = model?.id ?? null;
-    }
-
     // 6. Extract OTP/PTR-specific metadata for gallery
     const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? null;
     const pricingTier = (meta.pricingCategory as string) ?? (meta.pricingTier as string) ?? null;
@@ -465,6 +443,35 @@ export async function POST(req: NextRequest, { params }: Params) {
       boardMetadata.externalCreatorTags = meta.externalCreatorTags as string[];
     if (profileId) boardMetadata.profileId = profileId;
 
+    // 6b. Resolve thumbnail for tickets without GIF or media attachments.
+    //     If the driveLink is a Google Drive folder, try to pull the first
+    //     image/video from it. Otherwise fall back to a category placeholder.
+    let resolvedThumbnailUrl: string | null = null;
+    let resolvedThumbnailIsGif = false;
+    const hasGifOrMedia = !!meta.gifUrl || !!firstMedia;
+    if (!hasGifOrMedia && meta.driveLink && typeof meta.driveLink === 'string') {
+      try {
+        const result = await resolveDriveThumbnail(meta.driveLink as string);
+        if (result) {
+          resolvedThumbnailUrl = result.url;
+          resolvedThumbnailIsGif = result.isGif;
+        }
+      } catch (e) {
+        console.error('[mark-final] Failed to resolve Drive thumbnail:', e);
+      }
+    }
+    if (resolvedThumbnailUrl) {
+      boardMetadata.resolvedThumbnailUrl = resolvedThumbnailUrl;
+      if (resolvedThumbnailIsGif) boardMetadata.resolvedThumbnailIsGif = 'true';
+      // Don't set previewUrl here — the GalleryItem display chain handles
+      // resolvedThumbnailUrl via GifThumbnail (with play/pause support).
+      // Setting previewUrl would cause the plain <img> branch to match first,
+      // bypassing the animated GIF controls.
+    } else if (!hasGifOrMedia) {
+      // No GIF, no media, no resolvable Drive thumbnail → use category placeholder
+      boardMetadata.resolvedThumbnailUrl = getCategoryPlaceholder(postOrigin);
+    }
+
     // Move item to "Posted" column and create gallery entries in a transaction
     const galleryBase = {
       title: item.title,
@@ -478,7 +485,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       origin: 'board',
       sourceId: item.id,
       organizationId: item.organizationId,
-      modelId,
       profileId,
       createdBy: userId,
       postOrigin,

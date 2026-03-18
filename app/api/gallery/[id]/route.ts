@@ -19,13 +19,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const item = await prisma.gallery_items.findUnique({
       where: { id },
       include: {
-        model: {
+        profile: {
           select: {
             id: true,
             name: true,
-            displayName: true,
             profileImageUrl: true,
-            slug: true,
           },
         },
       },
@@ -81,19 +79,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       tags,
       platform,
       pricingAmount,
-      modelId,
+      profileId,
       captionUsed,
       postedAt,
       isArchived,
     } = body;
 
-    // Validate modelId if provided
-    if (modelId) {
-      const model = await prisma.of_models.findUnique({
-        where: { id: modelId },
+    // Validate profileId if provided
+    if (profileId) {
+      const profile = await prisma.instagramProfile.findUnique({
+        where: { id: profileId },
       });
-      if (!model) {
-        return NextResponse.json({ error: "Model not found" }, { status: 404 });
+      if (!profile) {
+        return NextResponse.json({ error: "Profile not found" }, { status: 404 });
       }
     }
 
@@ -108,7 +106,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         ...(tags !== undefined && { tags }),
         ...(platform !== undefined && { platform }),
         ...(pricingAmount !== undefined && { pricingAmount }),
-        ...(modelId !== undefined && { modelId }),
+        ...(profileId !== undefined && { profileId }),
         ...(captionUsed !== undefined && { captionUsed }),
         ...(postedAt !== undefined && { postedAt: new Date(postedAt) }),
         ...(isArchived !== undefined && {
@@ -117,11 +115,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         }),
       },
       include: {
-        model: {
+        profile: {
           select: {
             id: true,
             name: true,
-            displayName: true,
             profileImageUrl: true,
           },
         },

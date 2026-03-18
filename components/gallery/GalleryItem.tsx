@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useInView } from 'react-intersection-observer';
 import { DollarSign, Eye, ShoppingCart, Calendar, BarChart3, Trash2, MoreVertical, Tag, Film, Images } from 'lucide-react';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, type GalleryContentType, type GalleryPlatform } from '@/lib/constants/gallery';
 import type { GalleryItemWithModel, GalleryBoardMetadata } from '@/types/gallery';
@@ -14,6 +15,8 @@ interface GalleryItemProps {
   onPerformance?: (item: GalleryItemWithModel) => void;
   onArchive?: (item: GalleryItemWithModel) => void;
   gifsPlaying?: boolean;
+  /** Delay in ms before this card starts loading its thumbnail (for staggering) */
+  loadDelay?: number;
 }
 
 const contentTypeColors: Record<string, string> = {
@@ -71,7 +74,7 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const isValidUrl = (url: string | null | undefined) =>
-  !!url && url.startsWith('http') && url !== '/placeholder-gallery.png';
+  !!url && (url.startsWith('http') || url.startsWith('/api/')) && url !== '/placeholder-gallery.png';
 
 /* ── Google Drive URL helpers ──────────────────────────────── */
 function extractDriveFileId(url: string): string | null {
@@ -100,9 +103,20 @@ function toDisplayUrl(url: string | null | undefined): string | null | undefined
   return url;
 }
 
-export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive, gifsPlaying = false }: GalleryItemProps) {
+export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive, gifsPlaying = false, loadDelay = 0 }: GalleryItemProps) {
+  const { ref: cardRef, inView: rawInView } = useInView({ triggerOnce: true, rootMargin: '200px 0px' });
+  const [staggerReady, setStaggerReady] = React.useState(loadDelay === 0);
   const [showMenu, setShowMenu] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
+
+  // Stagger: once this card enters the viewport, wait loadDelay ms before actually loading
+  React.useEffect(() => {
+    if (!rawInView || staggerReady) return;
+    const t = setTimeout(() => setStaggerReady(true), loadDelay);
+    return () => clearTimeout(t);
+  }, [rawInView, loadDelay, staggerReady]);
+
+  const inView = rawInView && staggerReady;
 
   const revenue = Number(item.revenue) || 0;
   const salesCount = item.salesCount || 0;
@@ -115,10 +129,16 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
   const platformColor = platformColors[item.platform] || platformColors.OTHER;
   const boardMeta = (item.boardMetadata ?? null) as GalleryBoardMetadata | null;
   const gifUrl = boardMeta?.gifUrl || boardMeta?.gifUrlFansly || null;
+  const resolvedThumb = boardMeta?.resolvedThumbnailUrl || null;
+  const resolvedThumbIsGif = boardMeta?.resolvedThumbnailIsGif === 'true';
   const mediaItemCount = boardMeta?.mediaItems?.length ?? 0;
+
+  // Category placeholder SVGs are valid thumbnail sources (not http but local paths)
+  const isPlaceholderSvg = resolvedThumb?.startsWith('/gallery-placeholder-') ?? false;
 
   return (
     <div
+      ref={cardRef}
       className={`group relative bg-zinc-900/50 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-zinc-700/50 transition-all duration-300 ${onClick ? 'cursor-pointer' : ''}`}
       onClick={() => onClick?.(item)}
     >
@@ -132,15 +152,48 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
             src={gifUrl!}
             alt={item.title || 'Gallery item'}
             playing={gifsPlaying}
+            inView={inView}
             className="transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgError(true)}
           />
-        ) : isValidUrl(item.previewUrl) && !imgError ? (
+        ) : isValidUrl(item.previewUrl) && !imgError && !resolvedThumbIsGif ? (
+          inView ? (
+            <img
+              src={toDisplayUrl(item.previewUrl) ?? item.previewUrl!}
+              alt={item.title || 'Gallery item'}
+              loading="lazy"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="w-full h-full bg-zinc-800/50 animate-pulse" />
+          )
+        ) : isValidUrl(resolvedThumb) && !imgError ? (
+          resolvedThumbIsGif ? (
+            <GifThumbnail
+              src={resolvedThumb!}
+              alt={item.title || 'Gallery item'}
+              playing={gifsPlaying}
+              inView={inView}
+              className="transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImgError(true)}
+            />
+          ) : inView ? (
+            <img
+              src={resolvedThumb!}
+              alt={item.title || 'Gallery item'}
+              loading="lazy"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="w-full h-full bg-zinc-800/50 animate-pulse" />
+          )
+        ) : isPlaceholderSvg ? (
           <img
-            src={toDisplayUrl(item.previewUrl) ?? item.previewUrl!}
-            alt={item.title || 'Gallery item'}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={() => setImgError(true)}
+            src={resolvedThumb!}
+            alt={item.postOrigin || item.title || 'Gallery item'}
+            className="w-full h-full object-cover"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-zinc-800/80 to-zinc-900/80">
@@ -255,29 +308,34 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
 
       {/* Content */}
       <div className="relative p-4 space-y-3">
-        {/* Model Info */}
-        {item.model && (
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center shrink-0 overflow-hidden">
-              {isValidUrl(item.model.profileImageUrl) ? (
-                <img
-                  src={item.model.profileImageUrl!}
-                  alt={item.model.displayName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = `<span class="text-xs font-medium text-white/80">${item.model!.displayName.charAt(0)}</span>`;
-                  }}
-                />
-              ) : (
-                <span className="text-xs font-medium text-white/80">
-                  {item.model.displayName.charAt(0)}
-                </span>
-              )}
+        {/* Model Info — from Instagram profile */}
+        {(() => {
+          const displayName = item.profile?.name ?? null;
+          const avatarUrl = item.profile?.profileImageUrl ?? null;
+          if (!displayName) return null;
+          return (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center shrink-0 overflow-hidden">
+                {isValidUrl(avatarUrl) ? (
+                  <img
+                    src={avatarUrl!}
+                    alt={displayName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement!.innerHTML = `<span class="text-xs font-medium text-white/80">${displayName.charAt(0)}</span>`;
+                    }}
+                  />
+                ) : (
+                  <span className="text-xs font-medium text-white/80">
+                    {displayName.charAt(0)}
+                  </span>
+                )}
+              </div>
+              <span className="text-sm text-zinc-400 truncate">{displayName}</span>
             </div>
-            <span className="text-sm text-zinc-400 truncate">{item.model.displayName}</span>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Content Info */}
         {(item.pricingTier || boardMeta?.contentLength || boardMeta?.contentCount) && (

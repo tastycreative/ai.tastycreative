@@ -11,10 +11,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const modelId = searchParams.get("modelId");
+    const profileId = searchParams.get("profileId") || searchParams.get("modelId");
 
     // Base where clause
-    const where = modelId ? { modelId } : {};
+    const where = profileId ? { profileId } : {};
 
     // Get overall aggregates
     const [
@@ -82,11 +82,10 @@ export async function GET(req: NextRequest) {
         orderBy: { revenue: "desc" },
         take: 10,
         include: {
-          model: {
+          profile: {
             select: {
               id: true,
               name: true,
-              displayName: true,
               profileImageUrl: true,
             },
           },
@@ -99,22 +98,21 @@ export async function GET(req: NextRequest) {
         orderBy: { postedAt: "desc" },
         take: 5,
         include: {
-          model: {
+          profile: {
             select: {
               id: true,
               name: true,
-              displayName: true,
             },
           },
         },
       }),
 
-      // Stats by model (top 10 by revenue)
+      // Stats by profile (top 10 by revenue)
       prisma.gallery_items.groupBy({
-        by: ["modelId"],
+        by: ["profileId"],
         where: {
           ...where,
-          modelId: { not: null },
+          profileId: { not: null },
         },
         _count: true,
         _sum: {
@@ -130,26 +128,28 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Fetch model details for modelStats
-    const modelIds = modelStats
-      .map((s) => s.modelId)
+    // Fetch profile details for profileStats
+    const profileIds = modelStats
+      .map((s) => s.profileId)
       .filter((id): id is string => id !== null);
 
-    const models = await prisma.of_models.findMany({
-      where: { id: { in: modelIds } },
+    const profiles = await prisma.instagramProfile.findMany({
+      where: { id: { in: profileIds } },
       select: {
         id: true,
         name: true,
-        displayName: true,
         profileImageUrl: true,
       },
     });
 
-    const modelLookup = new Map(models.map((m) => [m.id, m]));
+    const profileLookup = new Map(profiles.map((p) => [p.id, p]));
 
-    // Format model stats with model details
+    // Format model stats with profile details
     const modelStatsWithDetails = modelStats.map((stat) => ({
-      model: stat.modelId ? modelLookup.get(stat.modelId) : null,
+      model: stat.profileId ? (() => {
+        const p = profileLookup.get(stat.profileId);
+        return p ? { id: p.id, name: p.name, displayName: p.name, profileImageUrl: p.profileImageUrl } : null;
+      })() : null,
       count: stat._count,
       revenue: Number(stat._sum.revenue) || 0,
       salesCount: stat._sum.salesCount || 0,

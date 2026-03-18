@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     // Parse filters
-    const modelId = searchParams.get("modelId");
+    const profileId = searchParams.get("profileId") || searchParams.get("modelId");
     const contentType = searchParams.get("contentType");
     const platform = searchParams.get("platform");
     const isArchived = searchParams.get("isArchived") === "true";
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     // Build where clause
     const where: Record<string, unknown> = {};
-    if (modelId) where.modelId = modelId;
+    if (profileId) where.profileId = profileId;
     if (contentType && contentType !== "all") where.contentType = contentType;
     if (platform && platform !== "all") where.platform = platform;
     where.isArchived = isArchived;
@@ -30,11 +30,10 @@ export async function GET(req: NextRequest) {
     const items = await prisma.gallery_items.findMany({
       where,
       include: {
-        model: {
+        profile: {
           select: {
             id: true,
             name: true,
-            displayName: true,
           },
         },
       },
@@ -90,7 +89,7 @@ export async function GET(req: NextRequest) {
     const rows = items.map((item) => [
       item.id,
       escapeCSV(item.title),
-      escapeCSV(item.model?.displayName || item.model?.name),
+      escapeCSV(item.profile?.name),
       item.contentType,
       item.platform,
       item.pricingAmount ? Number(item.pricingAmount).toFixed(2) : "",

@@ -114,8 +114,8 @@ export function PerformanceModal({ item, onClose, onSuccess }: PerformanceModalP
               <p className="text-sm font-medium text-white truncate">
                 {item.title || item.contentType}
               </p>
-              {item.model && (
-                <p className="text-xs text-zinc-500 truncate">{item.model.displayName}</p>
+              {item.profile && (
+                <p className="text-xs text-zinc-500 truncate">{item.profile.name}</p>
               )}
               <p className="text-xs text-zinc-600">
                 Posted {new Date(item.postedAt).toLocaleDateString()}

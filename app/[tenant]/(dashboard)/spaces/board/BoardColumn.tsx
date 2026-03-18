@@ -29,6 +29,7 @@ interface BoardColumnProps {
   onMoveToColumn?: (taskId: string, columnId: string) => void;
   lastColumnId?: string;
   onUpdateTask?: (task: BoardTask) => void;
+  onOpenSubmissionModal?: (templateType: string, spaceSlug: string) => void;
 }
 
 const STATUS_COLORS = [
@@ -69,6 +70,7 @@ export function BoardColumn({
   onMoveToColumn,
   lastColumnId,
   onUpdateTask,
+  onOpenSubmissionModal,
 }: BoardColumnProps) {
   const Card = CardComponent ?? BoardTaskCard;
   const router = useRouter();
@@ -134,12 +136,17 @@ export function BoardColumn({
   };
 
   const handlePlusClick = () => {
-    // Redirect to submissions for WALL_POST, OTP_PTR, and SEXTING_SETS templates
+    // Open submission modal for WALL_POST, OTP_PTR, and SEXTING_SETS templates
     if (templateType === 'WALL_POST' || templateType === 'OTP_PTR' || templateType === 'SEXTING_SETS') {
-      const qp = new URLSearchParams();
-      qp.set('type', templateType);
-      if (params.slug) qp.set('spaces', params.slug);
-      router.push(`/${params.tenant}/submissions/new?${qp.toString()}`);
+      if (onOpenSubmissionModal && params.slug) {
+        onOpenSubmissionModal(templateType, params.slug);
+      } else {
+        // Fallback to navigation if modal callback not provided
+        const qp = new URLSearchParams();
+        qp.set('type', templateType);
+        if (params.slug) qp.set('spaces', params.slug);
+        router.push(`/${params.tenant}/submissions/new?${qp.toString()}`);
+      }
     } else {
       setIsAdding(true);
     }

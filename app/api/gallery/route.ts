@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * pageSize;
 
     // Filters
-    const modelId = searchParams.get("modelId");
+    const profileId = searchParams.get("profileId") || searchParams.get("modelId");
     const contentType = searchParams.get("contentType");
     const platform = searchParams.get("platform");
     const isArchived = searchParams.get("isArchived");
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     // Build where clause
     const where: Prisma.gallery_itemsWhereInput = {
-      ...(modelId && { modelId }),
+      ...(profileId && { profileId }),
       ...(contentType && contentType !== "all" && { contentType }),
       ...(platform && platform !== "all" && { platform }),
       ...(isArchived !== null &&
@@ -77,11 +77,10 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         orderBy,
         include: {
-          model: {
+          profile: {
             select: {
               id: true,
               name: true,
-              displayName: true,
               profileImageUrl: true,
             },
           },
@@ -165,7 +164,7 @@ export async function POST(req: NextRequest) {
       tags = [],
       platform,
       pricingAmount,
-      modelId,
+      profileId,
       captionUsed,
       revenue = 0,
       salesCount = 0,
@@ -185,13 +184,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate modelId if provided
-    if (modelId) {
-      const model = await prisma.of_models.findUnique({
-        where: { id: modelId },
+    // Validate profileId if provided
+    if (profileId) {
+      const profile = await prisma.instagramProfile.findUnique({
+        where: { id: profileId },
       });
-      if (!model) {
-        return NextResponse.json({ error: "Model not found" }, { status: 404 });
+      if (!profile) {
+        return NextResponse.json({ error: "Profile not found" }, { status: 404 });
       }
     }
 
@@ -205,7 +204,7 @@ export async function POST(req: NextRequest) {
         tags,
         platform,
         pricingAmount,
-        modelId,
+        profileId,
         captionUsed,
         revenue,
         salesCount,
@@ -215,11 +214,10 @@ export async function POST(req: NextRequest) {
         createdBy: userId,
       },
       include: {
-        model: {
+        profile: {
           select: {
             id: true,
             name: true,
-            displayName: true,
             profileImageUrl: true,
           },
         },

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <rect x="0" y="0" width="400" height="4" fill="url(#accent)" opacity="0.6"/>
+  <!-- Star icon -->
+  <polygon points="200,80 212,115 250,115 220,138 230,172 200,152 170,172 180,138 150,115 188,115" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.5"/>
+  <text x="200" y="215" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#8b5cf6" opacity="0.8">VIP</text>
+  <text x="200" y="240" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">VIP exclusive content</text>
+</svg>

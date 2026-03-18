@@ -28,6 +28,10 @@ export interface GalleryBoardMetadata {
   internalModelTags?: string[];
   externalCreatorTags?: string[];
   profileId?: string;
+  /** Resolved thumbnail from Google Drive folder or category placeholder */
+  resolvedThumbnailUrl?: string;
+  /** Whether the resolved thumbnail is an animated GIF (use GifThumbnail) */
+  resolvedThumbnailIsGif?: string;
   /** Wall Post: all media items for the carousel */
   mediaItems?: WallPostMediaItem[];
 }
@@ -87,13 +91,12 @@ export interface GalleryItem {
 }
 
 /**
- * Gallery Item with Model relation expanded
+ * Gallery Item with Profile relation expanded
  */
 export interface GalleryItemWithModel extends GalleryItem {
-  model: {
+  profile: {
     id: string;
     name: string;
-    displayName: string;
     profileImageUrl: string | null;
   } | null;
 }
