@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { useShallow } from "zustand/react/shallow";
 import { useInstagramProfiles, type InstagramProfile } from "@/lib/hooks/useInstagramProfiles.query";
+import { useInstagramProfile } from "@/lib/hooks/useInstagramProfile.query";
+import { useGifQueue, type GifQueueTicket } from "@/lib/hooks/useGifQueue.query";
 import { EditorToolbar } from "@/components/gif-maker/EditorToolbar";
 import { EditorPreview } from "@/components/gif-maker/EditorPreview";
 import { OverlayPanel } from "@/components/gif-maker/panels/OverlayPanel";
 import { PropertiesPanel } from "@/components/gif-maker/panels/PropertiesPanel";
 import { Timeline } from "@/components/gif-maker/timeline/Timeline";
-import { ModelVaultBrowser } from "./ModelVaultBrowser";
 import { WorkspaceClipPanel } from "./WorkspaceClipPanel";
+import { QueueDrawer } from "./QueueDrawer";
+import { QueueRail } from "./QueueRail";
 import type { PreviewPlayerRef } from "@/components/gif-maker/PreviewPlayer";
 import {
   Film,
@@ -19,10 +22,6 @@ import {
   LayoutGrid,
   Sparkles,
   BookOpen,
-  Search,
-  User,
-  ChevronDown,
-  X,
 } from "lucide-react";
 
 const LayoutPicker = lazy(() =>
@@ -47,10 +46,11 @@ export function GifMakerWorkspace() {
   const boardItemId = searchParams.get("boardItemId");
 
   const [selectedProfile, setSelectedProfile] = useState<InstagramProfile | null>(null);
-  const { data: profiles, isLoading: loadingProfiles } = useInstagramProfiles();
+  const { data: profiles } = useInstagramProfiles();
 
   const playerRef = useRef<PreviewPlayerRef>(null);
 
+  // ─── Editor state ────────────────────────────────
   const { settings, clips, overlays, totalDurationInFrames } = useVideoEditorStore(
     useShallow((s) => ({
       settings: s.settings,
@@ -63,6 +63,36 @@ export function GifMakerWorkspace() {
   const setWorkspaceMode = useVideoEditorStore((s) => s.setWorkspaceMode);
   const clearWorkspaceMode = useVideoEditorStore((s) => s.clearWorkspaceMode);
 
+  // ─── Queue state ─────────────────────────────────
+  const { queue, isLoading: loadingQueue, error: queueError, refetch: refetchQueue } = useGifQueue();
+  const {
+    activeTicketId,
+    setActiveTicket,
+    queueDrawerOpen,
+    setQueueDrawerOpen,
+  } = useVideoEditorStore(
+    useShallow((s) => ({
+      activeTicketId: s.activeTicketId,
+      setActiveTicket: s.setActiveTicket,
+      queueDrawerOpen: s.queueDrawerOpen,
+      setQueueDrawerOpen: s.setQueueDrawerOpen,
+    }))
+  );
+
+  const activeTicket = useMemo(
+    () => queue.find((t) => t.id === activeTicketId) ?? null,
+    [queue, activeTicketId]
+  );
+
+  const currentIndex = useMemo(
+    () => queue.findIndex((t) => t.id === activeTicketId),
+    [queue, activeTicketId]
+  );
+
+  // Fetch model context for context strip
+  const { data: modelContextProfile } = useInstagramProfile(activeTicket?.profileId);
+
+  // ─── Profile selection ───────────────────────────
   // Auto-select profile from URL params
   useEffect(() => {
     if (initialProfileId && profiles && !selectedProfile) {
@@ -71,20 +101,67 @@ export function GifMakerWorkspace() {
     }
   }, [initialProfileId, profiles, selectedProfile]);
 
+  // Auto-select profile from active ticket
+  useEffect(() => {
+    if (activeTicket?.profileId && profiles) {
+      const profile = profiles.find((p) => p.id === activeTicket.profileId);
+      if (profile) {
+        setSelectedProfile(profile);
+      } else {
+        console.warn(`Profile ${activeTicket.profileId} not found for ticket ${activeTicket.id}`);
+      }
+    }
+  }, [activeTicket, profiles]);
+
   // Sync workspace mode with store
   useEffect(() => {
     if (selectedProfile) {
-      setWorkspaceMode(selectedProfile.id, boardItemId);
+      setWorkspaceMode(selectedProfile.id, activeTicket?.boardItemId ?? boardItemId);
     } else {
       clearWorkspaceMode();
     }
-  }, [selectedProfile, boardItemId, setWorkspaceMode, clearWorkspaceMode]);
+  }, [selectedProfile, boardItemId, activeTicket?.boardItemId, setWorkspaceMode, clearWorkspaceMode]);
 
   // Clean up workspace mode on unmount
   useEffect(() => {
     return () => clearWorkspaceMode();
   }, [clearWorkspaceMode]);
 
+  // ─── Queue actions ───────────────────────────────
+  const handleStartEditing = useCallback(
+    (ticket: GifQueueTicket) => {
+      setActiveTicket(ticket.id);
+      setQueueDrawerOpen(false);
+      if (ticket.profileId) {
+        setWorkspaceMode(ticket.profileId, ticket.boardItemId);
+      }
+    },
+    [setActiveTicket, setQueueDrawerOpen, setWorkspaceMode]
+  );
+
+  const handleNextTask = useCallback(() => {
+    if (currentIndex < queue.length - 1) {
+      handleStartEditing(queue[currentIndex + 1]);
+    }
+  }, [currentIndex, queue, handleStartEditing]);
+
+  const handlePrevTask = useCallback(() => {
+    if (currentIndex > 0) {
+      handleStartEditing(queue[currentIndex - 1]);
+    }
+  }, [currentIndex, queue, handleStartEditing]);
+
+  // Watch for "Next Task" signal from export toast (via Zustand store)
+  const pendingNextTask = useVideoEditorStore((s) => s.pendingNextTask);
+  useEffect(() => {
+    if (pendingNextTask) {
+      useVideoEditorStore.getState().pendingNextTask = false;
+      useVideoEditorStore.setState({ pendingNextTask: false });
+      handleNextTask();
+    }
+  }, [pendingNextTask, handleNextTask]);
+
+  // ─── Playback ────────────────────────────────────
   const handleFrameChange = useCallback(
     (frame: number) => {
       setCurrentFrame(frame);
@@ -102,7 +179,7 @@ export function GifMakerWorkspace() {
     }
   }, []);
 
-  // Keyboard shortcuts
+  // ─── Keyboard shortcuts ──────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -118,6 +195,14 @@ export function GifMakerWorkspace() {
       const frameFps = state.settings.fps;
 
       switch (e.code) {
+        case "Escape": {
+          const store = useVideoEditorStore.getState();
+          if (store.queueDrawerOpen) {
+            e.preventDefault();
+            store.setQueueDrawerOpen(false);
+          }
+          break;
+        }
         case "Space": {
           e.preventDefault();
           handleTogglePlayback();
@@ -220,23 +305,25 @@ export function GifMakerWorkspace() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/3 rounded-full blur-[200px]" />
         </div>
 
-        {/* Model Selector Bar */}
-        <div className="relative z-20">
-          <ModelSelectorBar
-            profiles={profiles ?? []}
-            selectedProfile={selectedProfile}
-            onSelect={setSelectedProfile}
-            loading={loadingProfiles}
-          />
-        </div>
-
         {/* Top Toolbar */}
         <div className="relative z-10">
           <EditorToolbar playerRef={playerRef} />
         </div>
 
-        {/* Main Content Area */}
+        {/* Main Content Area — with rail + drawer */}
         <div className="flex flex-1 min-h-0 overflow-hidden relative z-10">
+          {/* Queue Rail — visible when a ticket is active and drawer is closed */}
+          {activeTicketId && !queueDrawerOpen && (
+            <QueueRail
+              onOpenDrawer={() => setQueueDrawerOpen(true)}
+              activeTicket={activeTicket}
+              queueLength={queue.length}
+              currentIndex={currentIndex}
+              onPrevTask={handlePrevTask}
+              onNextTask={handleNextTask}
+            />
+          )}
+
           {/* Left Panel */}
           <div className="w-60 min-w-[240px] flex flex-col bg-zinc-900/40 backdrop-blur-xl border-r border-zinc-800/50">
             <WorkspaceLeftPanelTabs selectedProfileId={selectedProfile?.id ?? null} />
@@ -253,11 +340,21 @@ export function GifMakerWorkspace() {
             />
           </div>
 
-          {/* Right Panel: Properties Inspector */}
+          {/* Right Panel: Properties with Context Strip */}
           <div className="w-72 min-w-[280px] bg-zinc-900/40 backdrop-blur-xl border-l border-zinc-800/50 overflow-y-auto">
-            <PropertiesPanel />
+            <PropertiesPanel activeTicket={activeTicket} modelContext={modelContextProfile} />
           </div>
         </div>
+
+        {/* Queue Drawer — overlays the full content area */}
+        <QueueDrawer
+          isOpen={queueDrawerOpen}
+          onClose={() => setQueueDrawerOpen(false)}
+          queue={queue}
+          selectedTicketId={activeTicketId}
+          onSelectTicket={setActiveTicket}
+          onStartEditing={handleStartEditing}
+        />
 
         {/* Resize handle */}
         <div className="h-1 w-full cursor-row-resize group flex-shrink-0 bg-[#0a0a0b] relative z-10">
@@ -277,17 +374,15 @@ export function GifMakerWorkspace() {
               <span>System Ready</span>
             </div>
             <div className="h-3 w-px bg-zinc-800" />
-            <span>GIF Maker Workspace v1.0</span>
-            {selectedProfile && (
+            <span>GIF Maker Workspace v2.0</span>
+            {activeTicket && (
               <>
                 <div className="h-3 w-px bg-zinc-800" />
-                <span className="text-brand-light-pink">{selectedProfile.name}</span>
-              </>
-            )}
-            {boardItemId && (
-              <>
+                <span className="text-brand-light-pink">{activeTicket.modelName}</span>
                 <div className="h-3 w-px bg-zinc-800" />
-                <span className="text-brand-blue">Board Item Linked</span>
+                <span className="text-brand-blue">
+                  Task {currentIndex + 1} of {queue.length}
+                </span>
               </>
             )}
           </div>
@@ -300,183 +395,6 @@ export function GifMakerWorkspace() {
         </footer>
       </div>
     </>
-  );
-}
-
-// ─── Model Selector Bar ─────────────────────────────────
-
-function ModelSelectorBar({
-  profiles,
-  selectedProfile,
-  onSelect,
-  loading,
-}: {
-  profiles: InstagramProfile[];
-  selectedProfile: InstagramProfile | null;
-  onSelect: (profile: InstagramProfile | null) => void;
-  loading: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const filtered = profiles.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.username && p.username.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  // Close on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  return (
-    <div className="h-12 bg-zinc-900/60 backdrop-blur-xl border-b border-zinc-800/50 px-4 flex items-center gap-3">
-      {/* Label */}
-      <div className="flex items-center gap-2 text-xs text-zinc-400 flex-shrink-0">
-        <User className="w-4 h-4" />
-        <span className="font-medium">Model:</span>
-      </div>
-
-      {/* Selector */}
-      <div className="relative" ref={dropdownRef}>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setOpen(!open)}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(!open); } }}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 hover:border-zinc-600/50 transition-colors min-w-[200px] cursor-pointer"
-        >
-          {selectedProfile ? (
-            <>
-              {selectedProfile.profileImageUrl ? (
-                <img
-                  src={selectedProfile.profileImageUrl}
-                  alt={selectedProfile.name}
-                  className="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-light-pink to-brand-dark-pink flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] font-medium text-white">
-                    {selectedProfile.name.charAt(0)}
-                  </span>
-                </div>
-              )}
-              <span className="text-xs font-medium text-zinc-100 truncate flex-1">
-                {selectedProfile.name}
-              </span>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelect(null);
-                    setOpen(false);
-                  }}
-                  className="p-1 rounded-md hover:bg-red-500/15 text-zinc-500 hover:text-red-400 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="text-xs text-zinc-500 flex-1">
-                {loading ? "Loading..." : "Select a model..."}
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-zinc-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-              />
-            </>
-          )}
-        </div>
-
-        {/* Dropdown */}
-        {open && (
-          <div className="absolute top-full left-0 mt-1 w-[300px] bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl overflow-hidden z-50">
-            {/* Search */}
-            <div className="p-2 border-b border-zinc-800/50">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search models..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-zinc-800/60 border border-zinc-700/30 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 outline-none focus:border-brand-light-pink/50"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* List */}
-            <div className="max-h-[300px] overflow-y-auto py-1">
-              {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center text-xs text-zinc-500">
-                  No models found
-                </div>
-              ) : (
-                filtered.map((profile) => (
-                  <button
-                    key={profile.id}
-                    onClick={() => {
-                      onSelect(profile);
-                      setOpen(false);
-                      setSearch("");
-                    }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800/60 transition-colors ${
-                      selectedProfile?.id === profile.id ? "bg-brand-light-pink/10" : ""
-                    }`}
-                  >
-                    {profile.profileImageUrl ? (
-                      <img
-                        src={profile.profileImageUrl}
-                        alt={profile.name}
-                        className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-light-pink to-brand-dark-pink flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-medium text-white">
-                          {profile.name.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="text-xs font-medium text-zinc-100 truncate">
-                        {profile.name}
-                      </div>
-                      {profile.username && (
-                        <div className="text-[10px] text-zinc-500">@{profile.username}</div>
-                      )}
-                    </div>
-                    {selectedProfile?.id === profile.id && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-light-pink flex-shrink-0" />
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Board item indicator */}
-      {useSearchParams().get("boardItemId") && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-blue/10 border border-brand-blue/20">
-          <span className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
-          <span className="text-[10px] font-medium text-brand-blue">From Board</span>
-        </div>
-      )}
-    </div>
   );
 }
 

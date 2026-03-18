@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { ClipProperties } from "./ClipProperties";
 import { TextOverlayProperties } from "./TextOverlayProperties";
@@ -8,8 +9,16 @@ import { StickerOverlayProperties } from "./StickerOverlayProperties";
 import { ShapeOverlayProperties } from "./ShapeOverlayProperties";
 import { Settings2, MousePointerClick } from "lucide-react";
 import { KeyframePanel } from "./KeyframePanel";
+import { TaskContextStrip } from "@/components/gif-maker-workspace/TaskContextStrip";
+import type { GifQueueTicket } from "@/lib/hooks/useGifQueue.query";
+import type { InstagramProfileDetail } from "@/lib/hooks/useInstagramProfile.query";
 
-export function PropertiesPanel() {
+interface PropertiesPanelProps {
+  activeTicket?: GifQueueTicket | null;
+  modelContext?: InstagramProfileDetail | null;
+}
+
+export function PropertiesPanel({ activeTicket, modelContext }: PropertiesPanelProps = {}) {
   // Derive selected items directly in selectors — only re-renders when the
   // selected clip/overlay itself changes, not when any unrelated clip updates
   const selectedClip = useVideoEditorStore((s) =>
@@ -19,6 +28,13 @@ export function PropertiesPanel() {
     s.selectedOverlayId ? (s.overlays.find((o) => o.id === s.selectedOverlayId) ?? null) : null
   );
 
+  // Smart expand/collapse: auto-collapse when clip/overlay selected, auto-expand when cleared
+  const [contextExpanded, setContextExpanded] = useState(true);
+  const hasSelection = !!selectedClip || !!selectedOverlay;
+  useEffect(() => {
+    setContextExpanded(!hasSelection);
+  }, [hasSelection]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 h-9 bg-[#161925] border-b border-[#2d3142] sticky top-0 z-10 flex-shrink-0">
@@ -27,6 +43,16 @@ export function PropertiesPanel() {
           Properties
         </h3>
       </div>
+
+      {/* Task Context Strip — only in workspace queue mode */}
+      {activeTicket && (
+        <TaskContextStrip
+          ticket={activeTicket}
+          modelContext={modelContext ?? null}
+          isExpanded={contextExpanded}
+          onToggleExpand={() => setContextExpanded((v) => !v)}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {selectedClip ? (

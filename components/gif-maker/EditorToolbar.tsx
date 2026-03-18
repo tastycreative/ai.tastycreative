@@ -1,6 +1,7 @@
 "use client";
 
 import { RefObject, useCallback } from "react";
+import { toast } from "sonner";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
 import { useEditorHistory } from "@/lib/hooks/useEditorHistory";
 import {
@@ -272,6 +273,20 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
               phase: "done",
               message: `Saved to flyer library! URL copied. (${sizeDisplay}${sizeWarning})`,
             });
+
+            // Auto-advance toast for queue mode
+            const currentStore = useVideoEditorStore.getState();
+            if (currentStore.activeTicketId) {
+              toast.success("GIF saved! Ready for next task?", {
+                action: {
+                  label: "Next Task →",
+                  onClick: () => {
+                    useVideoEditorStore.getState().requestNextTask();
+                  },
+                },
+                duration: 5000,
+              });
+            }
           } else {
             downloadBlob(gifBlob, `flyer-${timestamp}.gif`);
             setExportState({
