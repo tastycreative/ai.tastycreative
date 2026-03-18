@@ -64,6 +64,15 @@ interface VideoEditorState {
   setWorkspaceMode: (profileId: string | null, boardItemId?: string | null) => void;
   clearWorkspaceMode: () => void;
 
+  // Queue mode (GIF Maker Workspace with task queue)
+  activeTicketId: string | null;
+  setActiveTicket: (ticketId: string | null) => void;
+  queueDrawerOpen: boolean;
+  setQueueDrawerOpen: (open: boolean) => void;
+  /** Signal set by export toast — GifMakerWorkspace watches this to advance */
+  pendingNextTask: boolean;
+  requestNextTask: () => void;
+
   // ─── Clip Actions ──────────────────
   addClip: (clip: Omit<VideoClip, "startFrame"> | Omit<ImageClip, "startFrame">) => void;
   removeClip: (clipId: string) => void;
@@ -234,7 +243,22 @@ export const useVideoEditorStore = create<VideoEditorState>()((set, get) => ({
   setWorkspaceMode: (profileId, boardItemId) =>
     set({ workspaceMode: !!profileId, workspaceProfileId: profileId, workspaceBoardItemId: boardItemId ?? null }),
   clearWorkspaceMode: () =>
-    set({ workspaceMode: false, workspaceProfileId: null, workspaceBoardItemId: null }),
+    set({
+      workspaceMode: false,
+      workspaceProfileId: null,
+      workspaceBoardItemId: null,
+      activeTicketId: null,
+      queueDrawerOpen: true,
+      pendingNextTask: false,
+    }),
+
+  // Queue mode defaults
+  activeTicketId: null,
+  setActiveTicket: (ticketId) => set({ activeTicketId: ticketId }),
+  queueDrawerOpen: true,
+  setQueueDrawerOpen: (open) => set({ queueDrawerOpen: open }),
+  pendingNextTask: false,
+  requestNextTask: () => set({ pendingNextTask: true }),
 
   // ─── Clip Actions ──────────────────
 
