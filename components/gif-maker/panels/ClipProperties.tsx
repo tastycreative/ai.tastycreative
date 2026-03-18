@@ -292,6 +292,20 @@ export function ClipProperties({ clip }: ClipPropertiesProps) {
         </p>
       </PropertySection>
 
+      {/* Reverse */}
+      <PropertySection label="Reverse">
+        <button
+          onClick={() => updateClip(clip.id, { reversed: !clip.reversed })}
+          className={`h-8 px-3 rounded-lg text-xs font-medium transition-all ${
+            clip.reversed
+              ? "bg-brand-light-pink/20 text-brand-light-pink border border-brand-light-pink/30"
+              : "bg-slate-800 text-slate-400 border border-[#2d3142] hover:text-slate-100"
+          }`}
+        >
+          {clip.reversed ? "← Reversed" : "→ Normal"}
+        </button>
+      </PropertySection>
+
       {/* Crop & Zoom */}
       <PropertySection label={`Zoom: ${(clip.zoom?.scale ?? 1).toFixed(1)}×`}>
         <input

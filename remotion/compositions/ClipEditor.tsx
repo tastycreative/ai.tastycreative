@@ -54,6 +54,7 @@ const VideoClipSchema = z.object({
   slotIndex: z.number().optional(),
   speed: z.number().optional(),
   zoom: ClipZoomSchema.optional(),
+  reversed: z.boolean().optional(),
 });
 
 const ImageClipSchema = z.object({
@@ -67,6 +68,7 @@ const ImageClipSchema = z.object({
   slotIndex: z.number().optional(),
   speed: z.number().optional(),
   zoom: ClipZoomSchema.optional(),
+  reversed: z.boolean().optional(),
 });
 
 const ClipSchema = z.discriminatedUnion("type", [VideoClipSchema, ImageClipSchema]);
@@ -131,11 +133,13 @@ const OverlaySchema = z.union([
     type: z.literal("blur"),
     intensity: z.number(),
     blurMode: z.enum(["gaussian", "pixelate", "solid", "heavy"]),
-    shape: z.enum(["rectangle", "ellipse", "rounded-rect"]),
+    shape: z.enum(["rectangle", "ellipse", "rounded-rect", "paint"]),
     rotation: z.number(),
     feather: z.number(),
     borderRadius: z.number(),
     fillColor: z.string(),
+    paintPath: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+    brushSize: z.number().optional(),
   }),
   OverlayBaseSchema.extend({
     type: z.literal("sticker"),
@@ -293,8 +297,8 @@ const ClipWithTransition: React.FC<{
     }
   }
 
-  // Use "cover" when in a collage slot so it fills the area
-  const fitMode = inSlot ? "cover" : "contain";
+  // Always use "cover" so video fills the area without black bars
+  const fitMode = "cover" as const;
 
   // Zoom/pan transform
   const zoom = clip.zoom;
@@ -339,13 +343,21 @@ const ClipWithTransition: React.FC<{
       );
     }
 
+    // For reversed video clips, compute reversed startFrom based on current frame
+    const isReversed = clip.reversed === true;
+    const trimRange = clip.trimEndFrame - clip.trimStartFrame;
+    const reversedStartFrom = isReversed
+      ? Math.max(0, clip.trimStartFrame + trimRange - Math.round(frame * speed) - 1)
+      : clip.trimStartFrame;
+
     return (
       <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
         <Video
           src={clip.src}
-          startFrom={clip.trimStartFrame}
+          startFrom={reversedStartFrom}
+          endAt={isReversed ? reversedStartFrom + 1 : undefined}
           volume={clip.volume}
-          playbackRate={speed}
+          playbackRate={isReversed ? undefined : speed}
           crossOrigin="anonymous"
           style={{
             objectFit: fitMode,

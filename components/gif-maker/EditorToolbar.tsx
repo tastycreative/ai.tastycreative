@@ -24,8 +24,10 @@ import {
   Undo2,
   Redo2,
   Wand2,
+  Crop,
 } from "lucide-react";
 import { ExportImageButton } from "./ExportImageButton";
+import { ExportSettingsDropdown } from "./ExportSettingsDropdown";
 
 interface EditorToolbarProps {
   playerRef: RefObject<PreviewPlayerRef | null>;
@@ -45,6 +47,10 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
   const setExportState = useVideoEditorStore((s) => s.setExportState);
   const loopMode = useVideoEditorStore((s) => s.settings.loopMode ?? "forward");
   const updateSettings = useVideoEditorStore((s) => s.updateSettings);
+  const isCropping = useVideoEditorStore((s) => s.isCropping);
+  const setIsCropping = useVideoEditorStore((s) => s.setIsCropping);
+  const applyCrop = useVideoEditorStore((s) => s.applyCrop);
+  const setCropRect = useVideoEditorStore((s) => s.setCropRect);
 
   // History management
   const { undo, redo, canUndo, canRedo, manualSave, lastSaveTime } = useEditorHistory();
@@ -70,8 +76,13 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
     });
 
     try {
+      const gifSettings = useVideoEditorStore.getState().gifExportSettings;
+      const outputWidth = gifSettings.maxWidth ?? settings.width;
+      const outputHeight = gifSettings.maxWidth && settings.width > 0
+        ? Math.round((settings.height / settings.width) * gifSettings.maxWidth)
+        : settings.height;
       const totalFrames = totalDurationInFrames;
-      const everyNthFrame = 2;
+      const everyNthFrame = gifSettings.frameSkip;
 
       let frames: HTMLCanvasElement[];
 
@@ -82,8 +93,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           (frame) => player.seekToFrame(frame),
           {
             totalFrames,
-            width: settings.width,
-            height: settings.height,
+            width: outputWidth,
+            height: outputHeight,
             everyNthFrame,
             fps: settings.fps,
           },
@@ -97,17 +108,19 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       } else {
         // Video-only timeline: use fast video-to-canvas capture
         const blurRegions: BlurRegionDef[] = overlays
-          .filter((o) => o.type === "blur")
+          .filter((o): o is import("@/lib/gif-maker/types").BlurOverlay => o.type === "blur")
           .map((o) => ({
             x: o.x,
             y: o.y,
             width: o.width,
             height: o.height,
-            intensity: (o as { intensity?: number }).intensity || 20,
-            shape: (o as { shape?: "rectangle" | "ellipse" | "rounded-rect" }).shape || "rectangle",
-            borderRadius: (o as { borderRadius?: number }).borderRadius,
-            blurMode: (o as { blurMode?: "gaussian" | "heavy" | "pixelate" | "solid" }).blurMode,
-            fillColor: (o as { fillColor?: string }).fillColor,
+            intensity: o.intensity || 20,
+            shape: o.shape || "rectangle",
+            borderRadius: o.borderRadius,
+            blurMode: o.blurMode,
+            fillColor: o.fillColor,
+            paintPath: o.paintPath,
+            brushSize: o.brushSize,
           }));
 
         frames = await captureVideoWithBlur(
@@ -115,8 +128,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           (frame) => player.seekToFrame(frame),
           {
             totalFrames,
-            width: settings.width,
-            height: settings.height,
+            width: outputWidth,
+            height: outputHeight,
             everyNthFrame,
             blurRegions,
             fps: settings.fps,
@@ -142,8 +155,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
             (frame) => player.seekToFrame(frame),
             {
               totalFrames,
-              width: settings.width,
-              height: settings.height,
+              width: outputWidth,
+              height: outputHeight,
               everyNthFrame,
               fps: settings.fps,
             },
@@ -169,6 +182,28 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         processedFrames = frames;
       }
 
+      // Apply crop if set
+      let finalWidth = outputWidth;
+      let finalHeight = outputHeight;
+      const cropRect = useVideoEditorStore.getState().cropRect;
+      if (cropRect) {
+        finalWidth = Math.round((cropRect.width / 100) * outputWidth);
+        finalHeight = Math.round((cropRect.height / 100) * outputHeight);
+        processedFrames = processedFrames.map((frame) => {
+          const cx = Math.round((cropRect.x / 100) * frame.width);
+          const cy = Math.round((cropRect.y / 100) * frame.height);
+          const cw = Math.max(1, Math.round((cropRect.width / 100) * frame.width));
+          const ch = Math.max(1, Math.round((cropRect.height / 100) * frame.height));
+          const cropped = document.createElement("canvas");
+          cropped.width = cw;
+          cropped.height = ch;
+          const ctx = cropped.getContext("2d");
+          if (!ctx) return frame; // return uncropped on failure
+          ctx.drawImage(frame, cx, cy, cw, ch, 0, 0, cw, ch);
+          return cropped;
+        });
+      }
+
       setExportState({
         progress: 50,
         phase: "encoding",
@@ -178,10 +213,12 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       const gifBlob = await renderFramesToGif(
         processedFrames,
         {
-          width: settings.width,
-          height: settings.height,
-          fps: 15,
-          quality: 10,
+          width: finalWidth,
+          height: finalHeight,
+          fps: gifSettings.outputFps,
+          quality: gifSettings.colorCount <= 64 ? 20 : gifSettings.colorCount <= 128 ? 15 : 10,
+          colorCount: gifSettings.colorCount,
+          dithering: gifSettings.dithering,
         },
         (progress) =>
           setExportState({
@@ -190,6 +227,14 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
             message: `Encoding... ${progress.progress}%`,
           })
       );
+
+      // Format file size with color hint
+      const sizeMB = gifBlob.size / (1024 * 1024);
+      const sizeKB = gifBlob.size / 1024;
+      const sizeDisplay = sizeMB >= 1
+        ? `${sizeMB.toFixed(1)} MB`
+        : `${Math.round(sizeKB)} KB`;
+      const sizeWarning = sizeMB > 8 ? " ⚠ Large" : sizeMB > 3 ? " ⚠ Medium" : "";
 
       const timestamp = new Date()
         .toISOString()
@@ -220,32 +265,30 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
 
           if (uploadRes.ok) {
             const { asset } = await uploadRes.json();
-            // Copy URL to clipboard
             await navigator.clipboard.writeText(asset.url).catch(() => {});
             setExportState({
               isExporting: false,
               progress: 100,
               phase: "done",
-              message: `Saved to flyer library! URL copied. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+              message: `Saved to flyer library! URL copied. (${sizeDisplay}${sizeWarning})`,
             });
           } else {
-            // Upload failed — fall back to download
             downloadBlob(gifBlob, `flyer-${timestamp}.gif`);
             setExportState({
               isExporting: false,
               progress: 100,
               phase: "done",
-              message: `Upload failed — downloaded instead. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+              message: `Upload failed — downloaded instead. (${sizeDisplay}${sizeWarning})`,
             });
           }
-        } catch {
-          // Upload error — fall back to download
+        } catch (uploadErr) {
+          console.error("GIF upload to flyer library failed:", uploadErr);
           downloadBlob(gifBlob, `flyer-${timestamp}.gif`);
           setExportState({
             isExporting: false,
             progress: 100,
             phase: "done",
-            message: `Upload error — downloaded instead. (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+            message: `Upload error — downloaded instead. (${sizeDisplay}${sizeWarning})`,
           });
         }
       } else {
@@ -254,7 +297,7 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           isExporting: false,
           progress: 100,
           phase: "done",
-          message: `Exported! (${(gifBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+          message: `Exported! (${sizeDisplay}${sizeWarning})`,
         });
       }
 
@@ -338,6 +381,34 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
         Snap
       </button>
 
+      {/* Crop Tool */}
+      <button
+        onClick={() => {
+          if (useVideoEditorStore.getState().isCropping) {
+            applyCrop();
+          } else {
+            setIsCropping(true);
+          }
+        }}
+        className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors duration-150 ${
+          isCropping
+            ? "text-brand-blue bg-brand-blue/15 hover:bg-brand-blue/20"
+            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
+        }`}
+        title={isCropping ? "Apply crop" : "Crop canvas"}
+      >
+        <Crop className="h-4 w-4" />
+        {isCropping ? "Apply" : "Crop"}
+      </button>
+      {isCropping && (
+        <button
+          onClick={() => { setCropRect(null); setIsCropping(false); }}
+          className="h-8 px-2 text-xs text-zinc-400 hover:text-zinc-100 transition-colors"
+        >
+          Cancel
+        </button>
+      )}
+
       <div className="w-px h-5 bg-zinc-800 mx-1" />
 
       {/* Undo/Redo */}
@@ -413,7 +484,13 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       {!exportState.isExporting && exportState.phase !== "idle" && (
         <span
           className={`text-[10px] mr-2 ${
-            exportState.phase === "done" ? "text-brand-blue" : "text-red-400"
+            exportState.phase === "error"
+              ? "text-red-400"
+              : exportState.message.includes("Large")
+                ? "text-red-400"
+                : exportState.message.includes("Medium")
+                  ? "text-yellow-400"
+                  : "text-brand-blue"
           }`}
         >
           {exportState.message}
@@ -446,6 +523,9 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
           </button>
         ))}
       </div>
+
+      {/* Export Settings */}
+      <ExportSettingsDropdown />
 
       {/* Export GIF Button */}
       <button

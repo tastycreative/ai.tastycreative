@@ -105,6 +105,13 @@ export const BlurOverlayRenderer: React.FC<BlurOverlayRendererProps> = ({
     filterValue = `blur(${blurPx}px)`;
   }
 
+  // Paint shape blur is rendered outside Remotion (in PaintBlurCanvas)
+  // to share the same coordinate system as the drawing indicator.
+  // Remotion's internal transform scaling causes misalignment if rendered here.
+  if (shape === "paint") {
+    return null;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // EXPORT MODE: Use video copy approach (captured properly in export)
   // ═══════════════════════════════════════════════════════════════════
@@ -159,7 +166,7 @@ export const BlurOverlayRenderer: React.FC<BlurOverlayRendererProps> = ({
                       style={{
                         width: "100%",
                         height: "100%",
-                        objectFit: "contain",
+                        objectFit: "cover",
                       }}
                     />
                   )

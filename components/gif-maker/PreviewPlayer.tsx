@@ -83,7 +83,12 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(
       if (!el || !overlaySlot) return;
       const measure = () => {
         const rect = el.getBoundingClientRect();
-        setOverlaySize({ width: rect.width, height: rect.height });
+        setOverlaySize((prev) => {
+          if (Math.round(prev.width) === Math.round(rect.width) && Math.round(prev.height) === Math.round(rect.height)) {
+            return prev;
+          }
+          return { width: rect.width, height: rect.height };
+        });
       };
       measure();
       const observer = new ResizeObserver(measure);

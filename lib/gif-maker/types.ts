@@ -241,6 +241,7 @@ export interface VideoClip {
   effects?: ClipEffects; // visual effects
   speed?: number; // 0.25 to 2.0, default 1.0
   zoom?: ClipZoom; // crop/zoom, default none
+  reversed?: boolean; // play clip in reverse
 }
 
 export interface ImageClip {
@@ -255,6 +256,7 @@ export interface ImageClip {
   effects?: ClipEffects; // visual effects
   speed?: number; // 0.25 to 2.0, default 1.0
   zoom?: ClipZoom; // crop/zoom, default none
+  reversed?: boolean; // kept for union consistency
 }
 
 export type Clip = VideoClip | ImageClip;
@@ -333,7 +335,12 @@ export interface TextOverlay extends OverlayBase {
 }
 
 export type BlurMode = "gaussian" | "pixelate" | "solid" | "heavy";
-export type BlurShape = "rectangle" | "ellipse" | "rounded-rect";
+export type BlurShape = "rectangle" | "ellipse" | "rounded-rect" | "paint";
+
+export interface PaintPoint {
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100
+}
 
 export interface BlurOverlay extends OverlayBase {
   type: "blur";
@@ -344,6 +351,9 @@ export interface BlurOverlay extends OverlayBase {
   feather: number; // 0-50 px soft edge
   borderRadius: number; // 0-50% for rounded-rect
   fillColor: string; // color for solid mode
+  paintPath?: PaintPoint[]; // freehand stroke path (only when shape === "paint")
+  brushSize?: number;       // brush radius in percentage (default 3)
+  paintMode?: "draw" | "move"; // interaction mode (default "draw")
 }
 
 export interface StickerOverlay extends OverlayBase {
@@ -400,3 +410,52 @@ export interface ExportState {
   phase: "idle" | "capturing" | "encoding" | "done" | "error";
   message: string;
 }
+
+export interface GifExportSettings {
+  quality: "high" | "medium" | "low" | "custom";
+  colorCount: 256 | 128 | 64 | 32;
+  dithering: boolean;
+  lossy: number; // 0-100
+  frameSkip: 1 | 2 | 3 | 4;
+  outputFps: 10 | 12 | 15 | 20 | 24;
+  optimizeFrames: boolean;
+  maxWidth: number | null;
+}
+
+export const GIF_QUALITY_PRESETS: Record<
+  Exclude<GifExportSettings["quality"], "custom">,
+  Omit<GifExportSettings, "quality">
+> = {
+  high: {
+    colorCount: 256,
+    dithering: true,
+    lossy: 0,
+    frameSkip: 1,
+    outputFps: 15,
+    optimizeFrames: true,
+    maxWidth: null,
+  },
+  medium: {
+    colorCount: 128,
+    dithering: true,
+    lossy: 20,
+    frameSkip: 2,
+    outputFps: 12,
+    optimizeFrames: true,
+    maxWidth: 800,
+  },
+  low: {
+    colorCount: 64,
+    dithering: false,
+    lossy: 40,
+    frameSkip: 3,
+    outputFps: 10,
+    optimizeFrames: true,
+    maxWidth: 600,
+  },
+};
+
+export const DEFAULT_GIF_EXPORT_SETTINGS: GifExportSettings = {
+  ...GIF_QUALITY_PRESETS.high,
+  quality: "high",
+};
