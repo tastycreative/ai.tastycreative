@@ -44,7 +44,7 @@ model User {
   instagramPosts           InstagramPost[]
   instagramProfiles        InstagramProfile[]
   modelOnboardingDrafts    ModelOnboardingDraft[]
-  model_presets            model_presets[]
+  modelPresets             ModelPreset[]
   notifications            Notification[]
   onboardingInvitations    OnboardingInvitation[]
   productionEntries        ProductionEntry[]
@@ -58,7 +58,6 @@ model User {
   trainingJobs             TrainingJob[]
   dailyActivities          UserDailyActivity[]
   workspace_members        WorkspaceMember[]
-  modelPresets              ModelPreset[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -516,7 +515,7 @@ model LoRAShare {
 }
 
 model InstagramProfile {
-  id                     String                 @id @default(cuid())
+  id                     String                @id @default(cuid())
   clerkId                String
   name                   String
   description            String?
@@ -524,39 +523,38 @@ model InstagramProfile {
   instagramAccountId     String?
   instagramAccessToken   String?
   instagramTokenExpiry   DateTime?
-  isDefault              Boolean                @default(false)
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  isDefault              Boolean               @default(false)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
   organizationId         String?
   modelBible             Json?
-  isFavorite             Boolean                @default(false)
-  tags                   String[]               @default([])
+  isFavorite             Boolean               @default(false)
+  tags                   String[]              @default([])
   pageStrategy           String?
   customStrategies       Json?
-  customContentTypes     String[]               @default([])
-  selectedContentTypes   String[]               @default([])
-  status                 String                 @default("active")
-  type                   String                 @default("real")
+  customContentTypes     String[]              @default([])
+  selectedContentTypes   String[]              @default([])
+  status                 String                @default("active")
+  type                   String                @default("real")
   metadata               Json?
   captions               Caption[]
-  bookmarks              FeedPostBookmark[]     @relation("ProfileBookmarks")
-  commentLikes           FeedPostCommentLike[]  @relation("ProfileCommentLikes")
-  comments               FeedPostComment[]      @relation("ProfileComments")
-  postLikes              FeedPostLike[]         @relation("ProfilePostLikes")
+  bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
+  commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
+  comments               FeedPostComment[]     @relation("ProfileComments")
+  postLikes              FeedPostLike[]        @relation("ProfilePostLikes")
   feedPosts              FeedPost[]
-  receivedFriendRequests Friendship[]           @relation("ReceivedFriendRequests")
-  sentFriendRequests     Friendship[]           @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[]          @relation("ReceivedFriendRequests")
+  sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   galleryItems           gallery_items[]
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
-  user                   User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  organization           Organization?          @relation(fields: [organizationId], references: [id])
-  model_preset_members   model_preset_members[]
+  user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  organization           Organization?         @relation(fields: [organizationId], references: [id])
+  modelPresetMemberships ModelPresetMember[]
   trackerEntry           PageTrackerEntry?
   assignments            ProfileAssignment[]
   groupMemberships       ProfileGroupMember[]
-  modelPresetMemberships ModelPresetMember[]
   profilePins            ProfilePin[]
 
   @@index([clerkId])
@@ -2563,30 +2561,32 @@ model SchedulerConfig {
   @@map("scheduler_configs")
 }
 
-model model_preset_members {
-  id                 String           @id
-  presetId           String
-  profileId          String
-  addedAt            DateTime         @default(now())
-  model_presets      model_presets    @relation(fields: [presetId], references: [id], onDelete: Cascade)
-  instagram_profiles InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+model ModelPreset {
+  id        String              @id @default(cuid())
+  name      String
+  createdBy String
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  members   ModelPresetMember[]
+  user      User                @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
+
+  @@unique([createdBy, name])
+  @@index([createdBy])
+  @@map("model_presets")
+}
+
+model ModelPresetMember {
+  id        String           @id @default(cuid())
+  presetId  String
+  profileId String
+  addedAt   DateTime         @default(now())
+  preset    ModelPreset      @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@unique([presetId, profileId])
   @@index([presetId])
   @@index([profileId])
-}
-
-model model_presets {
-  id                   String                 @id
-  name                 String
-  createdBy            String
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime
-  model_preset_members model_preset_members[]
-  users                User                   @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
-
-  @@unique([createdBy, name])
-  @@index([createdBy])
+  @@map("model_preset_members")
 }
 
 enum SyncStatus {
@@ -2941,32 +2941,4 @@ enum SchedulerTaskStatus {
   IN_PROGRESS
   DONE
   SKIPPED
-}
-
-model ModelPreset {
-  id        String               @id @default(cuid())
-  name      String
-  createdBy String
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  user      User                 @relation(fields: [createdBy], references: [clerkId], onDelete: Cascade)
-  members   ModelPresetMember[]
-
-  @@unique([createdBy, name])
-  @@index([createdBy])
-  @@map("model_presets")
-}
-
-model ModelPresetMember {
-  id        String      @id @default(cuid())
-  presetId  String
-  profileId String
-  addedAt   DateTime    @default(now())
-  preset    ModelPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([presetId, profileId])
-  @@index([presetId])
-  @@index([profileId])
-  @@map("model_preset_members")
 }
