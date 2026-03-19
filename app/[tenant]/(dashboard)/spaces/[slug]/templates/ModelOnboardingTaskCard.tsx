@@ -25,21 +25,21 @@ export const ModelOnboardingTaskCard = memo(function ModelOnboardingTaskCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
-  const [launchModelName, setLaunchModelName] = useState('');
   const [isLaunching, setIsLaunching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const launchInputRef = useRef<HTMLInputElement>(null);
   const { data: orgMembers = [] } = useOrgMembers();
   const { data: existingProfiles = [] } = useInstagramProfiles();
 
+  const meta = (task.metadata ?? {}) as Record<string, unknown>;
+  const modelName = (meta.modelName as string) ?? '';
+  const platform = (meta.platform as string) ?? '';
+  const [launchModelName, setLaunchModelName] = useState(modelName || task.title);
+
   const isDuplicateName = launchModelName.trim().length > 0 &&
     existingProfiles.some(
       (p) => p.name.toLowerCase() === launchModelName.trim().toLowerCase()
     );
-
-  const meta = (task.metadata ?? {}) as Record<string, unknown>;
-  const modelName = (meta.modelName as string) ?? '';
-  const platform = (meta.platform as string) ?? '';
   const isLaunched = meta.launched === true;
   const checklist = Array.isArray(meta.checklist) ? (meta.checklist as { completed: boolean }[]) : [];
   const total = checklist.length;
