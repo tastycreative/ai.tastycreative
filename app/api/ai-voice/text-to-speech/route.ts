@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { uploadToAwsS3 } from "@/lib/awsS3Utils";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_API_BASE = "https://api.elevenlabs.io";
@@ -113,32 +114,13 @@ export async function POST(request: Request) {
     
     // Determine MIME type based on output format
     let mimeType = "audio/mpeg";
+    let extension = "mp3";
     if (outputFormat.startsWith("pcm_")) {
       mimeType = "audio/pcm";
+      extension = "pcm";
     } else if (outputFormat.startsWith("ulaw_")) {
       mimeType = "audio/basic";
-    }
-
-    // Fetch the most recent history item from ElevenLabs to get the history_item_id
-    let historyItemId: string | null = null;
-    try {
-      const historyResponse = await fetch(
-        `${ELEVENLABS_API_BASE}/v1/history?page_size=1&voice_id=${voiceId}`,
-        {
-          headers: {
-            "xi-api-key": apiKey,
-          },
-        }
-      );
-      
-      if (historyResponse.ok) {
-        const historyData = await historyResponse.json();
-        if (historyData.history && historyData.history.length > 0) {
-          historyItemId = historyData.history[0].history_item_id;
-        }
-      }
-    } catch (historyError) {
-      console.error("Error fetching history item ID:", historyError);
+      extension = "ulaw";
     }
 
     // Update usage count for the voice
@@ -153,10 +135,29 @@ export async function POST(request: Request) {
           },
         });
 
-        // Use the ElevenLabs history_item_id as our generation ID for easy retrieval
-        const generationId = historyItemId || crypto.randomUUID();
+        const generationId = crypto.randomUUID();
+        const filename = `voice-${generationId}.${extension}`;
 
-        // Save generation to history - we'll fetch audio from ElevenLabs history API
+        // Upload audio to S3 for persistent storage
+        let audioUrl: string | null = null;
+        let s3Key: string | null = null;
+        try {
+          const uploadResult = await uploadToAwsS3(
+            Buffer.from(audioBuffer),
+            userId,
+            filename,
+            mimeType,
+            { type: "images" } // reuses the existing folder structure
+          );
+          if (uploadResult.success && uploadResult.publicUrl) {
+            audioUrl = uploadResult.publicUrl;
+            s3Key = uploadResult.s3Key || null;
+          }
+        } catch (uploadError) {
+          console.error("S3 upload failed (audio still returned to client):", uploadError);
+        }
+
+        // Save generation to history with the permanent CDN URL
         const generation = await prisma.ai_voice_generations.create({
           data: {
             id: generationId,
@@ -167,12 +168,14 @@ export async function POST(request: Request) {
             characterCount: text.length,
             modelId,
             outputFormat,
+            audioUrl,
+            awsS3Key: s3Key,
             audioSize: audioBuffer.byteLength,
             voiceSettings: voiceSettings || null,
           },
         });
 
-        console.log("Generation saved successfully:", { generationId: generation.id, userId, voiceName: voiceAccount.name });
+        console.log("Generation saved successfully:", { generationId: generation.id, userId, voiceName: voiceAccount.name, audioUrl });
 
         return NextResponse.json({
           success: true,
@@ -181,18 +184,16 @@ export async function POST(request: Request) {
           format: outputFormat,
           characterCount: text.length,
           generationId: generation.id,
-          historyItemId,
+          audioUrl,
         });
       } catch (dbError) {
         console.error("Error saving generation to database:", dbError);
-        // Still return the audio even if DB save failed
         return NextResponse.json({
           success: true,
           audio: base64Audio,
           mimeType,
           format: outputFormat,
           characterCount: text.length,
-          historyItemId,
           warning: "Audio generated but failed to save to history",
         });
       }
@@ -206,7 +207,6 @@ export async function POST(request: Request) {
       mimeType,
       format: outputFormat,
       characterCount: text.length,
-      historyItemId,
     });
   } catch (error) {
     console.error("Error in text-to-speech:", error);

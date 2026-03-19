@@ -28,6 +28,7 @@ import {
   Tag,
   SlidersHorizontal,
   Copy,
+  Instagram,
 } from "lucide-react";
 import { useReferenceBankStore } from "@/lib/reference-bank/store";
 import {
@@ -42,6 +43,7 @@ import { EditModal } from "./modals/EditModal";
 import { DeleteModal } from "./modals/DeleteModal";
 import { FolderModal } from "./modals/FolderModal";
 import { MoveModal } from "./modals/MoveModal";
+import { InstagramImportModal } from "./modals/InstagramImportModal";
 
 export function ReferenceBankContent() {
   // Get state from store - using the actual store interface
@@ -111,6 +113,7 @@ export function ReferenceBankContent() {
   const [error, setError] = useState<string | null>(null);
   const [isUploadQueueExpanded, setIsUploadQueueExpanded] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showInstagramImportModal, setShowInstagramImportModal] = useState(false);
 
   // Convert selectedItems Set to array for easier use
   const selectedIds = useMemo(
@@ -139,8 +142,8 @@ export function ReferenceBankContent() {
     if (filterType !== "all") {
       result = result.filter((item) =>
         filterType === "image"
-          ? item.fileType.startsWith("image/")
-          : item.fileType.startsWith("video/")
+          ? item.fileType === "image" || item.fileType.startsWith("image/")
+          : item.fileType === "video" || item.fileType.startsWith("video/")
       );
     }
 
@@ -672,6 +675,13 @@ export function ReferenceBankContent() {
                 <span className="hidden sm:inline">Upload</span>
               </button>
               <button
+                onClick={() => setShowInstagramImportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] hover:opacity-90 text-white font-medium rounded-lg transition-all shadow-lg shadow-[#E1306C]/20"
+              >
+                <Instagram className="w-4 h-4" />
+                <span className="hidden sm:inline">Import IG</span>
+              </button>
+              <button
                 onClick={handleCreateFolder}
                 className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sidebar-foreground rounded-lg transition-colors border border-[#EC67A1]/10"
               >
@@ -988,7 +998,7 @@ export function ReferenceBankContent() {
             className="max-w-5xl max-h-[80vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {previewItem.fileType.startsWith("video/") ? (
+            {(previewItem.fileType === "video" || previewItem.fileType.startsWith("video/")) ? (
               <video
                 src={previewItem.awsS3Url}
                 controls
@@ -1221,6 +1231,19 @@ export function ReferenceBankContent() {
         />,
         document.body
       )}
+
+      {showInstagramImportModal && createPortal(
+        <InstagramImportModal
+          onClose={() => setShowInstagramImportModal(false)}
+          onImportComplete={() => {
+            fetchData();
+            fetchStorageQuota();
+          }}
+          folders={folders || []}
+          currentFolderId={selectedFolderId}
+        />,
+        document.body
+      )}
     </div>
   );
 }
@@ -1247,7 +1270,7 @@ function GridItemCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const isVideo = item.fileType.startsWith("video/");
+  const isVideo = item.fileType === "video" || item.fileType.startsWith("video/");
 
   return (
     <div
@@ -1264,11 +1287,21 @@ function GridItemCard({
       >
         {isVideo ? (
           <>
-            <video
-              src={item.thumbnailUrl || item.awsS3Url}
-              className="w-full h-full object-cover"
-              muted
-            />
+            {item.thumbnailUrl && item.thumbnailUrl !== item.awsS3Url ? (
+              <img
+                src={item.thumbnailUrl}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={item.awsS3Url}
+                className="w-full h-full object-cover"
+                muted
+                preload="metadata"
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
               <PlayCircle className="w-12 h-12 text-white opacity-80" />
             </div>
@@ -1418,7 +1451,7 @@ function ListItemRow({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const isVideo = item.fileType.startsWith("video/");
+  const isVideo = item.fileType === "video" || item.fileType.startsWith("video/");
 
   return (
     <div
@@ -1447,11 +1480,21 @@ function ListItemRow({
       <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-lg overflow-hidden shrink-0 relative">
         {isVideo ? (
           <>
-            <video
-              src={item.thumbnailUrl || item.awsS3Url}
-              className="w-full h-full object-cover"
-              muted
-            />
+            {item.thumbnailUrl && item.thumbnailUrl !== item.awsS3Url ? (
+              <img
+                src={item.thumbnailUrl}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={item.awsS3Url}
+                className="w-full h-full object-cover"
+                muted
+                preload="metadata"
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center">
               <PlayCircle className="w-6 h-6 text-white opacity-80" />
             </div>

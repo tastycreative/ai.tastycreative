@@ -867,7 +867,11 @@ export function WallPostTaskDetailModal({
 
   const meta = task.metadata ?? {};
   const caption = (meta.caption as string) ?? '';
-  const platform = (meta.platform as string) ?? '';
+  const platforms: string[] = Array.isArray(meta.platforms)
+    ? (meta.platforms as string[])
+    : meta.platform
+      ? [(meta.platform as string)]
+      : [];
   const hashtags = Array.isArray(meta.hashtags)
     ? (meta.hashtags as string[])
     : [];
@@ -1539,8 +1543,9 @@ export function WallPostTaskDetailModal({
                 >
                   {columnTitle}
                 </span>
-                {platform && (
+                {platforms.map((p) => (
                   <span
+                    key={p}
                     className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-semibold capitalize text-brand-light-pink"
                     style={{
                       background: 'rgba(247,116,185,0.08)',
@@ -1548,9 +1553,9 @@ export function WallPostTaskDetailModal({
                     }}
                   >
                     <AtSign className="h-3 w-3" />
-                    {platform}
+                    {p}
                   </span>
-                )}
+                ))}
                 {/* Wall Post Status Badge */}
                 {wallPostStatus && WALL_POST_STATUS_CONFIG[wallPostStatus] && (
                   <span
@@ -2316,17 +2321,31 @@ export function WallPostTaskDetailModal({
             )}
 
             <SidebarField label="Platform">
-              <SelectField
-                value={platform}
-                options={PLATFORM_OPTIONS}
-                onSave={(v) => updateMeta({ platform: v })}
-                renderOption={(v) => (
-                  <span className="flex items-center gap-2 text-sm text-brand-off-white capitalize">
-                    <AtSign className="h-3 w-3 text-gray-500" />
-                    {v}
-                  </span>
-                )}
-              />
+              <div className="flex flex-wrap gap-1.5">
+                {PLATFORM_OPTIONS.map((opt) => {
+                  const selected = platforms.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        const next = selected
+                          ? platforms.filter((p) => p !== opt)
+                          : [...platforms, opt];
+                        updateMeta({ platforms: next });
+                      }}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium capitalize transition-colors border ${
+                        selected
+                          ? 'bg-brand-light-pink/15 text-brand-light-pink border-brand-light-pink/30'
+                          : 'bg-white/5 text-gray-400 border-white/10 hover:border-brand-light-pink/20 hover:text-gray-300'
+                      }`}
+                    >
+                      <AtSign className="h-2.5 w-2.5" />
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
             </SidebarField>
 
             {/* ── Schedule ── */}

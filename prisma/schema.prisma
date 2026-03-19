@@ -1831,6 +1831,7 @@ model ai_voice_generations {
   modelId           String
   outputFormat      String
   audioUrl          String?
+  awsS3Key          String?
   audioSize         Int?
   voiceSettings     Json?
   createdAt         DateTime          @default(now())
@@ -2542,6 +2543,7 @@ model SchedulerTask {
   updatedBy      String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @default(now()) @updatedAt
+  sortOrder      Int                 @default(0)
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])

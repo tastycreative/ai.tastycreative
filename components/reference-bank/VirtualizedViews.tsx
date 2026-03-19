@@ -67,13 +67,23 @@ const GridItemCard = memo(function GridItemCard({
         className="aspect-square bg-gray-900 relative overflow-hidden"
         onClick={onPreview}
       >
-        {item.fileType.startsWith("video/") ? (
+        {(item.fileType === "video" || item.fileType.startsWith("video/")) ? (
           <>
-            <video
-              src={item.thumbnailUrl || item.awsS3Url}
-              className="w-full h-full object-cover"
-              muted
-            />
+            {item.thumbnailUrl && item.thumbnailUrl !== item.awsS3Url ? (
+              <img
+                src={item.thumbnailUrl}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={item.awsS3Url}
+                className="w-full h-full object-cover"
+                muted
+                preload="metadata"
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
               <PlayCircle className="w-12 h-12 text-white opacity-80" />
             </div>
@@ -126,7 +136,7 @@ const GridItemCard = memo(function GridItemCard({
 
         {/* Type badge */}
         <div className="absolute bottom-2 left-2">
-          {item.fileType.startsWith("video/") ? (
+          {(item.fileType === "video" || item.fileType.startsWith("video/")) ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/90 backdrop-blur-sm text-white text-xs rounded-md">
               <VideoIcon className="w-3 h-3" />
               Video
@@ -255,13 +265,23 @@ const ListItemRow = memo(function ListItemRow({
 
       {/* Thumbnail */}
       <div className="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden shrink-0 relative">
-        {item.fileType.startsWith("video/") ? (
+        {(item.fileType === "video" || item.fileType.startsWith("video/")) ? (
           <>
-            <video
-              src={item.thumbnailUrl || item.awsS3Url}
-              className="w-full h-full object-cover"
-              muted
-            />
+            {item.thumbnailUrl && item.thumbnailUrl !== item.awsS3Url ? (
+              <img
+                src={item.thumbnailUrl}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={item.awsS3Url}
+                className="w-full h-full object-cover"
+                muted
+                preload="metadata"
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center">
               <PlayCircle className="w-6 h-6 text-white opacity-80" />
             </div>
@@ -284,12 +304,12 @@ const ListItemRow = memo(function ListItemRow({
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-400">
           <span className="flex items-center gap-1">
-            {item.fileType.startsWith("video/") ? (
+            {(item.fileType === "video" || item.fileType.startsWith("video/")) ? (
               <VideoIcon className="w-3 h-3" />
             ) : (
               <ImageIcon className="w-3 h-3" />
             )}
-            {item.fileType.startsWith("video/") ? "Video" : "Image"}
+            {(item.fileType === "video" || item.fileType.startsWith("video/")) ? "Video" : "Image"}
           </span>
           {item.width && item.height && (
             <span>{item.width}×{item.height}</span>

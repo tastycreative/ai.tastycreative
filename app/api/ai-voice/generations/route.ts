@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { deleteFromAwsS3 } from "@/lib/awsS3Utils";
 
 // GET - Fetch user's generation history
 export async function GET(request: Request) {
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
       select: {
         id: true,
         voiceName: true,
+        voiceAccountId: true,
         text: true,
         characterCount: true,
         modelId: true,
@@ -139,6 +141,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { error: "Generation not found or unauthorized" },
         { status: 404 }
+      );
+    }
+
+    // Delete audio from S3 if it exists
+    if (generation.awsS3Key) {
+      await deleteFromAwsS3(generation.awsS3Key).catch((err) =>
+        console.error("Failed to delete S3 audio:", err)
       );
     }
 

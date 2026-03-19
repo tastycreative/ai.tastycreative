@@ -34,17 +34,30 @@ export async function GET(req: NextRequest) {
       whereClause.isFavorite = true;
     }
 
-    // Filter by file type
+    // Filter by file type (handle both "video" and "video/mp4" patterns)
     if (fileType && fileType !== "all") {
-      whereClause.fileType = fileType;
+      whereClause.AND = [
+        ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+        {
+          OR: [
+            { fileType: fileType },
+            { fileType: { startsWith: `${fileType}/` } },
+          ],
+        },
+      ];
     }
 
     // Search filter
     if (search) {
-      whereClause.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { tags: { hasSome: [search] } },
+      whereClause.AND = [
+        ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+        {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { description: { contains: search, mode: "insensitive" } },
+            { tags: { hasSome: [search] } },
+          ],
+        },
       ];
     }
 
@@ -93,11 +106,11 @@ export async function GET(req: NextRequest) {
     });
 
     const imageCount = await prisma.reference_items.count({
-      where: { clerkId: userId, fileType: "image" },
+      where: { clerkId: userId, OR: [{ fileType: "image" }, { fileType: { startsWith: "image/" } }] },
     });
 
     const videoCount = await prisma.reference_items.count({
-      where: { clerkId: userId, fileType: "video" },
+      where: { clerkId: userId, OR: [{ fileType: "video" }, { fileType: { startsWith: "video/" } }] },
     });
 
     // Calculate total storage used
