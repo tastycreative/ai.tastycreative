@@ -81,72 +81,175 @@ function generateSampleTasks(): SchedulerTask[] {
   const samples: SchedulerTask[] = [];
   for (let day = 0; day < 7; day++) {
     // MM tasks — 5 per day
-    const mmFields = [
-      { time: '2:30 PM', contentPreview: 'Exclusive BTS content', paywallContent: 'Full video', tag: 'VIP', caption: 'Check out this exclusive behind the scenes...', captionGuide: 'Tease + CTA', price: '$5.99' },
-      { time: '4:00 PM', contentPreview: 'New photoset preview', paywallContent: 'HD gallery', tag: 'Premium', caption: 'Just dropped something special...', captionGuide: 'Mystery + urgency', price: '$9.99' },
-      { time: '6:30 PM', contentPreview: 'Custom request teaser', paywallContent: 'Custom video', tag: 'Custom', caption: 'Made this just for you...', captionGuide: 'Personal touch', price: '$14.99' },
-      { time: '8:00 PM', contentPreview: 'Evening selfie dump', tag: 'Free', caption: 'Good evening vibes...', captionGuide: 'Casual + engaging' },
-      { time: '10:00 PM', contentPreview: 'Late night special', paywallContent: 'Locked set', tag: 'VIP', caption: 'Late night surprise...', captionGuide: 'FOMO', price: '$7.99' },
+    const mmTasks: { name: string; fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
+      {
+        name: 'Unlock',
+        status: day < 3 ? 'DONE' : day === 3 ? 'IN_PROGRESS' : 'PENDING',
+        fields: {
+          time: '5:31 PM',
+          contentPreview: 'https://www.allthiscash.com/uploads/Universal-GIF/2025-03-22_09:49:44-8.gif',
+          paywallContent: '1 pussy vid, 1 solo fingering vid, 1 tit vid, 1 joi vid, 1 gg vid, 10 nsfw vids, 5 feet pics',
+          caption: '🔞𝐓𝐡𝐫𝐞𝐞 𝐇𝐮𝐧𝐝𝐫𝐞𝐝 𝐅𝐨𝐫 𝐓𝐞𝐧 🔞\n𝐓𝐡𝐚𝐭\'𝐬 𝐫𝐢𝐠𝐡𝐭!! 𝐎𝐕𝐄𝐑 $𝟑𝟎𝟎 𝐰𝐨𝐫𝐭𝐡 𝐨𝐟 𝐯𝐢𝐝𝐞𝐨𝐬 𝐟𝐨𝐫 $𝟏𝟎!! 𝐘𝐨𝐮 𝐒𝐩𝐨𝐢𝐥𝐭 𝐁𝐨𝐲 😜\n𝐓𝐡𝐞 𝐯𝐢𝐝𝐞𝐨𝐬 𝐢𝐧𝐜𝐥𝐮𝐝𝐞 ⬇️\n- 𝐏𝐔𝐒𝐒𝐘 - 𝐒𝐓𝐎𝐂𝐊𝐈𝐍𝐆𝐒 - 𝐓𝐎𝐄𝐒 - 𝐅𝐈𝐍𝐆𝐄𝐑𝐈𝐍𝐆 - 𝐎𝐑𝐆𝐀𝐒𝐌 - 𝐓𝐈𝐓 𝐖𝐀𝐍𝐊 - 𝐉𝐎𝐈 - 𝐂𝐔𝐌 & 𝐌𝐎𝐑𝐄!\n𝐀𝐥𝐥 𝐟𝐨𝐫 𝐎𝐧𝐥𝐲 $𝟏𝟎 ⬆️',
+          captionGuide: '.',
+          price: '$10.00',
+        },
+      },
+      {
+        name: 'Follow up',
+        status: day < 2 ? 'DONE' : day === 2 ? 'IN_PROGRESS' : 'PENDING',
+        fields: {
+          time: '5:56 PM',
+          contentPreview: '𝐔𝐧𝐢𝐯𝐞𝐫𝐬𝐚𝐥 𝐅𝐥𝐲𝐞𝐫 ⬆',
+          caption: 'You wanna cum, right? 💦 Open that videos now and I will give you a ANOTHER FREE VIDEO ⬆️',
+          captionGuide: '.',
+        },
+      },
+      {
+        name: 'Photo bump',
+        status: day < 1 ? 'DONE' : 'PENDING',
+        fields: {
+          time: '6:37 PM',
+          contentPreview: 'SFW NIGHT',
+          caption: '**THINKING ABOUT YOU** 💦',
+        },
+      },
+      {
+        name: 'Photo bump',
+        status: 'PENDING',
+        fields: {
+          time: '8:05 PM',
+          contentPreview: 'SFW NIGHT',
+          caption: '### Cum take me as your little slutt tonight 😈',
+        },
+      },
+      {
+        name: 'Photo bump',
+        status: 'PENDING',
+        fields: {
+          time: '10:45 PM',
+          contentPreview: 'SFW NIGHT',
+          caption: '### I want you to spread me open and make me feel how big you are 🥵',
+          captionGuide: '.',
+        },
+      },
     ];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < mmTasks.length; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'MM',
+          taskName: mmTasks[i].name,
           sortOrder: i,
-          status: i < 2 ? 'DONE' : i === 2 ? 'IN_PROGRESS' : 'PENDING',
-          fields: mmFields[i],
+          status: mmTasks[i].status,
+          fields: mmTasks[i].fields,
         }),
       );
     }
+
     // WP tasks — 3 per day
-    const wpFields = [
-      { postSchedule: '10:00 AM', time: '10:00 AM', contentFlyer: 'New photoset flyer', tag: 'Premium', caption: 'Fresh content just posted!', priceInfo: '$9.99' },
-      { postSchedule: '2:00 PM', time: '2:00 PM', contentFlyer: 'Promo banner', tag: 'Sale', caption: 'Limited time offer...', priceInfo: '50% off' },
-      { postSchedule: '6:00 PM', time: '6:00 PM', contentFlyer: 'Evening post graphic', tag: 'New', caption: 'Something new tonight...' },
+    const wpTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
+      {
+        status: day < 3 ? 'DONE' : 'PENDING',
+        fields: {
+          postSchedule: 'GIF BUMP',
+          time: '5:35 PM',
+          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-02-24_04:55:38-6.gif',
+          tag: '.',
+          caption: '### FINGERING THIS PUSSY\nYou better be careful whenever you view this because this is the best pussy you will ever see in your life babe I\'m going to have you cumming in your pants 😘 I\'m the baddest bitch on here for real 🥵 DM me "😘" if you want to cum',
+          priceInfo: '.',
+        },
+      },
+      {
+        status: day < 1 ? 'DONE' : 'PENDING',
+        fields: {
+          postSchedule: 'Photo bump',
+          time: '8:05 PM',
+          contentFlyer: 'SFW NIGHT',
+          tag: '.',
+          caption: '### Cum take me as your little slutt tonight 😈',
+          priceInfo: '.',
+        },
+      },
+      {
+        status: 'PENDING',
+        fields: {
+          postSchedule: 'Photo bump',
+          time: '10:45 PM',
+          contentFlyer: 'SFW NIGHT',
+          tag: '.',
+          caption: '### I want you to spread me open and make me feel how big you are 🥵',
+          priceInfo: '.',
+        },
+      },
     ];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < wpTasks.length; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'WP',
           sortOrder: i,
-          status: i === 0 ? 'DONE' : 'PENDING',
-          fields: wpFields[i],
+          status: wpTasks[i].status,
+          fields: wpTasks[i].fields,
         }),
       );
     }
-    // ST tasks — 4 per day
-    const stFields = [
-      { contentFlyer: 'BTS teaser clip', storyPostSchedule: '3:00 PM PST' },
-      { contentFlyer: 'Poll: what next?', storyPostSchedule: '5:00 PM PST' },
-      { contentFlyer: 'Countdown to drop', storyPostSchedule: '7:00 PM PST' },
-      { contentFlyer: 'Q&A session promo', storyPostSchedule: '9:00 PM PST' },
+
+    // ST tasks — 3 per day
+    const stTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
+      { status: day < 3 ? 'DONE' : 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '5:00 PM' } },
+      { status: day < 1 ? 'DONE' : 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '7:00 PM' } },
+      { status: 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '9:00 PM' } },
     ];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < stTasks.length; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'ST',
           sortOrder: i,
-          status: i < 1 ? 'DONE' : i === 1 ? 'IN_PROGRESS' : 'PENDING',
-          fields: stFields[i],
+          status: stTasks[i].status,
+          fields: stTasks[i].fields,
         }),
       );
     }
-    // SP tasks — 2 per day
-    const spFields = [
-      { subscriberPromoSchedule: '12:00 PM', contentFlyer: 'Subscriber discount flyer', time: '12:00 PM', caption: 'Special deal for subscribers only!' },
-      { subscriberPromoSchedule: '5:00 PM', contentFlyer: 'Renewal bonus graphic', time: '5:00 PM', caption: 'Renew now for exclusive bonus content...' },
+
+    // SP tasks — 3 per day
+    const spTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
+      {
+        status: day < 2 ? 'DONE' : 'PENDING',
+        fields: {
+          subscriberPromoSchedule: 'Renew Promo',
+          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-0.gif',
+          time: '5:48 PM',
+          caption: 'Wanna see the **𝐔𝐍𝐂𝐄𝐍𝐒𝐎𝐑𝐄𝐃 𝐏𝐈𝐂?** 🔞 If so then turn your renew on right now I send **𝐃𝐀𝐈𝐋𝐘 𝐅𝐑𝐄𝐄 𝐔𝐍𝐑𝐄𝐋𝐄𝐀𝐒𝐄𝐃 𝐁𝐔𝐍𝐃𝐋𝐄𝐒** to all of my renew on subs n I KNOW you won\'t wanna miss out 🥰\n\n**click the link below to turn renew on** ⬇️\nhttps://onlyfans.com/titasaharaofficial?enable_renew=1',
+        },
+      },
+      {
+        status: 'PENDING',
+        fields: {
+          subscriberPromoSchedule: 'Expired Promo',
+          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-1.gif',
+          time: '9:13 PM',
+          caption: '𝐅𝐑𝐄𝐄 𝐒𝐔𝐑𝐏𝐑𝐈𝐒𝐄 😱 I made my page 𝗙𝗥𝗘𝗘 𝗙𝗢𝗥 𝟮𝟰 𝗛𝗢𝗨𝗥𝗦 👀 so that you can come back and see my 𝐔𝐍𝐑𝐄𝐋𝐄𝐀𝐒𝐄𝐃 𝐍𝐔𝐃𝐄𝐒 ❗️ DM me a 🔞 when you subscribe and I will spoil you with it for free 🥵',
+        },
+      },
+      {
+        status: 'PENDING',
+        fields: {
+          subscriberPromoSchedule: 'Renew Promo',
+          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-2.gif',
+          time: '6:05 AM',
+          caption: '**𝙁𝙍𝙀𝙀 𝙐𝙉𝙍𝙀𝙇𝙀𝘼𝙎𝙀𝘿 𝙓𝙓𝙓𝙑𝙄𝘿𝙀𝙊** 🤫\nI am sending a **𝙁𝙐𝙇𝙇𝙔 𝙁𝙍𝙀𝙀** video bundle 🎥 out to everyone with renew on tonight... I love sending all my renew on subs **𝙁𝙍𝙀𝙀 𝙉𝙀𝙑𝙀𝙍 𝙍𝙀𝙇𝙀𝘼𝙎𝙀𝘿 𝙎𝙐𝙍𝙋𝙍𝙄𝙎𝙀𝙎** everyday\n\n**𝘾𝙡𝙞𝙘𝙠 𝙩𝙝𝙚 𝙡𝙞𝙣𝙠 𝙗𝙚𝙡𝙤𝙬 𝙩𝙤 𝙩𝙪𝙧𝙣 𝙧𝙚𝙣𝙚𝙬 𝙤𝙣** 👇🏻\nhttps://onlyfans.com/titasaharaofficial?enable_renew=1',
+        },
+      },
     ];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < spTasks.length; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'SP',
           sortOrder: i,
-          status: 'PENDING',
-          fields: spFields[i],
+          status: spTasks[i].status,
+          fields: spTasks[i].fields,
         }),
       );
     }
