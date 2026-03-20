@@ -10,6 +10,57 @@ import { useUser } from '@clerk/nextjs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+export interface MMFields {
+  time?: string; contentPreview?: string; paywallContent?: string;
+  tag?: string; caption?: string; captionGuide?: string; price?: string;
+}
+export interface WPFields {
+  postSchedule?: string; time?: string; contentFlyer?: string;
+  tag?: string; caption?: string; priceInfo?: string;
+}
+export interface STFields {
+  contentFlyer?: string; storyPostSchedule?: string;
+}
+export interface SPFields {
+  subscriberPromoSchedule?: string; contentFlyer?: string;
+  time?: string; caption?: string;
+}
+export type TaskFields = MMFields | WPFields | STFields | SPFields;
+
+export interface FieldDef {
+  key: string; label: string; placeholder?: string;
+}
+
+export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
+  MM: [
+    { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
+    { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
+    { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
+    { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
+    { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
+    { key: 'captionGuide', label: 'Caption Guide', placeholder: 'Guide...' },
+    { key: 'price', label: 'Price', placeholder: '$0.00' },
+  ],
+  WP: [
+    { key: 'postSchedule', label: 'Post Schedule', placeholder: '10:00 AM' },
+    { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
+    { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
+    { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
+  ],
+  ST: [
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '3:00 PM' },
+  ],
+  SP: [
+    { key: 'subscriberPromoSchedule', label: 'Promo Schedule', placeholder: '12:00 PM' },
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
+    { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
+  ],
+};
+
 export interface SchedulerTask {
   id: string;
   organizationId: string;
@@ -23,6 +74,9 @@ export interface SchedulerTask {
   startTime: string | null;
   endTime: string | null;
   notes: string;
+  fields: TaskFields | null;
+  platform: string;
+  profileId: string | null;
   sortOrder: number;
   updatedBy: string | null;
   createdAt: string;
@@ -71,25 +125,36 @@ export const schedulerKeys = {
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
 
-async function fetchWeekTasks(weekStart: string): Promise<WeekResponse> {
-  const res = await fetch(`/api/scheduler?weekStart=${encodeURIComponent(weekStart)}`);
-  if (!res.ok) throw new Error('Failed to fetch POD tracker tasks');
+async function fetchWeekTasks(
+  weekStart: string,
+  profileId?: string | null,
+  platform?: string,
+): Promise<WeekResponse> {
+  const params = new URLSearchParams({ weekStart });
+  if (profileId) params.set('profileId', profileId);
+  if (platform) params.set('platform', platform);
+  const res = await fetch(`/api/scheduler?${params}`);
+  if (!res.ok) throw new Error('Failed to fetch Scheduler tasks');
   return res.json();
 }
 
 async function fetchConfig(): Promise<ConfigResponse> {
   const res = await fetch('/api/scheduler/config');
-  if (!res.ok) throw new Error('Failed to fetch POD tracker config');
+  if (!res.ok) throw new Error('Failed to fetch Scheduler config');
   return res.json();
 }
 
 // ─── Query Hooks ───────────────────────────────────────────────────────────
 
-export function useSchedulerWeek(weekStart: string) {
+export function useSchedulerWeek(
+  weekStart: string,
+  profileId?: string | null,
+  platform?: string,
+) {
   const { user } = useUser();
   return useQuery({
-    queryKey: schedulerKeys.week(weekStart),
-    queryFn: () => fetchWeekTasks(weekStart),
+    queryKey: [...schedulerKeys.week(weekStart), profileId ?? '', platform ?? ''],
+    queryFn: () => fetchWeekTasks(weekStart, profileId, platform),
     enabled: !!user && !!weekStart,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
@@ -200,6 +265,9 @@ export function useCreateSchedulerTask() {
       dayOfWeek: number;
       taskType?: string;
       taskName?: string;
+      fields?: TaskFields;
+      platform?: string;
+      profileId?: string | null;
       tabId?: string;
     }) => {
       const res = await fetch('/api/scheduler', {

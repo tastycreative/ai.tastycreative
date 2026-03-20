@@ -148,15 +148,15 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/my-influencers`,
           icon: Users,
         },
-        // POD Tracker - visible to OWNER, ADMIN, MANAGER or via hasSchedulersTab
+        // Scheduler - visible to OWNER, ADMIN, MANAGER or via hasSchedulersTab
         ...(currentOrganization?.role === "OWNER" ||
         currentOrganization?.role === "ADMIN" ||
         currentOrganization?.role === "MANAGER" ||
         permissions.hasSchedulersTab
           ? [
               {
-                name: "POD Tracker",
-                href: `/${tenant}/pod-tracker`,
+                name: "Scheduler",
+                href: `/${tenant}/scheduler`,
                 icon: Activity,
               },
             ]

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Settings, History, Loader2, Plus } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Settings, History, Loader2, Plus, Download, ChevronDown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
   useSchedulerConfig,
@@ -26,6 +27,27 @@ import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
+import { useInstagramProfile } from '@/hooks/useInstagramProfile';
+
+// ─── Page strategy label map ─────────────────────────────────────────────────
+const STRATEGY_LABELS: Record<string, string> = {
+  gf_experience: 'GF Experience',
+  porn_accurate: 'Porn Accurate',
+  tease_denial: 'Tease & Denial',
+  premium_exclusive: 'Premium Exclusive',
+  girl_next_door: 'Girl Next Door',
+  domme: 'Domme',
+};
+
+// ─── Platform tabs ───────────────────────────────────────────────────────────
+const PLATFORM_TABS = [
+  { key: 'free', label: 'Free', color: '#4ade80' },
+  { key: 'paid', label: 'Paid', color: '#f472b6' },
+  { key: 'oftv', label: 'OFTV', color: '#38bdf8' },
+  { key: 'fansly', label: 'Fansly', color: '#c084fc' },
+] as const;
+
+type PlatformKey = (typeof PLATFORM_TABS)[number]['key'];
 
 // ─── Sample static tasks for demo/preview ────────────────────────────────────
 function makeSampleTask(
@@ -45,6 +67,9 @@ function makeSampleTask(
     startTime: overrides.startTime ?? null,
     endTime: overrides.endTime ?? null,
     notes: overrides.notes ?? '',
+    fields: overrides.fields ?? null,
+    platform: overrides.platform ?? 'free',
+    profileId: overrides.profileId ?? null,
     sortOrder: overrides.sortOrder ?? 0,
     updatedBy: null,
     createdAt: new Date().toISOString(),
@@ -56,50 +81,72 @@ function generateSampleTasks(): SchedulerTask[] {
   const samples: SchedulerTask[] = [];
   for (let day = 0; day < 7; day++) {
     // MM tasks — 5 per day
+    const mmFields = [
+      { time: '2:30 PM', contentPreview: 'Exclusive BTS content', paywallContent: 'Full video', tag: 'VIP', caption: 'Check out this exclusive behind the scenes...', captionGuide: 'Tease + CTA', price: '$5.99' },
+      { time: '4:00 PM', contentPreview: 'New photoset preview', paywallContent: 'HD gallery', tag: 'Premium', caption: 'Just dropped something special...', captionGuide: 'Mystery + urgency', price: '$9.99' },
+      { time: '6:30 PM', contentPreview: 'Custom request teaser', paywallContent: 'Custom video', tag: 'Custom', caption: 'Made this just for you...', captionGuide: 'Personal touch', price: '$14.99' },
+      { time: '8:00 PM', contentPreview: 'Evening selfie dump', tag: 'Free', caption: 'Good evening vibes...', captionGuide: 'Casual + engaging' },
+      { time: '10:00 PM', contentPreview: 'Late night special', paywallContent: 'Locked set', tag: 'VIP', caption: 'Late night surprise...', captionGuide: 'FOMO', price: '$7.99' },
+    ];
     for (let i = 0; i < 5; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'MM',
-          taskName: `MM Task ${i + 1}`,
           sortOrder: i,
           status: i < 2 ? 'DONE' : i === 2 ? 'IN_PROGRESS' : 'PENDING',
+          fields: mmFields[i],
         }),
       );
     }
     // WP tasks — 3 per day
+    const wpFields = [
+      { postSchedule: '10:00 AM', time: '10:00 AM', contentFlyer: 'New photoset flyer', tag: 'Premium', caption: 'Fresh content just posted!', priceInfo: '$9.99' },
+      { postSchedule: '2:00 PM', time: '2:00 PM', contentFlyer: 'Promo banner', tag: 'Sale', caption: 'Limited time offer...', priceInfo: '50% off' },
+      { postSchedule: '6:00 PM', time: '6:00 PM', contentFlyer: 'Evening post graphic', tag: 'New', caption: 'Something new tonight...' },
+    ];
     for (let i = 0; i < 3; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'WP',
-          taskName: `WP Task ${i + 1}`,
           sortOrder: i,
           status: i === 0 ? 'DONE' : 'PENDING',
+          fields: wpFields[i],
         }),
       );
     }
     // ST tasks — 4 per day
+    const stFields = [
+      { contentFlyer: 'BTS teaser clip', storyPostSchedule: '3:00 PM PST' },
+      { contentFlyer: 'Poll: what next?', storyPostSchedule: '5:00 PM PST' },
+      { contentFlyer: 'Countdown to drop', storyPostSchedule: '7:00 PM PST' },
+      { contentFlyer: 'Q&A session promo', storyPostSchedule: '9:00 PM PST' },
+    ];
     for (let i = 0; i < 4; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'ST',
-          taskName: `ST Task ${i + 1}`,
           sortOrder: i,
           status: i < 1 ? 'DONE' : i === 1 ? 'IN_PROGRESS' : 'PENDING',
+          fields: stFields[i],
         }),
       );
     }
     // SP tasks — 2 per day
+    const spFields = [
+      { subscriberPromoSchedule: '12:00 PM', contentFlyer: 'Subscriber discount flyer', time: '12:00 PM', caption: 'Special deal for subscribers only!' },
+      { subscriberPromoSchedule: '5:00 PM', contentFlyer: 'Renewal bonus graphic', time: '5:00 PM', caption: 'Renew now for exclusive bonus content...' },
+    ];
     for (let i = 0; i < 2; i++) {
       samples.push(
         makeSampleTask({
           dayOfWeek: day,
           taskType: 'SP',
-          taskName: `SP Task ${i + 1}`,
           sortOrder: i,
           status: 'PENDING',
+          fields: spFields[i],
         }),
       );
     }
@@ -113,6 +160,42 @@ export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
+  const { selectedProfile, isAllProfiles } = useInstagramProfile();
+
+  // Platform tab state
+  const [activePlatform, setActivePlatform] = useState<PlatformKey>('free');
+
+  // Fetch full profile details (page strategy, content types)
+  const profileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
+  const { data: profileDetail } = useQuery<{
+    pageStrategy?: string;
+    selectedContentTypes?: string[];
+    customStrategies?: { id: string; label: string; desc: string }[];
+    customContentTypes?: string[];
+  }>({
+    queryKey: ['instagram-profile-detail', profileId],
+    queryFn: async () => {
+      const res = await fetch(`/api/instagram-profiles/${profileId}`);
+      if (!res.ok) throw new Error('Failed to fetch profile');
+      return res.json();
+    },
+    enabled: !!profileId,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  const [showContentTypes, setShowContentTypes] = useState(false);
+  const contentTypesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (contentTypesRef.current && !contentTypesRef.current.contains(e.target as Node)) {
+        setShowContentTypes(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const [schedulerToday, setSchedulerToday] = useState(() => getSchedulerTodayKey());
 
@@ -163,7 +246,8 @@ export function SchedulerGrid() {
   useSchedulerRealtime(orgId);
 
   // Data
-  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart);
+  const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
+  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform);
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
   const config = configData?.config ?? null;
@@ -227,9 +311,16 @@ export function SchedulerGrid() {
   const handleCreateTask = useCallback(
     (dayOfWeek: number, taskType: string) => {
       if (showDemo) return;
-      createTask.mutate({ weekStart, dayOfWeek, taskType, tabId });
+      createTask.mutate({
+        weekStart,
+        dayOfWeek,
+        taskType,
+        platform: activePlatform,
+        profileId: activeProfileId,
+        tabId,
+      });
     },
-    [createTask, weekStart, showDemo],
+    [createTask, weekStart, showDemo, activePlatform, activeProfileId],
   );
 
   const handleSeed = useCallback(() => {
@@ -332,6 +423,98 @@ export function SchedulerGrid() {
           </button>
         </div>
       </div>
+
+      {/* Selected profile + platform tabs row */}
+      {selectedProfile && !isAllProfiles && (
+        <div className="px-4 py-2 border-b flex items-center gap-3 bg-white/50 border-gray-200 dark:bg-[#090912]/50 dark:border-[#111122]">
+          {/* Profile name */}
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200 truncate">
+              {selectedProfile.name}
+            </span>
+            {selectedProfile.instagramUsername && (
+              <span className="text-[10px] font-mono text-gray-400 dark:text-gray-600 truncate">
+                @{selectedProfile.instagramUsername}
+              </span>
+            )}
+          </div>
+
+          <div className="w-px h-5 bg-gray-200 dark:bg-[#181828]" />
+
+          {/* Platform tabs */}
+          <div className="flex items-center gap-1">
+            {PLATFORM_TABS.map((tab) => {
+              const isActive = activePlatform === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActivePlatform(tab.key)}
+                  className="text-[10px] font-bold px-3 py-1 rounded-full font-sans transition-all border"
+                  style={{
+                    background: isActive ? tab.color + '20' : 'transparent',
+                    color: isActive ? tab.color : '#888',
+                    borderColor: isActive ? tab.color + '50' : 'transparent',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: strategy + content types + import */}
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {/* Page Strategy */}
+            {profileDetail?.pageStrategy && (
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-brand-blue/10 text-brand-blue border border-brand-blue/20">
+                {(() => {
+                  const label = STRATEGY_LABELS[profileDetail.pageStrategy!];
+                  if (label) return label;
+                  const custom = profileDetail.customStrategies?.find(s => s.id === profileDetail.pageStrategy);
+                  return custom?.label ?? profileDetail.pageStrategy;
+                })()}
+              </span>
+            )}
+
+            {/* Content Types */}
+            {profileDetail?.selectedContentTypes && profileDetail.selectedContentTypes.length > 0 && (
+              <div className="relative" ref={contentTypesRef}>
+                <button
+                  onClick={() => setShowContentTypes(p => !p)}
+                  className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-purple-500/10 text-purple-400 border border-purple-500/20 transition-colors hover:bg-purple-500/20"
+                >
+                  {profileDetail.selectedContentTypes.length} CONTENT TYPE{profileDetail.selectedContentTypes.length !== 1 ? 'S' : ''}
+                  <ChevronDown className={`h-2.5 w-2.5 transition-transform ${showContentTypes ? 'rotate-180' : ''}`} />
+                </button>
+                {showContentTypes && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-[#0c0c1a] border border-gray-200 dark:border-[#1a1a2e] rounded-lg shadow-xl p-2 min-w-[180px] max-w-[260px]">
+                    <div className="flex flex-wrap gap-1">
+                      {profileDetail.selectedContentTypes.map(ct => (
+                        <span
+                          key={ct}
+                          className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                        >
+                          {ct}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
+
+            {/* Import button */}
+            <button
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
+            >
+              <Download className="h-3 w-3" />
+              IMPORT
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Week nav */}
       <SchedulerWeekNav weekStart={weekStart} todayKey={schedulerToday} onWeekChange={setWeekStart} />

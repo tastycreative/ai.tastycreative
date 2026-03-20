@@ -1,11 +1,83 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Clock, Plus, Maximize2, Minimize2 } from 'lucide-react';
 import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
 import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
+
+// ─── Portal-based Add Task Menu ───────────────────────────────────────────────
+function AddTaskMenu({
+  dayIndex,
+  onCreateTask,
+  onClose,
+  anchorRef,
+  align = 'below',
+}: {
+  dayIndex: number;
+  onCreateTask: (dayOfWeek: number, taskType: string) => void;
+  onClose: () => void;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  align?: 'below' | 'above';
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    if (align === 'above') {
+      setPos({ top: rect.top - 4, left: rect.left });
+    } else {
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [anchorRef, align]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        anchorRef.current && !anchorRef.current.contains(e.target as Node)
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose, anchorRef]);
+
+  if (!pos) return null;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-[9999] rounded-lg shadow-xl py-1 min-w-[120px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800"
+      style={{
+        top: align === 'above' ? undefined : pos.top,
+        bottom: align === 'above' ? `${window.innerHeight - pos.top}px` : undefined,
+        left: pos.left,
+      }}
+    >
+      {TASK_TYPES.map((type) => (
+        <button
+          key={type}
+          onClick={() => {
+            onCreateTask(dayIndex, type);
+            onClose();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+          style={{ color: TASK_TYPE_COLORS[type] }}
+        >
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TASK_TYPE_COLORS[type] }} />
+          Add {type}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
 
 const TEAM_COLORS: Record<string, string> = {
   'Running Queue': '#4ade80',
@@ -73,6 +145,7 @@ export function SchedulerDayColumn({
   const [liveTime, setLiveTime] = useState('');
   const [countdown, setCountdown] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isNotRunning) return;
@@ -390,36 +463,22 @@ export function SchedulerDayColumn({
 
           <div className="flex items-center gap-2">
             {/* Add task button */}
-            <div className="relative">
-              <button
-                onClick={() => setShowAddMenu(!showAddMenu)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-brand-blue border-brand-blue/25 bg-brand-blue/5 dark:text-[#38bdf8] dark:border-[#38bdf840] dark:bg-[#38bdf812]"
-              >
-                <Plus className="h-3 w-3" />
-                ADD
-              </button>
-              {showAddMenu && (
-                <div className="absolute top-full right-0 mt-1 z-20 rounded-lg shadow-xl py-1 min-w-[120px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                  {TASK_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        onCreateTask(dayIndex, type);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-                      style={{ color: TASK_TYPE_COLORS[type] }}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                        style={{ background: TASK_TYPE_COLORS[type] }}
-                      />
-                      Add {type}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button
+              ref={addBtnRef}
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-brand-blue border-brand-blue/25 bg-brand-blue/5 dark:text-[#38bdf8] dark:border-[#38bdf840] dark:bg-[#38bdf812]"
+            >
+              <Plus className="h-3 w-3" />
+              ADD
+            </button>
+            {showAddMenu && (
+              <AddTaskMenu
+                dayIndex={dayIndex}
+                onCreateTask={onCreateTask}
+                onClose={() => setShowAddMenu(false)}
+                anchorRef={addBtnRef}
+              />
+            )}
 
             {/* Collapse button */}
             <button
@@ -617,8 +676,9 @@ export function SchedulerDayColumn({
             <span className="text-[10px] italic font-mono text-gray-300 dark:text-[#1e1e35]">
               No tasks
             </span>
-            <div className="relative">
+            <div>
               <button
+                ref={addBtnRef}
                 onClick={() => setShowAddMenu(!showAddMenu)}
                 className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans transition-colors text-brand-blue dark:text-[#38bdf8]"
               >
@@ -626,22 +686,12 @@ export function SchedulerDayColumn({
                 ADD
               </button>
               {showAddMenu && (
-                <div className="absolute top-full left-0 mt-1 z-20 rounded-lg shadow-xl py-1 min-w-[100px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                  {TASK_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        onCreateTask(dayIndex, type);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-                      style={{ color: TASK_TYPE_COLORS[type] }}
-                    >
-                      <span className="h-2 w-2 rounded-full" style={{ background: TASK_TYPE_COLORS[type] }} />
-                      {type}
-                    </button>
-                  ))}
-                </div>
+                <AddTaskMenu
+                  dayIndex={dayIndex}
+                  onCreateTask={onCreateTask}
+                  onClose={() => setShowAddMenu(false)}
+                  anchorRef={addBtnRef}
+                />
               )}
             </div>
           </div>
@@ -716,33 +766,23 @@ export function SchedulerDayColumn({
 
             {/* Add task */}
             <div className="flex items-center pt-1">
-              <div className="relative">
-                <button
-                  onClick={() => setShowAddMenu(!showAddMenu)}
-                  className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans px-2 py-1 rounded-full border transition-colors text-gray-400 border-gray-200 hover:border-gray-300 dark:text-[#3a3a5a] dark:border-[#111124] dark:hover:border-[#222244]"
-                >
-                  <Plus className="h-3 w-3" />
-                  ADD
-                </button>
-                {showAddMenu && (
-                  <div className="absolute bottom-full left-0 mb-1 z-20 rounded-lg shadow-xl py-1 min-w-[100px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    {TASK_TYPES.map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => {
-                          onCreateTask(dayIndex, type);
-                          setShowAddMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-                        style={{ color: TASK_TYPE_COLORS[type] }}
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ background: TASK_TYPE_COLORS[type] }} />
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button
+                ref={addBtnRef}
+                onClick={() => setShowAddMenu(!showAddMenu)}
+                className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans px-2 py-1 rounded-full border transition-colors text-gray-400 border-gray-200 hover:border-gray-300 dark:text-[#3a3a5a] dark:border-[#111124] dark:hover:border-[#222244]"
+              >
+                <Plus className="h-3 w-3" />
+                ADD
+              </button>
+              {showAddMenu && (
+                <AddTaskMenu
+                  dayIndex={dayIndex}
+                  onCreateTask={onCreateTask}
+                  onClose={() => setShowAddMenu(false)}
+                  anchorRef={addBtnRef}
+                  align="above"
+                />
+              )}
             </div>
           </>
         )}

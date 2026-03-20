@@ -33,10 +33,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'weekStart param required' }, { status: 400 });
   }
 
+  const profileId = request.nextUrl.searchParams.get('profileId');
+  const platform = request.nextUrl.searchParams.get('platform');
+
   const tasks = await prisma.schedulerTask.findMany({
     where: {
       organizationId: orgId,
       weekStartDate: new Date(weekStart),
+      ...(profileId && { profileId }),
+      ...(platform && { platform }),
     },
     orderBy: [{ dayOfWeek: 'asc' }, { sortOrder: 'asc' }, { slotLabel: 'asc' }],
   });
@@ -69,7 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { weekStart, dayOfWeek, taskType, taskName, tabId } = body;
+  const { weekStart, dayOfWeek, taskType, taskName, fields, platform, profileId, tabId } = body;
 
   if (!weekStart || dayOfWeek === undefined || dayOfWeek === null) {
     return NextResponse.json({ error: 'weekStart and dayOfWeek required' }, { status: 400 });
@@ -98,6 +103,9 @@ export async function POST(request: NextRequest) {
       sortOrder: nextSortOrder,
       taskType: taskType || '',
       taskName: taskName || '',
+      fields: fields || null,
+      platform: platform || 'free',
+      profileId: profileId || null,
       updatedBy: user.name || userId,
     },
   });

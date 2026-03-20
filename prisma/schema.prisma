@@ -1834,6 +1834,7 @@ model ai_voice_generations {
   audioSize         Int?
   voiceSettings     Json?
   createdAt         DateTime          @default(now())
+  awsS3Key          String?
   ai_voice_accounts ai_voice_accounts @relation(fields: [voiceAccountId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
@@ -2539,14 +2540,18 @@ model SchedulerTask {
   startTime      DateTime?
   endTime        DateTime?
   notes          String              @default("")
-  sortOrder      Int                 @default(0)
+  fields         Json?
+  platform       String              @default("free")
+  profileId      String?
   updatedBy      String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @default(now()) @updatedAt
+  sortOrder      Int                 @default(0)
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
   @@index([organizationId, weekStartDate])
+  @@index([organizationId, profileId, platform])
   @@map("scheduler_tasks")
 }
 
