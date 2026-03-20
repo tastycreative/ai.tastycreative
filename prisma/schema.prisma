@@ -1836,10 +1836,39 @@ model ai_voice_generations {
   createdAt         DateTime          @default(now())
   awsS3Key          String?
   ai_voice_accounts ai_voice_accounts @relation(fields: [voiceAccountId], references: [id], onDelete: Cascade)
+  ai_voice_sales    ai_voice_sales[]
 
   @@index([createdAt])
   @@index([userId])
   @@index([voiceAccountId])
+}
+
+model ai_voice_sales {
+  id               String              @id @default(cuid())
+  userId           String
+  organizationId   String?
+  chatter          String
+  fanUsername       String
+  saleType         String              // tip, ppv, subscription, custom_voice, bundle
+  amount           Float
+  platformCut      Float               @default(20)
+  netEarned        Float
+  voiceClipId      String?             // linked generation ID
+  voiceClipUrl     String?
+  notes            String?
+  screenshotUrl    String?             // sale proof screenshot URL
+  submittedBy      String              @default("manager") // "manager" | "chatter"
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  generation       ai_voice_generations? @relation(fields: [voiceClipId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@index([saleType])
+  @@index([chatter])
+  @@index([submittedBy])
 }
 
 model reference_items {

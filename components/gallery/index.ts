@@ -7,3 +7,4 @@ export { PerformanceModal } from './PerformanceModal';
 export { TopPerformers } from './TopPerformers';
 export { ContentTypeEditor } from './ContentTypeEditor';
 export { DetailModal } from './DetailModal';
+export { ProfileGalleryTab } from './ProfileGalleryTab';

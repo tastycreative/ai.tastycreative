@@ -15,11 +15,13 @@ import {
   RotateCcw,
   Zap,
   AudioWaveform,
+  DollarSign,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useCredits } from '@/lib/hooks/useCredits.query';
 import { CreditCalculator } from "@/components/credits/CreditCalculator";
 import { StorageFullBanner, useCanGenerate } from "@/components/generate-content/shared/StorageFullBanner";
+import SalesTab from "./SalesTab";
 
 interface Voice {
   id: string;
@@ -90,6 +92,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
 export default function VoiceGeneratorPage() {
   const { refreshCredits } = useCredits();
   const { canGenerate, storageError } = useCanGenerate();
+  const [activeTab, setActiveTab] = useState<"generator" | "sales">("generator");
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const [text, setText] = useState("");
@@ -460,6 +463,28 @@ export default function VoiceGeneratorPage() {
           </div>
         </header>
 
+        {/* ── TABS ── */}
+        <div className="vg-tabs">
+          <button
+            className={`vg-tab${activeTab === "generator" ? " active" : ""}`}
+            onClick={() => setActiveTab("generator")}
+          >
+            <AudioWaveform style={{ width: 14, height: 14 }} />
+            Voice Generator
+          </button>
+          <button
+            className={`vg-tab${activeTab === "sales" ? " active" : ""}`}
+            onClick={() => setActiveTab("sales")}
+          >
+            <DollarSign style={{ width: 14, height: 14 }} />
+            Sales
+          </button>
+        </div>
+
+        {activeTab === "sales" ? (
+          <SalesTab />
+        ) : (
+        <>
         {/* ── WORKSPACE: 3 columns ── */}
         <div className="vg-workspace">
 
@@ -974,6 +999,8 @@ export default function VoiceGeneratorPage() {
           </div>
 
         </div>
+        </>
+        )}
       </div>
 
       {/* ── STYLES ── */}
@@ -1038,9 +1065,46 @@ export default function VoiceGeneratorPage() {
           align-items: center;
           justify-content: space-between;
           padding-bottom: 28px;
-          margin-bottom: 32px;
+          margin-bottom: 24px;
           border-bottom: 1px solid var(--vg-border);
         }
+
+        /* ── TABS ── */
+        .vg-tabs {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px;
+          background: var(--vg-surface);
+          border: 1px solid var(--vg-border);
+          border-radius: 12px;
+          width: fit-content;
+          margin-bottom: 28px;
+        }
+        .vg-tab {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          padding: 8px 18px;
+          border-radius: 9px;
+          background: transparent;
+          border: none;
+          color: var(--vg-text-dim);
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.18s;
+          font-family: 'Cabinet Grotesk', system-ui, sans-serif;
+        }
+        .vg-tab svg { opacity: 0.6; }
+        .vg-tab.active {
+          background: var(--vg-surface-2);
+          color: var(--vg-text);
+          border: 1px solid var(--vg-border-glow);
+          box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+        }
+        .vg-tab.active svg { opacity: 1; color: var(--vg-accent); }
+        .vg-tab:hover:not(.active) { color: var(--vg-text-mid); }
 
         .vg-logo-icon {
           width: 44px; height: 44px;

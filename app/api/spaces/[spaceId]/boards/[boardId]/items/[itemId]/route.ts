@@ -5,6 +5,7 @@ import { publishBoardEvent } from '@/lib/ably';
 import { saveCaptionFromOtpPtr } from '@/lib/caption-bank-sync';
 import { sendBoardMoveNotification } from '@/lib/board-move-notification';
 import { sendBoardAssignNotification } from '@/lib/board-assign-notification';
+import { autoMoveColumnIfNeeded } from '@/lib/board-auto-column-move';
 
 type Params = {
   params: Promise<{ spaceId: string; boardId: string; itemId: string }>;
@@ -413,6 +414,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         assignedByUserId: userId,
         spaceId,
       }).catch((e) => console.error('[board-assign-notification]', e));
+    }
+
+    // ── Auto-move column based on metadata conditions (PGT Team / Flyer Team) ──
+    if (data.metadata !== undefined) {
+      try {
+        const itemWithCol = await prisma.boardItem.findUnique({
+          where: { id: itemId },
+          select: { columnId: true, metadata: true, column: { select: { boardId: true, name: true } } },
+        });
+        if (itemWithCol?.column) {
+          const moveResult = await autoMoveColumnIfNeeded({
+            boardItemId: itemId,
+            currentColumnId: itemWithCol.columnId,
+            currentColumnName: itemWithCol.column.name,
+            boardId: itemWithCol.column.boardId,
+            metadata: (itemWithCol.metadata as Record<string, unknown>) ?? {},
+            userId,
+          });
+          if (moveResult.moved && moveResult.newColumnId) {
+            updated.columnId = moveResult.newColumnId;
+          }
+        }
+      } catch (e) {
+        console.error('[auto-column-move] board item PATCH:', e);
+      }
     }
 
     const senderTab = req.headers.get('x-tab-id') ?? undefined;

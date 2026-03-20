@@ -578,6 +578,27 @@ export function OtpPtrTaskDetailModal({
   const updateMeta = (partial: Record<string, unknown>) =>
     onUpdate({ ...task, metadata: { ...meta, ...partial } });
 
+  /** Save gifUrl and auto-move Flyer Team → Flyer Completed */
+  const updateGifUrl = (field: string, value: string) => {
+    updateMeta({ [field]: value });
+    if (value && columnTitle.toLowerCase() === 'flyer team') {
+      // Determine the "other" GIF URL after this save
+      const nextGifUrl = field === 'gifUrl' ? value : gifUrl;
+      const nextGifUrlFansly = field === 'gifUrlFansly' ? value : gifUrlFansly;
+      const hasFansly = platforms.includes('fansly');
+      // All required GIF URLs must be filled before moving
+      const allFilled = nextGifUrl.trim() && (!hasFansly || nextGifUrlFansly.trim());
+      if (allFilled) {
+        const flyerCompletedCol = columns?.find(
+          (c) => c.name.toLowerCase() === 'flyer completed'
+        );
+        if (flyerCompletedCol && onColumnChange) {
+          onColumnChange(flyerCompletedCol.id);
+        }
+      }
+    }
+  };
+
   const saveTitle = () => {
     setEditingTitle(false);
     if (titleDraft.trim() && titleDraft !== task.title) onUpdate({ ...task, title: titleDraft.trim() });
@@ -1270,7 +1291,12 @@ export function OtpPtrTaskDetailModal({
                                   await otpPtrQAMutation.mutateAsync({ ticketId: captionTicketId, action: 'reject', reason: rejectReason.trim() || undefined });
                                   setShowRejectInput(false);
                                   setRejectReason('');
-                                  onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.NEEDS_REVISION } });
+                                  onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.NEEDS_REVISION, qaRejectionReason: rejectReason.trim() || undefined } });
+                                  // Move ticket back to PGT Team column in real-time
+                                  const pgtCol = columns?.find((c) => c.name.toLowerCase() === 'pgt team');
+                                  if (pgtCol && onColumnChange) {
+                                    onColumnChange(pgtCol.id);
+                                  }
                                 }}
                                 className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500/70 hover:bg-red-500/90 transition-colors disabled:opacity-40"
                               >
@@ -1289,6 +1315,11 @@ export function OtpPtrTaskDetailModal({
                               onClick={async () => {
                                 await otpPtrQAMutation.mutateAsync({ ticketId: captionTicketId, action: 'approve' });
                                 onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.APPROVED } });
+                                // Move ticket to PGT Completed column in real-time
+                                const pgtCompletedCol = columns?.find((c) => c.name.toLowerCase() === 'pgt completed');
+                                if (pgtCompletedCol && onColumnChange) {
+                                  onColumnChange(pgtCompletedCol.id);
+                                }
                               }}
                               className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 border border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] transition-colors disabled:opacity-40"
                             >
@@ -1343,7 +1374,7 @@ export function OtpPtrTaskDetailModal({
                       </div>
                     </div>
 
-                    {/* Create in GIF Maker + Select from Flyers */}
+                    {/* Create in GIF Maker */}
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         onClick={() => {
@@ -1361,55 +1392,53 @@ export function OtpPtrTaskDetailModal({
                         <Film className="w-3 h-3" />
                         Create in GIF Maker
                       </button>
-                      <button
-                        onClick={() => {
-                          setFlyerPickerTarget('gifUrl');
-                          setShowFlyerPicker(true);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold text-brand-light-pink bg-brand-light-pink/10 border border-brand-light-pink/20 hover:bg-brand-light-pink/20 transition-colors"
-                      >
-                        <ImageIcon className="w-3 h-3" />
-                        Select from Flyers
-                      </button>
                     </div>
 
-                    {/* GIF URLs — show per platform */}
+                    {/* GIF URLs — always show OF + Fansly */}
                     <div className="pt-2 border-t border-white/[0.04]">
-                      <SideLabel>GIF URL{platforms.length > 1 ? 's' : ''}</SideLabel>
-                      {platforms.length <= 1 ? (
+                      <SideLabel>GIF URLs</SideLabel>
+                      <div className="space-y-2">
+                        {/* OnlyFans GIF */}
                         <div>
-                          <EditableField value={gifUrl} placeholder="https://..." onSave={(v) => updateMeta({ gifUrl: v })} />
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[10px] font-medium text-brand-blue">OnlyFans</span>
+                            <button
+                              onClick={() => { setFlyerPickerTarget('gifUrl'); setShowFlyerPicker(true); }}
+                              className="flex items-center gap-1 text-[9px] font-medium text-brand-light-pink hover:text-brand-light-pink/80 transition-colors"
+                            >
+                              <ImageIcon className="w-2.5 h-2.5" />
+                              Select from Flyers
+                            </button>
+                          </div>
+                          <EditableField value={gifUrl} placeholder="OF GIF URL..." onSave={(v) => updateGifUrl('gifUrl', v)} />
                           {gifUrl && (
                             <div className="flex items-center gap-2 mt-1">
                               <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
-                              <img src={gifUrl} alt="Flyer preview" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              <img src={gifUrl} alt="OF flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div>
-                            <span className="text-[10px] font-medium text-brand-blue">OnlyFans</span>
-                            <EditableField value={gifUrl} placeholder="OF GIF URL..." onSave={(v) => updateMeta({ gifUrl: v })} />
-                            {gifUrl && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <a href={gifUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
-                                <img src={gifUrl} alt="OF flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              </div>
-                            )}
-                          </div>
-                          <div>
+                        {/* Fansly GIF */}
+                        <div>
+                          <div className="flex items-center justify-between mb-0.5">
                             <span className="text-[10px] font-medium text-brand-light-pink">Fansly</span>
-                            <EditableField value={gifUrlFansly} placeholder="Fansly GIF URL..." onSave={(v) => updateMeta({ gifUrlFansly: v })} />
-                            {gifUrlFansly && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <a href={gifUrlFansly} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
-                                <img src={gifUrlFansly} alt="Fansly flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              </div>
-                            )}
+                            <button
+                              onClick={() => { setFlyerPickerTarget('gifUrlFansly'); setShowFlyerPicker(true); }}
+                              className="flex items-center gap-1 text-[9px] font-medium text-brand-light-pink hover:text-brand-light-pink/80 transition-colors"
+                            >
+                              <ImageIcon className="w-2.5 h-2.5" />
+                              Select from Flyers
+                            </button>
                           </div>
+                          <EditableField value={gifUrlFansly} placeholder="Fansly GIF URL..." onSave={(v) => updateGifUrl('gifUrlFansly', v)} />
+                          {gifUrlFansly && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <a href={gifUrlFansly} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline">Open</a>
+                              <img src={gifUrlFansly} alt="Fansly flyer" className="w-12 h-12 rounded object-cover border border-zinc-700/50" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </Section>

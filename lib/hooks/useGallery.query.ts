@@ -91,8 +91,10 @@ async function fetchGalleryItems(
   return json.data as GalleryResponse;
 }
 
-async function fetchGalleryStats(): Promise<GalleryStats> {
-  const res = await fetch('/api/gallery/stats');
+async function fetchGalleryStats(profileId?: string): Promise<GalleryStats> {
+  const params = new URLSearchParams();
+  if (profileId) params.set('profileId', profileId);
+  const res = await fetch(`/api/gallery/stats?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to load gallery stats');
   const json = await res.json();
   return json.data as GalleryStats;
@@ -136,10 +138,10 @@ export function useGalleryItems(filters: GalleryFilterValues, page: number) {
 }
 
 /** Gallery-wide stats (independent of filters). */
-export function useGalleryStats() {
+export function useGalleryStats(profileId?: string) {
   return useQuery({
-    queryKey: ['gallery', 'stats'],
-    queryFn: fetchGalleryStats,
+    queryKey: ['gallery', 'stats', profileId ?? 'all'],
+    queryFn: () => fetchGalleryStats(profileId),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
