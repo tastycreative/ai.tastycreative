@@ -29,6 +29,7 @@ import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
+import { SchedulerImportModal } from './SchedulerImportModal';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
@@ -390,6 +391,7 @@ export function SchedulerGrid() {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   // Expanded column state (null = all normal)
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
@@ -701,6 +703,7 @@ export function SchedulerGrid() {
 
             {/* Import button */}
             <button
+              onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
             >
               <Download className="h-3 w-3" />
@@ -790,6 +793,13 @@ export function SchedulerGrid() {
         onClose={() => setShowConfig(false)}
       />
       <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
+      <SchedulerImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        weekStart={weekStart}
+        platform={activePlatform}
+        profileId={activeProfileId}
+      />
     </div>
   );
 }

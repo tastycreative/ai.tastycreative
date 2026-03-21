@@ -16,7 +16,7 @@ export interface MMFields {
 }
 export interface WPFields {
   postSchedule?: string; time?: string; contentFlyer?: string;
-  tag?: string; caption?: string; priceInfo?: string;
+  paywallContent?: string; caption?: string; priceInfo?: string;
 }
 export interface STFields {
   contentFlyer?: string; storyPostSchedule?: string;
@@ -45,7 +45,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'postSchedule', label: 'Post Schedule', placeholder: '10:00 AM' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
-    { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
+    { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
@@ -407,6 +407,72 @@ export function useUpdateTaskLimits() {
     },
   });
 }
+
+// ─── Import Mutations ─────────────────────────────────────────────────────
+
+export interface ParsedTask {
+  taskType: string;
+  taskName: string;
+  fields: Record<string, string>;
+}
+
+export function useParseSchedulerSheet() {
+  return useMutation({
+    mutationFn: async (sheetUrl: string) => {
+      const res = await fetch('/api/scheduler/import-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetUrl }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to parse sheet');
+      }
+      return res.json() as Promise<{
+        slots: Record<string, ParsedTask[]>;
+        errors?: string[];
+      }>;
+    },
+  });
+}
+
+export type ImportMode = 'replace' | 'append' | 'replace_by_type';
+
+export function useImportSchedulerTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      weekStart: string;
+      platform: string;
+      profileId: string | null;
+      mode: ImportMode;
+      tasks: {
+        dayOfWeek: number;
+        taskType: string;
+        taskName: string;
+        fields: Record<string, string>;
+        sortOrder: number;
+      }[];
+    }) => {
+      const res = await fetch('/api/scheduler/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to import tasks');
+      }
+      return res.json() as Promise<{ imported: number; deleted: number }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
+// ─── Activity ─────────────────────────────────────────────────────────────
 
 export function useSchedulerActivity() {
   const { user } = useUser();
