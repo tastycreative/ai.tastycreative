@@ -442,12 +442,21 @@ export function ReferenceSelector({
                     <div className="aspect-square relative bg-zinc-200 dark:bg-zinc-900">
                       {item.fileType === "video" ? (
                         <div className="relative w-full h-full">
-                          <video
-                            src={item.awsS3Url}
-                            className="w-full h-full object-cover"
-                            muted
-                            preload="metadata"
-                          />
+                          {item.thumbnailUrl && item.thumbnailUrl !== item.awsS3Url ? (
+                            <img
+                              src={item.thumbnailUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <video
+                              src={item.awsS3Url}
+                              className="w-full h-full object-cover"
+                              muted
+                              preload="metadata"
+                            />
+                          )}
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                             <PlayCircle className="w-8 h-8 text-white/80" />
                           </div>

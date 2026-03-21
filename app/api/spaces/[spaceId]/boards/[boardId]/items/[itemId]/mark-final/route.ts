@@ -493,6 +493,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       boardMetadata: Object.keys(boardMetadata).length > 0 ? boardMetadata : undefined,
     };
 
+    // Build per-platform GIF URL overrides so each gallery entry
+    // displays its own platform-specific flyer instead of duplicating.
+    const platformGifUrl: Record<string, string | undefined> = {
+      OF: (meta.gifUrl as string) || undefined,
+      FANSLY: (meta.gifUrlFansly as string) || (meta.gifUrl as string) || undefined,
+    };
+
     const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
       const updated = await tx.boardItem.update({
         where: { id: itemId },
@@ -500,14 +507,34 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       // Primary gallery entry (linked to board item)
+      const primaryGifUrl = platformGifUrl[platformStr];
+      const primaryMeta = { ...boardMetadata };
+      // Set the gifUrl to the platform-specific one for display
+      if (primaryGifUrl) primaryMeta.gifUrl = primaryGifUrl;
+      delete primaryMeta.gifUrlFansly; // Avoid confusion — each entry has its own gifUrl
+
       const gallery = await tx.gallery_items.create({
-        data: { ...galleryBase, platform: platformStr, boardItemId: item.id },
+        data: {
+          ...galleryBase,
+          platform: platformStr,
+          boardItemId: item.id,
+          boardMetadata: Object.keys(primaryMeta).length > 0 ? primaryMeta : undefined,
+        },
       });
 
       // Additional gallery entries for extra platforms
       for (const p of platforms.slice(1)) {
+        const pGifUrl = platformGifUrl[p];
+        const pMeta = { ...boardMetadata };
+        if (pGifUrl) pMeta.gifUrl = pGifUrl;
+        delete pMeta.gifUrlFansly;
+
         await tx.gallery_items.create({
-          data: { ...galleryBase, platform: p },
+          data: {
+            ...galleryBase,
+            platform: p,
+            boardMetadata: Object.keys(pMeta).length > 0 ? pMeta : undefined,
+          },
         });
       }
 

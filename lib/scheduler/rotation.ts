@@ -112,6 +112,16 @@ export function getSchedulerTodayKey(): string {
 }
 
 /**
+ * Generate a unique slot label for a given day index.
+ * Format: `1A-<random8chars>` where 1A is the slot for the day.
+ */
+export function generateSlotLabel(dayIndex: number): string {
+  const base = SLOT_LABELS[dayIndex] ?? '1A';
+  const rand = Math.random().toString(36).slice(2, 10).padEnd(8, '0');
+  return `${base}-${rand}`;
+}
+
+/**
  * Format a date as YYYY-MM-DD for API use.
  */
 export function formatDateKey(date: Date): string {

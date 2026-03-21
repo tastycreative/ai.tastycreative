@@ -9,6 +9,7 @@ import { useCredits } from "@/lib/hooks/useCredits.query";
 import { useQueryClient } from '@tanstack/react-query';
 import { useSeeDreamI2IHistory } from "@/lib/hooks/useSeeDreamI2IHistory.query";
 import { useVaultFolders } from "@/lib/hooks/useVaultFolders.query";
+import { useVaultFavorites } from "@/lib/hooks/useVaultFavorites.query";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
@@ -39,6 +40,7 @@ import {
   Share2,
   FolderOpen,
   Check,
+  Star,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -299,6 +301,10 @@ export default function SeeDreamImageToImage() {
   const queryClient = useQueryClient();
   const { data: generationHistory = [], isLoading: isLoadingHistory } = useSeeDreamI2IHistory(apiClient, globalProfileId);
   const { data: vaultFolders = [], isLoading: isLoadingVaultData } = useVaultFolders(globalProfileId);
+
+  // Vault Favorites
+  const { data: vaultFavoriteItems, isLoading: isLoadingFavorites, hasFavorites, refresh: refreshFavorites } = useVaultFavorites();
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
 
   // Helper to get owner display name for shared profiles
   const getOwnerDisplayName = () => {
@@ -2460,6 +2466,30 @@ export default function SeeDreamImageToImage() {
                 </div>
               )}
 
+              {/* Vault Favorites Button */}
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => { refreshFavorites(); setShowFavoritesModal(true); }}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-amber-400/30 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-100/80 dark:hover:bg-amber-900/20 hover:border-amber-400/60 transition group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Star className="w-4 h-4 text-amber-500" fill="currentColor" />
+                    <span className="text-sm font-semibold text-sidebar-foreground">Vault Favorites</span>
+                    {hasFavorites && vaultFavoriteItems.length > 0 && (
+                      <span className="text-[11px] bg-amber-400/20 text-amber-600 dark:text-amber-400 rounded-full px-2 py-0.5 font-medium">
+                        {vaultFavoriteItems.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-header-muted">
+                    {isLoadingFavorites && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span className="text-xs">Quick reuse from favorites</span>
+                    <ChevronDown className="w-4 h-4 rotate-[-90deg] group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </button>
+              </div>
+
               {/* Generation History */}
               <div className="mt-8 space-y-3">
                 <div className="flex items-center justify-between">
@@ -2942,6 +2972,154 @@ export default function SeeDreamImageToImage() {
           maxSelect={0}
           selectedItemIds={uploadedImages.filter(img => img.referenceId).map(img => img.referenceId!)}
         />
+      )}
+
+      {/* Vault Favorites Modal */}
+      {showFavoritesModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setShowFavoritesModal(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl shadow-amber-400/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-400/20">
+                  <Star className="w-5 h-5 text-amber-500" fill="currentColor" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-sidebar-foreground">Vault Favorites</h2>
+                  <p className="text-xs text-header-muted">Click any item to load it as a reference image with its prompt &amp; settings</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFavoritesModal(false)}
+                className="rounded-full bg-zinc-100 dark:bg-zinc-800 p-2 text-sidebar-foreground transition hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid */}
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)] overscroll-contain">
+              {isLoadingFavorites ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                </div>
+              ) : vaultFavoriteItems.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {vaultFavoriteItems.map((item) => {
+                    const isImage = item.fileType?.startsWith('image/');
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={async () => {
+                          // Load image as reference
+                          setIsCompressing(true);
+                          try {
+                            const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+                            if (proxyResponse.ok) {
+                              const blob = await proxyResponse.blob();
+                              const reader = new FileReader();
+                              const base64 = await new Promise<string>((resolve, reject) => {
+                                reader.onloadend = () => resolve(reader.result as string);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                              });
+                              setUploadedImages([
+                                {
+                                  id: `fav-${item.id}-${Date.now()}`,
+                                  base64,
+                                  wasCompressed: false,
+                                  fromReferenceBank: true,
+                                  url: item.awsS3Url,
+                                },
+                              ]);
+                            }
+                          } catch (err) {
+                            console.warn('Failed to load favorite image:', err);
+                          } finally {
+                            setIsCompressing(false);
+                          }
+                          // Apply prompt & parameters from metadata
+                          const meta = item.metadata as any;
+                          if (meta?.prompt) setPrompt(meta.prompt);
+                          if (meta?.resolution) setSelectedResolution(meta.resolution as "2K" | "3K" | "4K");
+                          if (meta?.aspectRatio) setSelectedRatio(meta.aspectRatio as typeof selectedRatio);
+                          if (meta?.selectedModel) setSelectedModel(meta.selectedModel as "4.5" | "5.0-lite");
+                          if (meta?.outputFormat) setOutputFormat(meta.outputFormat as "jpeg" | "png");
+                          // Close modal and scroll to form
+                          setShowFavoritesModal(false);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-amber-400/20 dark:border-amber-500/10 bg-zinc-100 dark:bg-zinc-800/30 shadow-sm hover:border-amber-400/60 hover:-translate-y-1 hover:shadow-lg transition text-left"
+                      >
+                        {/* Star badge */}
+                        <div className="absolute top-2 left-2 z-10 bg-black/40 rounded-full p-0.5">
+                          <Star className="w-3 h-3 text-amber-400" fill="currentColor" />
+                        </div>
+                        {/* Thumbnail */}
+                        {isImage ? (
+                          <img
+                            src={item.awsS3Url}
+                            alt={item.fileName}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-zinc-100 dark:bg-zinc-800">
+                            <ImageIcon className="w-8 h-8 text-zinc-400" />
+                            <span className="text-[10px] text-zinc-400">{item.fileType?.split('/')[0] || 'File'}</span>
+                          </div>
+                        )}
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-2.5">
+                          <div className="text-[10px] text-white/90 line-clamp-2 leading-tight mb-1.5">
+                            {(item.metadata as any)?.prompt || item.fileName}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {(item.metadata as any)?.resolution && (
+                              <span className="text-[9px] bg-[#EC67A1]/60 text-white rounded px-1.5 py-0.5">{(item.metadata as any).resolution}</span>
+                            )}
+                            {(item.metadata as any)?.aspectRatio && (
+                              <span className="text-[9px] bg-white/20 text-white rounded px-1.5 py-0.5">{(item.metadata as any).aspectRatio}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] text-white/60">
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            <span>Click to reuse</span>
+                          </div>
+                          {item.profile?.name && (
+                            <div className="text-[8px] text-white/40 mt-0.5 line-clamp-1">
+                              {item.profile.name}{item.folder?.name ? ` / ${item.folder.name}` : ''}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-header-muted">
+                  <div className="p-4 rounded-2xl bg-amber-400/10">
+                    <Star className="w-10 h-10 text-amber-400/50" />
+                  </div>
+                  <p className="text-sm font-medium">No favorites yet</p>
+                  <p className="text-xs text-center max-w-xs">Star items in your Vault to pin them here for quick reuse in generations.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Save Preset Modal */}

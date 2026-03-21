@@ -48,6 +48,7 @@ import { FormDataMappingModal } from "@/components/model-profile/FormDataMapping
 import { MODEL_BIBLE_FIELDS } from "@/lib/model-bible-fields";
 import { usePausedModels } from "@/lib/hooks/usePausedModels.query";
 import { CONTENT_STYLES } from "@/components/content-submission/ContentStyleSelector";
+import { ProfileGalleryTab } from "@/components/gallery/ProfileGalleryTab";
 
 interface InfluencerProfile {
   id: string;
@@ -6661,30 +6662,12 @@ export default function ModelProfilePage() {
             </div>
           )}
 
-          {activeTab === "gallery" && (
+          {activeTab === "gallery" && profile && (
             <div className="bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-semibold mb-1">
-                    Gallery for {profile.name}
-                  </h3>
-                  <p className="text-[13px] text-[#71717a]">
-                    Content tagged by type with performance metrics
-                  </p>
-                </div>
-                <button className="px-4 py-2.5 bg-[#3b82f6] rounded-lg text-white text-[13px] hover:bg-[#2563eb] transition-colors">
-                  + Upload Content
-                </button>
-              </div>
-
-              <div className="py-10 bg-[#0c0c0f] rounded-lg text-center text-[#52525b]">
-                <Image size={32} className="mx-auto mb-3 opacity-50" />
-                <div className="text-sm mb-1">Content Gallery</div>
-                <div className="text-xs">
-                  Each item tagged by content type with revenue, sales, and
-                  conversion data.
-                </div>
-              </div>
+              <ProfileGalleryTab
+                profileId={profile.id}
+                profileName={profile.name}
+              />
             </div>
           )}
 

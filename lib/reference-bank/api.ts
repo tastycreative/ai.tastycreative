@@ -465,6 +465,51 @@ export const referenceBankAPI = {
       return { used: 0, limit: 5 * 1024 * 1024 * 1024 }; // Default 5GB
     }
   },
+
+  // Instagram import
+  instagram: {
+    async parseGoogleSheet(
+      sheetUrl: string
+    ): Promise<{ urls: string[]; total: number; sheetId: string }> {
+      return fetchWithRetry<{ urls: string[]; total: number; sheetId: string }>(
+        "/api/reference-bank/parse-google-sheet",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sheetUrl }),
+        }
+      );
+    },
+
+    async bulkImport(
+      urls: string[],
+      folderId?: string | null,
+      tags?: string[]
+    ): Promise<{
+      imported: number;
+      failed: number;
+      total: number;
+      results: Array<{
+        url: string;
+        status: "success" | "failed";
+        itemId?: string;
+        error?: string;
+      }>;
+    }> {
+      return fetchWithRetry(
+        "/api/reference-bank/import-from-instagram",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            urls,
+            folderId: folderId === "root" ? null : folderId,
+            tags,
+          }),
+        }
+      );
+    },
+  },
 };
 
 // Recent searches management

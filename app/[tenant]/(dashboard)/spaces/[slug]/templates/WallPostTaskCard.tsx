@@ -87,7 +87,11 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
 
   const isReadyToDeploy = columnTitle?.toLowerCase().includes('ready to post') ?? false;
   const meta = (task.metadata ?? {}) as Record<string, unknown>;
-  const platform = meta.platform as string | undefined;
+  const platforms: string[] = Array.isArray(meta.platforms)
+    ? (meta.platforms as string[])
+    : meta.platform
+      ? [(meta.platform as string)]
+      : [];
   const scheduledDate =
     task.dueDate || (meta.scheduledDate as string | undefined);
   const hashtags = Array.isArray(meta.hashtags)
@@ -170,17 +174,12 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
             ].join(' ')}
           >
             <div className="px-3.5 pt-3 pb-2.5">
-              {/* Row 1: Task key + platform badge */}
-              <div className="flex items-center gap-1.5 mb-2.5">
+              {/* Row 1: Task key + actions */}
+              <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold tracking-wide bg-purple-500/15 border-purple-500/25 text-purple-400">
                   <span className="font-mono">{task.taskKey}</span>
                   <span>WALL</span>
                 </span>
-                {platform && (
-                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5 border border-white/[0.06] capitalize">
-                    {platform}
-                  </span>
-                )}
                 <span className="flex-1" />
                 {onDelete && (
                   <button
@@ -204,6 +203,17 @@ export const WallPostTaskCard = memo(function WallPostTaskCard({
                   </span>
                 )}
               </div>
+
+              {/* Row 1b: Platform badges (own wrapping row) */}
+              {platforms.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {platforms.map((p) => (
+                    <span key={p} className="text-[10px] font-medium text-gray-500 dark:text-gray-500 px-1.5 py-0.5 rounded bg-white/5 border border-white/[0.06] capitalize">
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Row 2: Title */}
               {editing ? (

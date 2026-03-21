@@ -5,6 +5,7 @@ import { canManageQueue, canViewQueue, isCreatorRole, type OrgRole } from '@/lib
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import { captionStatusToWallPostStatus } from '@/lib/wall-post-status';
 import { captionStatusToOtpPtrStatus } from '@/lib/otp-ptr-caption-status';
+import { autoMoveColumnIfNeeded } from '@/lib/board-auto-column-move';
 
 async function resolveUserContext(clerkId: string) {
   const user = await prisma.user.findUnique({
@@ -71,7 +72,7 @@ async function syncCaptionToBoardItem(
 
     const existing = await prisma.boardItem.findUnique({
       where: { id: boardItemId },
-      select: { metadata: true, column: { select: { boardId: true } } },
+      select: { columnId: true, metadata: true, column: { select: { boardId: true, name: true } } },
     });
     const prev = (existing?.metadata as Record<string, unknown>) ?? {};
 
@@ -108,6 +109,31 @@ async function syncCaptionToBoardItem(
         updatedAt: new Date(),
       },
     });
+
+    // Auto-move column based on metadata conditions (PGT Team / Flyer Team)
+    if (existing?.column) {
+      // Resolve the userId for history tracking from the ticket's assignees
+      let historyUserId = 'system';
+      try {
+        const ticket = await prisma.captionQueueTicket.findFirst({
+          where: { boardItemId },
+          select: { assignees: { select: { clerkId: true }, take: 1 } },
+        });
+        if (ticket?.assignees?.[0]?.clerkId) {
+          const u = await prisma.user.findUnique({ where: { clerkId: ticket.assignees[0].clerkId }, select: { id: true } });
+          if (u) historyUserId = u.id;
+        }
+      } catch { /* non-fatal */ }
+
+      await autoMoveColumnIfNeeded({
+        boardItemId,
+        currentColumnId: existing.columnId,
+        currentColumnName: existing.column.name,
+        boardId: existing.column.boardId,
+        metadata: updatedMeta,
+        userId: historyUserId,
+      });
+    }
 
     // Notify the board page so it invalidates its cache
     if (existing?.column?.boardId) {

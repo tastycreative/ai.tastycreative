@@ -57,7 +57,7 @@ export function useSchedulerRealtime(orgId: string | undefined) {
 
       const eventName = message.name ?? '';
 
-      if (eventName === 'task.updated' || eventName === 'task.deleted' || eventName === 'tasks.seeded') {
+      if (eventName === 'task.updated' || eventName === 'task.deleted' || eventName === 'task.created' || eventName === 'tasks.seeded') {
         queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
       }
 

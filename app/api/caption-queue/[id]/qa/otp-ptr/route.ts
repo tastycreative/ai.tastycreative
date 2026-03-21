@@ -206,7 +206,7 @@ export async function PATCH(
       if (ticket.boardItemId) {
         const existingItem = await tx.boardItem.findUnique({
           where: { id: ticket.boardItemId },
-          select: { metadata: true, column: { select: { boardId: true } } },
+          select: { metadata: true, columnId: true, column: { select: { boardId: true, name: true } } },
         });
         const prevMeta =
           (existingItem?.metadata as Record<string, unknown>) ?? {};
@@ -235,10 +235,60 @@ export async function PATCH(
                 qaRejectionReason: null,
               };
 
+        // On rejection: find the "PGT Team" column in this board and move the item there
+        // On approval: if item is in "PGT Team", move it to "PGT Completed"
+        let targetColumnId: string | null = null;
+        let targetColumnName: string | null = null;
+        if (existingItem?.column?.boardId) {
+          if (action === 'reject') {
+            const pgtColumn = await tx.boardColumn.findFirst({
+              where: {
+                boardId: existingItem.column.boardId,
+                name: { equals: 'PGT Team', mode: 'insensitive' },
+              },
+              select: { id: true, name: true },
+            });
+            if (pgtColumn && pgtColumn.id !== existingItem.columnId) {
+              targetColumnId = pgtColumn.id;
+              targetColumnName = pgtColumn.name;
+            }
+          } else if (action === 'approve' && existingItem.column.name.toLowerCase() === 'pgt team') {
+            const pgtCompletedColumn = await tx.boardColumn.findFirst({
+              where: {
+                boardId: existingItem.column.boardId,
+                name: { equals: 'PGT Completed', mode: 'insensitive' },
+              },
+              select: { id: true, name: true },
+            });
+            if (pgtCompletedColumn && pgtCompletedColumn.id !== existingItem.columnId) {
+              targetColumnId = pgtCompletedColumn.id;
+              targetColumnName = pgtCompletedColumn.name;
+            }
+          }
+        }
+
         await tx.boardItem.update({
           where: { id: ticket.boardItemId },
-          data: { metadata: newMeta as any, updatedAt: now },
+          data: {
+            metadata: newMeta as any,
+            updatedAt: now,
+            ...(targetColumnId && { columnId: targetColumnId }),
+          },
         });
+
+        // Record the column move in history so it shows up in the activity log
+        if (targetColumnId && targetColumnName && existingItem?.columnId) {
+          await tx.boardItemHistory.create({
+            data: {
+              itemId: ticket.boardItemId,
+              userId: ctx.userId,
+              action: 'updated',
+              field: 'columnId',
+              oldValue: existingItem.column?.name ?? existingItem.columnId,
+              newValue: targetColumnName,
+            },
+          });
+        }
       }
 
       return updated;
