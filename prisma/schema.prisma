@@ -52,6 +52,7 @@ model User {
   pinnedProfiles           ProfilePin[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
+  scheduler_activity_logs  scheduler_activity_logs[]
   teamMemberships          TeamMember[]
   trackerActivityLogs      TrackerActivityLog[]
   trainingImages           TrainingImage[]
@@ -1475,6 +1476,7 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
+  scheduler_activity_logs       scheduler_activity_logs[]
   schedulerConfig               SchedulerConfig?
   schedulerTasks                SchedulerTask[]
   members                       TeamMember[]
@@ -1844,24 +1846,23 @@ model ai_voice_generations {
 }
 
 model ai_voice_sales {
-  id               String              @id @default(cuid())
-  userId           String
-  organizationId   String?
-  chatter          String
-  fanUsername       String
-  saleType         String              // tip, ppv, subscription, custom_voice, bundle
-  amount           Float
-  platformCut      Float               @default(20)
-  netEarned        Float
-  voiceClipId      String?             // linked generation ID
-  voiceClipUrl     String?
-  notes            String?
-  screenshotUrl    String?             // sale proof screenshot URL
-  submittedBy      String              @default("manager") // "manager" | "chatter"
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-
-  generation       ai_voice_generations? @relation(fields: [voiceClipId], references: [id], onDelete: SetNull)
+  id             String                @id @default(cuid())
+  userId         String
+  organizationId String?
+  chatter        String
+  fanUsername    String
+  saleType       String
+  amount         Float
+  platformCut    Float                 @default(20)
+  netEarned      Float
+  voiceClipId    String?
+  voiceClipUrl   String?
+  notes          String?
+  screenshotUrl  String?
+  submittedBy    String                @default("manager")
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  generation     ai_voice_generations? @relation(fields: [voiceClipId], references: [id])
 
   @@index([userId])
   @@index([organizationId])
@@ -2557,26 +2558,28 @@ model FlyerAsset {
 }
 
 model SchedulerTask {
-  id             String              @id @default(cuid())
-  organizationId String
-  weekStartDate  DateTime            @db.Date
-  dayOfWeek      Int
-  slotLabel      String
-  team           String              @default("")
-  taskName       String              @default("")
-  taskType       String              @default("")
-  status         SchedulerTaskStatus @default(PENDING)
-  startTime      DateTime?
-  endTime        DateTime?
-  notes          String              @default("")
-  updatedBy      String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @default(now()) @updatedAt
-  sortOrder      Int                 @default(0)
-  fields         Json?
-  platform       String              @default("free")
-  profileId      String?
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                      String                    @id @default(cuid())
+  organizationId          String
+  weekStartDate           DateTime                  @db.Date
+  dayOfWeek               Int
+  slotLabel               String
+  team                    String                    @default("")
+  taskName                String                    @default("")
+  taskType                String                    @default("")
+  status                  SchedulerTaskStatus       @default(PENDING)
+  startTime               DateTime?
+  endTime                 DateTime?
+  notes                   String                    @default("")
+  updatedBy               String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @default(now()) @updatedAt
+  sortOrder               Int                       @default(0)
+  fields                  Json?
+  platform                String                    @default("free")
+  profileId               String?
+  scheduler_activity_logs scheduler_activity_logs[]
+  scheduler_task_history  scheduler_task_history[]
+  organization            Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
   @@index([organizationId, weekStartDate])
@@ -2589,9 +2592,9 @@ model SchedulerConfig {
   organizationId String       @unique
   teamNames      String[]     @default([])
   rotationOffset Int          @default(0)
-  taskLimits     Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @default(now()) @updatedAt
+  taskLimits     Json?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("scheduler_configs")
@@ -2624,6 +2627,43 @@ model ModelPresetMember {
   @@index([profileId])
   @@map("model_preset_members")
 }
+
+model scheduler_activity_logs {
+  id                     String                   @id
+  organizationId         String
+  userId                 String
+  taskId                 String?
+  action                 String
+  summary                String?
+  createdAt              DateTime                 @default(now())
+  organizations          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scheduler_tasks        SchedulerTask?           @relation(fields: [taskId], references: [id])
+  users                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduler_task_history scheduler_task_history[]
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model scheduler_task_history {
+  id                      String                   @id
+  taskId                  String
+  userId                  String
+  action                  String
+  field                   String
+  oldValue                String?
+  newValue                String?
+  createdAt               DateTime                 @default(now())
+  activityLogId           String?
+  scheduler_activity_logs scheduler_activity_logs? @relation(fields: [activityLogId], references: [id])
+  scheduler_tasks         SchedulerTask            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([activityLogId])
+  @@index([taskId, createdAt(sort: Desc)])
+  @@index([userId])
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
