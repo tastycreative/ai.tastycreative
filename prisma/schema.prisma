@@ -2589,6 +2589,7 @@ model SchedulerConfig {
   organizationId String       @unique
   teamNames      String[]     @default([])
   rotationOffset Int          @default(0)
+  taskLimits     Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @default(now()) @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2623,7 +2624,6 @@ model ModelPresetMember {
   @@index([profileId])
   @@map("model_preset_members")
 }
-
 enum SyncStatus {
   PENDING
   SYNCED

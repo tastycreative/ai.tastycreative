@@ -83,11 +83,17 @@ export interface SchedulerTask {
   updatedAt: string;
 }
 
+export interface TaskLimits {
+  defaults: Record<string, number>;
+  overrides: Record<string, Record<string, number>>;
+}
+
 export interface SchedulerConfig {
   id: string;
   organizationId: string;
   teamNames: string[];
   rotationOffset: number;
+  taskLimits: TaskLimits | null;
 }
 
 interface WeekResponse {
@@ -339,21 +345,64 @@ export function useUpdatePodConfig() {
     mutationFn: async ({
       teamNames,
       rotationOffset,
+      taskLimits,
       tabId,
     }: {
       teamNames?: string[];
       rotationOffset?: number;
+      taskLimits?: TaskLimits | null;
       tabId?: string;
     }) => {
       const res = await fetch('/api/scheduler/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamNames, rotationOffset, tabId }),
+        body: JSON.stringify({ teamNames, rotationOffset, taskLimits, tabId }),
       });
       if (!res.ok) throw new Error('Failed to update config');
       return res.json() as Promise<ConfigResponse>;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.config() });
+    },
+  });
+}
+
+export function useUpdateTaskLimits() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      taskLimits,
+      tabId,
+    }: {
+      taskLimits: TaskLimits | null;
+      tabId?: string;
+    }) => {
+      const res = await fetch('/api/scheduler/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskLimits, tabId }),
+      });
+      if (!res.ok) throw new Error('Failed to update task limits');
+      return res.json() as Promise<ConfigResponse>;
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: schedulerKeys.config() });
+      const prev = queryClient.getQueryData<ConfigResponse>(schedulerKeys.config());
+
+      queryClient.setQueryData<ConfigResponse>(schedulerKeys.config(), (old) => {
+        if (!old?.config) return old;
+        return { config: { ...old.config, taskLimits: variables.taskLimits } };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(schedulerKeys.config(), context.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.config() });
     },
   });

@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, Loader2, Plus, Download, ChevronDown } from 'lucide-react';
+import { Settings, History, Download, ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
   useSchedulerConfig,
   useUpdatePodTask,
-  useSeedPodWeek,
   useCreateSchedulerTask,
   useDeleteSchedulerTask,
+  useUpdateTaskLimits,
   SchedulerTask,
+  TaskLimits,
 } from '@/lib/hooks/useScheduler.query';
 import { useSchedulerRealtime, tabId } from '@/lib/hooks/useSchedulerRealtime';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';
@@ -22,6 +23,7 @@ import {
   getSchedulerTodayKey,
 } from '@/lib/scheduler/rotation';
 import { TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
+import { cleanTaskLimits } from '@/lib/scheduler/task-limits';
 import { SchedulerDayColumn } from './SchedulerDayColumn';
 import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
@@ -257,6 +259,78 @@ function generateSampleTasks(): SchedulerTask[] {
   return samples;
 }
 
+// ─── Skeleton Loader ─────────────────────────────────────────────────────────
+
+function SkeletonPulse({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-gray-200 dark:bg-[#151528] ${className}`} />;
+}
+
+function SkeletonDayColumn({ isToday }: { isToday?: boolean }) {
+  return (
+    <div
+      className={`flex flex-col rounded-xl border overflow-hidden ${
+        isToday
+          ? 'border-brand-blue/30 dark:border-[#38bdf8]/20'
+          : 'border-gray-200 dark:border-[#111124]'
+      } bg-white dark:bg-[#0a0a14]`}
+    >
+      {/* Header */}
+      <div className="px-3 py-2.5 border-b border-gray-100 dark:border-[#111124]">
+        <div className="flex items-center justify-between mb-1.5">
+          <SkeletonPulse className="h-3.5 w-10" />
+          <SkeletonPulse className="h-3 w-14" />
+        </div>
+        <div className="flex items-center justify-between">
+          <SkeletonPulse className="h-3 w-12" />
+          <SkeletonPulse className="h-4 w-16 rounded-full" />
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="px-3 py-1.5">
+        <SkeletonPulse className="h-1 w-full rounded-full" />
+      </div>
+
+      {/* Task cards */}
+      <div className="flex-1 px-2 pb-2 space-y-1.5">
+        {['w-3/5', 'w-4/5', 'w-2/5', 'w-3/4', 'w-1/2'].map((w, i) => (
+          <div key={i} className="rounded-lg border border-gray-100 dark:border-[#111124] p-2">
+            <div className="flex items-center gap-2">
+              <SkeletonPulse className="h-2 w-2 rounded-full shrink-0" />
+              <SkeletonPulse className="h-2.5 w-8 rounded-full shrink-0" />
+              <SkeletonPulse className={`h-2.5 ${w}`} />
+            </div>
+            {i % 2 === 0 && (
+              <div className="flex items-center gap-1.5 mt-1.5 ml-4">
+                <SkeletonPulse className="h-2 w-12" />
+                <SkeletonPulse className="h-2 w-8" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add button */}
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-[#111124]">
+        <SkeletonPulse className="h-5 w-full rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+function SchedulerGridSkeleton() {
+  return (
+    <div
+      className="grid gap-2 p-2 flex-1 overflow-x-auto"
+      style={{ gridTemplateColumns: 'repeat(7, minmax(160px, 1fr))' }}
+    >
+      {Array.from({ length: 7 }).map((_, i) => (
+        <SkeletonDayColumn key={i} isToday={i === 2} />
+      ))}
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function SchedulerGrid() {
@@ -358,12 +432,13 @@ export function SchedulerGrid() {
   const tasks = showDemo ? sampleTasks : realTasks;
   const teamNames = config?.teamNames ?? [];
   const rotationOffset = config?.rotationOffset ?? 0;
+  const taskLimits = config?.taskLimits ?? null;
 
   // Mutations
   const updateTask = useUpdatePodTask();
-  const seedWeek = useSeedPodWeek();
   const createTask = useCreateSchedulerTask();
   const deleteTask = useDeleteSchedulerTask();
+  const updateTaskLimits = useUpdateTaskLimits();
 
   // Week days
   const weekDays = useMemo(
@@ -426,9 +501,36 @@ export function SchedulerGrid() {
     [createTask, weekStart, showDemo, activePlatform, activeProfileId],
   );
 
-  const handleSeed = useCallback(() => {
-    seedWeek.mutate({ weekStart, tabId });
-  }, [seedWeek, weekStart]);
+  const handleUpdateTaskLimits = useCallback(
+    (dayIndex: number, type: string, newMax: number | null) => {
+      if (showDemo) return;
+      const current: TaskLimits = taskLimits
+        ? { defaults: { ...taskLimits.defaults }, overrides: { ...taskLimits.overrides } }
+        : { defaults: {}, overrides: {} };
+
+      const dayKey = String(dayIndex);
+      if (newMax === null) {
+        // Remove override for this day+type
+        if (current.overrides[dayKey]) {
+          const { [type]: _, ...rest } = current.overrides[dayKey];
+          if (Object.keys(rest).length > 0) {
+            current.overrides[dayKey] = rest;
+          } else {
+            const { [dayKey]: __, ...restOverrides } = current.overrides;
+            current.overrides = restOverrides;
+          }
+        }
+      } else {
+        // Set override for this day+type
+        current.overrides[dayKey] = { ...(current.overrides[dayKey] ?? {}), [type]: newMax };
+      }
+
+      const cleaned = cleanTaskLimits(current);
+      const hasAny = Object.keys(cleaned.defaults).length > 0 || Object.keys(cleaned.overrides).length > 0;
+      updateTaskLimits.mutate({ taskLimits: hasAny ? cleaned : null, tabId });
+    },
+    [taskLimits, showDemo, updateTaskLimits],
+  );
 
   const showSetup = !configLoading && !config;
   const isLoading = weekLoading || configLoading;
@@ -487,17 +589,6 @@ export function SchedulerGrid() {
 
           <SchedulerPresenceBar orgId={orgId} />
 
-          {/* Seed button */}
-          {!isLoading && realTasks.length === 0 && teamNames.length > 0 && !showDemo && (
-            <button
-              onClick={handleSeed}
-              disabled={seedWeek.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all disabled:opacity-50 text-brand-blue border-brand-blue/25 bg-brand-blue/5 dark:text-[#38bdf8] dark:border-[#38bdf840] dark:bg-[#38bdf812]"
-            >
-              <Plus className="h-3 w-3" />
-              {seedWeek.isPending ? 'GENERATING...' : 'GENERATE WEEK'}
-            </button>
-          )}
 
           {/* Setup teams button */}
           {!isLoading && teamNames.length === 0 && (
@@ -624,9 +715,7 @@ export function SchedulerGrid() {
 
       {/* Grid */}
       {isLoading && !showDemo ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-brand-blue dark:text-[#38bdf8]" />
-        </div>
+        <SchedulerGridSkeleton />
       ) : expandedDay !== null ? (
         /* ── Expanded layout: horizontal row, strips overlap like fanned cards ── */
         <div className="flex flex-1 overflow-visible p-2 items-stretch">
@@ -653,6 +742,8 @@ export function SchedulerGrid() {
                 collapsed={!isExpanded}
                 popupDirection={dayIndex > expandedDay! ? 'left' : 'right'}
                 onToggleExpand={() => toggleExpand(dayIndex)}
+                taskLimits={taskLimits}
+                onUpdateTaskLimits={handleUpdateTaskLimits}
               />
             );
           })}
@@ -684,6 +775,8 @@ export function SchedulerGrid() {
                 expanded={false}
                 collapsed={false}
                 onToggleExpand={() => toggleExpand(dayIndex)}
+                taskLimits={taskLimits}
+                onUpdateTaskLimits={handleUpdateTaskLimits}
               />
             );
           })}

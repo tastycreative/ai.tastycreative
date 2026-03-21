@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clock, Plus, Maximize2, Minimize2 } from 'lucide-react';
-import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTask, TaskLimits } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
 import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
+import { getTaskLimit } from '@/lib/scheduler/task-limits';
 
 // ─── Portal-based Add Task Menu ───────────────────────────────────────────────
 function AddTaskMenu({
@@ -103,6 +104,87 @@ function groupByType(tasks: SchedulerTask[]) {
   return groups;
 }
 
+// ─── Inline-editable Task Limit Badge ────────────────────────────────────────
+function TaskLimitBadge({
+  type,
+  doneCount,
+  totalCount,
+  max,
+  onChangeMax,
+}: {
+  type: string;
+  doneCount: number;
+  totalCount: number;
+  max: number;
+  onChangeMax?: (type: string, newMax: number | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const color = TASK_TYPE_COLORS[type] || '#3a3a5a';
+  const hasLimit = isFinite(max);
+  const overLimit = hasLimit && totalCount > max;
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commitEdit = () => {
+    setEditing(false);
+    if (!onChangeMax) return;
+    const trimmed = inputVal.trim();
+    if (trimmed === '' || trimmed === '0') {
+      onChangeMax(type, null); // remove limit
+    } else {
+      const n = parseInt(trimmed);
+      if (!isNaN(n) && n > 0) onChangeMax(type, n);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        min={0}
+        value={inputVal}
+        onChange={(e) => setInputVal(e.target.value)}
+        onBlur={commitEdit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commitEdit();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="w-10 px-0.5 py-0.5 text-[8px] text-center rounded outline-none font-mono bg-gray-50 border border-gray-300 text-gray-900 dark:bg-[#07070f] dark:border-[#333] dark:text-zinc-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        style={{ borderColor: color + '60' }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={(e) => {
+        if (!onChangeMax) return;
+        e.stopPropagation();
+        setInputVal(hasLimit ? String(max) : '');
+        setEditing(true);
+      }}
+      className="text-[8px] font-bold px-1 py-0.5 rounded font-sans transition-all"
+      style={{
+        background: overLimit ? '#ef444425' : color + '18',
+        color: overLimit ? '#ef4444' : color,
+        border: `1px solid ${overLimit ? '#ef444450' : color + '30'}`,
+        cursor: onChangeMax ? 'pointer' : 'default',
+      }}
+      title={onChangeMax ? `${totalCount}${hasLimit ? `/${max}` : ''} ${type} — click to edit max` : undefined}
+    >
+      {totalCount}{hasLimit ? `/${max}` : ''}
+    </span>
+  );
+}
+
 interface SchedulerDayColumnProps {
   dayIndex: number;
   date: Date;
@@ -120,6 +202,8 @@ interface SchedulerDayColumnProps {
   /** Which side the hover popup should appear: 'left' or 'right' */
   popupDirection?: 'left' | 'right';
   onToggleExpand: () => void;
+  taskLimits?: TaskLimits | null;
+  onUpdateTaskLimits?: (dayIndex: number, type: string, newMax: number | null) => void;
 }
 
 export function SchedulerDayColumn({
@@ -136,6 +220,8 @@ export function SchedulerDayColumn({
   collapsed,
   popupDirection = 'right',
   onToggleExpand,
+  taskLimits,
+  onUpdateTaskLimits,
 }: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
@@ -171,21 +257,30 @@ export function SchedulerDayColumn({
   const doneCount = tasks.filter((t) => t.status === 'DONE').length;
   const progress = totalTasks > 0 ? doneCount / totalTasks : 0;
 
-  // Type counts for collapsed/normal view
+  const handleBadgeChangeMax = useCallback(
+    (type: string, newMax: number | null) => {
+      onUpdateTaskLimits?.(dayIndex, type, newMax);
+    },
+    [dayIndex, onUpdateTaskLimits],
+  );
+
+  // Type counts for collapsed/normal view — show types with tasks OR with limits
   const typeCounts = useMemo(() => {
-    const counts: { type: string; count: number; doneCount: number }[] = [];
+    const counts: { type: string; count: number; doneCount: number; max: number }[] = [];
     for (const t of TASK_TYPES) {
       const matching = tasks.filter((task) => task.taskType === t);
-      if (matching.length > 0) {
+      const max = getTaskLimit(taskLimits, dayIndex, t);
+      if (matching.length > 0 || isFinite(max)) {
         counts.push({
           type: t,
           count: matching.length,
           doneCount: matching.filter((task) => task.status === 'DONE').length,
+          max,
         });
       }
     }
     return counts;
-  }, [tasks]);
+  }, [tasks, taskLimits, dayIndex]);
 
   const groups = useMemo(() => groupByType(tasks), [tasks]);
 
@@ -352,15 +447,21 @@ export function SchedulerDayColumn({
             {totalTasks > 0 && (
               <>
                 <div className="flex flex-wrap gap-1 mt-0.5">
-                  {typeCounts.map(({ type, count, doneCount: done }) => {
+                  {typeCounts.map(({ type, count, max }) => {
                     const color = TASK_TYPE_COLORS[type] || '#3a3a5a';
+                    const hasLimit = isFinite(max);
+                    const overLimit = hasLimit && count > max;
                     return (
                       <span
                         key={type}
                         className="text-[8px] font-bold px-1.5 py-0.5 rounded font-sans"
-                        style={{ background: color + '20', color, border: `1px solid ${color}40` }}
+                        style={{
+                          background: overLimit ? '#ef444425' : color + '20',
+                          color: overLimit ? '#ef4444' : color,
+                          border: `1px solid ${overLimit ? '#ef444450' : color + '40'}`,
+                        }}
                       >
-                        {done}/{count} {type}
+                        {count}{hasLimit ? `/${max}` : ''} {type}
                       </span>
                     );
                   })}
@@ -497,22 +598,16 @@ export function SchedulerDayColumn({
             <div className="flex items-center gap-3">
               {/* Type badges */}
               <div className="flex gap-1.5">
-                {typeCounts.map(({ type, count, doneCount: done }) => {
-                  const color = TASK_TYPE_COLORS[type] || '#3a3a5a';
-                  return (
-                    <span
-                      key={type}
-                      className="text-[9px] font-bold px-1.5 py-0.5 rounded font-sans"
-                      style={{
-                        background: color + '18',
-                        color: color,
-                        border: `1px solid ${color}30`,
-                      }}
-                    >
-                      {done}/{count} {type}
-                    </span>
-                  );
-                })}
+                {typeCounts.map(({ type, count, max }) => (
+                  <TaskLimitBadge
+                    key={type}
+                    type={type}
+                    doneCount={count}
+                    totalCount={count}
+                    max={max}
+                    onChangeMax={onUpdateTaskLimits ? handleBadgeChangeMax : undefined}
+                  />
+                ))}
               </div>
               {/* Bar */}
               <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-[#111124] overflow-hidden">
@@ -553,7 +648,13 @@ export function SchedulerDayColumn({
                         {group.type}
                       </span>
                       <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
-                        {group.tasks.filter((t) => t.status === 'DONE').length}/{group.tasks.length}
+                        {(() => {
+                          const done = group.tasks.filter((t) => t.status === 'DONE').length;
+                          const total = group.tasks.length;
+                          const max = getTaskLimit(taskLimits, dayIndex, group.type);
+                          const hasLimit = isFinite(max);
+                          return hasLimit ? `${done}/${total} / ${max}` : `${done}/${total}`;
+                        })()}
                       </span>
                       <div className="flex-1 h-px" style={{ background: color + '25' }} />
                     </div>
@@ -697,21 +798,19 @@ export function SchedulerDayColumn({
           </div>
         ) : (
           <>
-            {/* Progress bar */}
+            {/* Task count badges + progress */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
-                {typeCounts.map(({ type, doneCount: done, count }) => {
-                  const color = TASK_TYPE_COLORS[type] || '#3a3a5a';
-                  return (
-                    <span
-                      key={type}
-                      className="text-[8px] font-bold px-1 py-0.5 rounded font-sans"
-                      style={{ background: color + '18', color, border: `1px solid ${color}30` }}
-                    >
-                      {done}/{count}
-                    </span>
-                  );
-                })}
+                {typeCounts.map(({ type, count, max }) => (
+                  <TaskLimitBadge
+                    key={type}
+                    type={type}
+                    doneCount={count}
+                    totalCount={count}
+                    max={max}
+                    onChangeMax={onUpdateTaskLimits ? handleBadgeChangeMax : undefined}
+                  />
+                ))}
               </div>
               <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-[#111124] overflow-hidden">
                 <div
@@ -743,7 +842,12 @@ export function SchedulerDayColumn({
                         {group.type}
                       </span>
                       <span className="text-[8px] font-mono text-gray-400 dark:text-[#3a3a5a]">
-                        ({group.tasks.length})
+                        {(() => {
+                          const max = getTaskLimit(taskLimits, dayIndex, group.type);
+                          return isFinite(max)
+                            ? `(${group.tasks.length}/${max})`
+                            : `(${group.tasks.length})`;
+                        })()}
                       </span>
                       <div className="flex-1 h-px" style={{ background: color + '20' }} />
                     </div>

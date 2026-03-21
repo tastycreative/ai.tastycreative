@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { teamNames, rotationOffset, tabId } = body;
+  const { teamNames, rotationOffset, taskLimits, tabId } = body;
 
   const config = await prisma.schedulerConfig.upsert({
     where: { organizationId: orgId },
@@ -58,10 +58,12 @@ export async function PUT(request: NextRequest) {
       organizationId: orgId,
       teamNames: teamNames || [],
       rotationOffset: rotationOffset ?? 0,
+      ...(taskLimits !== undefined && { taskLimits }),
     },
     update: {
       ...(teamNames !== undefined && { teamNames }),
       ...(rotationOffset !== undefined && { rotationOffset }),
+      ...(taskLimits !== undefined && { taskLimits }),
     },
   });
 
