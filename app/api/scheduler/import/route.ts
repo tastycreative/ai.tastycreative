@@ -126,11 +126,14 @@ export async function POST(request: NextRequest) {
     };
   });
 
+  // Track slotLabels so we can look up created tasks
+  const slotLabels = data.map((d) => d.slotLabel);
+
   const result = await prisma.schedulerTask.createMany({ data });
 
   // Activity log
   const modeLabel = mode === 'replace' ? 'replaced all' : mode === 'replace_by_type' ? 'replaced by type' : 'appended';
-  await prisma.schedulerActivityLog.create({
+  const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
@@ -139,6 +142,26 @@ export async function POST(request: NextRequest) {
       summary: `Imported ${result.count} tasks (${modeLabel}${deleted > 0 ? `, removed ${deleted} old` : ''}) for week ${weekStart}`,
     },
   });
+
+  // Create change history entries for each imported task
+  const createdTasks = await prisma.schedulerTask.findMany({
+    where: { organizationId: orgId, slotLabel: { in: slotLabels } },
+    select: { id: true, taskType: true, taskName: true, dayOfWeek: true },
+  });
+
+  if (createdTasks.length > 0) {
+    await prisma.schedulerTaskHistory.createMany({
+      data: createdTasks.map((t) => ({
+        taskId: t.id,
+        userId: user.id,
+        action: 'IMPORTED',
+        field: 'task',
+        oldValue: null,
+        newValue: `${t.taskType}${t.taskName ? ` — ${t.taskName}` : ''} (day ${t.dayOfWeek})`,
+        activityLogId: activityLog.id,
+      })),
+    });
+  }
 
   // Broadcast real-time update
   await broadcastToScheduler(orgId, {

@@ -34,7 +34,7 @@ const COLUMN_MAP: { type: string; startCol: number; fields: string[] }[] = [
   {
     type: 'ST',
     startCol: 17,
-    fields: ['time', 'contentFlyer'],
+    fields: ['storyPostSchedule', 'contentFlyer'],
   },
   {
     type: 'SP',
@@ -47,7 +47,7 @@ const COLUMN_MAP: { type: string; startCol: number; fields: string[] }[] = [
 const TASK_NAME_KEYS: Record<string, string> = {
   MM: 'type',
   WP: 'type',
-  ST: 'time',
+  ST: 'storyPostSchedule',
   SP: 'type',
 };
 

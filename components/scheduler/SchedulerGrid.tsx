@@ -339,7 +339,7 @@ export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
-  const { selectedProfile, isAllProfiles } = useInstagramProfile();
+  const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
 
   // Platform tab state
   const [activePlatform, setActivePlatform] = useState<PlatformKey>('free');
@@ -426,9 +426,10 @@ export function SchedulerGrid() {
   // Real-time
   useSchedulerRealtime(orgId);
 
-  // Data
+  // Data — wait for profile selector to resolve before fetching
+  const profileReady = isAllProfiles || !loadingProfiles;
   const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
-  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform);
+  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform, profileReady);
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
   const config = configData?.config ?? null;
@@ -537,7 +538,7 @@ export function SchedulerGrid() {
   );
 
   const showSetup = !configLoading && !config;
-  const isLoading = weekLoading || configLoading;
+  const isLoading = weekLoading || configLoading || !profileReady;
 
   return (
     <div className="flex flex-col h-full rounded-xl overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#07070e] dark:text-zinc-300">

@@ -110,13 +110,25 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  await prisma.schedulerActivityLog.create({
+  const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
       taskId: task.id,
       action: 'CREATED',
       summary: `Created ${task.taskType || 'task'} on day ${task.dayOfWeek}`,
+    },
+  });
+
+  await prisma.schedulerTaskHistory.create({
+    data: {
+      taskId: task.id,
+      userId: user.id,
+      action: 'CREATED',
+      field: 'task',
+      oldValue: null,
+      newValue: `${task.taskType || 'task'} on day ${task.dayOfWeek}`,
+      activityLogId: activityLog.id,
     },
   });
 

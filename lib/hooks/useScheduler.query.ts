@@ -19,7 +19,7 @@ export interface WPFields {
   paywallContent?: string; caption?: string; priceInfo?: string;
 }
 export interface STFields {
-  time?: string; contentFlyer?: string;
+  contentFlyer?: string; storyPostSchedule?: string;
 }
 export interface SPFields {
   type?: string; contentFlyer?: string;
@@ -51,7 +51,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
   ST: [
-    { key: 'time', label: 'Time', placeholder: '3:00 PM' },
+    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '3:00 PM' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
   ],
   SP: [
@@ -170,12 +170,13 @@ export function useSchedulerWeek(
   weekStart: string,
   profileId?: string | null,
   platform?: string,
+  enabled: boolean = true,
 ) {
   const { user } = useUser();
   return useQuery({
     queryKey: [...schedulerKeys.week(weekStart), profileId ?? '', platform ?? ''],
     queryFn: () => fetchWeekTasks(weekStart, profileId, platform),
-    enabled: !!user && !!weekStart,
+    enabled: !!user && !!weekStart && enabled,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
