@@ -83,6 +83,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
     const favoritesOnly = searchParams.get("favoritesOnly") === "true";
+    const captionCategory = searchParams.get("captionCategory");
+    const search = searchParams.get("search");
     const sortBy = searchParams.get("sortBy") || "createdAt"; // createdAt, usageCount, lastUsedAt
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
@@ -168,6 +170,14 @@ export async function GET(request: NextRequest) {
 
     if (favoritesOnly) {
       captionsWhere.isFavorite = true;
+    }
+
+    if (captionCategory) {
+      captionsWhere.captionCategory = captionCategory;
+    }
+
+    if (search) {
+      captionsWhere.caption = { contains: search, mode: 'insensitive' };
     }
 
     // Build orderBy based on sortBy parameter
