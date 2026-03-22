@@ -8,6 +8,8 @@ import {
   SkipForward,
   ChevronDown,
   Trash2,
+  Flag,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { SchedulerTask, TaskFields } from '@/lib/hooks/useScheduler.query';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
@@ -289,4 +291,104 @@ export function useFieldSave(
     onUpdate(task.id, { fields: merged });
   }, [fields, task.id, onUpdate]);
   return { fields, save };
+}
+
+// ─── Caption Preview (compact inline) ────────────────────────────────────────
+
+export function CaptionPreview({
+  fields,
+  typeColor,
+}: {
+  fields: Record<string, string>;
+  typeColor: string;
+}) {
+  const text = fields.captionBankText || fields.caption;
+  const isBankCaption = !!fields.captionId;
+  const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
+
+  if (!text) return null;
+
+  return (
+    <div className="flex items-start gap-1 px-1 min-h-[18px]">
+      <span className="text-[9px] font-bold text-gray-400 dark:text-gray-600 whitespace-nowrap mt-[1px] font-sans min-w-[60px]">
+        Caption
+      </span>
+      <div className="flex-1 min-w-0 flex items-start gap-1">
+        {isFlagged && (
+          <span className="text-[8px] shrink-0 mt-[1px]" title="Needs replacement">🚩</span>
+        )}
+        <span className="text-[10px] font-mono truncate text-gray-700 dark:text-gray-300">
+          {text}
+        </span>
+        {isBankCaption && (
+          <span
+            className="text-[7px] shrink-0 px-1 py-0.5 rounded font-sans font-bold mt-[1px]"
+            style={{ background: typeColor + '15', color: typeColor }}
+          >
+            BANK
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Flyer Preview (compact inline) ──────────────────────────────────────────
+
+export function FlyerPreview({
+  fields,
+}: {
+  fields: Record<string, string>;
+}) {
+  const url = fields.flyerAssetUrl;
+  if (!url) return null;
+
+  const isImage = /\.(gif|png|jpg|jpeg|webp)(\?|$)/i.test(url) || url.includes('/uploads/');
+
+  return (
+    <div className="flex items-start gap-1.5 px-1 min-h-[18px]">
+      <span className="text-[9px] font-bold text-gray-400 dark:text-gray-600 whitespace-nowrap mt-[1px] font-sans min-w-[60px]">
+        GIF
+      </span>
+      {isImage ? (
+        <div className="w-10 h-10 rounded overflow-hidden border border-gray-700/30 bg-black/20 shrink-0">
+          <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <ImageIcon className="h-2.5 w-2.5 shrink-0 text-brand-blue" />
+          <span className="text-[9px] font-mono truncate text-brand-blue">
+            {url.replace('https://', '').split('/').pop() || url.replace('https://', '')}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Flag Toggle Button ──────────────────────────────────────────────────────
+
+export function FlagButton({
+  flagged,
+  onToggle,
+}: {
+  flagged: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={`p-0.5 rounded transition-colors ${
+        flagged
+          ? 'text-amber-500 hover:bg-amber-500/10'
+          : 'text-gray-400 dark:text-gray-700 hover:text-amber-500 hover:bg-amber-500/10'
+      }`}
+      title={flagged ? 'Caption flagged — replacement queued' : 'Flag: caption needs replacement'}
+    >
+      <Flag className="h-2.5 w-2.5" fill={flagged ? 'currentColor' : 'none'} />
+    </button>
+  );
 }

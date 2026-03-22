@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { X, Play, FileVideo, FileImage, AlertCircle, X as XIcon, ShieldAlert } from 'lucide-react';
+import { X, Film, FileVideo, FileImage, AlertCircle, X as XIcon, ShieldAlert } from 'lucide-react';
 import { QueuePanel } from './QueuePanel';
 import type { GifQueueTicket } from '@/lib/hooks/useGifQueue.query';
 import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
@@ -94,6 +94,7 @@ export function QueueDrawer({
                 queue={filteredQueue}
                 selectedTicketId={selectedTicketId}
                 onSelectTicket={onSelectTicket}
+                onStartEditing={onStartEditing}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
               />
@@ -139,22 +140,22 @@ export function QueueDrawer({
                       )}
                     </div>
 
-                    {/* Start Editing CTA — pinned at bottom of lower half */}
+                    {/* Create GIF CTA — pinned at bottom of lower half */}
                     <div className="shrink-0 p-4 border-t border-brand-mid-pink/10 flex gap-3">
                       <button
                         onClick={() => onStartEditing(selectedTicket)}
                         className="flex-1 py-3 rounded-xl bg-gradient-to-r from-brand-light-pink to-brand-mid-pink text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-brand-mid-pink/20"
                       >
-                        <Play size={16} />
-                        Start Editing
+                        <Film size={16} />
+                        Create GIF
                       </button>
                     </div>
                   </div>
                 </>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 gap-3 bg-brand-off-white dark:bg-gray-800">
-                  <Play size={32} />
-                  <p className="text-sm">Select a task to preview</p>
+                  <Film size={32} />
+                  <p className="text-sm">Select a task to create GIF</p>
                 </div>
               )}
             </div>

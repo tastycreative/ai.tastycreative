@@ -5,8 +5,8 @@ import { broadcastToBoard } from '@/lib/ably-server';
  * Auto-move a board item between columns based on metadata conditions.
  *
  * Rules (OTP/PTR board):
- *   - "PGT Team" → "PGT Completed"  when otpPtrCaptionStatus is AWAITING_APPROVAL or APPROVED
- *   - "Flyer Team" → "Flyer Completed"  when gifUrl is set (non-empty)
+ *   - "PGT Team" → "Flyer Team"  when otpPtrCaptionStatus is AWAITING_APPROVAL or APPROVED
+ *   - "Flyer Team" → "QA"  when gifUrl is set (non-empty)
  *
  * This is a non-fatal helper — errors are logged but do not propagate.
  */
@@ -24,15 +24,21 @@ export async function autoMoveColumnIfNeeded(params: {
 
   let targetColumnName: string | null = null;
 
-  // PGT Team → PGT Completed when caption has been submitted (AWAITING_APPROVAL) or approved (APPROVED)
+  // PGT Team → Flyer Team (or QA if GIF URL already set from a previous cycle)
   if (colNameLower === 'pgt team') {
     const captionStatus = (metadata.otpPtrCaptionStatus as string) ?? '';
     if (captionStatus === 'AWAITING_APPROVAL' || captionStatus === 'APPROVED') {
-      targetColumnName = 'PGT Completed';
+      const gifUrl = (metadata.gifUrl as string) ?? '';
+      const gifUrlFansly = (metadata.gifUrlFansly as string) ?? '';
+      const platforms = Array.isArray(metadata.platforms) ? (metadata.platforms as string[]) : [];
+      const hasFansly = platforms.includes('fansly');
+      // If the flyer was already completed in a previous cycle, go straight to QA
+      const gifAlreadyReady = gifUrl.trim() && (!hasFansly || gifUrlFansly.trim());
+      targetColumnName = gifAlreadyReady ? 'QA' : 'Flyer Team';
     }
   }
 
-  // Flyer Team → Flyer Completed when all required GIF URLs are populated
+  // Flyer Team → QA when all required GIF URLs are populated
   if (colNameLower === 'flyer team') {
     const gifUrl = (metadata.gifUrl as string) ?? '';
     const gifUrlFansly = (metadata.gifUrlFansly as string) ?? '';
@@ -40,7 +46,7 @@ export async function autoMoveColumnIfNeeded(params: {
     const hasFansly = platforms.includes('fansly');
     // OF gifUrl is always required; Fansly gifUrl required only when fansly platform is selected
     if (gifUrl.trim() && (!hasFansly || gifUrlFansly.trim())) {
-      targetColumnName = 'Flyer Completed';
+      targetColumnName = 'QA';
     }
   }
 

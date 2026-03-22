@@ -386,14 +386,14 @@ const VaultGridItem = memo(function VaultGridItem({
 
   const handlePreviewClick = useCallback(
     (e: React.MouseEvent) => {
-      if (compareMode || selectionMode) {
-        // In compare or selection mode, let the click bubble up to parent handler
+      if (compareMode) {
+        // In compare mode, let the click bubble up to parent handler
         return;
       }
       e.stopPropagation();
       onPreview(item);
     },
-    [compareMode, selectionMode, onPreview, item],
+    [compareMode, onPreview, item],
   );
 
   const handleCheckboxClick = useCallback(
@@ -5542,8 +5542,15 @@ export function VaultContent() {
             >
               {/* Media preview */}
               <div
-                className={`${showPreviewInfo && previewItem.metadata ? "flex-1" : "w-full"} max-h-[75vh] sm:max-h-[85vh]`}
+                className={`relative ${showPreviewInfo && previewItem.metadata ? "flex-1" : "w-full"} max-h-[75vh] sm:max-h-[85vh]`}
               >
+                {/* Selected indicator overlay */}
+                {selectedItems.has(previewItem.id) && (
+                  <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-brand-light-pink text-white text-xs font-medium px-2.5 py-1 rounded-full shadow-lg pointer-events-none">
+                    <Check className="w-3 h-3" />
+                    Selected
+                  </div>
+                )}
                 {previewItem.fileType.startsWith("image/") ? (
                   <img
                     src={previewItem.awsS3Url}
@@ -6012,6 +6019,28 @@ export function VaultContent() {
                   <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#F774B9]" />
                 </button>
               )}
+              {/* Select toggle button */}
+              <button
+                onClick={() => {
+                  const newSelected = new Set(selectedItems);
+                  if (newSelected.has(previewItem.id)) {
+                    newSelected.delete(previewItem.id);
+                    if (newSelected.size === 0) setSelectionMode(false);
+                  } else {
+                    newSelected.add(previewItem.id);
+                    setSelectionMode(true);
+                  }
+                  setSelectedItems(newSelected);
+                }}
+                className={`p-1.5 sm:p-2 rounded-full transition-all ${
+                  selectedItems.has(previewItem.id)
+                    ? "bg-brand-light-pink/30 text-brand-light-pink ring-2 ring-brand-light-pink/50"
+                    : "bg-white/10 hover:bg-white/20 text-white"
+                }`}
+                title={selectedItems.has(previewItem.id) ? "Deselect" : "Select for bulk action"}
+              >
+                <CheckSquare className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              </button>
               <button
                 onClick={(e) => handleDownloadSingleFile(previewItem, e)}
                 className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"

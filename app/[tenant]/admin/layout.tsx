@@ -20,7 +20,6 @@ import {
   CreditCard,
   LogOut,
   Zap,
-  TrendingUp,
   FileText,
   Lock,
   Building2,
@@ -164,14 +163,14 @@ export default function AdminLayout({
       collapsible: true,
       items: [
         {
+          name: "Voice Admin Dashboard",
+          href: `/${tenant}/admin/ai-voice-note-tracker/voice-admin-dashboard`,
+          icon: Activity,
+        },
+        {
           name: "AI Voice Accounts",
           href: `/${tenant}/admin/ai-voice-note-tracker/ai-voice-accounts`,
           icon: UserCircle,
-        },
-        {
-          name: "Generation Tracker",
-          href: `/${tenant}/admin/ai-voice-note-tracker/generation-tracker`,
-          icon: TrendingUp,
         },
       ],
     },

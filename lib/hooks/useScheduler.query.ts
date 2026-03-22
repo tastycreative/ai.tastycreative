@@ -10,18 +10,27 @@ import { useUser } from '@clerk/nextjs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export interface MMFields {
+/** Shared fields for caption bank + flyer asset linking */
+interface PickerFields {
+  captionId?: string;         // Reference to Caption bank item
+  captionBankText?: string;   // Snapshot of selected caption text
+  flyerAssetId?: string;      // Reference to FlyerAsset
+  flyerAssetUrl?: string;     // URL snapshot for display
+  flagged?: boolean;          // Caption needs replacement
+}
+
+export interface MMFields extends PickerFields {
   type?: string; time?: string; contentPreview?: string; paywallContent?: string;
   tag?: string; caption?: string; captionGuide?: string; price?: string;
 }
-export interface WPFields {
+export interface WPFields extends PickerFields {
   type?: string; time?: string; contentFlyer?: string;
   paywallContent?: string; caption?: string; priceInfo?: string;
 }
 export interface STFields {
   contentFlyer?: string; storyPostSchedule?: string;
 }
-export interface SPFields {
+export interface SPFields extends PickerFields {
   type?: string; contentFlyer?: string;
   time?: string; caption?: string;
 }
@@ -484,6 +493,54 @@ export function useImportSchedulerTasks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
+  });
+}
+
+// ─── Caption bank for scheduler picker ──────────────────────────────────────
+
+export interface SchedulerCaption {
+  id: string;
+  caption: string;
+  captionCategory: string;
+  profileId: string;
+  status: string;
+  workflowType: string | null;
+  contentTypes: string[];
+  messageTypes: string[];
+  createdAt: string;
+  // Board item data
+  boardItemId: string | null;
+  gifUrl: string;
+  gifUrlFansly: string;
+  contentCount: string;
+  contentLength: string;
+  contentType: string;
+  price: number;
+  driveLink: string;
+  boardTitle: string;
+}
+
+export function useSchedulerCaptions(
+  profileId: string | null,
+  _captionCategory?: string,
+  search?: string,
+) {
+  const { user } = useUser();
+
+  return useQuery<SchedulerCaption[]>({
+    queryKey: ['scheduler-captions', profileId, search],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (profileId) params.set('profileId', profileId);
+      if (search) params.set('search', search);
+      const res = await fetch(`/api/scheduler/captions?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch captions');
+      return res.json();
+    },
+    enabled: !!user && !!profileId,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 }
 

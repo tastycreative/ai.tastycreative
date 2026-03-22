@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 import { requireOrganizationAdmin } from "@/lib/organizationAuth";
 
@@ -93,6 +93,150 @@ export async function GET(
       ];
     }
 
+    const mode = searchParams.get("mode");
+
+    // ══ STATS MODE — all 10 queries run in parallel ════════════════════════
+    if (mode === "stats") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(now.getTime() - 7 * 86400000);
+      const monthStart = new Date(now.getTime() - 30 * 86400000);
+      const baseStatsWhere = { userId: { in: memberClerkIds } };
+      const topUsersDateFilter = getDateFilter(topUsersTimeRange);
+      const topUsersWhere = topUsersDateFilter
+        ? { ...baseStatsWhere, createdAt: topUsersDateFilter }
+        : { ...baseStatsWhere };
+
+      const [
+        totalGenerations,
+        totalCreditsResult,
+        activeUsersResult,
+        generationsToday,
+        generationsThisWeek,
+        generationsThisMonth,
+        topUsersData,
+        voiceModelsRaw,
+        dailyBreakdown,
+        formatBreakdownRaw,
+      ] = await Promise.all([
+        prisma.ai_voice_generations.count({ where: baseStatsWhere }),
+        prisma.ai_voice_generations.aggregate({ where: baseStatsWhere, _sum: { characterCount: true } }),
+        prisma.ai_voice_generations.groupBy({ by: ["userId"], where: baseStatsWhere }),
+        prisma.ai_voice_generations.count({ where: { ...baseStatsWhere, createdAt: { gte: todayStart } } }),
+        prisma.ai_voice_generations.count({ where: { ...baseStatsWhere, createdAt: { gte: weekStart } } }),
+        prisma.ai_voice_generations.count({ where: { ...baseStatsWhere, createdAt: { gte: monthStart } } }),
+        prisma.ai_voice_generations.groupBy({
+          by: ["userId"],
+          where: topUsersWhere,
+          _count: { id: true },
+          _sum: { characterCount: true },
+          _max: { createdAt: true },
+          orderBy: { _count: { id: "desc" } },
+          take: 5,
+        }),
+        prisma.ai_voice_accounts.findMany({
+          where: { ai_voice_generations: { some: { userId: { in: memberClerkIds } } } },
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { ai_voice_generations: { where: { userId: { in: memberClerkIds } } } } },
+          },
+          orderBy: { ai_voice_generations: { _count: "desc" } },
+        }),
+        Promise.all(
+          Array.from({ length: 7 }, (_, i) => {
+            const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+            const dayEnd = new Date(dayStart.getTime() + 86400000);
+            return prisma.ai_voice_generations
+              .count({ where: { ...baseStatsWhere, createdAt: { gte: dayStart, lt: dayEnd } } })
+              .then((count) => ({ day: dayStart.toLocaleDateString("en-US", { weekday: "short" }), count }));
+          })
+        ),
+        prisma.ai_voice_generations.groupBy({ by: ["outputFormat"], where: baseStatsWhere, _count: { id: true } }),
+      ]);
+
+      const topUserIds = topUsersData.map((u) => u.userId);
+      const topDbUsers = await prisma.user.findMany({
+        where: { clerkId: { in: topUserIds } },
+        select: { clerkId: true, email: true, firstName: true, lastName: true, name: true },
+      });
+      const topUserMap = new Map(
+        topDbUsers.map((u) => [
+          u.clerkId,
+          { email: u.email || "Unknown", name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown User" },
+        ])
+      );
+      const totalCreditsUsed = totalCreditsResult._sum.characterCount || 0;
+      const activeUsers = activeUsersResult.length;
+      const avgCreditsPerGeneration = totalGenerations > 0 ? Math.round(totalCreditsUsed / totalGenerations) : 0;
+
+      return NextResponse.json({
+        stats: {
+          totalGenerations,
+          totalCreditsUsed,
+          activeUsers,
+          avgCreditsPerGeneration,
+          generationsToday,
+          generationsThisWeek,
+          generationsThisMonth,
+          dailyBreakdown,
+          formatBreakdown: formatBreakdownRaw
+            .map((f) => ({ format: f.outputFormat, count: f._count.id }))
+            .sort((a, b) => b.count - a.count),
+        },
+        topUsers: topUsersData.map((u) => {
+          const info = topUserMap.get(u.userId) || { email: "Unknown", name: "Unknown User" };
+          return {
+            userId: u.userId,
+            userEmail: info.email,
+            userName: info.name,
+            totalGenerations: u._count.id,
+            totalCreditsUsed: u._sum.characterCount || 0,
+            lastGenerationAt: u._max.createdAt?.toISOString() || "",
+          };
+        }),
+        voiceModels: voiceModelsRaw.map((v) => ({
+          id: v.id,
+          name: v.name,
+          generationCount: v._count.ai_voice_generations,
+        })),
+      });
+    }
+
+    // ══ TABLE MODE — paginated generations only, no stats overhead ══════════
+    if (mode === "table") {
+      const [generations, totalCount] = await Promise.all([
+        prisma.ai_voice_generations.findMany({
+          where: whereClause,
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: { ai_voice_accounts: { select: { id: true, name: true } } },
+        }),
+        prisma.ai_voice_generations.count({ where: whereClause }),
+      ]);
+      const tableUserIds = [...new Set(generations.map((g) => g.userId))];
+      const tableDbUsers = await prisma.user.findMany({
+        where: { clerkId: { in: tableUserIds } },
+        select: { clerkId: true, email: true, firstName: true, lastName: true, name: true },
+      });
+      const tableUserMap = new Map(
+        tableDbUsers.map((u) => [
+          u.clerkId,
+          { id: u.clerkId, email: u.email || "Unknown", name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown User" },
+        ])
+      );
+      return NextResponse.json({
+        generations: generations.map((g) => {
+          const user = tableUserMap.get(g.userId);
+          return { ...g, userEmail: user?.email, userName: user?.name };
+        }),
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        page,
+      });
+    }
+
     // If export, return CSV
     if (exportData) {
       const allGenerations = await prisma.ai_voice_generations.findMany({
@@ -110,24 +254,21 @@ export async function GET(
         },
       });
 
-      // Get user details for export
+      // Get user details for export from local DB
       const userIds = [...new Set(allGenerations.map((g) => g.userId))];
-      const client = await clerkClient();
-      const users = await Promise.all(
-        userIds.map(async (uid) => {
-          try {
-            const user = await client.users.getUser(uid);
-            return {
-              id: uid,
-              email: user.emailAddresses?.[0]?.emailAddress || "N/A",
-              name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "N/A",
-            };
-          } catch {
-            return { id: uid, email: "N/A", name: "N/A" };
-          }
-        })
+      const exportDbUsers = await prisma.user.findMany({
+        where: { clerkId: { in: userIds } },
+        select: { clerkId: true, email: true, firstName: true, lastName: true, name: true },
+      });
+      const userMap = new Map(
+        exportDbUsers.map((u) => ([
+          u.clerkId,
+          {
+            email: u.email || "N/A",
+            name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "N/A",
+          },
+        ]))
       );
-      const userMap = new Map(users.map((u) => [u.id, u]));
 
       // Generate CSV
       const csvHeaders = ["ID", "User ID", "User Email", "User Name", "Voice Name", "Text", "Characters", "Model", "Format", "Created At"];
@@ -176,24 +317,22 @@ export async function GET(
       prisma.ai_voice_generations.count({ where: whereClause }),
     ]);
 
-    // Get user details for generations
+    // Get user details for generations from local DB (faster and more reliable than Clerk API)
     const userIds = [...new Set(generations.map((g) => g.userId))];
-    const client = await clerkClient();
-    const users = await Promise.all(
-      userIds.map(async (uid) => {
-        try {
-          const user = await client.users.getUser(uid);
-          return {
-            id: uid,
-            email: user.emailAddresses?.[0]?.emailAddress || "Unknown",
-            name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown User",
-          };
-        } catch {
-          return { id: uid, email: "Unknown", name: "Unknown User" };
-        }
-      })
+    const dbUsers = await prisma.user.findMany({
+      where: { clerkId: { in: userIds } },
+      select: { clerkId: true, email: true, firstName: true, lastName: true, name: true },
+    });
+    const userMap = new Map(
+      dbUsers.map((u) => ([
+        u.clerkId,
+        {
+          id: u.clerkId,
+          email: u.email || "Unknown",
+          name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown User",
+        },
+      ]))
     );
-    const userMap = new Map(users.map((u) => [u.id, u]));
 
     // Enrich generations with user info
     const enrichedGenerations = generations.map((g) => {
@@ -265,29 +404,32 @@ export async function GET(
       take: 5,
     });
 
-    // Enrich top users with user details
-    const topUsersWithDetails = await Promise.all(
-      topUsersData.map(async (u) => {
-        let userInfo = { email: "Unknown", name: "Unknown User" };
-        try {
-          const user = await client.users.getUser(u.userId);
-          userInfo = {
-            email: user.emailAddresses?.[0]?.emailAddress || "Unknown",
-            name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown User",
-          };
-        } catch {
-          // User not found, use defaults
-        }
-        return {
-          userId: u.userId,
-          userEmail: userInfo.email,
-          userName: userInfo.name,
-          totalGenerations: u._count.id,
-          totalCreditsUsed: u._sum.characterCount || 0,
-          lastGenerationAt: u._max.createdAt?.toISOString() || "",
-        };
-      })
+    // Enrich top users with user details from local DB
+    const topUserIds = topUsersData.map((u) => u.userId);
+    const topDbUsers = await prisma.user.findMany({
+      where: { clerkId: { in: topUserIds } },
+      select: { clerkId: true, email: true, firstName: true, lastName: true, name: true },
+    });
+    const topUserMap = new Map(
+      topDbUsers.map((u) => ([
+        u.clerkId,
+        {
+          email: u.email || "Unknown",
+          name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown User",
+        },
+      ]))
     );
+    const topUsersWithDetails = topUsersData.map((u) => {
+      const userInfo = topUserMap.get(u.userId) || { email: "Unknown", name: "Unknown User" };
+      return {
+        userId: u.userId,
+        userEmail: userInfo.email,
+        userName: userInfo.name,
+        totalGenerations: u._count.id,
+        totalCreditsUsed: u._sum.characterCount || 0,
+        lastGenerationAt: u._max.createdAt?.toISOString() || "",
+      };
+    });
 
     // Get voice models for filter - ONLY voices used by organization members
     const voiceModels = await prisma.ai_voice_accounts.findMany({
@@ -322,6 +464,27 @@ export async function GET(
       generationCount: v._count.ai_voice_generations,
     }));
 
+    // Last 7 days sparkline data
+    const dailyBreakdown = await Promise.all(
+      Array.from({ length: 7 }, (_, i) => {
+        const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+        const dayEnd = new Date(dayStart.getTime() + 86400000);
+        return prisma.ai_voice_generations
+          .count({ where: { ...baseStatsWhere, createdAt: { gte: dayStart, lt: dayEnd } } })
+          .then((count) => ({ day: dayStart.toLocaleDateString("en-US", { weekday: "short" }), count }));
+      })
+    );
+
+    // Output format distribution
+    const formatBreakdownRaw = await prisma.ai_voice_generations.groupBy({
+      by: ["outputFormat"],
+      where: baseStatsWhere,
+      _count: { id: true },
+    });
+    const formatBreakdown = formatBreakdownRaw
+      .map((f) => ({ format: f.outputFormat, count: f._count.id }))
+      .sort((a, b) => b.count - a.count);
+
     return NextResponse.json({
       stats: {
         totalGenerations,
@@ -331,6 +494,8 @@ export async function GET(
         generationsToday,
         generationsThisWeek,
         generationsThisMonth,
+        dailyBreakdown,
+        formatBreakdown,
       },
       topUsers: topUsersWithDetails,
       generations: enrichedGenerations,

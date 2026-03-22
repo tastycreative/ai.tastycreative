@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { Search, X, Calendar, CheckCircle2, GripVertical } from 'lucide-react';
+import { Search, X, Calendar, CheckCircle2, Play, Film } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import type { GifQueueTicket } from '@/lib/hooks/useGifQueue.query';
 import { urgencyConfig, safeUrgency } from './queue-constants';
@@ -10,6 +10,7 @@ interface GifQueuePanelProps {
   queue: GifQueueTicket[];
   selectedTicketId: string | null;
   onSelectTicket: (ticketId: string) => void;
+  onStartEditing?: (ticket: GifQueueTicket) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }
@@ -49,15 +50,17 @@ const LazyImage = memo(function LazyImage({
   );
 });
 
-// Memoized queue item component — mirrors Caption Workspace QueueItem exactly
+// Memoized queue item component
 const QueueItem = memo(function QueueItem({
   ticket,
   isSelected,
   onSelect,
+  onCreateGif,
 }: {
   ticket: GifQueueTicket;
   isSelected: boolean;
   onSelect: () => void;
+  onCreateGif?: () => void;
 }) {
   const config = urgencyConfig[safeUrgency(ticket.urgency)];
 
@@ -72,15 +75,9 @@ const QueueItem = memo(function QueueItem({
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* Drag handle (visual only — no drag in GIF workspace) */}
-          <div className="shrink-0 p-1 -ml-1 hover:bg-brand-mid-pink/10 rounded">
-            <GripVertical size={12} className="text-gray-400" />
-          </div>
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate" title={ticket.id}>
-            {ticket.id}
-          </span>
-        </div>
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate min-w-0" title={ticket.id}>
+          {ticket.id}
+        </span>
         <div className="shrink-0 flex items-center gap-1">
           {ticket.hasGif && (
             <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded text-[10px] font-bold flex items-center gap-0.5">
@@ -123,7 +120,7 @@ const QueueItem = memo(function QueueItem({
         ))}
       </div>
 
-      {/* Release date — same format as Caption Workspace */}
+      {/* Release date */}
       <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
         <Calendar size={10} />
         {new Date(ticket.releaseDate).toLocaleString('en-US', {
@@ -134,6 +131,20 @@ const QueueItem = memo(function QueueItem({
           hour12: true,
         })}
       </div>
+
+      {/* Create GIF button — visible on selected card */}
+      {isSelected && onCreateGif && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onCreateGif();
+          }}
+          className="mt-2 w-full py-2 rounded-lg bg-gradient-to-r from-brand-light-pink to-brand-mid-pink text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 shadow-md shadow-brand-mid-pink/20"
+        >
+          <Film size={13} />
+          Create GIF
+        </button>
+      )}
     </div>
   );
 });
@@ -142,6 +153,7 @@ export function QueuePanel({
   queue,
   selectedTicketId,
   onSelectTicket,
+  onStartEditing,
   searchQuery,
   onSearchChange,
 }: GifQueuePanelProps) {
@@ -178,11 +190,11 @@ export function QueuePanel({
           )}
         </div>
 
-        {/* Drag hint */}
-        {queue.length > 1 && !searchQuery && (
+        {/* Hint */}
+        {queue.length > 0 && !searchQuery && (
           <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
-            <GripVertical size={10} />
-            Drag to reorder
+            <Film size={10} />
+            Select a task to create GIF
           </p>
         )}
       </div>
@@ -213,6 +225,7 @@ export function QueuePanel({
               ticket={ticket}
               isSelected={ticket.id === selectedTicketId}
               onSelect={() => onSelectTicket(ticket.id)}
+              onCreateGif={onStartEditing ? () => onStartEditing(ticket) : undefined}
             />
           ))
         )}

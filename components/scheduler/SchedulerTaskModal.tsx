@@ -22,6 +22,16 @@ import {
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPES, TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
+import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
+import { FlyerPicker } from './pickers/FlyerPicker';
+
+const TASK_TYPE_TO_CAPTION_CATEGORY: Record<string, string> = {
+  MM: 'MM Unlock',
+  WP: 'Wall Post',
+  SP: 'Sub Promo',
+};
+
+const TYPES_WITH_PICKER = new Set(['MM', 'WP', 'SP']);
 
 const LA_TZ = 'America/Los_Angeles';
 
@@ -57,13 +67,47 @@ export function SchedulerTaskModal({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'caption' | 'flyer'>('caption');
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const typeMenuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const typeColor = TASK_TYPE_COLORS[task.taskType] || '#3a3a5a';
   const fieldDefs = TASK_FIELD_DEFS[task.taskType] || [];
-  const fields = (task.fields || {}) as Record<string, string>;
+  const serverFields = (task.fields || {}) as Record<string, string>;
+
+  // ─── Local picker state (survives refetches) ───
+  const [localPicker, setLocalPicker] = useState<Record<string, string>>({
+    captionId: serverFields.captionId || '',
+    captionBankText: serverFields.captionBankText || '',
+    caption: serverFields.caption || '',
+    flyerAssetId: serverFields.flyerAssetId || '',
+    flyerAssetUrl: serverFields.flyerAssetUrl || '',
+  });
+
+  // Sync from server only when modal opens with a new task
+  const lastTaskIdRef = useRef(task.id);
+  useEffect(() => {
+    if (lastTaskIdRef.current !== task.id) {
+      lastTaskIdRef.current = task.id;
+      setLocalPicker({
+        captionId: serverFields.captionId || '',
+        captionBankText: serverFields.captionBankText || '',
+        caption: serverFields.caption || '',
+        flyerAssetId: serverFields.flyerAssetId || '',
+        flyerAssetUrl: serverFields.flyerAssetUrl || '',
+      });
+    }
+  }, [task.id]);
+
+  // Merge local picker state with server fields for display
+  const fields = { ...serverFields, ...localPicker };
+
+  // Helper: save fields to server
+  const saveFields = useCallback((patch: Record<string, string>) => {
+    const merged = { ...serverFields, ...localPicker, ...patch } as TaskFields;
+    onUpdate(task.id, { fields: merged });
+  }, [serverFields, localPicker, task.id, onUpdate]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -95,10 +139,64 @@ export function SchedulerTaskModal({
   const handleFieldBlur = useCallback((key: string, val: string) => {
     const currentVal = fields[key] || '';
     if (val.trim() !== currentVal) {
-      const merged = { ...fields, [key]: val.trim() } as TaskFields;
-      onUpdate(task.id, { fields: merged });
+      saveFields({ [key]: val.trim() });
     }
-  }, [fields, task.id, onUpdate]);
+  }, [fields, saveFields]);
+
+  const handleSelectCaption = useCallback((sel: CaptionSelection) => {
+    // Auto-fill caption + all board data (GIF, paywall, price, content type)
+    const patch: Record<string, string> = {
+      captionId: sel.captionId,
+      captionBankText: sel.captionText,
+      caption: sel.captionText,
+      flyerAssetUrl: sel.gifUrl,
+      flyerAssetId: sel.boardItemId || '',
+    };
+    // Auto-fill paywall content from board's contentCount + contentLength
+    if (sel.contentCount) {
+      patch.paywallContent = sel.contentCount + (sel.contentLength ? ` (${sel.contentLength})` : '');
+    }
+    // Auto-fill price
+    if (sel.price > 0) {
+      patch.price = `$${sel.price.toFixed(2)}`;
+    }
+    // Auto-fill content type as tag
+    if (sel.contentType) {
+      patch.tag = sel.contentType;
+    }
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
+
+  const handleClearCaption = useCallback(() => {
+    const patch = { captionId: '', captionBankText: '' };
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
+
+  const handleCaptionOverride = useCallback((text: string) => {
+    const patch = { caption: text, captionId: '', captionBankText: '' };
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
+
+  const handleSelectFlyer = useCallback((assetId: string, url: string) => {
+    const patch = { flyerAssetId: assetId, flyerAssetUrl: url };
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
+
+  const handleClearFlyer = useCallback(() => {
+    const patch = { flyerAssetId: '', flyerAssetUrl: '' };
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
+
+  const handleFlyerOverrideUrl = useCallback((url: string) => {
+    const patch = { flyerAssetUrl: url, flyerAssetId: '' };
+    setLocalPicker((prev) => ({ ...prev, ...patch }));
+    saveFields(patch);
+  }, [saveFields]);
 
   if (!open) return null;
 
@@ -111,7 +209,7 @@ export function SchedulerTaskModal({
       onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
     >
       <div
-        className="w-full max-w-md mx-4 rounded-xl border bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl"
+        className="w-full max-w-md mx-4 rounded-xl border bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl max-h-[90vh] flex flex-col"
         style={{ borderTopWidth: 3, borderTopColor: typeColor }}
       >
         {/* Header */}
@@ -200,22 +298,79 @@ export function SchedulerTaskModal({
           </div>
         </div>
 
-        {/* Field rows */}
-        <div className="px-4 py-3 space-y-2">
-          {fieldDefs.map((def) => (
-            <ModalFieldRow
-              key={def.key}
-              label={def.label}
-              value={fields[def.key] || ''}
-              placeholder={def.placeholder}
-              onBlur={(val) => handleFieldBlur(def.key, val)}
-            />
-          ))}
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Field rows */}
+          <div className="px-4 py-3 space-y-2">
+            {fieldDefs.filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(task.taskType)).map((def) => (
+              <ModalFieldRow
+                key={def.key}
+                label={def.label}
+                value={fields[def.key] || ''}
+                placeholder={def.placeholder}
+                onBlur={(val) => handleFieldBlur(def.key, val)}
+              />
+            ))}
 
-          {/* Legacy taskName fallback */}
-          {fieldDefs.length === 0 && task.taskName && (
-            <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
-              {task.taskName}
+            {/* Legacy taskName fallback */}
+            {fieldDefs.length === 0 && task.taskName && (
+              <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
+                {task.taskName}
+              </div>
+            )}
+          </div>
+
+          {/* Caption & Flyer Picker Section */}
+          {TYPES_WITH_PICKER.has(task.taskType) && (
+            <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
+              {/* Picker tabs */}
+              <div className="flex border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
+                {(['caption', 'flyer'] as const).map((tab) => {
+                  const active = pickerTab === tab;
+                  const hasFlaggedCaption = fields.captionId && fields.flagged;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setPickerTab(tab)}
+                      className="flex-1 py-2 text-[11px] font-bold font-sans transition-all border-b-2"
+                      style={{
+                        color: active ? typeColor : '#252545',
+                        borderBottomColor: active ? typeColor : 'transparent',
+                      }}
+                    >
+                      {tab === 'caption'
+                        ? `Caption${hasFlaggedCaption ? ' 🚩' : ''}`
+                        : 'Preview GIF'}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Picker content */}
+              <div className="p-3">
+                {pickerTab === 'caption' ? (
+                  <CaptionPicker
+                    profileId={task.profileId}
+                    captionCategory={TASK_TYPE_TO_CAPTION_CATEGORY[task.taskType] || 'MM Unlock'}
+                    selectedCaptionId={fields.captionId || null}
+                    captionOverride={fields.captionId ? '' : (fields.caption || '')}
+                    onSelectCaption={handleSelectCaption}
+                    onClearCaption={handleClearCaption}
+                    onOverrideChange={handleCaptionOverride}
+                    typeColor={typeColor}
+                  />
+                ) : (
+                  <FlyerPicker
+                    profileId={task.profileId}
+                    selectedFlyerAssetId={fields.flyerAssetId || null}
+                    selectedFlyerUrl={fields.flyerAssetUrl || ''}
+                    onSelectFlyer={handleSelectFlyer}
+                    onClearFlyer={handleClearFlyer}
+                    onOverrideUrl={handleFlyerOverrideUrl}
+                    typeColor={typeColor}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>
