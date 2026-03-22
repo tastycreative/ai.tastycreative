@@ -11,18 +11,18 @@ import { useUser } from '@clerk/nextjs';
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface MMFields {
-  time?: string; contentPreview?: string; paywallContent?: string;
+  type?: string; time?: string; contentPreview?: string; paywallContent?: string;
   tag?: string; caption?: string; captionGuide?: string; price?: string;
 }
 export interface WPFields {
-  postSchedule?: string; time?: string; contentFlyer?: string;
+  type?: string; time?: string; contentFlyer?: string;
   paywallContent?: string; caption?: string; priceInfo?: string;
 }
 export interface STFields {
-  contentFlyer?: string; storyPostSchedule?: string;
+  time?: string; contentFlyer?: string;
 }
 export interface SPFields {
-  subscriberPromoSchedule?: string; contentFlyer?: string;
+  type?: string; contentFlyer?: string;
   time?: string; caption?: string;
 }
 export type TaskFields = MMFields | WPFields | STFields | SPFields;
@@ -33,6 +33,7 @@ export interface FieldDef {
 
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
+    { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
@@ -42,7 +43,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'price', label: 'Price', placeholder: '$0.00' },
   ],
   WP: [
-    { key: 'postSchedule', label: 'Post Schedule', placeholder: '10:00 AM' },
+    { key: 'type', label: 'Type', placeholder: 'Post type...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
@@ -50,11 +51,11 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
   ST: [
+    { key: 'time', label: 'Time', placeholder: '3:00 PM' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
-    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '3:00 PM' },
   ],
   SP: [
-    { key: 'subscriberPromoSchedule', label: 'Promo Schedule', placeholder: '12:00 PM' },
+    { key: 'type', label: 'Type', placeholder: 'Promo type...' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
@@ -104,15 +105,23 @@ interface ConfigResponse {
   config: SchedulerConfig | null;
 }
 
+interface ActivityLogChange {
+  id: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  action: string;
+}
+
 interface ActivityLogItem {
   id: string;
   action: string;
-  entityType: string;
-  entityId: string;
-  entityName: string;
-  details: string;
+  taskId: string | null;
+  summary: string | null;
   createdAt: string;
   user: { name: string | null; imageUrl: string | null };
+  task: { id: string; taskType: string; slotLabel: string; dayOfWeek: number; taskName: string } | null;
+  changes: ActivityLogChange[];
 }
 
 interface ActivityLogPage {

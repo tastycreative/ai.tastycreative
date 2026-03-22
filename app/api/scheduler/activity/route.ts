@@ -21,16 +21,20 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(request.nextUrl.searchParams.get('limit') || '30', 10);
   const cursor = request.nextUrl.searchParams.get('cursor');
 
-  const logs = await prisma.trackerActivityLog.findMany({
+  const logs = await prisma.schedulerActivityLog.findMany({
     where: {
       organizationId: orgId,
-      entityType: 'pod-task',
     },
     orderBy: { createdAt: 'desc' },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       user: { select: { name: true, imageUrl: true } },
+      task: { select: { id: true, taskType: true, slotLabel: true, dayOfWeek: true, taskName: true } },
+      changes: {
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, field: true, oldValue: true, newValue: true, action: true },
+      },
     },
   });
 

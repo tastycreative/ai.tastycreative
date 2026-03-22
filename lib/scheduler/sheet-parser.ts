@@ -4,13 +4,13 @@
  *
  * Column layout per tab (0-indexed):
  *   Col 0:      empty (A)
- *   Col 1–7:    MM  → time, contentPreview, paywallContent, tag, caption, captionGuide, price
- *   Col 8:      empty separator
- *   Col 9–14:   WP  → postSchedule, time, contentFlyer, paywallContent, caption, priceInfo
- *   Col 15:     empty separator
- *   Col 16–17:  ST  → storyPostSchedule, contentFlyer
- *   Col 18:     empty separator
- *   Col 19–22:  SP  → subscriberPromoSchedule, contentFlyer, time, caption
+ *   Col 1–8:    MM  → type, time, contentPreview, paywallContent, tag, caption, captionGuide, price
+ *   Col 9:      empty separator
+ *   Col 10–15:  WP  → postSchedule, time, contentFlyer, paywallContent, caption, priceInfo
+ *   Col 16:     empty separator
+ *   Col 17–18:  ST  → storyPostSchedule, contentFlyer
+ *   Col 19:     empty separator
+ *   Col 20–23:  SP  → subscriberPromoSchedule, contentFlyer, time, caption
  */
 
 export interface ParsedTask {
@@ -24,31 +24,31 @@ const COLUMN_MAP: { type: string; startCol: number; fields: string[] }[] = [
   {
     type: 'MM',
     startCol: 1,
-    fields: ['time', 'contentPreview', 'paywallContent', 'tag', 'caption', 'captionGuide', 'price'],
+    fields: ['type', 'time', 'contentPreview', 'paywallContent', 'tag', 'caption', 'captionGuide', 'price'],
   },
   {
     type: 'WP',
-    startCol: 9,
-    fields: ['postSchedule', 'time', 'contentFlyer', 'paywallContent', 'caption', 'priceInfo'],
+    startCol: 10,
+    fields: ['type', 'time', 'contentFlyer', 'paywallContent', 'caption', 'priceInfo'],
   },
   {
     type: 'ST',
-    startCol: 16,
-    fields: ['storyPostSchedule', 'contentFlyer'],
+    startCol: 17,
+    fields: ['time', 'contentFlyer'],
   },
   {
     type: 'SP',
-    startCol: 19,
-    fields: ['subscriberPromoSchedule', 'contentFlyer', 'time', 'caption'],
+    startCol: 20,
+    fields: ['type', 'contentFlyer', 'time', 'caption'],
   },
 ];
 
 // The first meaningful field for each type determines taskName
 const TASK_NAME_KEYS: Record<string, string> = {
-  MM: 'time',
-  WP: 'postSchedule',
-  ST: 'storyPostSchedule',
-  SP: 'subscriberPromoSchedule',
+  MM: 'type',
+  WP: 'type',
+  ST: 'time',
+  SP: 'type',
 };
 
 /**

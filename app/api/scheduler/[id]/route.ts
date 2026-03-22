@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
+import { diffTaskChanges } from '@/lib/scheduler/history-utils';
 
 // PATCH /api/scheduler/[id] — update a task
 export async function PATCH(
@@ -34,6 +35,14 @@ export async function PATCH(
   const body = await request.json();
   const { taskName, taskType, status, startTime, endTime, notes, fields, sortOrder, tabId } = body;
 
+  // Fetch current state before update for history diffing
+  const oldTask = await prisma.schedulerTask.findUnique({
+    where: { id, organizationId: orgId },
+  });
+  if (!oldTask) {
+    return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+  }
+
   const task = await prisma.schedulerTask.update({
     where: { id, organizationId: orgId },
     data: {
@@ -49,18 +58,38 @@ export async function PATCH(
     },
   });
 
-  // Log activity
-  await prisma.trackerActivityLog.create({
+  // Record activity + field-level history
+  const changes = diffTaskChanges(
+    oldTask as unknown as Record<string, unknown>,
+    body,
+    user.id,
+    task.id,
+  );
+
+  const hasStatusChange = changes.some((c) => c.field === 'status');
+  const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
-      action: 'UPDATED',
-      entityType: 'pod-task',
-      entityId: task.id,
-      entityName: task.slotLabel,
-      details: `Updated ${task.slotLabel} on day ${task.dayOfWeek}`,
+      taskId: task.id,
+      action: hasStatusChange ? 'STATUS_CHANGED' : 'UPDATED',
+      summary: `Updated ${task.slotLabel} on day ${task.dayOfWeek}`,
     },
   });
+
+  if (changes.length > 0) {
+    await prisma.schedulerTaskHistory.createMany({
+      data: changes.map((c) => ({
+        taskId: task.id,
+        userId: user.id,
+        action: c.action,
+        field: c.field,
+        oldValue: c.oldValue,
+        newValue: c.newValue,
+        activityLogId: activityLog.id,
+      })),
+    });
+  }
 
   // Broadcast real-time update
   await broadcastToScheduler(orgId, {
@@ -104,8 +133,25 @@ export async function DELETE(
 
   const body = await request.json().catch(() => ({}));
 
+  // Fetch task info before deleting for activity log
+  const taskToDelete = await prisma.schedulerTask.findUnique({
+    where: { id, organizationId: orgId },
+    select: { slotLabel: true, dayOfWeek: true, taskType: true },
+  });
+
   const task = await prisma.schedulerTask.delete({
     where: { id, organizationId: orgId },
+  });
+
+  // Log deletion activity (taskId null since task is deleted)
+  await prisma.schedulerActivityLog.create({
+    data: {
+      organizationId: orgId,
+      userId: user.id,
+      taskId: null,
+      action: 'DELETED',
+      summary: `Deleted ${taskToDelete?.slotLabel || 'task'} (${taskToDelete?.taskType || ''}) on day ${taskToDelete?.dayOfWeek ?? ''}`,
+    },
   });
 
   await broadcastToScheduler(orgId, {
