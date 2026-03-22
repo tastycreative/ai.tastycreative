@@ -110,15 +110,13 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  await prisma.trackerActivityLog.create({
+  await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
+      taskId: task.id,
       action: 'CREATED',
-      entityType: 'pod-task',
-      entityId: task.id,
-      entityName: task.slotLabel,
-      details: `Created ${task.taskType || 'task'} on day ${task.dayOfWeek}`,
+      summary: `Created ${task.taskType || 'task'} on day ${task.dayOfWeek}`,
     },
   });
 

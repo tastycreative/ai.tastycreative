@@ -130,15 +130,13 @@ export async function POST(request: NextRequest) {
 
   // Activity log
   const modeLabel = mode === 'replace' ? 'replaced all' : mode === 'replace_by_type' ? 'replaced by type' : 'appended';
-  await prisma.trackerActivityLog.create({
+  await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
+      taskId: null,
       action: 'IMPORTED',
-      entityType: 'pod-task',
-      entityId: 'bulk-import',
-      entityName: `${result.count} tasks`,
-      details: `Imported ${result.count} tasks (${modeLabel}${deleted > 0 ? `, removed ${deleted} old` : ''}) from Google Sheet for week ${weekStart}`,
+      summary: `Imported ${result.count} tasks (${modeLabel}${deleted > 0 ? `, removed ${deleted} old` : ''}) for week ${weekStart}`,
     },
   });
 
