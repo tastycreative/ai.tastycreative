@@ -343,17 +343,25 @@ export function FlyerPreview({
   const url = fields.flyerAssetUrl;
   if (!url) return null;
 
+  const isImage = /\.(gif|png|jpg|jpeg|webp)(\?|$)/i.test(url) || url.includes('/uploads/');
+
   return (
-    <div className="flex items-center gap-1 px-1 min-h-[18px]">
-      <span className="text-[9px] font-bold text-gray-400 dark:text-gray-600 whitespace-nowrap font-sans min-w-[60px]">
-        Flyer
+    <div className="flex items-start gap-1.5 px-1 min-h-[18px]">
+      <span className="text-[9px] font-bold text-gray-400 dark:text-gray-600 whitespace-nowrap mt-[1px] font-sans min-w-[60px]">
+        GIF
       </span>
-      <div className="flex items-center gap-1 flex-1 min-w-0">
-        <ImageIcon className="h-2.5 w-2.5 shrink-0 text-brand-blue" />
-        <span className="text-[9px] font-mono truncate text-brand-blue">
-          {url.replace('https://', '').split('/').pop() || url.replace('https://', '')}
-        </span>
-      </div>
+      {isImage ? (
+        <div className="w-10 h-10 rounded overflow-hidden border border-gray-700/30 bg-black/20 shrink-0">
+          <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <ImageIcon className="h-2.5 w-2.5 shrink-0 text-brand-blue" />
+          <span className="text-[9px] font-mono truncate text-brand-blue">
+            {url.replace('https://', '').split('/').pop() || url.replace('https://', '')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

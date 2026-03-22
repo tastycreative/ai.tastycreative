@@ -18,7 +18,7 @@ import {
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPES, TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
-import { CaptionPicker } from './pickers/CaptionPicker';
+import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { FlyerPicker } from './pickers/FlyerPicker';
 
 const TASK_TYPE_TO_CAPTION_CATEGORY: Record<string, string> = {
@@ -72,7 +72,7 @@ export function SchedulerTaskModal({
   const serverFields = (task.fields || {}) as Record<string, string>;
 
   // ─── Local picker state (survives refetches) ───
-  const [localPicker, setLocalPicker] = useState({
+  const [localPicker, setLocalPicker] = useState<Record<string, string>>({
     captionId: serverFields.captionId || '',
     captionBankText: serverFields.captionBankText || '',
     caption: serverFields.caption || '',
@@ -138,8 +138,27 @@ export function SchedulerTaskModal({
     }
   }, [fields, saveFields]);
 
-  const handleSelectCaption = useCallback((captionId: string, text: string) => {
-    const patch = { captionId, captionBankText: text, caption: text };
+  const handleSelectCaption = useCallback((sel: CaptionSelection) => {
+    // Auto-fill caption + all board data (GIF, paywall, price, content type)
+    const patch: Record<string, string> = {
+      captionId: sel.captionId,
+      captionBankText: sel.captionText,
+      caption: sel.captionText,
+      flyerAssetUrl: sel.gifUrl,
+      flyerAssetId: sel.boardItemId || '',
+    };
+    // Auto-fill paywall content from board's contentCount + contentLength
+    if (sel.contentCount) {
+      patch.paywallContent = sel.contentCount + (sel.contentLength ? ` (${sel.contentLength})` : '');
+    }
+    // Auto-fill price
+    if (sel.price > 0) {
+      patch.price = `$${sel.price.toFixed(2)}`;
+    }
+    // Auto-fill content type as tag
+    if (sel.contentType) {
+      patch.tag = sel.contentType;
+    }
     setLocalPicker((prev) => ({ ...prev, ...patch }));
     saveFields(patch);
   }, [saveFields]);

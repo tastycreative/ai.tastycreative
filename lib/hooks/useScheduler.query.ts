@@ -423,15 +423,22 @@ export interface SchedulerCaption {
   id: string;
   caption: string;
   captionCategory: string;
-  captionTypes: string;
   profileId: string;
   status: string;
   workflowType: string | null;
   contentTypes: string[];
   messageTypes: string[];
-  usageCount: number;
-  tags: string | null;
   createdAt: string;
+  // Board item data
+  boardItemId: string | null;
+  gifUrl: string;
+  gifUrlFansly: string;
+  contentCount: string;
+  contentLength: string;
+  contentType: string;
+  price: number;
+  driveLink: string;
+  boardTitle: string;
 }
 
 export function useSchedulerCaptions(
