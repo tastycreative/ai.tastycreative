@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, Download, ChevronDown } from 'lucide-react';
+import { Settings, History, CalendarClock, Download, ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -29,6 +29,7 @@ import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
+import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
@@ -391,6 +392,7 @@ export function SchedulerGrid() {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
   // Expanded column state (null = all normal)
@@ -593,7 +595,7 @@ export function SchedulerGrid() {
 
 
           {/* Setup teams button */}
-          {!isLoading && teamNames.length === 0 && (
+          {/* {!isLoading && teamNames.length === 0 && (
             <button
               onClick={() => setShowConfig(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-brand-dark-pink border-brand-dark-pink/25 bg-brand-dark-pink/5 dark:text-[#ff9a6c] dark:border-[#ff9a6c40] dark:bg-[#ff9a6c12]"
@@ -601,8 +603,15 @@ export function SchedulerGrid() {
               <Settings className="h-3 w-3" />
               SETUP TEAMS
             </button>
-          )}
+          )} */}
 
+          <button
+            onClick={() => setShowHistory(true)}
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+            title="Change History"
+          >
+            <CalendarClock className="h-3.5 w-3.5 text-gray-400 dark:text-[#3a3a5a]" />
+          </button>
           <button
             onClick={() => setShowActivity(true)}
             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
@@ -793,6 +802,12 @@ export function SchedulerGrid() {
         onClose={() => setShowConfig(false)}
       />
       <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
+      <SchedulerHistoryCalendar
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        profileId={activeProfileId}
+        platform={activePlatform}
+      />
       <SchedulerImportModal
         open={showImport}
         onClose={() => setShowImport(false)}

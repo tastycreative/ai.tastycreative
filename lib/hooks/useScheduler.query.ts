@@ -136,6 +136,11 @@ export const schedulerKeys = {
   week: (weekStart: string) => [...schedulerKeys.all, 'week', weekStart] as const,
   config: () => [...schedulerKeys.all, 'config'] as const,
   activity: () => [...schedulerKeys.all, 'activity'] as const,
+  taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
+  historyCounts: (month: string, profileId: string, platform: string) =>
+    [...schedulerKeys.all, 'historyCounts', month, profileId, platform] as const,
+  calendarHistory: (date: string, profileId: string, platform: string) =>
+    [...schedulerKeys.all, 'calendarHistory', date, profileId, platform] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
@@ -478,6 +483,110 @@ export function useImportSchedulerTasks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
+  });
+}
+
+// ─── History Types ────────────────────────────────────────────────────────
+
+export interface TaskHistoryItem {
+  id: string;
+  action: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+  user: { name: string | null; imageUrl: string | null };
+}
+
+interface TaskHistoryPage {
+  items: TaskHistoryItem[];
+  nextCursor: string | null;
+}
+
+export interface CalendarHistoryItem extends TaskHistoryItem {
+  task: {
+    id: string;
+    taskType: string;
+    slotLabel: string;
+    dayOfWeek: number;
+    taskName: string;
+  };
+}
+
+interface CalendarHistoryPage {
+  items: CalendarHistoryItem[];
+  nextCursor: string | null;
+}
+
+// ─── History Hooks ────────────────────────────────────────────────────────
+
+export function useTaskHistory(taskId: string | null) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<TaskHistoryPage>({
+    queryKey: schedulerKeys.taskHistory(taskId ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '20' });
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/${taskId}/history?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch task history');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && !!taskId,
+    staleTime: 1000 * 60 * 1,
+  });
+}
+
+export function useHistoryCounts(
+  month: string | null,
+  profileId: string | null,
+  platform: string | null,
+) {
+  const { user } = useUser();
+
+  return useQuery<{ counts: Record<string, number> }>({
+    queryKey: schedulerKeys.historyCounts(month ?? '', profileId ?? '', platform ?? ''),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (month) params.set('month', month);
+      if (profileId) params.set('profileId', profileId);
+      if (platform) params.set('platform', platform);
+      const res = await fetch(`/api/scheduler/history/counts?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch history counts');
+      return res.json();
+    },
+    enabled: !!user && !!month,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCalendarHistory(
+  date: string | null,
+  profileId: string | null,
+  platform: string | null,
+) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<CalendarHistoryPage>({
+    queryKey: schedulerKeys.calendarHistory(date ?? '', profileId ?? '', platform ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '30' });
+      if (date) params.set('date', date);
+      if (profileId) params.set('profileId', profileId);
+      if (platform) params.set('platform', platform);
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/history?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch calendar history');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && !!date,
+    staleTime: 1000 * 60 * 1,
   });
 }
 
