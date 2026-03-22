@@ -44,12 +44,15 @@ export function SchedulerPresenceBar({ orgId }: SchedulerPresenceBarProps) {
     const syncPresence = async () => {
       try {
         const presenceMessages = await channel.presence.get();
-        setMembers(
-          presenceMessages.map((m) => ({
-            clientId: m.clientId,
-            name: (m.data as { name?: string })?.name,
-          })),
-        );
+        const seen = new Set<string>();
+        const unique: PresenceUser[] = [];
+        for (const m of presenceMessages) {
+          if (!seen.has(m.clientId)) {
+            seen.add(m.clientId);
+            unique.push({ clientId: m.clientId, name: (m.data as { name?: string })?.name });
+          }
+        }
+        setMembers(unique);
       } catch {}
     };
 
