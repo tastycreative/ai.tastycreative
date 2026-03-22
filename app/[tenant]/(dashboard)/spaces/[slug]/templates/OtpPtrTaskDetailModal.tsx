@@ -578,7 +578,7 @@ export function OtpPtrTaskDetailModal({
   const updateMeta = (partial: Record<string, unknown>) =>
     onUpdate({ ...task, metadata: { ...meta, ...partial } });
 
-  /** Save gifUrl and auto-move Flyer Team → Flyer Completed */
+  /** Save gifUrl and auto-move Flyer Team → QA */
   const updateGifUrl = (field: string, value: string) => {
     updateMeta({ [field]: value });
     if (value && columnTitle.toLowerCase() === 'flyer team') {
@@ -589,11 +589,11 @@ export function OtpPtrTaskDetailModal({
       // All required GIF URLs must be filled before moving
       const allFilled = nextGifUrl.trim() && (!hasFansly || nextGifUrlFansly.trim());
       if (allFilled) {
-        const flyerCompletedCol = columns?.find(
-          (c) => c.name.toLowerCase() === 'flyer completed'
+        const qaCol = columns?.find(
+          (c) => c.name.toLowerCase() === 'qa'
         );
-        if (flyerCompletedCol && onColumnChange) {
-          onColumnChange(flyerCompletedCol.id);
+        if (qaCol && onColumnChange) {
+          onColumnChange(qaCol.id);
         }
       }
     }
@@ -1315,10 +1315,14 @@ export function OtpPtrTaskDetailModal({
                               onClick={async () => {
                                 await otpPtrQAMutation.mutateAsync({ ticketId: captionTicketId, action: 'approve' });
                                 onUpdate({ ...task, metadata: { ...meta, otpPtrCaptionStatus: OTP_PTR_CAPTION_STATUS.APPROVED } });
-                                // Move ticket to PGT Completed column in real-time
-                                const pgtCompletedCol = columns?.find((c) => c.name.toLowerCase() === 'pgt completed');
-                                if (pgtCompletedCol && onColumnChange) {
-                                  onColumnChange(pgtCompletedCol.id);
+                                // If GIF URL was already set from a previous cycle, skip Flyer Team and go straight to QA
+                                const hasFansly = platforms.includes('fansly');
+                                const gifAlreadyReady = gifUrl.trim() && (!hasFansly || gifUrlFansly.trim());
+                                const approveTargetCol = gifAlreadyReady
+                                  ? columns?.find((c) => c.name.toLowerCase() === 'qa')
+                                  : columns?.find((c) => c.name.toLowerCase() === 'flyer team');
+                                if (approveTargetCol && onColumnChange) {
+                                  onColumnChange(approveTargetCol.id);
                                 }
                               }}
                               className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 border border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] transition-colors disabled:opacity-40"

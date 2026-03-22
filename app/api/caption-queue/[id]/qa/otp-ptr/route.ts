@@ -236,7 +236,7 @@ export async function PATCH(
               };
 
         // On rejection: find the "PGT Team" column in this board and move the item there
-        // On approval: if item is in "PGT Team", move it to "PGT Completed"
+        // On approval: if item is in "PGT Team", move it to "Flyer Team"
         let targetColumnId: string | null = null;
         let targetColumnName: string | null = null;
         if (existingItem?.column?.boardId) {
@@ -253,16 +253,24 @@ export async function PATCH(
               targetColumnName = pgtColumn.name;
             }
           } else if (action === 'approve' && existingItem.column.name.toLowerCase() === 'pgt team') {
-            const pgtCompletedColumn = await tx.boardColumn.findFirst({
+            // If the GIF URL was already set from a previous cycle, skip Flyer Team and go straight to QA
+            const prevMeta = (existingItem.metadata ?? {}) as Record<string, unknown>;
+            const gifUrl = (prevMeta.gifUrl as string) ?? '';
+            const gifUrlFansly = (prevMeta.gifUrlFansly as string) ?? '';
+            const platforms = Array.isArray(prevMeta.platforms) ? (prevMeta.platforms as string[]) : [];
+            const hasFansly = platforms.includes('fansly');
+            const gifAlreadyReady = gifUrl.trim() && (!hasFansly || gifUrlFansly.trim());
+            const approveTargetName = gifAlreadyReady ? 'QA' : 'Flyer Team';
+            const approveTargetColumn = await tx.boardColumn.findFirst({
               where: {
                 boardId: existingItem.column.boardId,
-                name: { equals: 'PGT Completed', mode: 'insensitive' },
+                name: { equals: approveTargetName, mode: 'insensitive' },
               },
               select: { id: true, name: true },
             });
-            if (pgtCompletedColumn && pgtCompletedColumn.id !== existingItem.columnId) {
-              targetColumnId = pgtCompletedColumn.id;
-              targetColumnName = pgtCompletedColumn.name;
+            if (approveTargetColumn && approveTargetColumn.id !== existingItem.columnId) {
+              targetColumnId = approveTargetColumn.id;
+              targetColumnName = approveTargetColumn.name;
             }
           }
         }

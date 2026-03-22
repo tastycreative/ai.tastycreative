@@ -163,13 +163,11 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     config: {
       defaultColumns: [
         { name: 'PGT Team', color: 'pink', position: 0 },
-        { name: 'PGT Completed', color: 'gray', position: 1 },
-        { name: 'Flyer Team', color: 'amber', position: 2 },
-        { name: 'Flyer Completed', color: 'gray', position: 3 },
-        { name: 'QA', color: 'green', position: 4 },
-        { name: 'For Approval', color: 'purple', position: 5 },
-        { name: 'Ready to Deploy', color: 'blue', position: 6 },
-        { name: 'Posted', color: 'pink', position: 7 },
+        { name: 'Flyer Team', color: 'amber', position: 1 },
+        { name: 'QA', color: 'green', position: 2 },
+        { name: 'For Approval', color: 'purple', position: 3 },
+        { name: 'Ready to Deploy', color: 'blue', position: 4 },
+        { name: 'Posted', color: 'pink', position: 5 },
       ],
       workTypes: [
         { name: 'OTP Request', icon: 'zap', description: 'One-time purchase content requests' },
