@@ -10,9 +10,12 @@ import {
   Trash2,
   Flag,
   Image as ImageIcon,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { SchedulerTask, TaskFields } from '@/lib/hooks/useScheduler.query';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
+import { toast } from 'sonner';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,12 +53,14 @@ export function FieldRow({
   placeholder,
   onSave,
   labelWidth = 'min-w-[60px]',
+  noTruncate,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onSave: (val: string) => void;
   labelWidth?: string;
+  noTruncate?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(value);
@@ -88,7 +93,7 @@ export function FieldRow({
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className="flex-1 text-[10px] cursor-text font-mono truncate min-w-0 text-gray-700 dark:text-gray-300"
+          className={`flex-1 text-[10px] cursor-text font-mono min-w-0 text-gray-700 dark:text-gray-300 ${noTruncate ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
         >
           {value || (
             <span className="text-gray-400 dark:text-gray-700 italic">
@@ -288,10 +293,44 @@ export function useFieldSave(
   const fields = (task.fields || {}) as Record<string, string>;
   const save = useCallback((key: string, val: string) => {
     const merged = { ...fields, [key]: val } as TaskFields;
-    console.log('[useFieldSave] saving', key, '=', val, 'taskId:', task.id);
     onUpdate(task.id, { fields: merged });
   }, [fields, task.id, onUpdate]);
   return { fields, save };
+}
+
+// ─── Copy Caption Button ─────────────────────────────────────────────────────
+
+export function CopyCaptionButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      toast.success('Caption copied to clipboard');
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={`shrink-0 p-0.5 rounded-sm transition-all ${
+        copied
+          ? 'text-green-500'
+          : 'text-gray-400 dark:text-gray-600 hover:text-brand-blue dark:hover:text-brand-blue'
+      }`}
+      title={copied ? 'Copied!' : 'Copy caption'}
+    >
+      {copied ? (
+        <Check className="h-2.5 w-2.5" />
+      ) : (
+        <Copy className="h-2.5 w-2.5" />
+      )}
+    </button>
+  );
 }
 
 // ─── Caption Preview (compact inline) ────────────────────────────────────────
@@ -299,9 +338,11 @@ export function useFieldSave(
 export function CaptionPreview({
   fields,
   typeColor,
+  noTruncate,
 }: {
   fields: Record<string, string>;
   typeColor: string;
+  noTruncate?: boolean;
 }) {
   const text = fields.captionBankText || fields.caption;
   const isBankCaption = !!fields.captionId;
@@ -318,7 +359,7 @@ export function CaptionPreview({
         {isFlagged && (
           <span className="text-[8px] shrink-0 mt-[1px]" title="Needs replacement">🚩</span>
         )}
-        <span className="text-[10px] font-mono truncate text-gray-700 dark:text-gray-300">
+        <span className={`text-[10px] font-mono text-gray-700 dark:text-gray-300 ${noTruncate ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
           {text}
         </span>
         {isBankCaption && (
@@ -329,6 +370,7 @@ export function CaptionPreview({
             BANK
           </span>
         )}
+        <CopyCaptionButton text={text} />
       </div>
     </div>
   );
@@ -338,8 +380,10 @@ export function CaptionPreview({
 
 export function FlyerPreview({
   fields,
+  noTruncate,
 }: {
   fields: Record<string, string>;
+  noTruncate?: boolean;
 }) {
   const url = fields.flyerAssetUrl;
   if (!url) return null;
@@ -358,7 +402,7 @@ export function FlyerPreview({
       ) : (
         <div className="flex items-center gap-1 flex-1 min-w-0">
           <ImageIcon className="h-2.5 w-2.5 shrink-0 text-brand-blue" />
-          <span className="text-[9px] font-mono truncate text-brand-blue">
+          <span className={`text-[9px] font-mono text-brand-blue ${noTruncate ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
             {url.replace('https://', '').split('/').pop() || url.replace('https://', '')}
           </span>
         </div>
@@ -379,7 +423,6 @@ export function FlagButton({
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    console.log('[FlagButton] clicked, flagged:', flagged);
     onToggle();
   }, [onToggle, flagged]);
 

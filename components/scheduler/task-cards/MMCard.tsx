@@ -67,44 +67,48 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
     );
   }
 
-  // ── Expanded: full inline editable ──
+  // ── Expanded: full inline editable, click opens modal ──
   return (
-    <div
-      className={`flex flex-col gap-1.5 rounded-lg border p-2.5 ${
-        isFlagged
-          ? 'bg-amber-100/80 dark:bg-amber-900/20 border-amber-400/30 dark:border-amber-500/20'
-          : 'bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#111124]'
-      }`}
-      style={{ borderLeftWidth: 3, borderLeftColor: isFlagged ? '#f59e0b' : TYPE_COLOR }}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <TypeBadge task={task} onUpdate={onUpdate} />
-          <StatusBadge task={task} onUpdate={onUpdate} />
+    <>
+      <div
+        onClick={() => setShowModal(true)}
+        className={`flex flex-col gap-1.5 rounded-lg border p-2.5 cursor-pointer transition-colors ${
+          isFlagged
+            ? 'bg-amber-100/80 dark:bg-amber-900/20 border-amber-400/30 dark:border-amber-500/20'
+            : 'bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#111124] hover:bg-pink-50/40 dark:hover:bg-pink-950/10'
+        }`}
+        style={{ borderLeftWidth: 3, borderLeftColor: isFlagged ? '#f59e0b' : TYPE_COLOR }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <TypeBadge task={task} onUpdate={onUpdate} />
+            <StatusBadge task={task} onUpdate={onUpdate} />
+          </div>
+          <div className="flex items-center gap-0.5">
+            <FlagButton
+              flagged={isFlagged}
+              onToggle={() => save('flagged', isFlagged ? '' : 'true')}
+            />
+            {onDelete && <DeleteButton onDelete={() => onDelete(task.id)} />}
+          </div>
         </div>
-        <div className="flex items-center gap-0.5">
-          <FlagButton
-            flagged={isFlagged}
-            onToggle={() => save('flagged', isFlagged ? '' : 'true')}
-          />
-          {onDelete && <DeleteButton onDelete={() => onDelete(task.id)} />}
+
+        {!task.fields && task.taskName && (
+          <div className="text-xs px-1 font-mono text-gray-700 dark:text-gray-300">{task.taskName}</div>
+        )}
+
+        <div className="flex flex-col gap-0.5">
+          {FIELD_DEFS.filter((def) => def.key !== 'caption').map((def) => (
+            <FieldRow key={def.key} label={def.label} value={fields[def.key] || ''} placeholder={def.placeholder} onSave={(v) => save(def.key, v)} noTruncate />
+          ))}
+          <CaptionPreview fields={fields} typeColor={TYPE_COLOR} noTruncate />
+          <FlyerPreview fields={fields} noTruncate />
         </div>
+
+        <TimeDisplay task={task} />
+        {task.updatedBy && <div className="text-[8px] px-1 font-mono text-gray-400 dark:text-gray-700">updated by {task.updatedBy}</div>}
       </div>
-
-      {!task.fields && task.taskName && (
-        <div className="text-xs truncate px-1 font-mono text-gray-700 dark:text-gray-300">{task.taskName}</div>
-      )}
-
-      <div className="flex flex-col gap-0.5">
-        {FIELD_DEFS.filter((def) => def.key !== 'caption').map((def) => (
-          <FieldRow key={def.key} label={def.label} value={fields[def.key] || ''} placeholder={def.placeholder} onSave={(v) => save(def.key, v)} />
-        ))}
-        <CaptionPreview fields={fields} typeColor={TYPE_COLOR} />
-        <FlyerPreview fields={fields} />
-      </div>
-
-      <TimeDisplay task={task} />
-      {task.updatedBy && <div className="text-[8px] px-1 truncate font-mono text-gray-400 dark:text-gray-700">updated by {task.updatedBy}</div>}
-    </div>
+      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} />
+    </>
   );
 }

@@ -215,20 +215,13 @@ export function useUpdatePodTask() {
       tabId,
       ...data
     }: Partial<SchedulerTask> & { id: string; tabId?: string }) => {
-      console.log('[useUpdatePodTask] PATCH /api/scheduler/' + id, { ...data, tabId });
       const res = await fetch(`/api/scheduler/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, tabId }),
       });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.error('[useUpdatePodTask] PATCH failed:', res.status, errText);
-        throw new Error('Failed to update task');
-      }
-      const result = await res.json();
-      console.log('[useUpdatePodTask] PATCH success:', result.id);
-      return result as SchedulerTask;
+      if (!res.ok) throw new Error('Failed to update task');
+      return (await res.json()) as SchedulerTask;
     },
     onMutate: async (variables) => {
       // Optimistic update

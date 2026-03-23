@@ -478,14 +478,8 @@ export function SchedulerGrid() {
 
   const handleUpdate = useCallback(
     (id: string, data: Partial<SchedulerTask>) => {
-      console.log('[handleUpdate] id:', id, 'showDemo:', showDemo, 'isPending:', updateTask.isPending, 'data:', data);
-      if (showDemo) return; // no-op on demo tasks
-      console.log('[handleUpdate] calling mutate now');
-      updateTask.mutate({ id, ...data, tabId }, {
-        onSuccess: () => console.log('[handleUpdate] mutate onSuccess'),
-        onError: (err) => console.error('[handleUpdate] mutate onError', err),
-        onSettled: () => console.log('[handleUpdate] mutate onSettled'),
-      });
+      if (showDemo) return;
+      updateTask.mutate({ id, ...data, tabId });
     },
     [updateTask, showDemo],
   );
