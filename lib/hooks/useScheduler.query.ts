@@ -215,13 +215,20 @@ export function useUpdatePodTask() {
       tabId,
       ...data
     }: Partial<SchedulerTask> & { id: string; tabId?: string }) => {
+      console.log('[useUpdatePodTask] PATCH /api/scheduler/' + id, { ...data, tabId });
       const res = await fetch(`/api/scheduler/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, tabId }),
       });
-      if (!res.ok) throw new Error('Failed to update task');
-      return res.json() as Promise<SchedulerTask>;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error('[useUpdatePodTask] PATCH failed:', res.status, errText);
+        throw new Error('Failed to update task');
+      }
+      const result = await res.json();
+      console.log('[useUpdatePodTask] PATCH success:', result.id);
+      return result as SchedulerTask;
     },
     onMutate: async (variables) => {
       // Optimistic update
@@ -233,7 +240,7 @@ export function useUpdatePodTask() {
       queryClient.setQueriesData<WeekResponse>(
         { queryKey: schedulerKeys.all },
         (old) => {
-          if (!old) return old;
+          if (!old?.tasks) return old;
           return {
             ...old,
             tasks: old.tasks.map((t) =>
@@ -339,7 +346,7 @@ export function useDeleteSchedulerTask() {
       queryClient.setQueriesData<WeekResponse>(
         { queryKey: schedulerKeys.all },
         (old) => {
-          if (!old) return old;
+          if (!old?.tasks) return old;
           return {
             ...old,
             tasks: old.tasks.filter((t) => t.id !== variables.id),
@@ -494,6 +501,56 @@ export function useImportSchedulerTasks() {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
   });
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────
+
+export function useExportScheduler() {
+  return useMutation({
+    mutationFn: async ({
+      weekStart,
+      platform,
+      profileId,
+      profileName,
+      dayOfWeek,
+    }: {
+      weekStart: string;
+      platform: string;
+      profileId: string | null;
+      profileName: string;
+      dayOfWeek?: number;
+    }) => {
+      const params = new URLSearchParams({ weekStart, platform, profileName });
+      if (profileId) params.set('profileId', profileId);
+      if (dayOfWeek != null) params.set('dayOfWeek', String(dayOfWeek));
+
+      const res = await fetch(`/api/scheduler/export?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to export');
+      }
+
+      const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+      const baseFilename = `${profileName} ${platformLabel} Schedule`;
+
+      // Both single day (.csv) and weekly (.xlsx) return binary blobs
+      const blob = await res.blob();
+      const ext = dayOfWeek != null ? 'csv' : 'xlsx';
+      downloadBlob(blob, `${baseFilename}.${ext}`);
+      return { downloaded: 1 };
+    },
+  });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Caption bank for scheduler picker ──────────────────────────────────────

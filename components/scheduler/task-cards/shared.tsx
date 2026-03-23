@@ -288,6 +288,7 @@ export function useFieldSave(
   const fields = (task.fields || {}) as Record<string, string>;
   const save = useCallback((key: string, val: string) => {
     const merged = { ...fields, [key]: val } as TaskFields;
+    console.log('[useFieldSave] saving', key, '=', val, 'taskId:', task.id);
     onUpdate(task.id, { fields: merged });
   }, [fields, task.id, onUpdate]);
   return { fields, save };
@@ -375,20 +376,26 @@ export function FlagButton({
   flagged: boolean;
   onToggle: () => void;
 }) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('[FlagButton] clicked, flagged:', flagged);
+    onToggle();
+  }, [onToggle, flagged]);
+
   return (
     <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={`p-0.5 rounded transition-colors ${
+      data-flag-btn=""
+      onClick={handleClick}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={`shrink-0 rounded-sm transition-all ${
         flagged
-          ? 'text-amber-500 hover:bg-amber-500/10'
-          : 'text-gray-400 dark:text-gray-700 hover:text-amber-500 hover:bg-amber-500/10'
+          ? 'p-1 bg-amber-500/30 dark:bg-amber-500/25 text-amber-500'
+          : 'p-1 text-gray-400 dark:text-gray-600 hover:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-500/15'
       }`}
-      title={flagged ? 'Caption flagged — replacement queued' : 'Flag: caption needs replacement'}
+      title={flagged ? 'Flagged — needs caption update' : 'Flag for caption update'}
     >
-      <Flag className="h-2.5 w-2.5" fill={flagged ? 'currentColor' : 'none'} />
+      <Flag className="h-3 w-3" fill={flagged ? 'currentColor' : 'none'} style={{ pointerEvents: 'none' }} />
     </button>
   );
 }
