@@ -1476,7 +1476,6 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
-  scheduler_activity_logs       scheduler_activity_logs[]
   schedulerConfig               SchedulerConfig?
   schedulerActivityLogs         SchedulerActivityLog[]
   schedulerTasks                SchedulerTask[]
@@ -2667,41 +2666,6 @@ model ModelPresetMember {
   @@map("model_preset_members")
 }
 
-model scheduler_activity_logs {
-  id                     String                   @id
-  organizationId         String
-  userId                 String
-  taskId                 String?
-  action                 String
-  summary                String?
-  createdAt              DateTime                 @default(now())
-  organizations          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  scheduler_tasks        SchedulerTask?           @relation(fields: [taskId], references: [id])
-  users                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scheduler_task_history scheduler_task_history[]
-
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([taskId])
-  @@index([userId])
-}
-
-model scheduler_task_history {
-  id                      String                   @id
-  taskId                  String
-  userId                  String
-  action                  String
-  field                   String
-  oldValue                String?
-  newValue                String?
-  createdAt               DateTime                 @default(now())
-  activityLogId           String?
-  scheduler_activity_logs scheduler_activity_logs? @relation(fields: [activityLogId], references: [id])
-  scheduler_tasks         SchedulerTask            @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([activityLogId])
-  @@index([taskId, createdAt(sort: Desc)])
-  @@index([userId])
-}
 
 enum SyncStatus {
   PENDING

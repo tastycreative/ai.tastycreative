@@ -60,7 +60,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
   ST: [
-    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '3:00 PM' },
+    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
   ],
   SP: [
