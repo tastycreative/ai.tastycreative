@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
 
   const xlsxBuffer = await buildWeeklyXlsx(tasksByDay);
 
-  return new NextResponse(xlsxBuffer, {
+  return new NextResponse(new Uint8Array(xlsxBuffer), {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
