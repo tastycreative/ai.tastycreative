@@ -1476,8 +1476,8 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
-  schedulerConfig               SchedulerConfig?
   schedulerActivityLogs         SchedulerActivityLog[]
+  schedulerConfig               SchedulerConfig?
   schedulerTasks                SchedulerTask[]
   members                       TeamMember[]
   trackerActivityLogs           TrackerActivityLog[]
@@ -2558,28 +2558,28 @@ model FlyerAsset {
 }
 
 model SchedulerTask {
-  id             String              @id @default(cuid())
+  id             String                 @id @default(cuid())
   organizationId String
-  weekStartDate  DateTime            @db.Date
+  weekStartDate  DateTime               @db.Date
   dayOfWeek      Int
   slotLabel      String
-  team           String              @default("")
-  taskName       String              @default("")
-  taskType       String              @default("")
-  status         SchedulerTaskStatus @default(PENDING)
+  team           String                 @default("")
+  taskName       String                 @default("")
+  taskType       String                 @default("")
+  status         SchedulerTaskStatus    @default(PENDING)
   startTime      DateTime?
   endTime        DateTime?
-  notes          String              @default("")
+  notes          String                 @default("")
   updatedBy      String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @default(now()) @updatedAt
-  sortOrder      Int                 @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @default(now()) @updatedAt
+  sortOrder      Int                    @default(0)
   fields         Json?
-  platform       String              @default("free")
+  platform       String                 @default("free")
   profileId      String?
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activityLogs   SchedulerActivityLog[]
   history        SchedulerTaskHistory[]
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
   @@index([organizationId, weekStartDate])
@@ -2588,17 +2588,17 @@ model SchedulerTask {
 }
 
 model SchedulerTaskHistory {
-  id             String                @id @default(cuid())
-  taskId         String
-  userId         String
-  action         String
-  field          String
-  oldValue       String?
-  newValue       String?
-  activityLogId  String?
-  createdAt      DateTime              @default(now())
-  task           SchedulerTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  activityLog    SchedulerActivityLog? @relation(fields: [activityLogId], references: [id], onDelete: SetNull)
+  id            String                @id @default(cuid())
+  taskId        String
+  userId        String
+  action        String
+  field         String
+  oldValue      String?
+  newValue      String?
+  createdAt     DateTime              @default(now())
+  activityLogId String?
+  activityLog   SchedulerActivityLog? @relation(fields: [activityLogId], references: [id])
+  task          SchedulerTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt(sort: Desc)])
   @@index([userId])
@@ -2615,8 +2615,8 @@ model SchedulerActivityLog {
   summary        String?
   createdAt      DateTime               @default(now())
   organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task           SchedulerTask?         @relation(fields: [taskId], references: [id])
   user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task           SchedulerTask?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
   changes        SchedulerTaskHistory[]
 
   @@index([organizationId, createdAt(sort: Desc)])
@@ -2665,7 +2665,6 @@ model ModelPresetMember {
   @@index([profileId])
   @@map("model_preset_members")
 }
-
 
 enum SyncStatus {
   PENDING
