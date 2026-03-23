@@ -10,11 +10,15 @@ import {
   ChevronDown,
   Trash2,
   X,
+  History,
+  Loader2,
 } from 'lucide-react';
 import {
   SchedulerTask,
   TASK_FIELD_DEFS,
   TaskFields,
+  useTaskHistory,
+  TaskHistoryItem,
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPES, TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
@@ -62,6 +66,7 @@ export function SchedulerTaskModal({
 }: SchedulerTaskModalProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [pickerTab, setPickerTab] = useState<'caption' | 'flyer'>('caption');
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const typeMenuRef = useRef<HTMLDivElement>(null);
@@ -370,6 +375,18 @@ export function SchedulerTaskModal({
           )}
         </div>
 
+        {/* History toggle + panel */}
+        <div className="border-t border-gray-100 dark:border-[#111124]">
+          <button
+            onClick={() => setShowHistory((p) => !p)}
+            className="w-full flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold font-sans transition-colors text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400"
+          >
+            <History className="h-3 w-3" />
+            {showHistory ? 'Hide History' : 'History'}
+          </button>
+          {showHistory && <TaskHistoryPanel taskId={task.id} />}
+        </div>
+
         {/* Footer: time info + updated by */}
         <div className="px-4 py-2.5 border-t border-gray-100 dark:border-[#111124] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -432,5 +449,149 @@ function ModalFieldRow({
         className="flex-1 text-xs px-2 py-1 rounded border outline-none font-mono transition-colors bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]"
       />
     </div>
+  );
+}
+
+// ─── Field label map ─────────────────────────────────────────────────────────
+
+const ALL_FIELD_LABELS: Record<string, string> = (() => {
+  const map: Record<string, string> = {
+    status: 'Status',
+    taskType: 'Type',
+    taskName: 'Task Name',
+    notes: 'Notes',
+    sortOrder: 'Sort Order',
+  };
+  for (const [, defs] of Object.entries(TASK_FIELD_DEFS)) {
+    for (const d of defs) {
+      map[`fields.${d.key}`] = d.label;
+    }
+  }
+  return map;
+})();
+
+function humanFieldLabel(field: string): string {
+  return ALL_FIELD_LABELS[field] || field.replace('fields.', '');
+}
+
+function truncate(val: string | null, max = 60): string {
+  if (!val) return '(empty)';
+  return val.length > max ? val.slice(0, max) + '...' : val;
+}
+
+// ─── Task History Panel ──────────────────────────────────────────────────────
+
+function TaskHistoryPanel({ taskId }: { taskId: string }) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useTaskHistory(taskId);
+
+  const items = data?.pages.flatMap((p) => p.items) ?? [];
+
+  return (
+    <div className="max-h-52 overflow-y-auto border-t border-gray-50 dark:border-[#0c0c1f]">
+      {isLoading && (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-4 w-4 animate-spin text-brand-blue dark:text-[#38bdf8]" />
+        </div>
+      )}
+
+      {!isLoading && items.length === 0 && (
+        <p className="text-[10px] text-center py-6 font-mono text-gray-400 dark:text-[#3a3a5a]">
+          No changes recorded yet.
+        </p>
+      )}
+
+      {items.map((item) => (
+        <HistoryEntry key={item.id} item={item} />
+      ))}
+
+      {hasNextPage && (
+        <div className="px-4 py-2 text-center">
+          <button
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="text-[10px] font-bold font-sans text-brand-blue dark:text-[#38bdf8]"
+          >
+            {isFetchingNextPage ? 'Loading...' : 'Load more'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryEntry({ item }: { item: TaskHistoryItem }) {
+  const isStatus = item.field === 'status';
+
+  return (
+    <div className="px-4 py-2 border-b border-gray-50 dark:border-[#0c0c1f] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+      <div className="flex items-start gap-2">
+        {item.user.imageUrl ? (
+          <img src={item.user.imageUrl} alt="" className="h-4 w-4 rounded-full flex-shrink-0 mt-0.5" />
+        ) : (
+          <div className="h-4 w-4 rounded-full flex-shrink-0 mt-0.5 bg-brand-light-pink/10 dark:bg-[#ff9a6c20]" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-mono text-gray-500 dark:text-[#888]">
+            <span className="font-bold text-gray-700 dark:text-[#aaa]">
+              {item.user.name || 'Unknown'}
+            </span>{' '}
+            changed{' '}
+            <span className="font-bold text-gray-600 dark:text-[#999]">
+              {humanFieldLabel(item.field)}
+            </span>
+          </p>
+          <div className="flex items-center gap-1 mt-0.5 text-[9px] font-mono">
+            {isStatus ? (
+              <>
+                <StatusBadge value={item.oldValue} />
+                <span className="text-gray-400">→</span>
+                <StatusBadge value={item.newValue} />
+              </>
+            ) : (
+              <>
+                <span className="text-red-400 dark:text-red-500 line-through">
+                  {truncate(item.oldValue)}
+                </span>
+                <span className="text-gray-400">→</span>
+                <span className="text-green-500 dark:text-green-400">
+                  {truncate(item.newValue)}
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-[8px] mt-0.5 font-mono text-gray-300 dark:text-[#252545]">
+            {new Date(item.createdAt).toLocaleString('en-US', {
+              timeZone: 'America/Los_Angeles',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+            })}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  PENDING: '#3a3a5a',
+  IN_PROGRESS: '#38bdf8',
+  DONE: '#4ade80',
+  SKIPPED: '#fbbf24',
+};
+
+function StatusBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-gray-400">(empty)</span>;
+  const color = STATUS_BADGE_COLORS[value] || '#888';
+  return (
+    <span
+      className="px-1.5 py-0.5 rounded-full text-[8px] font-bold"
+      style={{ background: color + '20', color }}
+    >
+      {value}
+    </span>
   );
 }

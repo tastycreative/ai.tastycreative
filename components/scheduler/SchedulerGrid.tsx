@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, Download, ChevronDown } from 'lucide-react';
+import { Settings, History, CalendarClock, Download, ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -29,6 +29,8 @@ import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
+import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
+import { SchedulerImportModal } from './SchedulerImportModal';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
@@ -337,7 +339,7 @@ export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
-  const { selectedProfile, isAllProfiles } = useInstagramProfile();
+  const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
 
   // Platform tab state
   const [activePlatform, setActivePlatform] = useState<PlatformKey>('free');
@@ -390,6 +392,8 @@ export function SchedulerGrid() {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   // Expanded column state (null = all normal)
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
@@ -422,9 +426,10 @@ export function SchedulerGrid() {
   // Real-time
   useSchedulerRealtime(orgId);
 
-  // Data
+  // Data — wait for profile selector to resolve before fetching
+  const profileReady = isAllProfiles || !loadingProfiles;
   const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
-  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform);
+  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform, profileReady);
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
   const config = configData?.config ?? null;
@@ -533,7 +538,7 @@ export function SchedulerGrid() {
   );
 
   const showSetup = !configLoading && !config;
-  const isLoading = weekLoading || configLoading;
+  const isLoading = weekLoading || configLoading || !profileReady;
 
   return (
     <div className="flex flex-col h-full rounded-xl overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#07070e] dark:text-zinc-300">
@@ -591,7 +596,7 @@ export function SchedulerGrid() {
 
 
           {/* Setup teams button */}
-          {!isLoading && teamNames.length === 0 && (
+          {/* {!isLoading && teamNames.length === 0 && (
             <button
               onClick={() => setShowConfig(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-brand-dark-pink border-brand-dark-pink/25 bg-brand-dark-pink/5 dark:text-[#ff9a6c] dark:border-[#ff9a6c40] dark:bg-[#ff9a6c12]"
@@ -599,8 +604,15 @@ export function SchedulerGrid() {
               <Settings className="h-3 w-3" />
               SETUP TEAMS
             </button>
-          )}
+          )} */}
 
+          <button
+            onClick={() => setShowHistory(true)}
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+            title="Change History"
+          >
+            <CalendarClock className="h-3.5 w-3.5 text-gray-400 dark:text-[#3a3a5a]" />
+          </button>
           <button
             onClick={() => setShowActivity(true)}
             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
@@ -701,6 +713,7 @@ export function SchedulerGrid() {
 
             {/* Import button */}
             <button
+              onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
             >
               <Download className="h-3 w-3" />
@@ -790,6 +803,19 @@ export function SchedulerGrid() {
         onClose={() => setShowConfig(false)}
       />
       <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
+      <SchedulerHistoryCalendar
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        profileId={activeProfileId}
+        platform={activePlatform}
+      />
+      <SchedulerImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        weekStart={weekStart}
+        platform={activePlatform}
+        profileId={activeProfileId}
+      />
     </div>
   );
 }

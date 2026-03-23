@@ -20,18 +20,18 @@ interface PickerFields {
 }
 
 export interface MMFields extends PickerFields {
-  time?: string; contentPreview?: string; paywallContent?: string;
+  type?: string; time?: string; contentPreview?: string; paywallContent?: string;
   tag?: string; caption?: string; captionGuide?: string; price?: string;
 }
 export interface WPFields extends PickerFields {
-  postSchedule?: string; time?: string; contentFlyer?: string;
-  tag?: string; caption?: string; priceInfo?: string;
+  type?: string; time?: string; contentFlyer?: string;
+  paywallContent?: string; caption?: string; priceInfo?: string;
 }
 export interface STFields {
   contentFlyer?: string; storyPostSchedule?: string;
 }
 export interface SPFields extends PickerFields {
-  subscriberPromoSchedule?: string; contentFlyer?: string;
+  type?: string; contentFlyer?: string;
   time?: string; caption?: string;
 }
 export type TaskFields = MMFields | WPFields | STFields | SPFields;
@@ -42,6 +42,7 @@ export interface FieldDef {
 
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
+    { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
@@ -51,19 +52,19 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'price', label: 'Price', placeholder: '$0.00' },
   ],
   WP: [
-    { key: 'postSchedule', label: 'Post Schedule', placeholder: '10:00 AM' },
+    { key: 'type', label: 'Type', placeholder: 'Post type...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
-    { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
+    { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
   ST: [
+    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
-    { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '3:00 PM' },
   ],
   SP: [
-    { key: 'subscriberPromoSchedule', label: 'Promo Schedule', placeholder: '12:00 PM' },
+    { key: 'type', label: 'Type', placeholder: 'Promo type...' },
     { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
@@ -113,15 +114,23 @@ interface ConfigResponse {
   config: SchedulerConfig | null;
 }
 
+interface ActivityLogChange {
+  id: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  action: string;
+}
+
 interface ActivityLogItem {
   id: string;
   action: string;
-  entityType: string;
-  entityId: string;
-  entityName: string;
-  details: string;
+  taskId: string | null;
+  summary: string | null;
   createdAt: string;
   user: { name: string | null; imageUrl: string | null };
+  task: { id: string; taskType: string; slotLabel: string; dayOfWeek: number; taskName: string } | null;
+  changes: ActivityLogChange[];
 }
 
 interface ActivityLogPage {
@@ -136,6 +145,11 @@ export const schedulerKeys = {
   week: (weekStart: string) => [...schedulerKeys.all, 'week', weekStart] as const,
   config: () => [...schedulerKeys.all, 'config'] as const,
   activity: () => [...schedulerKeys.all, 'activity'] as const,
+  taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
+  historyCounts: (month: string, profileId: string, platform: string) =>
+    [...schedulerKeys.all, 'historyCounts', month, profileId, platform] as const,
+  calendarHistory: (date: string, profileId: string, platform: string) =>
+    [...schedulerKeys.all, 'calendarHistory', date, profileId, platform] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
@@ -165,12 +179,13 @@ export function useSchedulerWeek(
   weekStart: string,
   profileId?: string | null,
   platform?: string,
+  enabled: boolean = true,
 ) {
   const { user } = useUser();
   return useQuery({
     queryKey: [...schedulerKeys.week(weekStart), profileId ?? '', platform ?? ''],
     queryFn: () => fetchWeekTasks(weekStart, profileId, platform),
-    enabled: !!user && !!weekStart,
+    enabled: !!user && !!weekStart && enabled,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -417,6 +432,70 @@ export function useUpdateTaskLimits() {
   });
 }
 
+// ─── Import Mutations ─────────────────────────────────────────────────────
+
+export interface ParsedTask {
+  taskType: string;
+  taskName: string;
+  fields: Record<string, string>;
+}
+
+export function useParseSchedulerSheet() {
+  return useMutation({
+    mutationFn: async (sheetUrl: string) => {
+      const res = await fetch('/api/scheduler/import-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetUrl }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to parse sheet');
+      }
+      return res.json() as Promise<{
+        slots: Record<string, ParsedTask[]>;
+        errors?: string[];
+      }>;
+    },
+  });
+}
+
+export type ImportMode = 'replace' | 'append' | 'replace_by_type';
+
+export function useImportSchedulerTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      weekStart: string;
+      platform: string;
+      profileId: string | null;
+      mode: ImportMode;
+      tasks: {
+        dayOfWeek: number;
+        taskType: string;
+        taskName: string;
+        fields: Record<string, string>;
+        sortOrder: number;
+      }[];
+    }) => {
+      const res = await fetch('/api/scheduler/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to import tasks');
+      }
+      return res.json() as Promise<{ imported: number; deleted: number }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
 // ─── Caption bank for scheduler picker ──────────────────────────────────────
 
 export interface SchedulerCaption {
@@ -464,6 +543,112 @@ export function useSchedulerCaptions(
     refetchOnWindowFocus: false,
   });
 }
+
+// ─── History Types ────────────────────────────────────────────────────────
+
+export interface TaskHistoryItem {
+  id: string;
+  action: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+  user: { name: string | null; imageUrl: string | null };
+}
+
+interface TaskHistoryPage {
+  items: TaskHistoryItem[];
+  nextCursor: string | null;
+}
+
+export interface CalendarHistoryItem extends TaskHistoryItem {
+  task: {
+    id: string;
+    taskType: string;
+    slotLabel: string;
+    dayOfWeek: number;
+    taskName: string;
+  };
+}
+
+interface CalendarHistoryPage {
+  items: CalendarHistoryItem[];
+  nextCursor: string | null;
+}
+
+// ─── History Hooks ────────────────────────────────────────────────────────
+
+export function useTaskHistory(taskId: string | null) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<TaskHistoryPage>({
+    queryKey: schedulerKeys.taskHistory(taskId ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '20' });
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/${taskId}/history?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch task history');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && !!taskId,
+    staleTime: 1000 * 60 * 1,
+  });
+}
+
+export function useHistoryCounts(
+  month: string | null,
+  profileId: string | null,
+  platform: string | null,
+) {
+  const { user } = useUser();
+
+  return useQuery<{ counts: Record<string, number> }>({
+    queryKey: schedulerKeys.historyCounts(month ?? '', profileId ?? '', platform ?? ''),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (month) params.set('month', month);
+      if (profileId) params.set('profileId', profileId);
+      if (platform) params.set('platform', platform);
+      const res = await fetch(`/api/scheduler/history/counts?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch history counts');
+      return res.json();
+    },
+    enabled: !!user && !!month,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCalendarHistory(
+  date: string | null,
+  profileId: string | null,
+  platform: string | null,
+) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<CalendarHistoryPage>({
+    queryKey: schedulerKeys.calendarHistory(date ?? '', profileId ?? '', platform ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '30' });
+      if (date) params.set('date', date);
+      if (profileId) params.set('profileId', profileId);
+      if (platform) params.set('platform', platform);
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/history?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch calendar history');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && !!date,
+    staleTime: 1000 * 60 * 1,
+  });
+}
+
+// ─── Activity ─────────────────────────────────────────────────────────────
 
 export function useSchedulerActivity() {
   const { user } = useUser();

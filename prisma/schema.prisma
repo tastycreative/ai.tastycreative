@@ -52,7 +52,7 @@ model User {
   pinnedProfiles           ProfilePin[]
   referenceFolders         reference_folders[]
   referenceItems           reference_items[]
-  scheduler_activity_logs  scheduler_activity_logs[]
+  schedulerActivityLogs    SchedulerActivityLog[]
   teamMemberships          TeamMember[]
   trackerActivityLogs      TrackerActivityLog[]
   trainingImages           TrainingImage[]
@@ -1476,8 +1476,8 @@ model Organization {
   invites                       OrganizationInvite[]
   subscriptionPlan              SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   trackerEntries                PageTrackerEntry[]
-  scheduler_activity_logs       scheduler_activity_logs[]
   schedulerConfig               SchedulerConfig?
+  schedulerActivityLogs         SchedulerActivityLog[]
   schedulerTasks                SchedulerTask[]
   members                       TeamMember[]
   trackerActivityLogs           TrackerActivityLog[]
@@ -2558,33 +2558,71 @@ model FlyerAsset {
 }
 
 model SchedulerTask {
-  id                      String                    @id @default(cuid())
-  organizationId          String
-  weekStartDate           DateTime                  @db.Date
-  dayOfWeek               Int
-  slotLabel               String
-  team                    String                    @default("")
-  taskName                String                    @default("")
-  taskType                String                    @default("")
-  status                  SchedulerTaskStatus       @default(PENDING)
-  startTime               DateTime?
-  endTime                 DateTime?
-  notes                   String                    @default("")
-  updatedBy               String?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @default(now()) @updatedAt
-  sortOrder               Int                       @default(0)
-  fields                  Json?
-  platform                String                    @default("free")
-  profileId               String?
-  scheduler_activity_logs scheduler_activity_logs[]
-  scheduler_task_history  scheduler_task_history[]
-  organization            Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String              @id @default(cuid())
+  organizationId String
+  weekStartDate  DateTime            @db.Date
+  dayOfWeek      Int
+  slotLabel      String
+  team           String              @default("")
+  taskName       String              @default("")
+  taskType       String              @default("")
+  status         SchedulerTaskStatus @default(PENDING)
+  startTime      DateTime?
+  endTime        DateTime?
+  notes          String              @default("")
+  updatedBy      String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @default(now()) @updatedAt
+  sortOrder      Int                 @default(0)
+  fields         Json?
+  platform       String              @default("free")
+  profileId      String?
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activityLogs   SchedulerActivityLog[]
+  history        SchedulerTaskHistory[]
 
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
   @@index([organizationId, weekStartDate])
   @@index([organizationId, profileId, platform])
   @@map("scheduler_tasks")
+}
+
+model SchedulerTaskHistory {
+  id             String                @id @default(cuid())
+  taskId         String
+  userId         String
+  action         String
+  field          String
+  oldValue       String?
+  newValue       String?
+  activityLogId  String?
+  createdAt      DateTime              @default(now())
+  task           SchedulerTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  activityLog    SchedulerActivityLog? @relation(fields: [activityLogId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@index([activityLogId])
+  @@map("scheduler_task_history")
+}
+
+model SchedulerActivityLog {
+  id             String                 @id @default(cuid())
+  organizationId String
+  userId         String
+  taskId         String?
+  action         String
+  summary        String?
+  createdAt      DateTime               @default(now())
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           SchedulerTask?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  changes        SchedulerTaskHistory[]
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@index([taskId])
+  @@map("scheduler_activity_logs")
 }
 
 model SchedulerConfig {
@@ -2628,41 +2666,6 @@ model ModelPresetMember {
   @@map("model_preset_members")
 }
 
-model scheduler_activity_logs {
-  id                     String                   @id
-  organizationId         String
-  userId                 String
-  taskId                 String?
-  action                 String
-  summary                String?
-  createdAt              DateTime                 @default(now())
-  organizations          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  scheduler_tasks        SchedulerTask?           @relation(fields: [taskId], references: [id])
-  users                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scheduler_task_history scheduler_task_history[]
-
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([taskId])
-  @@index([userId])
-}
-
-model scheduler_task_history {
-  id                      String                   @id
-  taskId                  String
-  userId                  String
-  action                  String
-  field                   String
-  oldValue                String?
-  newValue                String?
-  createdAt               DateTime                 @default(now())
-  activityLogId           String?
-  scheduler_activity_logs scheduler_activity_logs? @relation(fields: [activityLogId], references: [id])
-  scheduler_tasks         SchedulerTask            @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([activityLogId])
-  @@index([taskId, createdAt(sort: Desc)])
-  @@index([userId])
-}
 
 enum SyncStatus {
   PENDING
