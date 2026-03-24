@@ -771,7 +771,7 @@ export function SchedulerDayColumn({
       </div>
 
       {/* Body */}
-      <div className="p-2.5 flex-1 flex flex-col gap-2.5">
+      <div className="p-1.5 flex-1 flex flex-col gap-1.5">
         {totalTasks === 0 ? (
           <div className="flex flex-col items-center justify-center py-4 gap-2">
             <span className="text-[10px] italic font-mono text-gray-300 dark:text-[#1e1e35]">
@@ -827,31 +827,27 @@ export function SchedulerDayColumn({
             </div>
 
             {/* Grouped task cards — scrollable */}
-            <div className="flex-1 overflow-y-auto -mx-0.5 px-0.5 space-y-2">
+            <div className="flex-1 overflow-y-auto -mx-0.5 px-0.5 space-y-1.5">
               {groups.map((group) => {
                 const color = TASK_TYPE_COLORS[group.type] || '#3a3a5a';
                 return (
                   <div key={group.type}>
                     {/* Group label */}
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span
-                        className="h-2 w-2 rounded-full flex-shrink-0"
-                        style={{ background: color }}
-                      />
-                      <span className="text-[9px] font-bold tracking-widest font-sans" style={{ color }}>
+                    <div className="flex items-center gap-1 mb-px">
+                      <span className="text-[7px] font-bold tracking-wider font-sans" style={{ color }}>
                         {group.type}
                       </span>
-                      <span className="text-[8px] font-mono text-gray-400 dark:text-[#3a3a5a]">
+                      <span className="text-[7px] font-mono text-gray-400 dark:text-[#3a3a5a]">
                         {(() => {
                           const max = getTaskLimit(taskLimits, dayIndex, group.type);
                           return isFinite(max)
-                            ? `(${group.tasks.length}/${max})`
-                            : `(${group.tasks.length})`;
+                            ? `${group.tasks.length}/${max}`
+                            : `${group.tasks.length}`;
                         })()}
                       </span>
-                      <div className="flex-1 h-px" style={{ background: color + '20' }} />
+                      <div className="flex-1 h-px" style={{ background: color + '12' }} />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {group.tasks.map((task) => (
                         <SchedulerTaskCard
                           key={task.id}

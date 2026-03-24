@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, CalendarClock, Download, ChevronDown } from 'lucide-react';
+import { Settings, History, CalendarClock, Download, Upload, ChevronDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -31,6 +31,7 @@ import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
 import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
+import { SchedulerExportModal } from './SchedulerExportModal';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
@@ -394,6 +395,7 @@ export function SchedulerGrid() {
   const [showActivity, setShowActivity] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   // Expanded column state (null = all normal)
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
@@ -444,7 +446,6 @@ export function SchedulerGrid() {
   const createTask = useCreateSchedulerTask();
   const deleteTask = useDeleteSchedulerTask();
   const updateTaskLimits = useUpdateTaskLimits();
-
   // Week days
   const weekDays = useMemo(
     () => getWeekDays(new Date(weekStart + 'T00:00:00Z')),
@@ -477,7 +478,7 @@ export function SchedulerGrid() {
 
   const handleUpdate = useCallback(
     (id: string, data: Partial<SchedulerTask>) => {
-      if (showDemo) return; // no-op on demo tasks
+      if (showDemo) return;
       updateTask.mutate({ id, ...data, tabId });
     },
     [updateTask, showDemo],
@@ -719,6 +720,15 @@ export function SchedulerGrid() {
               <Download className="h-3 w-3" />
               IMPORT
             </button>
+
+            {/* Export button */}
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
+            >
+              <Upload className="h-3 w-3" />
+              EXPORT
+            </button>
           </div>
         </div>
       )}
@@ -815,6 +825,16 @@ export function SchedulerGrid() {
         weekStart={weekStart}
         platform={activePlatform}
         profileId={activeProfileId}
+      />
+      <SchedulerExportModal
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        weekStart={weekStart}
+        platform={activePlatform}
+        profileId={activeProfileId}
+        profileName={selectedProfile?.name ?? 'Schedule'}
+        weekDays={weekDays}
+        tasksByDay={tasksByDay}
       />
     </div>
   );
