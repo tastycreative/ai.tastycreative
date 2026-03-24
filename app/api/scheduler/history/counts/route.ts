@@ -46,14 +46,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ counts: {} });
   }
 
-  // Raw query to group by date
+  // Raw query: count history entries by createdAt date
   const rows = await prisma.$queryRawUnsafe<{ day: string; count: bigint }[]>(
-    `SELECT DATE("createdAt") as day, COUNT(*)::bigint as count
-     FROM scheduler_task_history
-     WHERE "taskId" = ANY($1)
-       AND "createdAt" >= $2
-       AND "createdAt" < $3
-     GROUP BY DATE("createdAt")
+    `SELECT DATE(h."createdAt") as day, COUNT(*)::bigint as count
+     FROM scheduler_task_history h
+     WHERE h."taskId" = ANY($1)
+       AND h."createdAt" >= $2
+       AND h."createdAt" < $3
+     GROUP BY DATE(h."createdAt")
      ORDER BY day`,
     ids,
     startDate,
@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
 
   const counts: Record<string, number> = {};
   for (const row of rows) {
-    // day may come as Date or string depending on driver
     const d = row.day as unknown;
     const dayStr = d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
     counts[dayStr] = Number(row.count);

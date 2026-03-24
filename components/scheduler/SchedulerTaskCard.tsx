@@ -24,6 +24,8 @@ interface SchedulerTaskCardProps {
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   onDelete?: (id: string) => void;
   compact?: boolean;
+  schedulerToday?: string;
+  weekStart?: string;
 }
 
 const CARD_MAP: Record<string, React.ComponentType<SchedulerTaskCardProps>> = {

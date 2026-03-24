@@ -51,9 +51,9 @@ export const FOLLOW_UP_SUB_TYPES = [
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
     { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
-    { key: 'subType', label: 'Sub-Type', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
+    { key: 'subType', label: 'Style', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
-    { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
+    { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content URL...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
     { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
@@ -63,18 +63,18 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   WP: [
     { key: 'type', label: 'Type', placeholder: 'Post type...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
-    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Content URL...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
   ],
   ST: [
     { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '' },
-    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Content URL...' },
   ],
   SP: [
     { key: 'type', label: 'Type', placeholder: 'Promo type...' },
-    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Description...' },
+    { key: 'contentFlyer', label: 'Content/Flyer', placeholder: 'Content URL...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
   ],
@@ -100,6 +100,8 @@ export interface SchedulerTask {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  lineageId: string | null;
+  sourceTaskId: string | null;
 }
 
 export interface TaskLimits {
@@ -155,6 +157,8 @@ export const schedulerKeys = {
   config: () => [...schedulerKeys.all, 'config'] as const,
   activity: () => [...schedulerKeys.all, 'activity'] as const,
   taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
+  lineage: (lineageId: string) => [...schedulerKeys.all, 'lineage', lineageId] as const,
+  lineageHistory: (lineageId: string) => [...schedulerKeys.all, 'lineageHistory', lineageId] as const,
   historyCounts: (month: string, profileId: string, platform: string) =>
     [...schedulerKeys.all, 'historyCounts', month, profileId, platform] as const,
   calendarHistory: (date: string, profileId: string, platform: string) =>
@@ -726,4 +730,121 @@ export function useSchedulerActivity() {
     enabled: !!user,
     staleTime: 1000 * 60 * 1,
   });
+}
+
+// ─── Lineage ──────────────────────────────────────────────────────────────
+
+interface LineageResponse {
+  tasks: SchedulerTask[];
+}
+
+export interface LineageHistoryItem {
+  id: string;
+  action: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+  weekStartDate: string | null;
+  user: { name: string | null; imageUrl: string | null };
+  task: { id: string; taskType: string; slotLabel: string; dayOfWeek: number; taskName: string } | null;
+}
+
+interface LineageHistoryPage {
+  items: LineageHistoryItem[];
+  nextCursor: string | null;
+}
+
+/** Fetch all tasks sharing the same lineageId (for the timeline view) */
+export function useTaskLineage(lineageId: string | null) {
+  const { user } = useUser();
+
+  return useQuery<LineageResponse>({
+    queryKey: schedulerKeys.lineage(lineageId ?? ''),
+    queryFn: async () => {
+      const res = await fetch(`/api/scheduler/lineage/${lineageId}`);
+      if (!res.ok) throw new Error('Failed to fetch task lineage');
+      return res.json();
+    },
+    enabled: !!user && !!lineageId,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Fetch aggregated history across all tasks in a lineage */
+export function useLineageHistory(lineageId: string | null) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<LineageHistoryPage>({
+    queryKey: schedulerKeys.lineageHistory(lineageId ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '30' });
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/lineage/${lineageId}/history?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch lineage history');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && !!lineageId,
+    staleTime: 1000 * 60 * 1,
+  });
+}
+
+/** Mutation to queue a task update for a future week by copying from a source task */
+export function useQueueTaskUpdate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      sourceTaskId: string;
+      weekStart: string;
+      dayOfWeek: number;
+      fields?: TaskFields;
+      platform?: string;
+      profileId?: string | null;
+    }) => {
+      const res = await fetch('/api/scheduler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weekStart: payload.weekStart,
+          dayOfWeek: payload.dayOfWeek,
+          sourceTaskId: payload.sourceTaskId,
+          fields: payload.fields,
+          platform: payload.platform,
+          profileId: payload.profileId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to queue task update');
+      }
+      return res.json() as Promise<SchedulerTask>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the task's date is before schedulerToday (locked for editing).
+ * Computes the task's actual date from weekStartDate + dayOfWeek.
+ */
+export function isTaskLocked(task: SchedulerTask, schedulerToday: string): boolean {
+  // weekStartDate may be a full ISO string or YYYY-MM-DD
+  const wsStr = typeof task.weekStartDate === 'string'
+    ? task.weekStartDate.split('T')[0]
+    : String(task.weekStartDate);
+  const weekStart = new Date(wsStr + 'T00:00:00Z');
+  if (isNaN(weekStart.getTime())) return false;
+  const taskDate = new Date(weekStart);
+  taskDate.setUTCDate(taskDate.getUTCDate() + task.dayOfWeek);
+  const taskDateKey = taskDate.toISOString().split('T')[0];
+  return taskDateKey < schedulerToday;
 }

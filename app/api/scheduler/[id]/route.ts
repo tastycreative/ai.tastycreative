@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { diffTaskChanges } from '@/lib/scheduler/history-utils';
+import { getSchedulerTodayKey } from '@/lib/scheduler/rotation';
 
 // PATCH /api/scheduler/[id] — update a task
 export async function PATCH(
@@ -41,6 +42,27 @@ export async function PATCH(
   });
   if (!oldTask) {
     return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+  }
+
+  // ── Edit locking: tasks in the past cannot be edited (except status changes to DONE/SKIPPED) ──
+  const schedulerToday = getSchedulerTodayKey();
+  const wsDate = oldTask.weekStartDate instanceof Date
+    ? oldTask.weekStartDate
+    : new Date(String(oldTask.weekStartDate).split('T')[0] + 'T00:00:00Z');
+  const taskDate = new Date(wsDate);
+  taskDate.setUTCDate(taskDate.getUTCDate() + oldTask.dayOfWeek);
+  const taskDateKey = taskDate.toISOString().split('T')[0];
+
+  const isLocked = taskDateKey < schedulerToday;
+  const isStatusChangeOnly = status !== undefined &&
+    ['DONE', 'SKIPPED'].includes(status) &&
+    Object.keys(body).filter((k) => !['tabId', 'status'].includes(k)).length === 0;
+
+  if (isLocked && !isStatusChangeOnly) {
+    return NextResponse.json(
+      { error: 'Task is locked. Queue an update for a future week.' },
+      { status: 409 },
+    );
   }
 
   const task = await prisma.schedulerTask.update({

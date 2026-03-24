@@ -10,21 +10,32 @@ import {
   ChevronDown,
   Trash2,
   X,
-  History,
   Loader2,
+  Lock,
+  Save,
+  ArrowLeft,
+  Send,
+  Flag,
+  History,
 } from 'lucide-react';
 import {
   SchedulerTask,
   TASK_FIELD_DEFS,
   TaskFields,
-  useTaskHistory,
-  TaskHistoryItem,
   FOLLOW_UP_SUB_TYPES,
+  isTaskLocked,
+  useQueueTaskUpdate,
+  useTaskLineage,
+  useTaskHistory,
+  useLineageHistory,
+  TaskHistoryItem,
+  LineageHistoryItem,
 } from '@/lib/hooks/useScheduler.query';
-import { TASK_TYPES, TASK_TYPE_COLORS } from './task-cards/shared';
+import { TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { FlyerPicker } from './pickers/FlyerPicker';
+import { QueueCalendar } from './QueueCalendar';
 
 const TASK_TYPE_TO_CAPTION_CATEGORY: Record<string, string> = {
   MM: 'MM Unlock',
@@ -56,6 +67,8 @@ interface SchedulerTaskModalProps {
   onClose: () => void;
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   onDelete?: (id: string) => void;
+  schedulerToday?: string;
+  weekStart?: string;
 }
 
 export function SchedulerTaskModal({
@@ -64,62 +77,196 @@ export function SchedulerTaskModal({
   onClose,
   onUpdate,
   onDelete,
+  schedulerToday,
+  weekStart,
 }: SchedulerTaskModalProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [showTypeMenu, setShowTypeMenu] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showStyleMenu, setShowStyleMenu] = useState(false);
   const [pickerTab, setPickerTab] = useState<'caption' | 'flyer'>('caption');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
-  const typeMenuRef = useRef<HTMLDivElement>(null);
+  const styleMenuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
-  const typeColor = TASK_TYPE_COLORS[task.taskType] || '#3a3a5a';
-  const fieldDefs = TASK_FIELD_DEFS[task.taskType] || [];
-  const serverFields = (task.fields || {}) as Record<string, string>;
+  // ─── Which task are we currently viewing/editing? ───
+  // Defaults to the prop task, but can switch to a queued lineage task
+  const [viewingTask, setViewingTask] = useState<SchedulerTask>(task);
+  const isViewingOriginal = viewingTask.id === task.id;
 
-  // ─── Local picker state (survives refetches) ───
-  const [localPicker, setLocalPicker] = useState<Record<string, string>>({
-    captionId: serverFields.captionId || '',
-    captionBankText: serverFields.captionBankText || '',
-    caption: serverFields.caption || '',
-    flyerAssetId: serverFields.flyerAssetId || '',
-    flyerAssetUrl: serverFields.flyerAssetUrl || '',
-  });
+  // ─── Queue target week (selected from calendar) ───
+  const [queueTargetWeek, setQueueTargetWeek] = useState<string | null>(null);
+  const queueMutation = useQueueTaskUpdate();
 
-  // Sync from server only when modal opens with a new task
+  const typeColor = TASK_TYPE_COLORS[viewingTask.taskType] || '#3a3a5a';
+  const fieldDefs = TASK_FIELD_DEFS[viewingTask.taskType] || [];
+  const serverFields = (viewingTask.fields || {}) as Record<string, string>;
+  const locked = schedulerToday ? isTaskLocked(viewingTask, schedulerToday) : false;
+  const hasLineage = !!task.lineageId;
+
+  // ─── Pending (unsaved) field changes ───
+  const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
+  const isDirty = Object.keys(pendingChanges).length > 0;
+
+  // Merge for display: server + pending
+  const fields = { ...serverFields, ...pendingChanges };
+  const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
+
+  // ─── Derive subType from lineage sibling if current task doesn't have one ───
+  // Only fetch when modal is open to avoid firing for every task card on the grid
+  const { data: lineageData } = useTaskLineage(open ? task.lineageId : null);
+  const resolvedSubType = fields.subType || (() => {
+    if (!lineageData?.tasks) return '';
+    const sibling = lineageData.tasks.find((t) => {
+      const f = (t.fields || {}) as Record<string, string>;
+      return f.subType;
+    });
+    return sibling ? ((sibling.fields || {}) as Record<string, string>).subType || '' : '';
+  })();
+
+  // ─── Style (subType): detect unlock/follow-up ───
+  const typeName = (fields.type || viewingTask.taskName || '').toLowerCase();
+  const isUnlockOrFollowUp = viewingTask.taskType === 'MM' &&
+    (typeName.includes('unlock') || typeName.includes('follow up') || typeName.includes('follow-up'));
+
+  const handleStyleChange = useCallback((newStyle: string) => {
+    // Save immediately — the grid's handleUpdate will sync subType to the sibling
+    const currentFields = { ...serverFields, ...pendingChanges, subType: newStyle } as TaskFields;
+    onUpdate(viewingTask.id, { fields: currentFields });
+    // Remove subType from pending since it's saved immediately
+    setPendingChanges((prev) => {
+      const { subType: _, ...rest } = prev;
+      return rest;
+    });
+    setShowStyleMenu(false);
+  }, [serverFields, pendingChanges, viewingTask.id, onUpdate]);
+
+  // Reset when opening a different task from parent
   const lastTaskIdRef = useRef(task.id);
   useEffect(() => {
     if (lastTaskIdRef.current !== task.id) {
       lastTaskIdRef.current = task.id;
-      setLocalPicker({
-        captionId: serverFields.captionId || '',
-        captionBankText: serverFields.captionBankText || '',
-        caption: serverFields.caption || '',
-        flyerAssetId: serverFields.flyerAssetId || '',
-        flyerAssetUrl: serverFields.flyerAssetUrl || '',
-      });
+      setViewingTask(task);
+      setPendingChanges({});
+      setQueueTargetWeek(null);
     }
-  }, [task.id]);
+  }, [task]);
 
-  // Merge local picker state with server fields for display
-  const fields = { ...serverFields, ...localPicker };
+  // Also update viewingTask if the parent task data refreshes (same ID, new data)
+  useEffect(() => {
+    if (viewingTask.id === task.id) {
+      setViewingTask(task);
+    }
+  }, [task]);
 
-  // Helper: save fields to server
-  const saveFields = useCallback((patch: Record<string, string>) => {
-    const merged = { ...serverFields, ...localPicker, ...patch } as TaskFields;
-    onUpdate(task.id, { fields: merged });
-  }, [serverFields, localPicker, task.id, onUpdate]);
+  // ─── Navigate to a lineage task (from calendar click) ───
+  const handleSelectLineageTask = useCallback((t: SchedulerTask) => {
+    setViewingTask(t);
+    setPendingChanges({});
+    setQueueTargetWeek(null);
+  }, []);
 
+  const handleBackToOriginal = useCallback(() => {
+    setViewingTask(task);
+    setPendingChanges({});
+    setQueueTargetWeek(null);
+  }, [task]);
+
+  // ─── When a queued task is deleted, go back to original if we were viewing it ───
+  const handleDeleteQueuedTask = useCallback((deletedTaskId: string) => {
+    if (viewingTask.id === deletedTaskId) {
+      setViewingTask(task);
+      setPendingChanges({});
+      setQueueTargetWeek(null);
+    }
+  }, [viewingTask.id, task]);
+
+  // ─── Explicit save ───
+  const handleSave = useCallback(() => {
+    if (!isDirty) return;
+    setIsSaving(true);
+    const merged = { ...serverFields, ...pendingChanges } as TaskFields;
+    onUpdate(viewingTask.id, { fields: merged });
+    setPendingChanges({});
+    setTimeout(() => setIsSaving(false), 400);
+  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate]);
+
+  // ─── Queue: create a copy for the selected future week ───
+  const handleQueue = useCallback(() => {
+    if (!queueTargetWeek) return;
+    const currentFields = { ...serverFields, ...pendingChanges } as TaskFields;
+    queueMutation.mutate(
+      {
+        sourceTaskId: task.id,
+        weekStart: queueTargetWeek,
+        dayOfWeek: task.dayOfWeek,
+        fields: currentFields,
+      },
+      {
+        onSuccess: () => {
+          setQueueTargetWeek(null);
+          setPendingChanges({});
+        },
+      },
+    );
+  }, [queueTargetWeek, serverFields, pendingChanges, task.id, task.dayOfWeek, queueMutation]);
+
+  // ─── Field change handlers (local only, no auto-save) ───
+  const handleFieldChange = useCallback((key: string, val: string) => {
+    setPendingChanges((prev) => ({ ...prev, [key]: val.trim() }));
+  }, []);
+
+  const handleSelectCaption = useCallback((sel: CaptionSelection) => {
+    const patch: Record<string, string> = {
+      captionId: sel.captionId,
+      captionBankText: sel.captionText,
+      caption: sel.captionText,
+      flyerAssetUrl: sel.gifUrl,
+      flyerAssetId: sel.boardItemId || '',
+    };
+    if (sel.contentCount) {
+      patch.paywallContent = sel.contentCount + (sel.contentLength ? ` (${sel.contentLength})` : '');
+    }
+    if (sel.price > 0) {
+      patch.price = `$${sel.price.toFixed(2)}`;
+    }
+    if (sel.contentType) {
+      patch.tag = sel.contentType;
+    }
+    setPendingChanges((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleClearCaption = useCallback(() => {
+    setPendingChanges((prev) => ({ ...prev, captionId: '', captionBankText: '' }));
+  }, []);
+
+  const handleCaptionOverride = useCallback((text: string) => {
+    setPendingChanges((prev) => ({ ...prev, caption: text, captionId: '', captionBankText: '' }));
+  }, []);
+
+  const handleSelectFlyer = useCallback((assetId: string, url: string) => {
+    setPendingChanges((prev) => ({ ...prev, flyerAssetId: assetId, flyerAssetUrl: url }));
+  }, []);
+
+  const handleClearFlyer = useCallback(() => {
+    setPendingChanges((prev) => ({ ...prev, flyerAssetId: '', flyerAssetUrl: '' }));
+  }, []);
+
+  const handleFlyerOverrideUrl = useCallback((url: string) => {
+    setPendingChanges((prev) => ({ ...prev, flyerAssetUrl: url, flyerAssetId: '' }));
+  }, []);
+
+  // ─── Close dropdown on outside click ───
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) setShowStatusMenu(false);
-      if (typeMenuRef.current && !typeMenuRef.current.contains(e.target as Node)) setShowTypeMenu(false);
+      if (styleMenuRef.current && !styleMenuRef.current.contains(e.target as Node)) setShowStyleMenu(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -129,79 +276,29 @@ export function SchedulerTaskModal({
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
+  // Status changes remain immediate (not field edits)
   const handleStatusChange = useCallback((newStatus: string) => {
     const updates: Partial<SchedulerTask> = { status: newStatus as SchedulerTask['status'] };
-    if (newStatus === 'IN_PROGRESS' && !task.startTime) updates.startTime = new Date().toISOString();
-    if (newStatus === 'DONE' && task.startTime && !task.endTime) updates.endTime = new Date().toISOString();
-    onUpdate(task.id, updates);
+    if (newStatus === 'IN_PROGRESS' && !viewingTask.startTime) updates.startTime = new Date().toISOString();
+    if (newStatus === 'DONE' && viewingTask.startTime && !viewingTask.endTime) updates.endTime = new Date().toISOString();
+    onUpdate(viewingTask.id, updates);
     setShowStatusMenu(false);
-  }, [task, onUpdate]);
+  }, [viewingTask, onUpdate]);
 
-  const handleFieldBlur = useCallback((key: string, val: string) => {
-    const currentVal = fields[key] || '';
-    if (val.trim() !== currentVal) {
-      saveFields({ [key]: val.trim() });
-    }
-  }, [fields, saveFields]);
-
-  const handleSelectCaption = useCallback((sel: CaptionSelection) => {
-    // Auto-fill caption + all board data (GIF, paywall, price, content type)
-    const patch: Record<string, string> = {
-      captionId: sel.captionId,
-      captionBankText: sel.captionText,
-      caption: sel.captionText,
-      flyerAssetUrl: sel.gifUrl,
-      flyerAssetId: sel.boardItemId || '',
-    };
-    // Auto-fill paywall content from board's contentCount + contentLength
-    if (sel.contentCount) {
-      patch.paywallContent = sel.contentCount + (sel.contentLength ? ` (${sel.contentLength})` : '');
-    }
-    // Auto-fill price
-    if (sel.price > 0) {
-      patch.price = `$${sel.price.toFixed(2)}`;
-    }
-    // Auto-fill content type as tag
-    if (sel.contentType) {
-      patch.tag = sel.contentType;
-    }
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
-
-  const handleClearCaption = useCallback(() => {
-    const patch = { captionId: '', captionBankText: '' };
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
-
-  const handleCaptionOverride = useCallback((text: string) => {
-    const patch = { caption: text, captionId: '', captionBankText: '' };
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
-
-  const handleSelectFlyer = useCallback((assetId: string, url: string) => {
-    const patch = { flyerAssetId: assetId, flyerAssetUrl: url };
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
-
-  const handleClearFlyer = useCallback(() => {
-    const patch = { flyerAssetId: '', flyerAssetUrl: '' };
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
-
-  const handleFlyerOverrideUrl = useCallback((url: string) => {
-    const patch = { flyerAssetUrl: url, flyerAssetId: '' };
-    setLocalPicker((prev) => ({ ...prev, ...patch }));
-    saveFields(patch);
-  }, [saveFields]);
+  const scrollToCalendar = useCallback(() => {
+    calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   if (!open) return null;
 
-  const statusOpt = STATUS_OPTIONS.find((s) => s.key === task.status) || STATUS_OPTIONS[0];
+  const statusOpt = STATUS_OPTIONS.find((s) => s.key === viewingTask.status) || STATUS_OPTIONS[0];
+
+  // Week label for the viewing task
+  const viewingWs = typeof viewingTask.weekStartDate === 'string' ? viewingTask.weekStartDate.split('T')[0] : String(viewingTask.weekStartDate);
+  const viewingWsDate = new Date(viewingWs + 'T00:00:00Z');
+  const viewingWeekLabel = !isNaN(viewingWsDate.getTime())
+    ? viewingWsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    : viewingWs;
 
   return createPortal(
     <div
@@ -209,43 +306,85 @@ export function SchedulerTaskModal({
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
     >
+      <div className={['flex gap-0 mx-4 max-h-[90vh]', showHistory ? 'max-w-6xl' : 'max-w-4xl'].join(' ')}>
+      {/* Main modal */}
       <div
-        className="w-full max-w-md mx-4 rounded-xl border bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl max-h-[90vh] flex flex-col"
+        className={['w-full rounded-xl border bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl flex flex-col', showHistory ? 'rounded-r-none border-r-0' : ''].join(' ')}
         style={{ borderTopWidth: 3, borderTopColor: typeColor }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-[#111124]">
           <div className="flex items-center gap-2">
-            {/* Type selector */}
-            <div className="relative" ref={typeMenuRef}>
+            {/* Back button when viewing a different task */}
+            {!isViewingOriginal && (
               <button
-                onClick={() => setShowTypeMenu(!showTypeMenu)}
-                className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full font-sans transition-colors border"
-                style={{
-                  background: typeColor + '20',
-                  color: typeColor,
-                  border: `1px solid ${typeColor}40`,
-                }}
+                onClick={handleBackToOriginal}
+                className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full font-sans transition-colors border bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700"
+                title="Back to current week"
               >
-                {task.taskType || 'TYPE'}
-                <ChevronDown className="h-2.5 w-2.5" />
+                <ArrowLeft className="h-2.5 w-2.5" />
+                Back
               </button>
-              {showTypeMenu && (
-                <div className="absolute top-full left-0 mt-1 z-20 rounded-lg shadow-xl py-1 min-w-[90px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                  {TASK_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => { onUpdate(task.id, { taskType: type }); setShowTypeMenu(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-                      style={{ color: TASK_TYPE_COLORS[type] }}
-                    >
-                      <span className="h-2 w-2 rounded-full" style={{ background: TASK_TYPE_COLORS[type] }} />
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              )}
+            )}
+
+            {/* Type + Style label */}
+            <div
+              className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full font-sans border"
+              style={{
+                background: typeColor + '20',
+                color: typeColor,
+                border: `1px solid ${typeColor}40`,
+              }}
+            >
+              {locked && <Lock className="h-2.5 w-2.5" />}
+              <span>{viewingTask.taskType || 'TYPE'}</span>
             </div>
+
+            {/* Style selector (unlock / follow-up MM tasks only) */}
+            {isUnlockOrFollowUp && (
+              <div className="relative" ref={styleMenuRef}>
+                <button
+                  onClick={() => !locked && setShowStyleMenu(!showStyleMenu)}
+                  className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full font-sans border transition-colors"
+                  style={{
+                    background: resolvedSubType ? typeColor + '15' : 'transparent',
+                    color: resolvedSubType ? typeColor : '#888',
+                    border: `1px solid ${resolvedSubType ? typeColor + '40' : '#88888830'}`,
+                    opacity: locked ? 0.6 : 1,
+                  }}
+                  disabled={locked}
+                >
+                  {resolvedSubType || 'Style'}
+                  {!locked && <ChevronDown className="h-2.5 w-2.5" />}
+                </button>
+                {showStyleMenu && !locked && (
+                  <div className="absolute top-full left-0 mt-1 z-20 rounded-lg shadow-xl py-1 min-w-[140px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    {FOLLOW_UP_SUB_TYPES.map((style) => (
+                      <button
+                        key={style}
+                        onClick={() => handleStyleChange(style)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+                        style={{ color: style === resolvedSubType ? typeColor : undefined }}
+                      >
+                        {style === resolvedSubType && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: typeColor }} />}
+                        {style}
+                      </button>
+                    ))}
+                    {resolvedSubType && (
+                      <>
+                        <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+                        <button
+                          onClick={() => handleStyleChange('')}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          None
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Status selector */}
             <div className="relative" ref={statusMenuRef}>
@@ -258,7 +397,7 @@ export function SchedulerTaskModal({
                   background: statusOpt.color + '15',
                 }}
               >
-                {STATUS_ICONS[task.status]}
+                {STATUS_ICONS[viewingTask.status]}
                 {statusOpt.label.toUpperCase()}
                 <ChevronDown className="h-2.5 w-2.5" />
               </button>
@@ -278,12 +417,45 @@ export function SchedulerTaskModal({
                 </div>
               )}
             </div>
+
+            {/* Week label when viewing a non-original task */}
+            {!isViewingOriginal && (
+              <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600 px-2 py-0.5 rounded bg-gray-50 dark:bg-gray-800">
+                Week of {viewingWeekLabel}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Flag toggle */}
+            <button
+              onClick={() => handleFieldChange('flagged', isFlagged ? '' : 'true')}
+              className={[
+                'p-1.5 rounded transition-colors',
+                isFlagged
+                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-500'
+                  : 'text-gray-400 dark:text-gray-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10',
+              ].join(' ')}
+              title={isFlagged ? 'Flagged — click to unflag' : 'Flag this task'}
+            >
+              <Flag className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
+            </button>
+            {/* History toggle */}
+            <button
+              onClick={() => setShowHistory((p) => !p)}
+              className={[
+                'p-1.5 rounded transition-colors',
+                showHistory
+                  ? 'bg-brand-blue/10 text-brand-blue'
+                  : 'text-gray-400 dark:text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5',
+              ].join(' ')}
+              title={showHistory ? 'Hide history' : 'Show history'}
+            >
+              <History className="h-3.5 w-3.5" />
+            </button>
             {onDelete && (
               <button
-                onClick={() => { onDelete(task.id); onClose(); }}
+                onClick={() => { onDelete(viewingTask.id); onClose(); }}
                 className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 title="Delete task"
               >
@@ -299,188 +471,249 @@ export function SchedulerTaskModal({
           </div>
         </div>
 
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Field rows */}
-          <div className="px-4 py-3 space-y-2">
-            {fieldDefs
-              .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(task.taskType))
-              .filter((def) => {
-                // Only show subType for Follow up tasks
-                if (def.key === 'subType') {
-                  const typeName = (fields.type || task.taskName || '').toLowerCase();
-                  return typeName.includes('follow up') || typeName.includes('follow-up');
-                }
-                return true;
-              })
-              .map((def) => {
-                // Render subType as a dropdown
-                if (def.key === 'subType') {
-                  return (
-                    <SubTypeSelector
+        {/* Lock banner */}
+        {locked && (
+          <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200 dark:border-amber-800/30 flex items-center gap-2">
+            <Lock className="h-3 w-3 text-amber-500 shrink-0" />
+            <span className="text-[10px] font-sans text-amber-700 dark:text-amber-400 flex-1">
+              This task is locked. Select a future date on the calendar to queue changes.
+            </span>
+            {hasLineage && (
+              <button
+                onClick={scrollToCalendar}
+                className="text-[10px] font-bold font-sans px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-colors shrink-0"
+              >
+                Select Date
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Two-column body */}
+        <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0">
+          {/* Left column: task fields */}
+          <div className="flex-1 min-w-0 overflow-y-auto md:border-r border-gray-100 dark:border-[#111124]">
+            {/* Field rows */}
+            <div className="px-4 py-3 space-y-2">
+              {fieldDefs
+                .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(viewingTask.taskType))
+                .filter((def) => def.key !== 'subType')
+                .map((def) => (
+                    <ModalFieldRow
                       key={def.key}
-                      value={fields.subType || ''}
-                      onChange={(val) => handleFieldBlur('subType', val)}
+                      label={def.label}
+                      value={fields[def.key] || ''}
+                      placeholder={def.placeholder}
+                      onChange={(val) => handleFieldChange(def.key, val)}
+                    />
+                ))}
+
+              {fieldDefs.length === 0 && viewingTask.taskName && (
+                <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
+                  {viewingTask.taskName}
+                </div>
+              )}
+            </div>
+
+            {/* Caption & Flyer Picker Section */}
+            {TYPES_WITH_PICKER.has(viewingTask.taskType) && (
+              <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
+                <div className="flex border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
+                  {(['caption', 'flyer'] as const).map((tab) => {
+                    const active = pickerTab === tab;
+                    const hasFlaggedCaption = fields.captionId && fields.flagged;
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setPickerTab(tab)}
+                        className="flex-1 py-2 text-[11px] font-bold font-sans transition-all border-b-2"
+                        style={{
+                          color: active ? typeColor : '#252545',
+                          borderBottomColor: active ? typeColor : 'transparent',
+                        }}
+                      >
+                        {tab === 'caption'
+                          ? `Caption${hasFlaggedCaption ? ' 🚩' : ''}`
+                          : 'Preview GIF'}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="p-3">
+                  {pickerTab === 'caption' ? (
+                    <CaptionPicker
+                      profileId={viewingTask.profileId}
+                      captionCategory={TASK_TYPE_TO_CAPTION_CATEGORY[viewingTask.taskType] || 'MM Unlock'}
+                      selectedCaptionId={fields.captionId || null}
+                      captionOverride={fields.captionId ? '' : (fields.caption || '')}
+                      onSelectCaption={handleSelectCaption}
+                      onClearCaption={handleClearCaption}
+                      onOverrideChange={handleCaptionOverride}
                       typeColor={typeColor}
                     />
-                  );
-                }
-                return (
-                  <ModalFieldRow
-                    key={def.key}
-                    label={def.label}
-                    value={fields[def.key] || ''}
-                    placeholder={def.placeholder}
-                    onBlur={(val) => handleFieldBlur(def.key, val)}
-                  />
-                );
-              })}
-
-            {/* Legacy taskName fallback */}
-            {fieldDefs.length === 0 && task.taskName && (
-              <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
-                {task.taskName}
+                  ) : (
+                    <FlyerPicker
+                      profileId={viewingTask.profileId}
+                      selectedFlyerAssetId={fields.flyerAssetId || null}
+                      selectedFlyerUrl={fields.flyerAssetUrl || ''}
+                      onSelectFlyer={handleSelectFlyer}
+                      onClearFlyer={handleClearFlyer}
+                      onOverrideUrl={handleFlyerOverrideUrl}
+                      typeColor={typeColor}
+                    />
+                  )}
+                </div>
               </div>
             )}
+
           </div>
 
-          {/* Caption & Flyer Picker Section */}
-          {TYPES_WITH_PICKER.has(task.taskType) && (
-            <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
-              {/* Picker tabs */}
-              <div className="flex border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
-                {(['caption', 'flyer'] as const).map((tab) => {
-                  const active = pickerTab === tab;
-                  const hasFlaggedCaption = fields.captionId && fields.flagged;
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setPickerTab(tab)}
-                      className="flex-1 py-2 text-[11px] font-bold font-sans transition-all border-b-2"
-                      style={{
-                        color: active ? typeColor : '#252545',
-                        borderBottomColor: active ? typeColor : 'transparent',
-                      }}
-                    >
-                      {tab === 'caption'
-                        ? `Caption${hasFlaggedCaption ? ' 🚩' : ''}`
-                        : 'Preview GIF'}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Picker content */}
-              <div className="p-3">
-                {pickerTab === 'caption' ? (
-                  <CaptionPicker
-                    profileId={task.profileId}
-                    captionCategory={TASK_TYPE_TO_CAPTION_CATEGORY[task.taskType] || 'MM Unlock'}
-                    selectedCaptionId={fields.captionId || null}
-                    captionOverride={fields.captionId ? '' : (fields.caption || '')}
-                    onSelectCaption={handleSelectCaption}
-                    onClearCaption={handleClearCaption}
-                    onOverrideChange={handleCaptionOverride}
-                    typeColor={typeColor}
-                  />
-                ) : (
-                  <FlyerPicker
-                    profileId={task.profileId}
-                    selectedFlyerAssetId={fields.flyerAssetId || null}
-                    selectedFlyerUrl={fields.flyerAssetUrl || ''}
-                    onSelectFlyer={handleSelectFlyer}
-                    onClearFlyer={handleClearFlyer}
-                    onOverrideUrl={handleFlyerOverrideUrl}
-                    typeColor={typeColor}
-                  />
-                )}
-              </div>
-            </div>
-          )}
+          {/* Right column: preview + calendar + queue + history */}
+          <div ref={calendarRef} className="w-full md:w-80 shrink-0 overflow-y-auto border-t md:border-t-0 border-gray-100 dark:border-[#111124]">
+            <ContentPreview fields={fields} typeColor={typeColor} />
+            <QueueCalendar
+              task={task}
+              schedulerToday={schedulerToday || ''}
+              weekStart={weekStart || ''}
+              typeColor={typeColor}
+              queueTargetWeek={queueTargetWeek}
+              onSelectQueueTarget={setQueueTargetWeek}
+              onSelectTask={handleSelectLineageTask}
+              activeTaskId={viewingTask.id}
+              onDeleteTask={handleDeleteQueuedTask}
+            />
+          </div>
         </div>
 
-        {/* History toggle + panel */}
+        {/* Footer: action buttons + time info */}
         <div className="border-t border-gray-100 dark:border-[#111124]">
-          <button
-            onClick={() => setShowHistory((p) => !p)}
-            className="w-full flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold font-sans transition-colors text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400"
-          >
-            <History className="h-3 w-3" />
-            {showHistory ? 'Hide History' : 'History'}
-          </button>
-          {showHistory && <TaskHistoryPanel taskId={task.id} />}
-        </div>
+          {/* Action buttons row — always visible, disabled when not actionable */}
+          <div className="px-4 py-2.5 flex items-center justify-end gap-2 border-b border-gray-100 dark:border-[#111124]">
+            {/* Save button */}
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+              className={[
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors',
+                isDirty
+                  ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
+                  : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
+              ].join(' ')}
+            >
+              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Save
+            </button>
 
-        {/* Footer: time info + updated by */}
-        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-[#111124] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {task.startTime && (
-              <div className="flex items-center gap-1 text-[9px] font-mono text-gray-500 dark:text-gray-600">
-                <Clock className="h-2.5 w-2.5" />
-                {formatTimeInTz(task.startTime, LA_TZ)}
-                {task.endTime && (
-                  <>
-                    <span>→</span>
-                    <span>{formatTimeInTz(task.endTime, LA_TZ)}</span>
-                    <span className="text-green-600 dark:text-[#4ade80]">
-                      ({formatDuration(task.startTime, task.endTime)})
-                    </span>
-                  </>
-                )}
-              </div>
+            {/* Queue button — always visible, disabled when no target selected */}
+            <button
+              onClick={handleQueue}
+              disabled={!queueTargetWeek || !hasLineage || queueMutation.isPending}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors"
+              style={{
+                background: queueTargetWeek && hasLineage ? typeColor + '10' : undefined,
+                color: queueTargetWeek && hasLineage ? typeColor : undefined,
+                borderColor: queueTargetWeek && hasLineage ? typeColor + '40' : undefined,
+                opacity: queueTargetWeek && hasLineage ? 1 : 0.4,
+                cursor: queueTargetWeek && hasLineage ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {queueMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
+              {queueTargetWeek ? (
+                <>
+                  Queue for {(() => {
+                    const ws = new Date(queueTargetWeek + 'T00:00:00Z');
+                    ws.setUTCDate(ws.getUTCDate() + task.dayOfWeek);
+                    return !isNaN(ws.getTime())
+                      ? ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+                      : queueTargetWeek;
+                  })()}
+                </>
+              ) : (
+                'Queue'
+              )}
+            </button>
+          </div>
+
+          {/* Time info row */}
+          <div className="px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {viewingTask.startTime && (
+                <div className="flex items-center gap-1 text-[9px] font-mono text-gray-500 dark:text-gray-600">
+                  <Clock className="h-2.5 w-2.5" />
+                  {formatTimeInTz(viewingTask.startTime, LA_TZ)}
+                  {viewingTask.endTime && (
+                    <>
+                      <span>→</span>
+                      <span>{formatTimeInTz(viewingTask.endTime, LA_TZ)}</span>
+                      <span className="text-green-600 dark:text-[#4ade80]">
+                        ({formatDuration(viewingTask.startTime, viewingTask.endTime)})
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {viewingTask.updatedBy && (
+              <span className="text-[8px] font-mono text-gray-400 dark:text-gray-700 truncate">
+                updated by {viewingTask.updatedBy}
+              </span>
             )}
           </div>
-          {task.updatedBy && (
-            <span className="text-[8px] font-mono text-gray-400 dark:text-gray-700 truncate">
-              updated by {task.updatedBy}
-            </span>
-          )}
         </div>
+      </div>
+
+      {/* History sidebar */}
+      {showHistory && (
+        <div
+          className="w-80 shrink-0 rounded-r-xl border border-l-0 bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl flex flex-col overflow-hidden"
+          style={{ borderTopWidth: 3, borderTopColor: typeColor }}
+        >
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-[#111124]">
+            <div className="flex items-center gap-1.5">
+              <History className="h-3 w-3 text-brand-blue" />
+              <span className="text-[10px] font-bold tracking-wider font-sans text-gray-500 dark:text-gray-400">
+                {task.lineageId ? 'LINEAGE HISTORY' : 'TASK HISTORY'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowHistory(false)}
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5"
+            >
+              <X className="h-3 w-3 text-gray-400" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {task.lineageId ? (
+              <ModalLineageHistory lineageId={task.lineageId} />
+            ) : (
+              <ModalTaskHistory taskId={viewingTask.id} />
+            )}
+          </div>
+        </div>
+      )}
       </div>
     </div>,
     document.body,
   );
 }
 
-function SubTypeSelector({
-  value,
-  onChange,
-  typeColor,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  typeColor: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <label className="text-[10px] font-bold text-gray-400 dark:text-gray-600 font-sans min-w-[90px] whitespace-nowrap">
-        Sub-Type
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 text-xs px-2 py-1 rounded border outline-none font-mono transition-colors bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]"
-        style={value ? { borderColor: typeColor + '40' } : undefined}
-      >
-        <option value="">None</option>
-        {FOLLOW_UP_SUB_TYPES.map((st) => (
-          <option key={st} value={st}>{st}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 
 function ModalFieldRow({
   label,
   value,
   placeholder,
-  onBlur,
+  onChange,
 }: {
   label: string;
   value: string;
   placeholder?: string;
-  onBlur: (val: string) => void;
+  onChange: (val: string) => void;
 }) {
   const [localVal, setLocalVal] = useState(value);
 
@@ -496,7 +729,7 @@ function ModalFieldRow({
       <input
         value={localVal}
         onChange={(e) => setLocalVal(e.target.value)}
-        onBlur={() => onBlur(localVal)}
+        onBlur={() => onChange(localVal)}
         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         placeholder={placeholder}
         className="flex-1 text-xs px-2 py-1 rounded border outline-none font-mono transition-colors bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]"
@@ -505,66 +738,190 @@ function ModalFieldRow({
   );
 }
 
-// ─── Field label map ─────────────────────────────────────────────────────────
+const URL_REGEX = /^https?:\/\/.+/i;
 
-const ALL_FIELD_LABELS: Record<string, string> = (() => {
-  const map: Record<string, string> = {
-    status: 'Status',
-    taskType: 'Type',
-    taskName: 'Task Name',
-    notes: 'Notes',
-    sortOrder: 'Sort Order',
-  };
+/** Fullscreen image lightbox rendered via portal */
+function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-zoom-out"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+      >
+        <X className="h-5 w-5 text-white" />
+      </button>
+      <img
+        src={url}
+        alt="Full preview"
+        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>,
+    document.body,
+  );
+}
+
+/** Tries to render a URL as an image; falls back to a styled link card on error */
+function PreviewMedia({
+  url,
+  label,
+  typeColor,
+  compact,
+}: {
+  url: string;
+  label: string;
+  typeColor: string;
+  compact?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
+
+  // Extract a readable short label from the URL
+  const shortUrl = url.replace('https://', '').replace('http://', '');
+  const domain = shortUrl.split('/')[0];
+  const lastSegment = shortUrl.split('/').pop()?.split('?')[0] || domain;
+
+  return (
+    <div className={[compact ? 'shrink-0 w-16' : 'flex-1 min-w-0', 'flex flex-col h-full'].join(' ')}>
+      <span className="text-[8px] font-bold font-sans text-gray-400 dark:text-gray-600 mb-1 shrink-0">
+        {label}
+      </span>
+      {!failed ? (
+        <div className="flex-1 min-h-0 relative">
+          <img
+            src={url}
+            alt={label}
+            className="w-full h-full object-contain rounded border border-gray-200 dark:border-gray-800 bg-black/5 dark:bg-black/20 cursor-zoom-in hover:opacity-80 transition-opacity"
+            loading="lazy"
+            onClick={() => setLightbox(true)}
+            onError={() => setFailed(true)}
+          />
+          {lightbox && <ImageLightbox url={url} onClose={() => setLightbox(false)} />}
+        </div>
+      ) : (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02] hover:bg-gray-100 dark:hover:bg-white/5 transition-colors p-2.5"
+        >
+          <span
+            className="flex items-center justify-center h-8 w-8 rounded-md shrink-0 text-[10px] font-bold text-white"
+            style={{ background: typeColor }}
+          >
+            ↗
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-bold font-sans text-gray-700 dark:text-gray-300 truncate">
+              {lastSegment}
+            </p>
+            <p className="text-[8px] font-mono text-gray-400 dark:text-gray-600 truncate">
+              {domain}
+            </p>
+          </div>
+        </a>
+      )}
+    </div>
+  );
+}
+
+function ContentPreview({
+  fields,
+  typeColor,
+}: {
+  fields: Record<string, string>;
+  typeColor: string;
+}) {
+  const contentVal = fields.contentPreview || fields.contentFlyer || '';
+  const flyerUrl = fields.flyerAssetUrl || '';
+
+  const hasContentUrl = URL_REGEX.test(contentVal);
+  const hasFlyerUrl = URL_REGEX.test(flyerUrl);
+  const hasAny = hasContentUrl || hasFlyerUrl;
+
+  return (
+    <div className="p-3 border-b border-gray-100 dark:border-[#111124]">
+      <span className="text-[9px] font-bold tracking-wider font-sans text-gray-400 block mb-2">PREVIEW</span>
+
+      {/* Fixed-height container so layout never shifts */}
+      <div className="h-36">
+        {!hasAny ? (
+          <div className="flex items-center justify-center h-full rounded-lg border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02]">
+            <span className="text-[10px] font-mono text-gray-300 dark:text-gray-700">
+              No preview or flyer available
+            </span>
+          </div>
+        ) : (
+          <div className="flex gap-2 h-full">
+            {hasContentUrl && (
+              <PreviewMedia
+                url={contentVal}
+                label={fields.contentPreview ? 'Content' : 'Flyer'}
+                typeColor={typeColor}
+              />
+            )}
+            {hasFlyerUrl && (
+              <PreviewMedia
+                url={flyerUrl}
+                label="GIF"
+                typeColor={typeColor}
+                compact={hasContentUrl}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── History field labels ────────────────────────────────────────────────────
+
+const HISTORY_FIELD_LABELS: Record<string, string> = (() => {
+  const map: Record<string, string> = { status: 'Status', taskType: 'Type', taskName: 'Task Name', notes: 'Notes', sortOrder: 'Sort Order' };
   for (const [, defs] of Object.entries(TASK_FIELD_DEFS)) {
-    for (const d of defs) {
-      map[`fields.${d.key}`] = d.label;
-    }
+    for (const d of defs) map[`fields.${d.key}`] = d.label;
   }
   return map;
 })();
 
-function humanFieldLabel(field: string): string {
-  return ALL_FIELD_LABELS[field] || field.replace('fields.', '');
+function historyLabel(field: string) { return HISTORY_FIELD_LABELS[field] || field.replace('fields.', ''); }
+function truncHist(val: string | null, max = 50) { return !val ? '(empty)' : val.length > max ? val.slice(0, max) + '...' : val; }
+
+const STATUS_BADGE_MAP: Record<string, string> = { PENDING: '#3a3a5a', IN_PROGRESS: '#38bdf8', DONE: '#4ade80', SKIPPED: '#fbbf24' };
+
+function HistBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-gray-400">(empty)</span>;
+  const c = STATUS_BADGE_MAP[value] || '#888';
+  return <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold" style={{ background: c + '20', color: c }}>{value}</span>;
 }
 
-function truncate(val: string | null, max = 60): string {
-  if (!val) return '(empty)';
-  return val.length > max ? val.slice(0, max) + '...' : val;
-}
+// ─── Task History Panel (for sidebar) ────────────────────────────────────────
 
-// ─── Task History Panel ──────────────────────────────────────────────────────
-
-function TaskHistoryPanel({ taskId }: { taskId: string }) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useTaskHistory(taskId);
-
+function ModalTaskHistory({ taskId }: { taskId: string }) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useTaskHistory(taskId);
   const items = data?.pages.flatMap((p) => p.items) ?? [];
 
+  if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin text-brand-blue" /></div>;
+  if (items.length === 0) return <p className="text-[10px] text-center py-10 font-mono text-gray-400">No changes recorded yet.</p>;
+
   return (
-    <div className="max-h-52 overflow-y-auto border-t border-gray-50 dark:border-[#0c0c1f]">
-      {isLoading && (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-4 w-4 animate-spin text-brand-blue dark:text-[#38bdf8]" />
-        </div>
-      )}
-
-      {!isLoading && items.length === 0 && (
-        <p className="text-[10px] text-center py-6 font-mono text-gray-400 dark:text-[#3a3a5a]">
-          No changes recorded yet.
-        </p>
-      )}
-
+    <div>
       {items.map((item) => (
-        <HistoryEntry key={item.id} item={item} />
+        <HistoryRow key={item.id} item={item} />
       ))}
-
       {hasNextPage && (
-        <div className="px-4 py-2 text-center">
-          <button
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="text-[10px] font-bold font-sans text-brand-blue dark:text-[#38bdf8]"
-          >
+        <div className="px-3 py-2 text-center">
+          <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="text-[10px] font-bold font-sans text-brand-blue">
             {isFetchingNextPage ? 'Loading...' : 'Load more'}
           </button>
         </div>
@@ -573,55 +930,31 @@ function TaskHistoryPanel({ taskId }: { taskId: string }) {
   );
 }
 
-function HistoryEntry({ item }: { item: TaskHistoryItem }) {
+function HistoryRow({ item }: { item: TaskHistoryItem }) {
   const isStatus = item.field === 'status';
-
   return (
-    <div className="px-4 py-2 border-b border-gray-50 dark:border-[#0c0c1f] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+    <div className="px-3 py-2 border-b border-gray-50 dark:border-[#0c0c1f] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
       <div className="flex items-start gap-2">
         {item.user.imageUrl ? (
-          <img src={item.user.imageUrl} alt="" className="h-4 w-4 rounded-full flex-shrink-0 mt-0.5" />
+          <img src={item.user.imageUrl} alt="" className="h-4 w-4 rounded-full shrink-0 mt-0.5" />
         ) : (
-          <div className="h-4 w-4 rounded-full flex-shrink-0 mt-0.5 bg-brand-light-pink/10 dark:bg-[#ff9a6c20]" />
+          <div className="h-4 w-4 rounded-full shrink-0 mt-0.5 bg-brand-light-pink/10" />
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-mono text-gray-500 dark:text-[#888]">
-            <span className="font-bold text-gray-700 dark:text-[#aaa]">
-              {item.user.name || 'Unknown'}
-            </span>{' '}
-            changed{' '}
-            <span className="font-bold text-gray-600 dark:text-[#999]">
-              {humanFieldLabel(item.field)}
-            </span>
+          <p className="text-[9px] font-mono text-gray-500 dark:text-gray-500">
+            <span className="font-bold text-gray-700 dark:text-gray-300">{item.user.name || 'Unknown'}</span>
+            {' '}{item.action === 'QUEUED' ? 'queued' : 'changed'}{' '}
+            <span className="font-bold">{historyLabel(item.field)}</span>
           </p>
-          <div className="flex items-center gap-1 mt-0.5 text-[9px] font-mono">
+          <div className="flex items-center gap-1 mt-0.5 text-[8px] font-mono flex-wrap">
             {isStatus ? (
-              <>
-                <StatusBadge value={item.oldValue} />
-                <span className="text-gray-400">→</span>
-                <StatusBadge value={item.newValue} />
-              </>
+              <><HistBadge value={item.oldValue} /><span className="text-gray-400">→</span><HistBadge value={item.newValue} /></>
             ) : (
-              <>
-                <span className="text-red-400 dark:text-red-500 line-through">
-                  {truncate(item.oldValue)}
-                </span>
-                <span className="text-gray-400">→</span>
-                <span className="text-green-500 dark:text-green-400">
-                  {truncate(item.newValue)}
-                </span>
-              </>
+              <><span className="text-red-400 line-through">{truncHist(item.oldValue)}</span><span className="text-gray-400">→</span><span className="text-green-500">{truncHist(item.newValue)}</span></>
             )}
           </div>
-          <p className="text-[8px] mt-0.5 font-mono text-gray-300 dark:text-[#252545]">
-            {new Date(item.createdAt).toLocaleString('en-US', {
-              timeZone: 'America/Los_Angeles',
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true,
-            })}
+          <p className="text-[7px] mt-0.5 font-mono text-gray-300 dark:text-gray-700">
+            {new Date(item.createdAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
           </p>
         </div>
       </div>
@@ -629,22 +962,66 @@ function HistoryEntry({ item }: { item: TaskHistoryItem }) {
   );
 }
 
-const STATUS_BADGE_COLORS: Record<string, string> = {
-  PENDING: '#3a3a5a',
-  IN_PROGRESS: '#38bdf8',
-  DONE: '#4ade80',
-  SKIPPED: '#fbbf24',
-};
+// ─── Lineage History Panel (for sidebar) ─────────────────────────────────────
 
-function StatusBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-gray-400">(empty)</span>;
-  const color = STATUS_BADGE_COLORS[value] || '#888';
+function ModalLineageHistory({ lineageId }: { lineageId: string }) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useLineageHistory(lineageId);
+  const items = data?.pages.flatMap((p) => p.items) ?? [];
+
+  if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin text-brand-blue" /></div>;
+  if (items.length === 0) return <p className="text-[10px] text-center py-10 font-mono text-gray-400">No changes recorded across this lineage.</p>;
+
   return (
-    <span
-      className="px-1.5 py-0.5 rounded-full text-[8px] font-bold"
-      style={{ background: color + '20', color }}
-    >
-      {value}
-    </span>
+    <div>
+      {items.map((item) => (
+        <LineageHistoryRow key={item.id} item={item} />
+      ))}
+      {hasNextPage && (
+        <div className="px-3 py-2 text-center">
+          <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="text-[10px] font-bold font-sans text-brand-blue">
+            {isFetchingNextPage ? 'Loading...' : 'Load more'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LineageHistoryRow({ item }: { item: LineageHistoryItem }) {
+  const isStatus = item.field === 'status';
+  return (
+    <div className="px-3 py-2 border-b border-gray-50 dark:border-[#0c0c1f] hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+      <div className="flex items-start gap-2">
+        {item.user.imageUrl ? (
+          <img src={item.user.imageUrl} alt="" className="h-4 w-4 rounded-full shrink-0 mt-0.5" />
+        ) : (
+          <div className="h-4 w-4 rounded-full shrink-0 mt-0.5 bg-brand-light-pink/10" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-[9px] font-mono text-gray-500 dark:text-gray-500">
+              <span className="font-bold text-gray-700 dark:text-gray-300">{item.user.name || 'Unknown'}</span>
+              {' '}{item.action === 'QUEUED' ? 'queued' : 'changed'}{' '}
+              <span className="font-bold">{historyLabel(item.field)}</span>
+            </p>
+            {item.weekStartDate && (
+              <span className="text-[7px] font-mono px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 shrink-0">
+                {new Date(item.weekStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 mt-0.5 text-[8px] font-mono flex-wrap">
+            {isStatus ? (
+              <><HistBadge value={item.oldValue} /><span className="text-gray-400">→</span><HistBadge value={item.newValue} /></>
+            ) : (
+              <><span className="text-red-400 line-through">{truncHist(item.oldValue)}</span><span className="text-gray-400">→</span><span className="text-green-500">{truncHist(item.newValue)}</span></>
+            )}
+          </div>
+          <p className="text-[7px] mt-0.5 font-mono text-gray-300 dark:text-gray-700">
+            {new Date(item.createdAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

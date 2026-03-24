@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
   if (profileId) taskFilter.profileId = profileId;
   if (platform) taskFilter.platform = platform;
 
+  // Find history entries that were created on this date
   const items = await prisma.schedulerTaskHistory.findMany({
     where: {
       createdAt: { gte: dayStart, lte: dayEnd },
@@ -47,13 +48,7 @@ export async function GET(request: NextRequest) {
     ...(cursor && { cursor: { id: cursor }, skip: 1 }),
     include: {
       task: {
-        select: {
-          id: true,
-          taskType: true,
-          slotLabel: true,
-          dayOfWeek: true,
-          taskName: true,
-        },
+        select: { id: true, taskType: true, slotLabel: true, dayOfWeek: true, taskName: true },
       },
     },
   });
@@ -81,7 +76,7 @@ export async function GET(request: NextRequest) {
       newValue: item.newValue,
       createdAt: item.createdAt.toISOString(),
       user: userMap.get(item.userId) ?? { name: null, imageUrl: null },
-      task: item.task,
+      task: item.task ? { id: item.task.id, taskType: item.task.taskType, slotLabel: item.task.slotLabel, dayOfWeek: item.task.dayOfWeek, taskName: item.task.taskName } : null,
     })),
     nextCursor,
   });

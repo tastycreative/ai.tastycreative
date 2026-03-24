@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, CalendarClock, Download, Upload, ChevronDown } from 'lucide-react';
+import { Settings, History, CalendarClock, Download, Upload, ChevronDown, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -25,7 +25,6 @@ import {
 import { TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { cleanTaskLimits } from '@/lib/scheduler/task-limits';
 import { SchedulerDayColumn } from './SchedulerDayColumn';
-import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
@@ -33,6 +32,8 @@ import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
 import { SchedulerExportModal } from './SchedulerExportModal';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
+import { getCountdownToReset } from '@/lib/scheduler/time-helpers';
+import { getTimezoneAbbreviation, getTodayKeyInTimezone } from '@/lib/timezone-utils';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
 const STRATEGY_LABELS: Record<string, string> = {
@@ -79,6 +80,8 @@ function makeSampleTask(
     updatedBy: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    lineageId: null,
+    sourceTaskId: null,
   };
 }
 
@@ -393,6 +396,29 @@ export function SchedulerGrid() {
     const today = new Date(schedulerToday + 'T00:00:00Z');
     return formatDateKey(getWeekStart(today));
   });
+
+  // ─── UTC clock & reset countdown ───
+  const [countdown, setCountdown] = useState('');
+  const [utcTime, setUtcTime] = useState('');
+  const [isAdvanced, setIsAdvanced] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      setCountdown(getCountdownToReset());
+      const now = new Date();
+      const datePart = now.toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+      const timePart = now.toLocaleString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+      setUtcTime(`${datePart}, ${timePart} UTC`);
+      const calendarToday = getTodayKeyInTimezone('America/Los_Angeles');
+      setIsAdvanced(schedulerToday !== calendarToday);
+    };
+    update();
+    const interval = setInterval(update, 1_000);
+    return () => clearInterval(interval);
+  }, [schedulerToday]);
+
+  const schedulerDayName = new Date(schedulerToday + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -483,10 +509,12 @@ export function SchedulerGrid() {
       if (showDemo) return;
       updateTask.mutate({ id, ...data, tabId });
 
-      // ── Bidirectional sync: Unlock ↔ Follow up contentPreview ──
+      // ── Bidirectional sync: Unlock ↔ Follow up (contentPreview + style) ──
       if (data.fields) {
         const updatedFields = data.fields as Record<string, string>;
-        if (updatedFields.contentPreview === undefined) return;
+        const hasContentSync = updatedFields.contentPreview !== undefined;
+        const hasStyleSync = updatedFields.subType !== undefined;
+        if (!hasContentSync && !hasStyleSync) return;
 
         const task = tasks.find((t) => t.id === id);
         if (!task || task.taskType !== 'MM') return;
@@ -498,6 +526,11 @@ export function SchedulerGrid() {
         const isFollowUp = taskTypeName.includes('follow up') || taskTypeName.includes('follow-up');
 
         if (!isUnlock && !isFollowUp) return;
+
+        // Build the patch to apply to siblings
+        const syncPatch: Record<string, string> = {};
+        if (hasContentSync) syncPatch.contentPreview = updatedFields.contentPreview;
+        if (hasStyleSync) syncPatch.subType = updatedFields.subType;
 
         const dayTasks = tasksByDay.get(task.dayOfWeek) ?? [];
         const mmTasks = dayTasks.filter((t) => t.taskType === 'MM');
@@ -512,7 +545,7 @@ export function SchedulerGrid() {
             const nextType = (nextFields.type || next.taskName || '').toLowerCase();
 
             if (nextType.includes('follow up') || nextType.includes('follow-up')) {
-              const merged = { ...nextFields, contentPreview: updatedFields.contentPreview };
+              const merged = { ...nextFields, ...syncPatch };
               updateTask.mutate({ id: next.id, fields: merged as SchedulerTask['fields'], tabId });
             } else if (nextType.includes('unlock')) {
               break;
@@ -526,7 +559,7 @@ export function SchedulerGrid() {
             const prevType = (prevFields.type || prev.taskName || '').toLowerCase();
 
             if (prevType.includes('unlock')) {
-              const merged = { ...prevFields, contentPreview: updatedFields.contentPreview };
+              const merged = { ...prevFields, ...syncPatch };
               updateTask.mutate({ id: prev.id, fields: merged as SchedulerTask['fields'], tabId });
               // Also sync to any other Follow ups under that same Unlock
               for (let j = i + 1; j < mmTasks.length; j++) {
@@ -535,7 +568,7 @@ export function SchedulerGrid() {
                 const sibFields = (sibling.fields || {}) as Record<string, string>;
                 const sibType = (sibFields.type || sibling.taskName || '').toLowerCase();
                 if (sibType.includes('follow up') || sibType.includes('follow-up')) {
-                  const sibMerged = { ...sibFields, contentPreview: updatedFields.contentPreview };
+                  const sibMerged = { ...sibFields, ...syncPatch };
                   updateTask.mutate({ id: sibling.id, fields: sibMerged as SchedulerTask['fields'], tabId });
                 } else if (sibType.includes('unlock')) {
                   break;
@@ -799,8 +832,30 @@ export function SchedulerGrid() {
         </div>
       )}
 
-      {/* Week nav */}
-      <SchedulerWeekNav weekStart={weekStart} todayKey={schedulerToday} onWeekChange={setWeekStart} />
+      {/* UTC time & reset countdown */}
+      <div className="flex items-center justify-end flex-wrap gap-3 px-2 py-1.5 border-b border-gray-200 dark:border-[#111124]">
+        {utcTime && (
+          <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
+            {utcTime}
+          </span>
+        )}
+        {countdown && (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse bg-brand-mid-pink dark:bg-[#f472b6]" />
+            <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
+              resets in {countdown} (5 PM {getTimezoneAbbreviation('America/Los_Angeles', new Date())})
+            </span>
+          </div>
+        )}
+      </div>
+      {isAdvanced && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-amber-50 border-amber-200 dark:bg-[#fbbf2408] dark:border-[#fbbf2420]">
+          <Info className="h-3 w-3 flex-shrink-0 text-amber-500 dark:text-[#fbbf24]" />
+          <span className="text-[10px] font-mono text-amber-600 dark:text-[#fbbf24cc]">
+            5 PM LA reset passed — Running Queue has moved to {schedulerDayName}
+          </span>
+        </div>
+      )}
 
       {/* Grid */}
       {isLoading && !showDemo ? (
@@ -827,6 +882,7 @@ export function SchedulerGrid() {
                 isToday={dateStr === schedulerToday}
                 timeZone={LA_TZ}
                 weekStart={weekStart}
+                schedulerToday={schedulerToday}
                 expanded={isExpanded}
                 collapsed={!isExpanded}
                 popupDirection={dayIndex > expandedDay! ? 'left' : 'right'}
@@ -861,6 +917,7 @@ export function SchedulerGrid() {
                 isToday={dateStr === schedulerToday}
                 timeZone={LA_TZ}
                 weekStart={weekStart}
+                schedulerToday={schedulerToday}
                 expanded={false}
                 collapsed={false}
                 onToggleExpand={() => toggleExpand(dayIndex)}
