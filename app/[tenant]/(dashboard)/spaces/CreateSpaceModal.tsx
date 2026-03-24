@@ -24,6 +24,7 @@ import {
   Lock,
   Globe,
   UserPlus,
+  Clapperboard,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -135,6 +136,15 @@ const TEMPLATES: TemplateOption[] = [
       'Track every step of bringing a new model onboard — from collecting info and verifying identity to setting up accounts and scheduling first content. Includes a built-in checklist with progress tracking.',
     icon: UserPlus,
   },
+  {
+    id: 'CONTENT_GENERATION',
+    name: 'Content Generation Board',
+    abbr: 'CG',
+    description: 'Manage content generation tasks with vault asset access.',
+    details:
+      'Streamline content generation workflows. Managers create task requests with client, type, quantity, and deadline. Content generators pick assets from the vault, attach them to tasks, and submit for review. Built-in vault browser scoped to client profiles.',
+    icon: Clapperboard,
+  },
 ];
 
 const DEFAULT_WORK_TYPES: WorkType[] = [
@@ -168,12 +178,23 @@ const MODEL_ONBOARDING_STATUSES: StatusItem[] = [
   { id: 'completed', name: 'Completed', color: 'green' },
 ];
 
+const CONTENT_GENERATION_STATUSES: StatusItem[] = [
+  { id: 'open', name: 'Open', color: 'blue' },
+  { id: 'assigned', name: 'Assigned', color: 'cyan' },
+  { id: 'in-progress', name: 'In Progress', color: 'amber' },
+  { id: 'review', name: 'Review', color: 'purple' },
+  { id: 'revision', name: 'Revision', color: 'orange' },
+  { id: 'completed', name: 'Completed', color: 'green' },
+];
+
 function getDefaultStatusesForTemplate(templateType: SpaceTemplateType): StatusItem[] {
   switch (templateType) {
     case 'SEXTING_SETS':
       return SEXTING_SETS_STATUSES;
     case 'MODEL_ONBOARDING':
       return MODEL_ONBOARDING_STATUSES;
+    case 'CONTENT_GENERATION':
+      return CONTENT_GENERATION_STATUSES;
     default:
       return DEFAULT_STATUSES;
   }

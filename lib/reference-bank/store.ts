@@ -14,6 +14,7 @@ import {
   calculateFileHash,
   folderSortPreferences
 } from "./api";
+import { invalidateRBQueries } from "./queryClientBridge";
 
 interface ReferenceBankState {
   // Data
@@ -173,6 +174,8 @@ export const useReferenceBankStore = create<ReferenceBankState>()(
       },
 
       // Filter setters
+      // NOTE: fetchData() is NOT called here — the TanStack query in useReferenceBankData()
+      // encodes these values in its key and automatically refetches when they change.
       setSelectedFolderId: (id) => {
         const sortBy = folderSortPreferences.get(id);
         set({ 
@@ -182,27 +185,22 @@ export const useReferenceBankStore = create<ReferenceBankState>()(
           sortBy,
           selectedItems: new Set() 
         });
-        get().fetchData();
       },
 
       setShowFavoritesOnly: (show) => {
         set({ showFavoritesOnly: show, selectedFolderId: null, showRecentlyUsed: false, selectedItems: new Set() });
-        get().fetchData();
       },
 
       setShowRecentlyUsed: (show) => {
         set({ showRecentlyUsed: show, showFavoritesOnly: false, selectedFolderId: null, selectedItems: new Set() });
-        get().fetchData();
       },
 
       setFilterType: (type) => {
         set({ filterType: type, selectedItems: new Set() });
-        get().fetchData();
       },
 
       setSearchQuery: (query) => {
         set({ searchQuery: query, selectedItems: new Set() });
-        get().fetchData();
       },
 
       setSortBy: (sortBy) => {
@@ -498,7 +496,7 @@ export const useReferenceBankStore = create<ReferenceBankState>()(
         }
 
         set({ isUploading: false });
-        fetchData(); // Refresh stats
+        invalidateRBQueries(); // Invalidate TanStack cache to reflect new upload
       },
 
       retryUpload: async (id) => {

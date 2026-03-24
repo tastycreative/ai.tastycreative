@@ -2577,6 +2577,8 @@ model SchedulerTask {
   fields         Json?
   platform       String                 @default("free")
   profileId      String?
+  lineageId      String?
+  sourceTaskId   String?
   activityLogs   SchedulerActivityLog[]
   history        SchedulerTaskHistory[]
   organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2584,6 +2586,7 @@ model SchedulerTask {
   @@unique([organizationId, weekStartDate, dayOfWeek, slotLabel])
   @@index([organizationId, weekStartDate])
   @@index([organizationId, profileId, platform])
+  @@index([lineageId])
   @@map("scheduler_tasks")
 }
 
@@ -2996,6 +2999,7 @@ enum SpaceTemplateType {
   SEXTING_SETS
   OTP_PTR
   MODEL_ONBOARDING
+  CONTENT_GENERATION
 }
 
 enum BoardItemType {

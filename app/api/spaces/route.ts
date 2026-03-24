@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     const name = body.name.trim();
     const templateType = body.templateType ?? 'KANBAN';
-    const key = body.key?.trim() || null;
+    const baseKey = body.key?.trim() || null;
     const access = body.access === 'PRIVATE' ? 'PRIVATE' : 'OPEN';
     const description =
       typeof body.description === 'string' ? body.description.trim() || null : null;
@@ -119,14 +119,28 @@ export async function POST(req: NextRequest) {
     // Unique slug within the org
     const baseSlug = slugify(name);
     let slug = baseSlug;
-    let suffix = 1;
+    let slugSuffix = 1;
     while (
       await prisma.workspace.findFirst({
         where: { organizationId: user.currentOrganizationId, slug },
         select: { id: true },
       })
     ) {
-      slug = `${baseSlug}-${suffix++}`;
+      slug = `${baseSlug}-${slugSuffix++}`;
+    }
+
+    // Unique key within the org
+    let key = baseKey;
+    if (key) {
+      let keySuffix = 1;
+      while (
+        await prisma.workspace.findFirst({
+          where: { organizationId: user.currentOrganizationId, key },
+          select: { id: true },
+        })
+      ) {
+        key = `${baseKey}${keySuffix++}`;
+      }
     }
 
     // Build config from user-provided data

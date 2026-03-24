@@ -136,8 +136,8 @@ export function BoardColumn({
   };
 
   const handlePlusClick = () => {
-    // Open submission modal for WALL_POST, OTP_PTR, and SEXTING_SETS templates
-    if (templateType === 'WALL_POST' || templateType === 'OTP_PTR' || templateType === 'SEXTING_SETS') {
+    // Open submission modal for WALL_POST, OTP_PTR, SEXTING_SETS, and CONTENT_GENERATION templates
+    if (templateType === 'WALL_POST' || templateType === 'OTP_PTR' || templateType === 'SEXTING_SETS' || templateType === 'CONTENT_GENERATION') {
       if (onOpenSubmissionModal && params.slug) {
         onOpenSubmissionModal(templateType, params.slug);
       } else {

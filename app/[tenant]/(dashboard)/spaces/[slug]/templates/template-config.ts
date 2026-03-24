@@ -105,6 +105,32 @@ const otpPtrItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): Boar
   };
 };
 
+const contentGenItemToTask: ItemToTaskFn = (item: BoardItem, spaceKey: string): BoardTask => {
+  const meta = (item.metadata ?? {}) as Record<string, unknown>;
+  const taskType = (meta.taskType as string) ?? '';
+  const quantity = (meta.quantity as number) ?? 1;
+  const clientName = (meta.clientName as string) ?? '';
+  const vaultAssets = Array.isArray(meta.vaultAssets) ? (meta.vaultAssets as unknown[]) : [];
+  return {
+    id: item.id,
+    taskKey: spaceKey ? `${spaceKey}-${item.itemNo}` : item.id.slice(-6).toUpperCase(),
+    title: item.title,
+    description: (item.description as string) ?? undefined,
+    assignee: Array.isArray(meta.assignedTo) && (meta.assignedTo as string[]).length > 0
+      ? (meta.assignedTo as string[])[0]
+      : (item.assigneeId as string) ?? undefined,
+    priority: undefined,
+    tags: [
+      ...(taskType ? [taskType.replace(/_/g, ' ')] : []),
+      ...(clientName ? [clientName] : []),
+      ...(quantity > 1 ? [`x${quantity}`] : []),
+      ...(vaultAssets.length > 0 ? [`${vaultAssets.length} assets`] : []),
+    ],
+    dueDate: (meta.deadline as string) ?? item.dueDate ?? undefined,
+    metadata: { ...meta, _createdAt: item.createdAt, _updatedAt: item.updatedAt },
+  };
+};
+
 /* ------------------------------------------------------------------ */
 /*  Template config registry                                           */
 /* ------------------------------------------------------------------ */
@@ -133,7 +159,10 @@ import {
   SextingSetsSummary,
   OtpPtrSummary,
   ModelOnboardingSummary,
+  ContentGenSummary,
 } from './summary';
+import { ContentGenTaskDetailModal } from './ContentGenTaskDetailModal';
+import { ContentGenTaskCard } from './ContentGenTaskCard';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -203,5 +232,19 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     DetailModal: ModelOnboardingTaskDetailModal,
     CardComponent: ModelOnboardingTaskCard,
     SummaryComponent: ModelOnboardingSummary,
+  },
+  CONTENT_GENERATION: {
+    label: 'Content Generation',
+    tabs: [
+      { id: 'summary', label: 'Summary' },
+      { id: 'board', label: 'Board' },
+      { id: 'timeline', label: 'Timeline' },
+      { id: 'calendar', label: 'Calendar' },
+      { id: 'resources', label: 'Resources' },
+    ],
+    itemToTask: contentGenItemToTask,
+    DetailModal: ContentGenTaskDetailModal,
+    CardComponent: ContentGenTaskCard,
+    SummaryComponent: ContentGenSummary,
   },
 };

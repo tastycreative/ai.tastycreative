@@ -16,7 +16,7 @@
 /*  Shared helpers                                                     */
 /* ================================================================== */
 
-export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR' | 'MODEL_ONBOARDING';
+export type SpaceTemplateType = 'KANBAN' | 'WALL_POST' | 'SEXTING_SETS' | 'OTP_PTR' | 'MODEL_ONBOARDING' | 'CONTENT_GENERATION';
 
 export type FieldType =
   | 'text'
@@ -305,6 +305,76 @@ export const MODEL_ONBOARDING_METADATA_FIELDS: MetadataFieldDescriptor[] = [
 ];
 
 /* ================================================================== */
+/*  CONTENT GENERATION                                                 */
+/* ================================================================== */
+
+export type ContentGenTaskType =
+  | 'IG_SFW_REELS'
+  | 'NSFW_PPV'
+  | 'WALL_POSTS'
+  | 'STORIES'
+  | 'PROMO'
+  | 'CUSTOM';
+
+export interface VaultAssetRef {
+  id: string;
+  fileName: string;
+  fileType: string;
+  awsS3Url: string;
+  folderId: string;
+  folderName?: string;
+}
+
+export interface ContentGenItemMetadata {
+  taskType: ContentGenTaskType;
+  quantity: number;
+  clientId: string;
+  clientName: string;
+  assignedTo: string[];
+  vaultAssets: VaultAssetRef[];
+  notes: string;
+  deadline: string;
+  requestedBy: string;
+  requestedByName: string;
+}
+
+export const CONTENT_GEN_METADATA_DEFAULTS: ContentGenItemMetadata = {
+  taskType: 'WALL_POSTS',
+  quantity: 1,
+  clientId: '',
+  clientName: '',
+  assignedTo: [],
+  vaultAssets: [],
+  notes: '',
+  deadline: '',
+  requestedBy: '',
+  requestedByName: '',
+};
+
+export const CONTENT_GEN_TASK_TYPE_OPTIONS: { value: ContentGenTaskType; label: string }[] = [
+  { value: 'IG_SFW_REELS', label: 'IG SFW Reels' },
+  { value: 'NSFW_PPV', label: 'NSFW PPV' },
+  { value: 'WALL_POSTS', label: 'Wall Posts' },
+  { value: 'STORIES', label: 'Stories' },
+  { value: 'PROMO', label: 'Promo' },
+  { value: 'CUSTOM', label: 'Custom' },
+];
+
+export const CONTENT_GEN_METADATA_FIELDS: MetadataFieldDescriptor[] = [
+  {
+    key: 'taskType',
+    label: 'Task Type',
+    type: 'select',
+    required: true,
+    options: ['IG_SFW_REELS', 'NSFW_PPV', 'WALL_POSTS', 'STORIES', 'PROMO', 'CUSTOM'],
+  },
+  { key: 'quantity', label: 'Quantity', type: 'number', required: true, placeholder: '1' },
+  { key: 'clientName', label: 'Client', type: 'text', required: true, placeholder: 'Select a client' },
+  { key: 'deadline', label: 'Deadline', type: 'date', required: true },
+  { key: 'notes', label: 'Special Instructions', type: 'textarea', placeholder: 'Any special instructions...' },
+];
+
+/* ================================================================== */
 /*  Registry — look up by template type                                */
 /* ================================================================== */
 
@@ -313,7 +383,8 @@ export type AnyItemMetadata =
   | WallPostItemMetadata
   | SextingSetsItemMetadata
   | OtpPtrItemMetadata
-  | ModelOnboardingItemMetadata;
+  | ModelOnboardingItemMetadata
+  | ContentGenItemMetadata;
 
 interface TemplateMetadataEntry<T> {
   defaults: T;
@@ -326,6 +397,7 @@ const REGISTRY: Record<SpaceTemplateType, TemplateMetadataEntry<AnyItemMetadata>
   SEXTING_SETS: { defaults: SEXTING_SETS_METADATA_DEFAULTS, fields: SEXTING_SETS_METADATA_FIELDS },
   OTP_PTR: { defaults: OTP_PTR_METADATA_DEFAULTS, fields: OTP_PTR_METADATA_FIELDS },
   MODEL_ONBOARDING: { defaults: MODEL_ONBOARDING_METADATA_DEFAULTS, fields: MODEL_ONBOARDING_METADATA_FIELDS },
+  CONTENT_GENERATION: { defaults: CONTENT_GEN_METADATA_DEFAULTS, fields: CONTENT_GEN_METADATA_FIELDS },
 };
 
 /** Get the default metadata for a given template type. */

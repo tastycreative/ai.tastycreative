@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Upload,
@@ -29,13 +29,27 @@ import {
   SlidersHorizontal,
   Copy,
   Instagram,
+  GripVertical,
+  RefreshCw,
 } from "lucide-react";
 import { useReferenceBankStore } from "@/lib/reference-bank/store";
+import { invalidateRBQueries } from "@/lib/reference-bank/queryClientBridge";
 import {
   referenceBankAPI,
   type ReferenceItem,
   type ReferenceFolder,
 } from "@/lib/reference-bank/api";
+import {
+  useReferenceBankData,
+  useStorageQuotaQuery,
+  useToggleFavoriteMutation,
+  useDeleteItemMutation,
+  useUpdateItemMutation,
+  useMoveItemsMutation,
+  useBulkDeleteMutation,
+  useBulkFavoriteMutation,
+  useBulkAddTagsMutation,
+} from "@/lib/hooks/useReferenceBank.query";
 
 // Modal components
 import { UploadModal } from "./modals/UploadModal";
@@ -44,14 +58,33 @@ import { DeleteModal } from "./modals/DeleteModal";
 import { FolderModal } from "./modals/FolderModal";
 import { MoveModal } from "./modals/MoveModal";
 import { InstagramImportModal } from "./modals/InstagramImportModal";
+import { ConfirmModal } from "./modals/ConfirmModal";
 
 export function ReferenceBankContent() {
-  // Get state from store - using the actual store interface
+  // -------------------------------------------------------------------------
+  // TanStack Query — server data + mutations
+  // -------------------------------------------------------------------------
+  const { data, isLoading, isFetching } = useReferenceBankData();
+  const { data: storageData } = useStorageQuotaQuery();
+
+  const items = data?.items ?? [];
+  const folders = data?.folders ?? [];
+  const stats = data?.stats ?? { total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 };
+  const storageUsed = storageData?.used ?? 0;
+  const storageLimit = storageData?.limit ?? 5 * 1024 * 1024 * 1024;
+
+  const toggleFavoriteMutation = useToggleFavoriteMutation();
+  const deleteItemMutation = useDeleteItemMutation();
+  const updateItemMutation = useUpdateItemMutation();
+  const moveItemsMutation = useMoveItemsMutation();
+  const bulkDeleteMutation = useBulkDeleteMutation();
+  const bulkFavoriteMutation = useBulkFavoriteMutation();
+  const bulkAddTagsMutation = useBulkAddTagsMutation();
+
+  // -------------------------------------------------------------------------
+  // Zustand store — UI-only state
+  // -------------------------------------------------------------------------
   const {
-    items,
-    folders,
-    stats,
-    isLoading,
     selectedFolderId,
     showFavoritesOnly,
     showRecentlyUsed,
@@ -60,14 +93,10 @@ export function ReferenceBankContent() {
     viewMode,
     sortBy,
     previewItem,
-    storageUsed,
-    storageLimit,
     uploadQueue,
     selectedItems,
     draggedItemId,
     dropTargetFolderId,
-    sidebarOpen,
-    fetchData,
     setSelectedFolderId,
     setShowFavoritesOnly,
     setShowRecentlyUsed,
@@ -76,28 +105,17 @@ export function ReferenceBankContent() {
     setViewMode,
     setSortBy,
     toggleItemSelection,
-    selectAll,
     clearSelection,
     setPreviewItem,
     addToUploadQueue,
     removeFromUploadQueue,
     processUploadQueue,
     retryUpload,
-    updateItem,
-    deleteItem,
-    toggleFavorite,
-    moveItems,
-    bulkFavorite,
-    bulkAddTags,
-    bulkDelete,
     addFolder,
     updateFolder,
     removeFolder,
-    navigatePreview,
-    previewIndex,
     setDraggedItemId,
     setDropTargetFolderId,
-    fetchStorageQuota,
   } = useReferenceBankStore();
 
   // Local modal state
@@ -114,12 +132,23 @@ export function ReferenceBankContent() {
   const [isUploadQueueExpanded, setIsUploadQueueExpanded] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showInstagramImportModal, setShowInstagramImportModal] = useState(false);
+  // Confirm-dialog state (replaces native confirm())
+  const [pendingFolderDelete, setPendingFolderDelete] = useState<ReferenceFolder | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Convert selectedItems Set to array for easier use
   const selectedIds = useMemo(
     () => Array.from(selectedItems || new Set()),
     [selectedItems]
   );
+
+  // Local selectAll — uses filteredItems (not store.items) as source of truth
+  const selectAll = useCallback(() => {
+    useReferenceBankStore.setState({
+      selectedItems: new Set(filteredItems.map((i) => i.id)),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [/* filteredItems added below after it's declared */]);
 
   // Filtered and sorted items
   const filteredItems = useMemo(() => {
@@ -174,11 +203,26 @@ export function ReferenceBankContent() {
     sortBy,
   ]);
 
-  // Fetch data on mount
-  useEffect(() => {
-    fetchData();
-    fetchStorageQuota();
-  }, []);
+  // Preview index & navigation (local — uses filteredItems, not store.items)
+  const previewIndex = filteredItems.findIndex((i) => i.id === previewItem?.id);
+  const handleNavigatePreview = useCallback(
+    (direction: "prev" | "next") => {
+      if (previewIndex === -1) return;
+      let next =
+        direction === "next" ? previewIndex + 1 : previewIndex - 1;
+      if (next < 0) next = filteredItems.length - 1;
+      if (next >= filteredItems.length) next = 0;
+      setPreviewItem(filteredItems[next]);
+    },
+    [filteredItems, previewIndex, setPreviewItem]
+  );
+
+  // selectAll is fully defined here (needs filteredItems)
+  const handleSelectAll = useCallback(() => {
+    useReferenceBankStore.setState({
+      selectedItems: new Set(filteredItems.map((i) => i.id)),
+    });
+  }, [filteredItems]);
 
   // Drag and drop handlers for file upload
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -210,16 +254,11 @@ export function ReferenceBankContent() {
     }
   }, []);
 
-  // Item actions
   const handleToggleFavorite = useCallback(
     async (item: ReferenceItem) => {
-      try {
-        await toggleFavorite(item);
-      } catch (err) {
-        console.error("Failed to toggle favorite:", err);
-      }
+      toggleFavoriteMutation.mutate({ id: item.id, isFavorite: !item.isFavorite });
     },
-    [toggleFavorite]
+    [toggleFavoriteMutation]
   );
 
   const handleEditItem = useCallback((item: ReferenceItem) => {
@@ -241,22 +280,15 @@ export function ReferenceBankContent() {
 
   // Bulk actions
   const handleBulkFavorite = useCallback(async () => {
-    try {
-      await bulkFavorite(selectedIds, true);
-    } catch (err) {
-      console.error("Failed to favorite items:", err);
-    }
-  }, [selectedIds, bulkFavorite]);
+    bulkFavoriteMutation.mutate({ itemIds: selectedIds, isFavorite: true });
+    clearSelection();
+  }, [selectedIds, bulkFavoriteMutation, clearSelection]);
 
   const handleBulkTag = useCallback(
     async (tags: string[]) => {
-      try {
-        await bulkAddTags(selectedIds, tags);
-      } catch (err) {
-        console.error("Failed to tag items:", err);
-      }
+      bulkAddTagsMutation.mutate({ itemIds: selectedIds, tags });
     },
-    [selectedIds, bulkAddTags]
+    [selectedIds, bulkAddTagsMutation]
   );
 
   const handleBulkMove = useCallback(() => {
@@ -264,13 +296,10 @@ export function ReferenceBankContent() {
   }, []);
 
   const handleBulkDelete = useCallback(async () => {
-    if (!confirm(`Delete ${selectedIds.length} items?`)) return;
-    try {
-      await bulkDelete(selectedIds);
-    } catch (err) {
-      console.error("Failed to delete items:", err);
-    }
-  }, [selectedIds, bulkDelete]);
+    await bulkDeleteMutation.mutateAsync(selectedIds);
+    clearSelection();
+    setShowBulkDeleteConfirm(false);
+  }, [selectedIds, bulkDeleteMutation, clearSelection]);
 
   const handleDownloadSingleFile = useCallback(async (item: ReferenceItem, e?: React.MouseEvent) => {
     if (e) {
@@ -348,20 +377,26 @@ export function ReferenceBankContent() {
   }, []);
 
   const handleDeleteFolder = useCallback(
-    async (folder: ReferenceFolder) => {
-      if (!confirm("Delete this folder? Items will be moved to root.")) return;
-      try {
-        await referenceBankAPI.folders.delete(folder.id);
-        removeFolder(folder.id);
-        if (selectedFolderId === folder.id) {
-          setSelectedFolderId(null);
-        }
-      } catch (err) {
-        console.error("Failed to delete folder:", err);
-      }
+    (folder: ReferenceFolder) => {
+      setPendingFolderDelete(folder);
     },
-    [removeFolder, selectedFolderId, setSelectedFolderId]
+    []
   );
+
+  const handleConfirmFolderDelete = useCallback(async () => {
+    if (!pendingFolderDelete) return;
+    try {
+      await referenceBankAPI.folders.delete(pendingFolderDelete.id);
+      removeFolder(pendingFolderDelete.id);
+      if (selectedFolderId === pendingFolderDelete.id) {
+        setSelectedFolderId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete folder:", err);
+    } finally {
+      setPendingFolderDelete(null);
+    }
+  }, [pendingFolderDelete, removeFolder, selectedFolderId, setSelectedFolderId]);
 
   const handleSaveFolder = useCallback(
     async (data: { name: string; color?: string }) => {
@@ -391,13 +426,14 @@ export function ReferenceBankContent() {
   const handleMoveConfirm = useCallback(
     async (targetFolderId: string | null) => {
       try {
-        await moveItems(selectedIds, targetFolderId);
+        await moveItemsMutation.mutateAsync({ itemIds: selectedIds, targetFolderId });
+        clearSelection();
         setShowMoveModal(false);
       } catch (err) {
         console.error("Failed to move items:", err);
       }
     },
-    [selectedIds, moveItems]
+    [selectedIds, moveItemsMutation, clearSelection]
   );
 
   // Edit modal handler
@@ -405,34 +441,30 @@ export function ReferenceBankContent() {
     async (data: Partial<ReferenceItem>) => {
       if (!editItem) return;
       try {
-        // Only send allowed fields
-        const updateData: { name?: string; description?: string; tags?: string[]; isFavorite?: boolean; folderId?: string | null } = {};
-        if (data.name) updateData.name = data.name;
-        if (data.tags) updateData.tags = data.tags;
-        
-        await referenceBankAPI.updateItem(editItem.id, updateData);
-        updateItem(editItem.id, data);
+        const updates: Parameters<typeof referenceBankAPI.updateItem>[1] = {};
+        if (data.name) updates.name = data.name;
+        if (data.tags) updates.tags = data.tags;
+        await updateItemMutation.mutateAsync({ id: editItem.id, updates });
         setShowEditModal(false);
         setEditItem(null);
       } catch (err) {
         console.error("Failed to update item:", err);
       }
     },
-    [editItem, updateItem]
+    [editItem, updateItemMutation]
   );
 
   // Delete modal handler
   const handleDeleteConfirm = useCallback(async () => {
     if (!editItem) return;
     try {
-      await deleteItem(editItem.id);
+      await deleteItemMutation.mutateAsync(editItem.id);
       setShowDeleteModal(false);
       setEditItem(null);
-      fetchStorageQuota();
     } catch (err) {
       console.error("Failed to delete item:", err);
     }
-  }, [editItem, deleteItem, fetchStorageQuota]);
+  }, [editItem, deleteItemMutation]);
 
   // Copy URL to clipboard
   const handleCopyUrl = useCallback((url: string) => {
@@ -463,12 +495,17 @@ export function ReferenceBankContent() {
     100
   );
 
+  // Format date helper
+  const formatDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
+
   if (isLoading && (items || []).length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-brand-mid-pink animate-spin" />
-      </div>
-    );
+    return <ReferenceBankSkeleton />;
   }
 
   return (
@@ -478,6 +515,13 @@ export function ReferenceBankContent() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Subtle re-fetch indicator */}
+      {isFetching && !isLoading && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 rounded-full shadow-lg text-xs text-header-muted">
+          <RefreshCw className="w-3 h-3 animate-spin text-[#EC67A1]" />
+          Syncing…
+        </div>
+      )}
       {/* Mobile menu button */}
       <button
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-[#EC67A1]/10"
@@ -593,7 +637,7 @@ export function ReferenceBankContent() {
                       const itemsToMove = selectedIds.includes(draggedItemId)
                         ? selectedIds
                         : [draggedItemId];
-                      await moveItems(itemsToMove, folder.id);
+                      await moveItemsMutation.mutateAsync({ itemIds: itemsToMove, targetFolderId: folder.id });
                       setDraggedItemId(null);
                     }
                   }}
@@ -630,6 +674,33 @@ export function ReferenceBankContent() {
               ))}
             </div>
           </div>
+
+          {/* Storage quota */}
+          {(storageLimit || 0) > 0 && (
+            <div className="mt-2 pt-4 border-t border-[#EC67A1]/10 dark:border-[#EC67A1]/20">
+              <div className="flex items-center justify-between text-xs text-header-muted mb-1.5">
+                <span>Storage</span>
+                <span>{formatStorage(storageUsed || 0)} / {formatStorage(storageLimit)}</span>
+              </div>
+              <div className="h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    storagePercentage > 90
+                      ? "bg-red-500"
+                      : storagePercentage > 70
+                      ? "bg-amber-500"
+                      : "bg-[#EC67A1]"
+                  }`}
+                  style={{ width: `${storagePercentage}%` }}
+                />
+              </div>
+              {storagePercentage > 80 && (
+                <p className="text-xs text-amber-500 mt-1.5">
+                  {storagePercentage > 90 ? "Storage almost full!" : "Running low on storage"}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -800,7 +871,7 @@ export function ReferenceBankContent() {
                 onClick={
                   selectedIds.length === filteredItems.length
                     ? clearSelection
-                    : selectAll
+                    : handleSelectAll
                 }
                 className="text-sm text-[#EC67A1] hover:text-[#E1518E]"
               >
@@ -840,7 +911,7 @@ export function ReferenceBankContent() {
                 Download
               </button>
               <button
-                onClick={handleBulkDelete}
+                onClick={() => setShowBulkDeleteConfirm(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-500 text-sm rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -857,16 +928,7 @@ export function ReferenceBankContent() {
         )}
 
         {/* Content area */}
-        <div className="flex-1 overflow-auto p-4 relative">
-          {isLoading && (
-            <div className="absolute inset-0 bg-white/50 dark:bg-[#1a1625]/50 backdrop-blur-sm z-10 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-brand-mid-pink animate-spin" />
-                <p className="text-sm text-header-muted">Loading...</p>
-              </div>
-            </div>
-          )}
-          
+        <div className="flex-1 overflow-auto p-4">
           {error ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
@@ -877,13 +939,27 @@ export function ReferenceBankContent() {
               <button
                 onClick={() => {
                   setError(null);
-                  fetchData();
+                  invalidateRBQueries();
                 }}
                 className="px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg transition-colors shadow-lg shadow-[#EC67A1]/30"
               >
                 Try Again
               </button>
             </div>
+          ) : isLoading ? (
+            viewMode === "grid" ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <GridCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {[...Array(8)].map((_, i) => (
+                  <ListRowSkeleton key={i} />
+                ))}
+              </div>
+            )
           ) : filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               {searchQuery ? (
@@ -905,6 +981,22 @@ export function ReferenceBankContent() {
                   <p className="text-header-muted">
                     Mark items as favorites to see them here
                   </p>
+                </>
+              ) : selectedFolderId ? (
+                <>
+                  <Folder className="w-12 h-12 text-header-muted mb-4" />
+                  <h2 className="text-xl font-semibold text-sidebar-foreground mb-2">
+                    This folder is empty
+                  </h2>
+                  <p className="text-header-muted mb-4">
+                    Upload files or drag items here to fill it up
+                  </p>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white rounded-lg transition-colors shadow-lg shadow-[#EC67A1]/30"
+                  >
+                    Upload Files
+                  </button>
                 </>
               ) : (
                 <>
@@ -979,13 +1071,13 @@ export function ReferenceBankContent() {
           {filteredItems.length > 1 && (
             <>
               <button
-                onClick={() => navigatePreview("prev")}
+                onClick={() => handleNavigatePreview("prev")}
                 className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-zinc-800/80 hover:bg-zinc-700 rounded-full transition-colors z-10"
               >
                 <ArrowLeft className="w-6 h-6 text-white" />
               </button>
               <button
-                onClick={() => navigatePreview("next")}
+                onClick={() => handleNavigatePreview("next")}
                 className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-zinc-800/80 hover:bg-zinc-700 rounded-full transition-colors rotate-180 z-10"
               >
                 <ArrowLeft className="w-6 h-6 text-white" />
@@ -1016,11 +1108,30 @@ export function ReferenceBankContent() {
 
           {/* Info panel */}
           <div 
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-zinc-800/90 rounded-xl z-10"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-3 bg-zinc-800/90 rounded-xl flex flex-col items-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-white font-medium">{previewItem.name}</span>
-            <div className="flex items-center gap-2">
+            {/* Name + counter */}
+            <div className="flex items-center gap-3">
+              <span className="text-white font-medium">{previewItem.name}</span>
+              <span className="text-xs text-gray-400">
+                {previewIndex + 1} / {filteredItems.length}
+              </span>
+            </div>
+            {/* Metadata row */}
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              {previewItem.width && previewItem.height && (
+                <span>{previewItem.width}&times;{previewItem.height}</span>
+              )}
+              {previewItem.fileSize && (
+                <span>{(previewItem.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+              )}
+              {previewItem.createdAt && (
+                <span>Uploaded {formatDate(previewItem.createdAt)}</span>
+              )}
+            </div>
+            {/* Actions row */}
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => handleToggleFavorite(previewItem)}
                 className={`p-2 rounded-lg transition-colors ${
@@ -1067,81 +1178,6 @@ export function ReferenceBankContent() {
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
-            <span className="text-sm text-gray-400">
-              {previewIndex + 1} / {filteredItems.length}
-            </span>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Upload Queue */}
-      {(uploadQueue || []).length > 0 && createPortal(
-        <div className="fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)]">
-          <div className="bg-white dark:bg-[#1a1625] border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-xl shadow-2xl overflow-hidden">
-            <div
-              className="flex items-center justify-between px-4 py-3 bg-[#F8F8F8] dark:bg-[#1a1625]/50 cursor-pointer border-b border-[#EC67A1]/10"
-              onClick={() => setIsUploadQueueExpanded(!isUploadQueueExpanded)}
-            >
-              <div className="flex items-center gap-3">
-                <Upload className="w-5 h-5 text-[#EC67A1]" />
-                <span className="text-sm font-medium text-sidebar-foreground">
-                  Uploading {uploadQueue.filter((i) => i.status === "uploading").length} files
-                </span>
-              </div>
-              {isUploadQueueExpanded ? (
-                <X className="w-4 h-4 text-header-muted" />
-              ) : (
-                <SlidersHorizontal className="w-4 h-4 text-header-muted" />
-              )}
-            </div>
-            {isUploadQueueExpanded && (
-              <div className="max-h-64 overflow-y-auto p-2 space-y-2">
-                {uploadQueue.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 p-2 bg-[#F8F8F8] dark:bg-zinc-800 rounded-lg"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-sidebar-foreground truncate">{item.name}</p>
-                      {item.status === "uploading" && (
-                        <div className="h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full mt-1 overflow-hidden">
-                          <div
-                            className="h-full bg-[#EC67A1] transition-all"
-                            style={{ width: `${item.progress || 0}%` }}
-                          />
-                        </div>
-                      )}
-                      {item.status === "error" && (
-                        <p className="text-xs text-red-500 truncate">
-                          {item.error}
-                        </p>
-                      )}
-                    </div>
-                    {item.status === "uploading" && (
-                      <Loader2 className="w-4 h-4 text-[#EC67A1] animate-spin" />
-                    )}
-                    {item.status === "success" && (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    )}
-                    {item.status === "error" && (
-                      <button
-                        onClick={() => retryUpload(item.id)}
-                        className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-                      >
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => removeFromUploadQueue(item.id)}
-                      className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-                    >
-                      <X className="w-4 h-4 text-header-muted" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>,
         document.body
@@ -1236,14 +1272,132 @@ export function ReferenceBankContent() {
         <InstagramImportModal
           onClose={() => setShowInstagramImportModal(false)}
           onImportComplete={() => {
-            fetchData();
-            fetchStorageQuota();
+            // TanStack will invalidate automatically via the bridge;
+            // nothing extra needed here.
           }}
           folders={folders || []}
           currentFolderId={selectedFolderId}
         />,
         document.body
       )}
+
+      {/* Folder delete confirmation */}
+      {pendingFolderDelete && createPortal(
+        <ConfirmModal
+          title="Delete Folder"
+          description={`"${pendingFolderDelete.name}" will be deleted. Items inside will be moved to root.`}
+          confirmLabel="Delete Folder"
+          onClose={() => setPendingFolderDelete(null)}
+          onConfirm={handleConfirmFolderDelete}
+        />,
+        document.body
+      )}
+
+      {/* Bulk delete confirmation */}
+      {showBulkDeleteConfirm && createPortal(
+        <ConfirmModal
+          title={`Delete ${selectedIds.length} items`}
+          description={`All ${selectedIds.length} selected items will be permanently deleted. This cannot be undone.`}
+          confirmLabel={`Delete ${selectedIds.length} items`}
+          isLoading={bulkDeleteMutation.isPending}
+          onClose={() => setShowBulkDeleteConfirm(false)}
+          onConfirm={handleBulkDelete}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton Components
+// ---------------------------------------------------------------------------
+
+function GridCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-[#1a1625] rounded-xl overflow-hidden border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 animate-pulse">
+      <div className="aspect-square bg-zinc-200 dark:bg-zinc-800" />
+      <div className="p-3 space-y-2">
+        <div className="h-3.5 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4" />
+        <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
+      </div>
+    </div>
+  );
+}
+
+function ListRowSkeleton() {
+  return (
+    <div className="flex items-center gap-4 p-3 bg-white dark:bg-[#1a1625] rounded-lg border border-[#EC67A1]/10 dark:border-[#EC67A1]/20 animate-pulse">
+      <div className="w-5 h-5 rounded bg-zinc-200 dark:bg-zinc-700 shrink-0" />
+      <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg shrink-0" />
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-2/5" />
+        <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/4" />
+      </div>
+    </div>
+  );
+}
+
+function ReferenceBankSkeleton() {
+  return (
+    <div className="flex max-h-[85vh] overflow-hidden bg-white dark:bg-white/5 border border-[#EC67A1]/20 dark:border-[#EC67A1]/30 rounded-2xl shadow-lg backdrop-blur-sm">
+      {/* Sidebar skeleton */}
+      <div className="hidden lg:flex flex-col w-72 border-r border-[#EC67A1]/10 dark:border-[#EC67A1]/20 p-4 animate-pulse shrink-0">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-700 rounded-xl shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4" />
+            <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
+          </div>
+        </div>
+        <div className="space-y-1.5 mb-6">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-10 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+          ))}
+        </div>
+        <div className="mb-2 h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-16" />
+        <div className="flex-1 space-y-1.5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+          ))}
+        </div>
+        <div className="mt-auto pt-4 space-y-2">
+          <div className="flex justify-between">
+            <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-14" />
+            <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-20" />
+          </div>
+          <div className="h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full" />
+        </div>
+      </div>
+
+      {/* Main content skeleton */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="p-4 border-b border-[#EC67A1]/10 dark:border-[#EC67A1]/20 animate-pulse">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="h-7 bg-zinc-200 dark:bg-zinc-700 rounded w-40" />
+            <div className="ml-auto flex gap-2">
+              <div className="h-9 w-24 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
+              <div className="h-9 w-24 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
+              <div className="h-9 w-28 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+            <div className="w-24 h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+            <div className="w-28 h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+            <div className="w-20 h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+          </div>
+        </div>
+        {/* Grid skeleton */}
+        <div className="flex-1 p-4 overflow-hidden">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[...Array(10)].map((_, i) => (
+              <GridCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1277,10 +1431,14 @@ function GridItemCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group relative bg-white dark:bg-[#1a1625] rounded-xl overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl border ${
+      className={`group relative bg-white dark:bg-[#1a1625] rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all hover:scale-[1.02] hover:shadow-xl border ${
         isSelected ? "ring-2 ring-[#EC67A1] shadow-lg shadow-[#EC67A1]/20 border-[#EC67A1]/30" : "border-[#EC67A1]/10 dark:border-[#EC67A1]/20"
       }`}
     >
+      {/* Drag handle indicator */}
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-60 transition-opacity z-10 text-white pointer-events-none">
+        <GripVertical className="w-4 h-4" />
+      </div>
       <div
         className="aspect-square bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden"
         onClick={onPreview}
@@ -1458,11 +1616,13 @@ function ListItemRow({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group flex items-center gap-4 p-3 bg-white dark:bg-[#1a1625] rounded-lg cursor-pointer transition-all hover:bg-[#F8F8F8] dark:hover:bg-zinc-800/50 border ${
+      className={`group flex items-center gap-4 p-3 bg-white dark:bg-[#1a1625] rounded-lg cursor-grab active:cursor-grabbing transition-all hover:bg-[#F8F8F8] dark:hover:bg-zinc-800/50 border ${
         isSelected ? "ring-2 ring-[#EC67A1] border-[#EC67A1]/30" : "border-[#EC67A1]/10 dark:border-[#EC67A1]/20"
       }`}
       onClick={onPreview}
     >
+      {/* Drag handle */}
+      <GripVertical className="w-4 h-4 text-header-muted opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
       <button
         onClick={(e) => {
           e.stopPropagation();

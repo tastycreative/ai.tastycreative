@@ -25,6 +25,7 @@ import { ResourcesTab } from './templates/ResourcesTab';
 import { CalendarTab } from './templates/CalendarTab';
 import { MODEL_ONBOARDING_METADATA_DEFAULTS, getDefaultChecklist } from '@/lib/spaces/template-metadata';
 import { SubmissionFormModal } from '@/components/content-submission/SubmissionFormModal';
+import { ContentGenTaskRequestModal } from '@/components/spaces/ContentGenTaskRequestModal';
 
 interface SpaceBoardViewProps {
   slug: string;
@@ -99,12 +100,19 @@ function TemplateBoardView({ slug }: { slug: string }) {
     spaceSlugs: string[];
   }>({ isOpen: false, templateType: 'OTP_PTR', spaceSlugs: [] });
 
+  // Content Generation task request modal state
+  const [cgModalOpen, setCgModalOpen] = useState(false);
+
   const handleOpenSubmissionModal = useCallback((templateType: string, spaceSlug: string) => {
-    setSubmissionModal({
-      isOpen: true,
-      templateType: templateType as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS',
-      spaceSlugs: [spaceSlug],
-    });
+    if (templateType === 'CONTENT_GENERATION') {
+      setCgModalOpen(true);
+    } else {
+      setSubmissionModal({
+        isOpen: true,
+        templateType: templateType as 'OTP_PTR' | 'WALL_POST' | 'SEXTING_SETS',
+        spaceSlugs: [spaceSlug],
+      });
+    }
   }, []);
 
   const handleCloseSubmissionModal = useCallback(() => {
@@ -427,6 +435,16 @@ function TemplateBoardView({ slug }: { slug: string }) {
         templateType={submissionModal.templateType}
         spaceSlugs={submissionModal.spaceSlugs}
       />
+
+      {space?.templateType === 'CONTENT_GENERATION' && defaultBoard && effectiveColumnOrder.length > 0 && (
+        <ContentGenTaskRequestModal
+          isOpen={cgModalOpen}
+          onClose={() => setCgModalOpen(false)}
+          spaceId={space.id}
+          boardId={defaultBoard.id}
+          firstColumnId={effectiveColumnOrder[0]}
+        />
+      )}
     </>
   );
 }
