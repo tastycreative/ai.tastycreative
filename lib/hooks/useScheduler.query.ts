@@ -22,6 +22,7 @@ interface PickerFields {
 export interface MMFields extends PickerFields {
   type?: string; time?: string; contentPreview?: string; paywallContent?: string;
   tag?: string; caption?: string; captionGuide?: string; price?: string;
+  subType?: string; // Follow-up sub-type: OG Flyer ⬆, No Flyer ⬆, Universal Flyer ⬆
 }
 export interface WPFields extends PickerFields {
   type?: string; time?: string; contentFlyer?: string;
@@ -40,9 +41,17 @@ export interface FieldDef {
   key: string; label: string; placeholder?: string;
 }
 
+/** Known follow-up sub-types for MM tasks */
+export const FOLLOW_UP_SUB_TYPES = [
+  'OG Flyer ⬆',
+  'No Flyer ⬆',
+  'Universal Flyer ⬆',
+] as const;
+
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
     { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
+    { key: 'subType', label: 'Sub-Type', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
