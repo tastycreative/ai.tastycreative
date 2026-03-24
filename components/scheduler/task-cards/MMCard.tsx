@@ -31,6 +31,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
   // ── Compact: two-row, click → modal ──
   if (compact) {
     const label = fields.type || task.taskName || '';
+    const isFollowUp = label.toLowerCase().includes('follow up') || label.toLowerCase().includes('follow-up');
     return (
       <>
         <div
@@ -42,23 +43,46 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
           }`}
           style={{ borderLeft: `3px solid ${isFlagged ? '#f59e0b' : TYPE_COLOR}` }}
         >
+          {/* Row 1: status dot, time, label (or sub-type if follow up), flag always right */}
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: statusOpt.color }} />
             {fields.time && (
               <span className="text-[8px] font-mono shrink-0" style={{ color: TYPE_COLOR }}>{fields.time}</span>
             )}
-            {label && (
-              <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">{label}</span>
+            {isFollowUp && fields.subType ? (
+              <span
+                className="text-[7px] font-bold px-1 py-0.5 rounded truncate min-w-0"
+                style={{ background: TYPE_COLOR + '18', color: TYPE_COLOR, border: `1px solid ${TYPE_COLOR}30` }}
+              >
+                {fields.subType}
+              </span>
+            ) : (
+              label && (
+                <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">{label}</span>
+              )
             )}
-            {fields.price && (
-              <span className="text-[8px] font-mono text-gray-400 dark:text-gray-500 shrink-0">{fields.price}</span>
-            )}
-            <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
-            {task.status === 'DONE' && <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />}
+            <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+              <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
+              {task.status === 'DONE' && <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />}
+            </div>
           </div>
-          {fields.contentPreview && (
-            <div className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 ml-[13px] mt-px">
-              {fields.contentPreview}
+          {/* Row 2 (follow up only): type label */}
+          {isFollowUp && label && (
+            <div className="text-[7px] font-semibold text-gray-500 dark:text-gray-400 ml-[13px] mt-px">
+              {label}
+            </div>
+          )}
+          {/* Row 3: content/preview + price */}
+          {(fields.contentPreview || fields.price) && (
+            <div className="flex items-center gap-1.5 ml-[13px] mt-px">
+              {fields.contentPreview && (
+                <span className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 flex-1 min-w-0">
+                  {fields.contentPreview}
+                </span>
+              )}
+              {fields.price && (
+                <span className="text-[7px] font-mono text-green-600 dark:text-green-500 shrink-0">{fields.price}</span>
+              )}
             </div>
           )}
         </div>
@@ -68,6 +92,8 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
   }
 
   // ── Expanded: full inline editable, click opens modal ──
+  const expandedLabel = fields.type || task.taskName || '';
+  const expandedIsFollowUp = expandedLabel.toLowerCase().includes('follow up') || expandedLabel.toLowerCase().includes('follow-up');
   return (
     <>
       <div
@@ -83,6 +109,15 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
           <div className="flex items-center gap-1.5">
             <TypeBadge task={task} onUpdate={onUpdate} />
             <StatusBadge task={task} onUpdate={onUpdate} />
+            {/* Sub-type badge for Follow up tasks */}
+            {expandedIsFollowUp && fields.subType && (
+              <span
+                className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: TYPE_COLOR + '18', color: TYPE_COLOR, border: `1px solid ${TYPE_COLOR}30` }}
+              >
+                {fields.subType}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-0.5">
             <FlagButton
@@ -98,7 +133,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
         )}
 
         <div className="flex flex-col gap-0.5">
-          {FIELD_DEFS.filter((def) => def.key !== 'caption').map((def) => (
+          {FIELD_DEFS.filter((def) => def.key !== 'caption' && def.key !== 'subType').map((def) => (
             <FieldRow key={def.key} label={def.label} value={fields[def.key] || ''} placeholder={def.placeholder} onSave={(v) => save(def.key, v)} noTruncate />
           ))}
           <CaptionPreview fields={fields} typeColor={TYPE_COLOR} noTruncate />

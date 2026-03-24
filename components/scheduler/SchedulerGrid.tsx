@@ -103,8 +103,10 @@ function generateSampleTasks(): SchedulerTask[] {
         name: 'Follow up',
         status: day < 2 ? 'DONE' : day === 2 ? 'IN_PROGRESS' : 'PENDING',
         fields: {
+          type: 'Follow up',
           time: '5:56 PM',
-          contentPreview: '𝐔𝐧𝐢𝐯𝐞𝐫𝐬𝐚𝐥 𝐅𝐥𝐲𝐞𝐫 ⬆',
+          subType: 'Universal Flyer ⬆',
+          contentPreview: 'https://www.allthiscash.com/uploads/Universal-GIF/2025-03-22_09:49:44-8.gif',
           caption: 'You wanna cum, right? 💦 Open that videos now and I will give you a ANOTHER FREE VIDEO ⬆️',
           captionGuide: '.',
         },
@@ -480,8 +482,72 @@ export function SchedulerGrid() {
     (id: string, data: Partial<SchedulerTask>) => {
       if (showDemo) return;
       updateTask.mutate({ id, ...data, tabId });
+
+      // ── Bidirectional sync: Unlock ↔ Follow up contentPreview ──
+      if (data.fields) {
+        const updatedFields = data.fields as Record<string, string>;
+        if (updatedFields.contentPreview === undefined) return;
+
+        const task = tasks.find((t) => t.id === id);
+        if (!task || task.taskType !== 'MM') return;
+
+        const taskTypeName = (
+          (task.fields as Record<string, string> | null)?.type || task.taskName || ''
+        ).toLowerCase();
+        const isUnlock = taskTypeName.includes('unlock');
+        const isFollowUp = taskTypeName.includes('follow up') || taskTypeName.includes('follow-up');
+
+        if (!isUnlock && !isFollowUp) return;
+
+        const dayTasks = tasksByDay.get(task.dayOfWeek) ?? [];
+        const mmTasks = dayTasks.filter((t) => t.taskType === 'MM');
+        const taskIdx = mmTasks.findIndex((t) => t.id === id);
+        if (taskIdx < 0) return;
+
+        if (isUnlock) {
+          // Unlock → sync forward to Follow up(s)
+          for (let i = taskIdx + 1; i < mmTasks.length; i++) {
+            const next = mmTasks[i];
+            const nextFields = (next.fields || {}) as Record<string, string>;
+            const nextType = (nextFields.type || next.taskName || '').toLowerCase();
+
+            if (nextType.includes('follow up') || nextType.includes('follow-up')) {
+              const merged = { ...nextFields, contentPreview: updatedFields.contentPreview };
+              updateTask.mutate({ id: next.id, fields: merged as SchedulerTask['fields'], tabId });
+            } else if (nextType.includes('unlock')) {
+              break;
+            }
+          }
+        } else if (isFollowUp) {
+          // Follow up → sync backward to the preceding Unlock
+          for (let i = taskIdx - 1; i >= 0; i--) {
+            const prev = mmTasks[i];
+            const prevFields = (prev.fields || {}) as Record<string, string>;
+            const prevType = (prevFields.type || prev.taskName || '').toLowerCase();
+
+            if (prevType.includes('unlock')) {
+              const merged = { ...prevFields, contentPreview: updatedFields.contentPreview };
+              updateTask.mutate({ id: prev.id, fields: merged as SchedulerTask['fields'], tabId });
+              // Also sync to any other Follow ups under that same Unlock
+              for (let j = i + 1; j < mmTasks.length; j++) {
+                const sibling = mmTasks[j];
+                if (sibling.id === id) continue; // skip self
+                const sibFields = (sibling.fields || {}) as Record<string, string>;
+                const sibType = (sibFields.type || sibling.taskName || '').toLowerCase();
+                if (sibType.includes('follow up') || sibType.includes('follow-up')) {
+                  const sibMerged = { ...sibFields, contentPreview: updatedFields.contentPreview };
+                  updateTask.mutate({ id: sibling.id, fields: sibMerged as SchedulerTask['fields'], tabId });
+                } else if (sibType.includes('unlock')) {
+                  break;
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
     },
-    [updateTask, showDemo],
+    [updateTask, showDemo, tasks, tasksByDay],
   );
 
   const handleDelete = useCallback(

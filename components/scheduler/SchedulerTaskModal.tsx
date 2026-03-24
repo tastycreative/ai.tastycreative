@@ -19,6 +19,7 @@ import {
   TaskFields,
   useTaskHistory,
   TaskHistoryItem,
+  FOLLOW_UP_SUB_TYPES,
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPES, TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
@@ -302,15 +303,38 @@ export function SchedulerTaskModal({
         <div className="flex-1 overflow-y-auto">
           {/* Field rows */}
           <div className="px-4 py-3 space-y-2">
-            {fieldDefs.filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(task.taskType)).map((def) => (
-              <ModalFieldRow
-                key={def.key}
-                label={def.label}
-                value={fields[def.key] || ''}
-                placeholder={def.placeholder}
-                onBlur={(val) => handleFieldBlur(def.key, val)}
-              />
-            ))}
+            {fieldDefs
+              .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(task.taskType))
+              .filter((def) => {
+                // Only show subType for Follow up tasks
+                if (def.key === 'subType') {
+                  const typeName = (fields.type || task.taskName || '').toLowerCase();
+                  return typeName.includes('follow up') || typeName.includes('follow-up');
+                }
+                return true;
+              })
+              .map((def) => {
+                // Render subType as a dropdown
+                if (def.key === 'subType') {
+                  return (
+                    <SubTypeSelector
+                      key={def.key}
+                      value={fields.subType || ''}
+                      onChange={(val) => handleFieldBlur('subType', val)}
+                      typeColor={typeColor}
+                    />
+                  );
+                }
+                return (
+                  <ModalFieldRow
+                    key={def.key}
+                    label={def.label}
+                    value={fields[def.key] || ''}
+                    placeholder={def.placeholder}
+                    onBlur={(val) => handleFieldBlur(def.key, val)}
+                  />
+                );
+              })}
 
             {/* Legacy taskName fallback */}
             {fieldDefs.length === 0 && task.taskName && (
@@ -415,6 +439,35 @@ export function SchedulerTaskModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+function SubTypeSelector({
+  value,
+  onChange,
+  typeColor,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  typeColor: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <label className="text-[10px] font-bold text-gray-400 dark:text-gray-600 font-sans min-w-[90px] whitespace-nowrap">
+        Sub-Type
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 text-xs px-2 py-1 rounded border outline-none font-mono transition-colors bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]"
+        style={value ? { borderColor: typeColor + '40' } : undefined}
+      >
+        <option value="">None</option>
+        {FOLLOW_UP_SUB_TYPES.map((st) => (
+          <option key={st} value={st}>{st}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
