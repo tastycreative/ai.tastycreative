@@ -61,6 +61,57 @@ function isMeaningful(value: string): boolean {
 }
 
 /**
+ * Normalize Unicode Mathematical Bold to ASCII for pattern matching.
+ * Bold capitals: U+1D400-U+1D419 → A-Z
+ * Bold smalls:   U+1D41A-U+1D433 → a-z
+ */
+function normalizeBoldUnicode(str: string): string {
+  return str
+    .replace(/[\u{1D400}-\u{1D419}]/gu, (ch) =>
+      String.fromCharCode(ch.codePointAt(0)! - 0x1D400 + 65),
+    )
+    .replace(/[\u{1D41A}-\u{1D433}]/gu, (ch) =>
+      String.fromCharCode(ch.codePointAt(0)! - 0x1D41A + 97),
+    );
+}
+
+/** Known follow-up sub-type patterns (matched against normalized text) */
+const FOLLOW_UP_SUB_TYPE_MAP: { pattern: RegExp; subType: string }[] = [
+  { pattern: /og\s*flyer/i, subType: 'OG Flyer ⬆' },
+  { pattern: /no\s*flyer/i, subType: 'No Flyer ⬆' },
+  { pattern: /universal\s*flyer/i, subType: 'Universal Flyer ⬆' },
+];
+
+/**
+ * Check if a contentPreview value is a follow-up sub-type indicator.
+ * Returns the normalized sub-type string or null.
+ */
+function detectFollowUpSubType(value: string): string | null {
+  if (!value || !value.includes('⬆')) return null;
+  const normalized = normalizeBoldUnicode(value);
+  for (const { pattern, subType } of FOLLOW_UP_SUB_TYPE_MAP) {
+    if (pattern.test(normalized)) return subType;
+  }
+  return null;
+}
+
+/**
+ * Check if a task name indicates a "Follow up" type (case-insensitive).
+ */
+function isFollowUpType(typeName: string): boolean {
+  const lower = normalizeBoldUnicode(typeName).toLowerCase();
+  return lower.includes('follow up') || lower.includes('follow-up');
+}
+
+/**
+ * Check if a task name indicates an "Unlock" type (case-insensitive).
+ */
+function isUnlockType(typeName: string): boolean {
+  const lower = normalizeBoldUnicode(typeName).toLowerCase();
+  return lower.includes('unlock');
+}
+
+/**
  * Simple CSV parser that handles quoted fields with commas and newlines.
  */
 export function parseCSV(text: string): string[][] {
@@ -169,6 +220,32 @@ export function parseSchedulerSheet(csvText: string): ParsedTask[] {
           taskName: cleanedFields[nameKey] ?? '',
           fields: cleanedFields,
         });
+      }
+    }
+  }
+
+  // ── Post-process: extract sub-types for Follow up MM tasks ──
+  // For each Follow up, move the sub-type indicator from contentPreview to subType,
+  // and copy contentPreview from the preceding Unlock task.
+  const mmTasks = tasks.filter((t) => t.taskType === 'MM');
+  let lastUnlockContentPreview = '';
+
+  for (const task of mmTasks) {
+    const typeName = task.fields.type || task.taskName || '';
+
+    if (isUnlockType(typeName)) {
+      // Track the Unlock's contentPreview for the Follow up below
+      lastUnlockContentPreview = task.fields.contentPreview || '';
+    } else if (isFollowUpType(typeName)) {
+      const subType = detectFollowUpSubType(task.fields.contentPreview || '');
+      if (subType) {
+        // Move sub-type indicator out of contentPreview
+        task.fields.subType = subType;
+        delete task.fields.contentPreview;
+      }
+      // Inherit contentPreview from the preceding Unlock
+      if (lastUnlockContentPreview) {
+        task.fields.contentPreview = lastUnlockContentPreview;
       }
     }
   }
