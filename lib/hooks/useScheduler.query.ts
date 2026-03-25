@@ -41,6 +41,17 @@ export interface FieldDef {
   key: string; label: string; placeholder?: string;
 }
 
+// ─── MM Sub-Types ─────────────────────────────────────────────────────────
+
+export const MM_SUB_TYPES = ['Unlock', 'Follow Up', 'Photo Bump'] as const;
+export type MMSubType = (typeof MM_SUB_TYPES)[number];
+
+export const MM_SUB_TYPE_ICONS: Record<string, string> = {
+  'Unlock': '🔓',
+  'Follow Up': '↩',
+  'Photo Bump': '📸',
+};
+
 /** Known follow-up sub-types for MM tasks */
 export const FOLLOW_UP_SUB_TYPES = [
   'OG Flyer ⬆',
@@ -51,9 +62,9 @@ export const FOLLOW_UP_SUB_TYPES = [
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
     { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
-    { key: 'subType', label: 'Style', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
+    { key: 'subType', label: 'Sub-Type', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
-    { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content URL...' },
+    { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },
     { key: 'tag', label: 'Tag', placeholder: 'Tag name' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
@@ -564,14 +575,13 @@ function downloadBlob(blob: Blob, filename: string) {
 export interface SchedulerCaption {
   id: string;
   caption: string;
-  captionCategory: string;
+  source: 'ticket' | 'bank';
+  origin: string;             // 'otp_ptr' | 'wall_post' | 'manual' | 'general'
   profileId: string;
   status: string;
-  workflowType: string | null;
   contentTypes: string[];
-  messageTypes: string[];
   createdAt: string;
-  // Board item data
+  // Board item data (ticket source)
   boardItemId: string | null;
   gifUrl: string;
   gifUrlFansly: string;
@@ -581,21 +591,31 @@ export interface SchedulerCaption {
   price: number;
   driveLink: string;
   boardTitle: string;
+  // Bank-specific
+  usageCount?: number;
+  isFavorite?: boolean;
+  totalRevenue?: number;
 }
+
+export type CaptionSourceFilter = 'all' | 'ticket' | 'bank';
 
 export function useSchedulerCaptions(
   profileId: string | null,
   _captionCategory?: string,
   search?: string,
+  sourceFilter: CaptionSourceFilter = 'all',
+  originFilter?: string,
 ) {
   const { user } = useUser();
 
   return useQuery<SchedulerCaption[]>({
-    queryKey: ['scheduler-captions', profileId, search],
+    queryKey: ['scheduler-captions', profileId, search, sourceFilter, originFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (profileId) params.set('profileId', profileId);
       if (search) params.set('search', search);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (originFilter) params.set('origin', originFilter);
       const res = await fetch(`/api/scheduler/captions?${params}`);
       if (!res.ok) throw new Error('Failed to fetch captions');
       return res.json();

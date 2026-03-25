@@ -592,12 +592,13 @@ export function SchedulerGrid() {
   );
 
   const handleCreateTask = useCallback(
-    (dayOfWeek: number, taskType: string) => {
+    (dayOfWeek: number, taskType: string, initialFields?: import('@/lib/hooks/useScheduler.query').TaskFields) => {
       if (showDemo) return;
       createTask.mutate({
         weekStart,
         dayOfWeek,
         taskType,
+        fields: initialFields,
         platform: activePlatform,
         profileId: activeProfileId,
         tabId,

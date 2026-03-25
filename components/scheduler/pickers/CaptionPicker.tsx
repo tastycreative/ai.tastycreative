@@ -5,6 +5,7 @@ import { Search, Check, Film } from 'lucide-react';
 import {
   useSchedulerCaptions,
   type SchedulerCaption,
+  type CaptionSourceFilter,
 } from '@/lib/hooks/useScheduler.query';
 
 function isImageUrl(url: string): boolean {
@@ -48,12 +49,16 @@ export function CaptionPicker({
   typeColor,
 }: CaptionPickerProps) {
   const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<CaptionSourceFilter>('all');
+  const [originFilter, setOriginFilter] = useState<string>('');
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: captions, isLoading } = useSchedulerCaptions(
     profileId,
     captionCategory,
     search || undefined,
+    sourceFilter,
+    originFilter || undefined,
   );
 
   const sortedCaptions = useMemo(() => {
@@ -146,9 +151,55 @@ export function CaptionPicker({
         />
       </div>
 
-      {/* Suggestion label */}
-      <div className="text-[8px] text-gray-400 dark:text-gray-700 font-sans">
-        Showing workspace captions · {captionCategory}
+      {/* Source + Origin filters */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {/* Source filter */}
+        {(['all', 'ticket', 'bank'] as const).map((src) => {
+          const active = sourceFilter === src;
+          const label = src === 'all' ? 'All' : src === 'ticket' ? 'Board' : 'Bank';
+          return (
+            <button
+              key={src}
+              onClick={() => {
+                setSourceFilter(src);
+                // Reset origin filter when switching to Bank (not applicable)
+                if (src === 'bank') setOriginFilter('');
+              }}
+              className="text-[8px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
+              style={{
+                background: active ? typeColor + '20' : 'transparent',
+                color: active ? typeColor : '#6b6b8a',
+                borderColor: active ? typeColor + '40' : '#1e1e38',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {/* Origin filter — only show when source is All or Board */}
+        {sourceFilter !== 'bank' && (
+          <>
+            <span className="text-[7px] text-gray-700 mx-0.5">·</span>
+            {(['', 'otp_ptr', 'wall_post'] as const).map((org) => {
+              const active = originFilter === org;
+              const label = org === '' ? 'All' : org === 'otp_ptr' ? 'OTP/PTR' : 'Wall Post';
+              return (
+                <button
+                  key={org}
+                  onClick={() => setOriginFilter(org)}
+                  className="text-[8px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
+                  style={{
+                    background: active ? '#38bdf820' : 'transparent',
+                    color: active ? '#38bdf8' : '#6b6b8a',
+                    borderColor: active ? '#38bdf840' : '#1e1e38',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* Caption cards */}
@@ -272,8 +323,25 @@ function CaptionCard({
         </div>
       </div>
 
-      {/* Board metadata row */}
+      {/* Metadata row */}
       <div className="flex gap-1 flex-wrap items-center">
+        {/* Source badge */}
+        <span
+          className="text-[7px] px-1.5 py-0.5 rounded-full font-sans font-bold"
+          style={{
+            background: caption.source === 'ticket' ? '#c084fc15' : '#fb923c15',
+            color: caption.source === 'ticket' ? '#c084fc' : '#fb923c',
+            border: `1px solid ${caption.source === 'ticket' ? '#c084fc25' : '#fb923c25'}`,
+          }}
+        >
+          {caption.source === 'ticket' ? 'Board' : 'Bank'}
+        </span>
+        {/* Origin badge */}
+        {caption.origin && caption.origin !== 'general' && caption.origin !== 'manual' && (
+          <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-gray-500/10 text-gray-500 border border-gray-500/20 font-sans font-bold uppercase">
+            {caption.origin === 'otp_ptr' ? 'OTP/PTR' : caption.origin.replace('_', ' ')}
+          </span>
+        )}
         {caption.contentType && (
           <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue border border-brand-blue/20 font-sans font-bold">
             {caption.contentType}
@@ -284,17 +352,21 @@ function CaptionCard({
             {caption.contentCount}
           </span>
         )}
+        {caption.usageCount != null && caption.usageCount > 0 && (
+          <span className="text-[7px] text-gray-500 dark:text-gray-600 font-mono">
+            {caption.usageCount} uses
+          </span>
+        )}
         {caption.price > 0 && (
           <span className="text-[7px] text-green-500 font-mono">
             ${caption.price.toFixed(2)}
           </span>
         )}
-        {caption.gifUrl && (
+        {caption.gifUrl ? (
           <Film className="h-2.5 w-2.5 text-brand-blue/50 ml-auto" />
-        )}
-        {!caption.gifUrl && (
-          <span className="text-[7px] text-gray-700 font-mono ml-auto">
-            no gif
+        ) : (
+          <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-sans font-bold ml-auto">
+            No GIF
           </span>
         )}
       </div>

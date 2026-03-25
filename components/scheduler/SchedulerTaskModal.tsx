@@ -30,18 +30,24 @@ import {
   useLineageHistory,
   TaskHistoryItem,
   LineageHistoryItem,
+  MM_SUB_TYPES,
+  MM_SUB_TYPE_ICONS,
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPE_COLORS } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
-import { FlyerPicker } from './pickers/FlyerPicker';
 import { QueueCalendar } from './QueueCalendar';
 
-const TASK_TYPE_TO_CAPTION_CATEGORY: Record<string, string> = {
-  MM: 'MM Unlock',
-  WP: 'Wall Post',
-  SP: 'Sub Promo',
-};
+function getCaptionCategory(taskType: string, subType?: string): string {
+  if (taskType === 'MM') {
+    if (subType === 'Follow Up') return 'MM Follow Up';
+    if (subType === 'Photo Bump') return 'MM Photo Bump';
+    return 'MM Unlock';
+  }
+  if (taskType === 'WP') return 'Wall Post';
+  if (taskType === 'SP') return 'Sub Promo';
+  return taskType;
+}
 
 const TYPES_WITH_PICKER = new Set(['MM', 'WP', 'SP']);
 
@@ -82,7 +88,6 @@ export function SchedulerTaskModal({
 }: SchedulerTaskModalProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
-  const [pickerTab, setPickerTab] = useState<'caption' | 'flyer'>('caption');
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -243,18 +248,6 @@ export function SchedulerTaskModal({
 
   const handleCaptionOverride = useCallback((text: string) => {
     setPendingChanges((prev) => ({ ...prev, caption: text, captionId: '', captionBankText: '' }));
-  }, []);
-
-  const handleSelectFlyer = useCallback((assetId: string, url: string) => {
-    setPendingChanges((prev) => ({ ...prev, flyerAssetId: assetId, flyerAssetUrl: url }));
-  }, []);
-
-  const handleClearFlyer = useCallback(() => {
-    setPendingChanges((prev) => ({ ...prev, flyerAssetId: '', flyerAssetUrl: '' }));
-  }, []);
-
-  const handleFlyerOverrideUrl = useCallback((url: string) => {
-    setPendingChanges((prev) => ({ ...prev, flyerAssetUrl: url, flyerAssetId: '' }));
   }, []);
 
   // ─── Close dropdown on outside click ───
@@ -495,8 +488,48 @@ export function SchedulerTaskModal({
           <div className="flex-1 min-w-0 overflow-y-auto md:border-r border-gray-100 dark:border-[#111124]">
             {/* Field rows */}
             <div className="px-4 py-3 space-y-2">
+              {/* MM Sub-type chip selector */}
+              {viewingTask.taskType === 'MM' && (
+                <div className="flex items-center gap-1.5 pb-1">
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 font-sans min-w-[90px] whitespace-nowrap">
+                    Type
+                  </span>
+                  <div className="flex gap-1">
+                    {MM_SUB_TYPES.map((st) => {
+                      const active = fields.type === st;
+                      return (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            if (locked) return;
+                            const currentFields = { ...serverFields, ...pendingChanges, type: st } as TaskFields;
+                            onUpdate(viewingTask.id, { fields: currentFields });
+                            setPendingChanges((prev) => {
+                              const { type: _, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full font-sans transition-all border"
+                          style={{
+                            background: active ? typeColor + '20' : 'transparent',
+                            color: active ? typeColor : '#6b6b8a',
+                            borderColor: active ? typeColor + '50' : '#1e1e38',
+                            opacity: locked ? 0.6 : 1,
+                          }}
+                          disabled={locked}
+                        >
+                          <span>{MM_SUB_TYPE_ICONS[st]}</span>
+                          {st}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {fieldDefs
                 .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(viewingTask.taskType))
+                .filter((def) => def.key !== 'type') // type rendered as chips above
                 .filter((def) => def.key !== 'subType')
                 .map((def) => (
                     <ModalFieldRow
@@ -515,53 +548,25 @@ export function SchedulerTaskModal({
               )}
             </div>
 
-            {/* Caption & Flyer Picker Section */}
+            {/* Caption Picker Section */}
             {TYPES_WITH_PICKER.has(viewingTask.taskType) && (
               <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
-                <div className="flex border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
-                  {(['caption', 'flyer'] as const).map((tab) => {
-                    const active = pickerTab === tab;
-                    const hasFlaggedCaption = fields.captionId && fields.flagged;
-                    return (
-                      <button
-                        key={tab}
-                        onClick={() => setPickerTab(tab)}
-                        className="flex-1 py-2 text-[11px] font-bold font-sans transition-all border-b-2"
-                        style={{
-                          color: active ? typeColor : '#252545',
-                          borderBottomColor: active ? typeColor : 'transparent',
-                        }}
-                      >
-                        {tab === 'caption'
-                          ? `Caption${hasFlaggedCaption ? ' 🚩' : ''}`
-                          : 'Preview GIF'}
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center px-3 py-2 border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
+                  <span className="text-[11px] font-bold font-sans" style={{ color: typeColor }}>
+                    Caption{fields.captionId && fields.flagged ? ' 🚩' : ''}
+                  </span>
                 </div>
                 <div className="p-3">
-                  {pickerTab === 'caption' ? (
-                    <CaptionPicker
-                      profileId={viewingTask.profileId}
-                      captionCategory={TASK_TYPE_TO_CAPTION_CATEGORY[viewingTask.taskType] || 'MM Unlock'}
-                      selectedCaptionId={fields.captionId || null}
-                      captionOverride={fields.captionId ? '' : (fields.caption || '')}
-                      onSelectCaption={handleSelectCaption}
-                      onClearCaption={handleClearCaption}
-                      onOverrideChange={handleCaptionOverride}
-                      typeColor={typeColor}
-                    />
-                  ) : (
-                    <FlyerPicker
-                      profileId={viewingTask.profileId}
-                      selectedFlyerAssetId={fields.flyerAssetId || null}
-                      selectedFlyerUrl={fields.flyerAssetUrl || ''}
-                      onSelectFlyer={handleSelectFlyer}
-                      onClearFlyer={handleClearFlyer}
-                      onOverrideUrl={handleFlyerOverrideUrl}
-                      typeColor={typeColor}
-                    />
-                  )}
+                  <CaptionPicker
+                    profileId={viewingTask.profileId}
+                    captionCategory={getCaptionCategory(viewingTask.taskType, fields.type)}
+                    selectedCaptionId={fields.captionId || null}
+                    captionOverride={fields.captionId ? '' : (fields.caption || '')}
+                    onSelectCaption={handleSelectCaption}
+                    onClearCaption={handleClearCaption}
+                    onOverrideChange={handleCaptionOverride}
+                    typeColor={typeColor}
+                  />
                 </div>
               </div>
             )}
@@ -855,10 +860,22 @@ function ContentPreview({
       {/* Fixed-height container so layout never shifts */}
       <div className="h-36">
         {!hasAny ? (
-          <div className="flex items-center justify-center h-full rounded-lg border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02]">
-            <span className="text-[10px] font-mono text-gray-300 dark:text-gray-700">
-              No preview or flyer available
-            </span>
+          <div className="flex flex-col items-center justify-center h-full rounded-lg border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02] gap-1.5">
+            {fields.captionId ? (
+              <>
+                <span className="text-[10px] font-sans font-bold text-amber-500">
+                  No GIF available
+                </span>
+                <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600 text-center px-4">
+                  Caption selected but GIF hasn&apos;t been created yet.
+                  Paste a URL in Content/Preview or wait for the GIF team.
+                </span>
+              </>
+            ) : (
+              <span className="text-[10px] font-mono text-gray-300 dark:text-gray-700">
+                No preview or flyer available
+              </span>
+            )}
           </div>
         ) : (
           <div className="flex gap-2 h-full">
