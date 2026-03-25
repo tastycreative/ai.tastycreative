@@ -1,4 +1,5 @@
 import { currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
 /**
@@ -128,5 +129,42 @@ export async function requireAdminAccess(): Promise<void> {
   } catch (error) {
     console.error('requireAdminAccess error:', error);
     throw error;
+  }
+}
+
+/**
+ * Check if the current user is an admin for a specific tenant.
+ * Returns true if the user is a system admin (ADMIN/SUPER_ADMIN)
+ * OR an organization OWNER/ADMIN for the tenant's organization.
+ */
+export async function isAdminForTenant(tenantSlug: string): Promise<boolean> {
+  try {
+    // Check system-level admin first
+    if (await isUserAdmin()) {
+      return true;
+    }
+
+    // Check organization-level OWNER/ADMIN
+    const { userId } = await auth();
+    if (!userId) return false;
+
+    const organization = await prisma.organization.findUnique({
+      where: { slug: tenantSlug },
+    });
+
+    if (!organization) return false;
+
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        organizationId: organization.id,
+        user: { clerkId: userId },
+        role: { in: ['OWNER', 'ADMIN'] },
+      },
+    });
+
+    return !!membership;
+  } catch (error) {
+    console.error('Error checking admin for tenant:', error);
+    return false;
   }
 }

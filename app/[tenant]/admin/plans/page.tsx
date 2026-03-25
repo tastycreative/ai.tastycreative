@@ -1,19 +1,20 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { isUserSuperAdmin } from '@/lib/adminAuth';
+import { isAdminForTenant } from '@/lib/adminAuth';
 import PlansTab from '@/components/admin/PlansTab';
 import AccessDenied from '@/components/admin/AccessDenied';
 
-export default async function AdminPlansPage() {
+export default async function AdminPlansPage({ params }: { params: Promise<{ tenant: string }> }) {
   const user = await currentUser();
 
   if (!user) {
     redirect('/sign-in');
   }
 
-  const superAdminAccess = await isUserSuperAdmin();
+  const { tenant } = await params;
+  const adminAccess = await isAdminForTenant(tenant);
 
-  if (!superAdminAccess) {
+  if (!adminAccess) {
     return <AccessDenied />;
   }
 

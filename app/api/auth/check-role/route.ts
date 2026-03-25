@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
 
@@ -11,6 +11,7 @@ export async function GET() {
         isAuthenticated: false,
         isSuperAdmin: false,
         isAdmin: false,
+        isOrgAdmin: false,
       }, { status: 401 });
     }
 
@@ -30,11 +31,32 @@ export async function GET() {
                    role === 'SUPER_ADMIN' ||
                    user?.isAdmin === true;
 
+    // Check organization-level admin status if tenant is provided
+    let isOrgAdmin = false;
+    const tenant = request.nextUrl.searchParams.get('tenant');
+    if (tenant && !isAdmin) {
+      const organization = await prisma.organization.findUnique({
+        where: { slug: tenant },
+      });
+
+      if (organization) {
+        const membership = await prisma.teamMember.findFirst({
+          where: {
+            organizationId: organization.id,
+            user: { clerkId: userId },
+            role: { in: ['OWNER', 'ADMIN'] },
+          },
+        });
+        isOrgAdmin = !!membership;
+      }
+    }
+
     return NextResponse.json({
       isAuthenticated: true,
       role,
       isSuperAdmin,
-      isAdmin,
+      isAdmin: isAdmin || isOrgAdmin,
+      isOrgAdmin,
     });
   } catch (error) {
     console.error('Error checking user role:', error);
@@ -45,6 +67,7 @@ export async function GET() {
       role: 'USER',
       isSuperAdmin: false,
       isAdmin: false,
+      isOrgAdmin: false,
     });
   }
 }

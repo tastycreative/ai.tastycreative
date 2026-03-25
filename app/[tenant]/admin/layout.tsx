@@ -71,7 +71,7 @@ export default function AdminLayout({
   useEffect(() => {
     const checkSuperAdmin = async () => {
       try {
-        const response = await fetch("/api/auth/check-role");
+        const response = await fetch(`/api/auth/check-role?tenant=${encodeURIComponent(tenant)}`);
         if (response.ok) {
           const data = await response.json();
           setIsSuperAdmin(data.isSuperAdmin || false);
@@ -81,7 +81,7 @@ export default function AdminLayout({
       }
     };
     checkSuperAdmin();
-  }, []);
+  }, [tenant]);
 
   // Build navigation based on user role
   const baseNavigation: (NavItem | NavSection)[] = [
