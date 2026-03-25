@@ -226,26 +226,30 @@ export function parseSchedulerSheet(csvText: string): ParsedTask[] {
 
   // ── Post-process: extract sub-types for Follow up MM tasks ──
   // For each Follow up, move the sub-type indicator from contentPreview to subType,
-  // and copy contentPreview from the preceding Unlock task.
+  // copy contentPreview from the preceding Unlock task, and propagate subType back
+  // to the Unlock so both tasks display the same sub-type.
   const mmTasks = tasks.filter((t) => t.taskType === 'MM');
-  let lastUnlockContentPreview = '';
+  let lastUnlockTask: ParsedTask | null = null;
 
   for (const task of mmTasks) {
     const typeName = task.fields.type || task.taskName || '';
 
     if (isUnlockType(typeName)) {
-      // Track the Unlock's contentPreview for the Follow up below
-      lastUnlockContentPreview = task.fields.contentPreview || '';
+      lastUnlockTask = task;
     } else if (isFollowUpType(typeName)) {
       const subType = detectFollowUpSubType(task.fields.contentPreview || '');
       if (subType) {
         // Move sub-type indicator out of contentPreview
         task.fields.subType = subType;
         delete task.fields.contentPreview;
+        // Also set subType on the preceding Unlock task
+        if (lastUnlockTask) {
+          lastUnlockTask.fields.subType = subType;
+        }
       }
       // Inherit contentPreview from the preceding Unlock
-      if (lastUnlockContentPreview) {
-        task.fields.contentPreview = lastUnlockContentPreview;
+      if (lastUnlockTask?.fields.contentPreview) {
+        task.fields.contentPreview = lastUnlockTask.fields.contentPreview;
       }
     }
   }

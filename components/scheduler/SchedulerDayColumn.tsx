@@ -196,6 +196,7 @@ interface SchedulerDayColumnProps {
   isToday: boolean;
   timeZone: string;
   weekStart: string;
+  schedulerToday?: string;
   expanded: boolean;
   /** True when another column is expanded (this one should become a sidebar strip) */
   collapsed: boolean;
@@ -216,6 +217,8 @@ export function SchedulerDayColumn({
   onCreateTask,
   isToday,
   timeZone,
+  weekStart,
+  schedulerToday,
   expanded,
   collapsed,
   popupDirection = 'right',
@@ -668,6 +671,8 @@ export function SchedulerDayColumn({
                           team={team}
                           onUpdate={onUpdate}
                           onDelete={onDelete}
+                          schedulerToday={schedulerToday}
+                          weekStart={weekStart}
                         />
                       ))}
                     </div>
@@ -856,6 +861,8 @@ export function SchedulerDayColumn({
                           onUpdate={onUpdate}
                           onDelete={onDelete}
                           compact
+                          schedulerToday={schedulerToday}
+                          weekStart={weekStart}
                         />
                       ))}
                     </div>

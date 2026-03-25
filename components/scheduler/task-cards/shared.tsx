@@ -43,6 +43,8 @@ export interface TaskCardProps {
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   onDelete?: (id: string) => void;
   compact?: boolean;
+  schedulerToday?: string;
+  weekStart?: string;
 }
 
 // ─── Inline Editable Field Row (expanded mode) ───────────────────────────────
@@ -188,58 +190,27 @@ export const TASK_TYPE_COLORS: Record<string, string> = {
 
 export function TypeBadge({
   task,
-  onUpdate,
   size = 'sm',
 }: {
   task: SchedulerTask;
-  onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
+  onUpdate?: (id: string, data: Partial<SchedulerTask>) => void;
   size?: 'sm' | 'md';
 }) {
-  const [show, setShow] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const typeColor = TASK_TYPE_COLORS[task.taskType] || '#3a3a5a';
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setShow(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
   const textSize = size === 'md' ? 'text-[10px]' : 'text-[9px]';
   const px = size === 'md' ? 'px-2.5 py-1' : 'px-2 py-0.5';
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setShow(!show)}
-        className={`flex items-center gap-0.5 ${textSize} font-bold ${px} rounded-full font-sans transition-colors border`}
-        style={{
-          background: typeColor + '20',
-          color: typeColor,
-          border: `1px solid ${typeColor}40`,
-        }}
-      >
-        {task.taskType || 'TYPE'}
-        <ChevronDown className="h-2 w-2" />
-      </button>
-      {show && (
-        <div className="absolute top-full left-0 mt-1 z-20 rounded-lg shadow-xl py-1 min-w-[90px] bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-          {TASK_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => { onUpdate(task.id, { taskType: type }); setShow(false); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-              style={{ color: TASK_TYPE_COLORS[type] }}
-            >
-              <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TASK_TYPE_COLORS[type] }} />
-              {type}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <span
+      className={`flex items-center ${textSize} font-bold ${px} rounded-full font-sans border`}
+      style={{
+        background: typeColor + '20',
+        color: typeColor,
+        border: `1px solid ${typeColor}40`,
+      }}
+    >
+      {task.taskType || 'TYPE'}
+    </span>
   );
 }
 

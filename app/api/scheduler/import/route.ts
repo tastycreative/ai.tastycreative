@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';
+import crypto from 'crypto';
 
 interface ImportTask {
   dayOfWeek: number;
@@ -122,6 +123,7 @@ export async function POST(request: NextRequest) {
       sortOrder,
       platform: platform || 'free',
       profileId: profileId || null,
+      lineageId: crypto.randomUUID(),
       updatedBy: user.name || userId,
     };
   });

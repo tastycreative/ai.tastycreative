@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Lock } from 'lucide-react';
+import { isTaskLocked } from '@/lib/hooks/useScheduler.query';
 import { TASK_FIELD_DEFS } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskModal } from '../SchedulerTaskModal';
 import {
@@ -22,16 +23,19 @@ import {
 const TYPE_COLOR = TASK_TYPE_COLORS['MM'];
 const FIELD_DEFS = TASK_FIELD_DEFS['MM'];
 
-export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProps) {
+export function MMCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart }: TaskCardProps) {
   const [showModal, setShowModal] = useState(false);
   const { fields, save } = useFieldSave(task, onUpdate);
   const statusOpt = STATUS_OPTIONS.find((s) => s.key === task.status) || STATUS_OPTIONS[0];
   const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
+  const locked = schedulerToday ? isTaskLocked(task, schedulerToday) : false;
 
   // ── Compact: two-row, click → modal ──
   if (compact) {
     const label = fields.type || task.taskName || '';
     const isFollowUp = label.toLowerCase().includes('follow up') || label.toLowerCase().includes('follow-up');
+    const isUnlock = label.toLowerCase().includes('unlock');
+    const hasSubType = !!(fields.subType && (isFollowUp || isUnlock));
     return (
       <>
         <div
@@ -43,13 +47,13 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
           }`}
           style={{ borderLeft: `3px solid ${isFlagged ? '#f59e0b' : TYPE_COLOR}` }}
         >
-          {/* Row 1: status dot, time, label (or sub-type if follow up), flag always right */}
+          {/* Row 1: status dot, time, label (or sub-type if follow up/unlock), flag always right */}
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: statusOpt.color }} />
             {fields.time && (
               <span className="text-[8px] font-mono shrink-0" style={{ color: TYPE_COLOR }}>{fields.time}</span>
             )}
-            {isFollowUp && fields.subType ? (
+            {hasSubType ? (
               <span
                 className="text-[7px] font-bold px-1 py-0.5 rounded truncate min-w-0"
                 style={{ background: TYPE_COLOR + '18', color: TYPE_COLOR, border: `1px solid ${TYPE_COLOR}30` }}
@@ -62,12 +66,13 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
               )
             )}
             <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+              {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
               <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
               {task.status === 'DONE' && <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />}
             </div>
           </div>
-          {/* Row 2 (follow up only): type label */}
-          {isFollowUp && label && (
+          {/* Row 2 (follow up / unlock with subType): type label */}
+          {hasSubType && label && (
             <div className="text-[7px] font-semibold text-gray-500 dark:text-gray-400 ml-[13px] mt-px">
               {label}
             </div>
@@ -86,7 +91,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
             </div>
           )}
         </div>
-        <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} />
+        <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} />
       </>
     );
   }
@@ -94,6 +99,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
   // ── Expanded: full inline editable, click opens modal ──
   const expandedLabel = fields.type || task.taskName || '';
   const expandedIsFollowUp = expandedLabel.toLowerCase().includes('follow up') || expandedLabel.toLowerCase().includes('follow-up');
+  const expandedIsUnlock = expandedLabel.toLowerCase().includes('unlock');
   return (
     <>
       <div
@@ -107,10 +113,8 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <TypeBadge task={task} onUpdate={onUpdate} />
-            <StatusBadge task={task} onUpdate={onUpdate} />
-            {/* Sub-type badge for Follow up tasks */}
-            {expandedIsFollowUp && fields.subType && (
+            <TypeBadge task={task} />
+            {(expandedIsFollowUp || expandedIsUnlock) && fields.subType && (
               <span
                 className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ background: TYPE_COLOR + '18', color: TYPE_COLOR, border: `1px solid ${TYPE_COLOR}30` }}
@@ -118,6 +122,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
                 {fields.subType}
               </span>
             )}
+            <StatusBadge task={task} onUpdate={onUpdate} />
           </div>
           <div className="flex items-center gap-0.5">
             <FlagButton
@@ -143,7 +148,7 @@ export function MMCard({ task, team, onUpdate, onDelete, compact }: TaskCardProp
         <TimeDisplay task={task} />
         {task.updatedBy && <div className="text-[8px] px-1 font-mono text-gray-400 dark:text-gray-700">updated by {task.updatedBy}</div>}
       </div>
-      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} />
+      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} />
     </>
   );
 }

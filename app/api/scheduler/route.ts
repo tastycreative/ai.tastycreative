@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';
+import crypto from 'crypto';
 
 // GET /api/scheduler?weekStart=2024-01-01
 export async function GET(request: NextRequest) {
@@ -74,10 +75,37 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { weekStart, dayOfWeek, taskType, taskName, fields, platform, profileId, tabId } = body;
+  const { weekStart, dayOfWeek, taskType, taskName, fields, platform, profileId, tabId, lineageId, sourceTaskId } = body;
 
   if (!weekStart || dayOfWeek === undefined || dayOfWeek === null) {
     return NextResponse.json({ error: 'weekStart and dayOfWeek required' }, { status: 400 });
+  }
+
+  // If sourceTaskId provided, copy fields from source task
+  let resolvedFields = fields || null;
+  let resolvedTaskType = taskType || '';
+  let resolvedTaskName = taskName || '';
+  let resolvedLineageId = lineageId || null;
+  let resolvedPlatform = platform || 'free';
+  let resolvedProfileId = profileId || null;
+
+  if (sourceTaskId) {
+    const sourceTask = await prisma.schedulerTask.findUnique({
+      where: { id: sourceTaskId },
+    });
+    if (sourceTask) {
+      resolvedFields = fields || sourceTask.fields;
+      resolvedTaskType = taskType || sourceTask.taskType;
+      resolvedTaskName = taskName || sourceTask.taskName;
+      resolvedLineageId = sourceTask.lineageId || resolvedLineageId;
+      resolvedPlatform = platform || sourceTask.platform;
+      resolvedProfileId = profileId !== undefined ? profileId : sourceTask.profileId;
+    }
+  }
+
+  // Auto-generate lineageId if not provided
+  if (!resolvedLineageId) {
+    resolvedLineageId = crypto.randomUUID();
   }
 
   // Get max sortOrder for this day
@@ -101,22 +129,35 @@ export async function POST(request: NextRequest) {
       dayOfWeek: Number(dayOfWeek),
       slotLabel,
       sortOrder: nextSortOrder,
-      taskType: taskType || '',
-      taskName: taskName || '',
-      fields: fields || null,
-      platform: platform || 'free',
-      profileId: profileId || null,
+      taskType: resolvedTaskType,
+      taskName: resolvedTaskName,
+      fields: resolvedFields,
+      platform: resolvedPlatform,
+      profileId: resolvedProfileId,
+      lineageId: resolvedLineageId,
+      sourceTaskId: sourceTaskId || null,
       updatedBy: user.name || userId,
     },
   });
+
+  const isQueued = !!sourceTaskId;
+  const weekDate = new Date(weekStart + 'T00:00:00Z');
+  const weekLabel = weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayName = dayNames[Number(dayOfWeek)] || `day ${dayOfWeek}`;
+
+  const actionLabel = isQueued ? 'QUEUED' : 'CREATED';
+  const summaryText = isQueued
+    ? `Queued ${task.taskType || 'task'} for ${dayName}, week of ${weekLabel}`
+    : `Created ${task.taskType || 'task'} on ${dayName}, week of ${weekLabel}`;
 
   const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
       taskId: task.id,
-      action: 'CREATED',
-      summary: `Created ${task.taskType || 'task'} on day ${task.dayOfWeek}`,
+      action: actionLabel,
+      summary: summaryText,
     },
   });
 
@@ -124,13 +165,28 @@ export async function POST(request: NextRequest) {
     data: {
       taskId: task.id,
       userId: user.id,
-      action: 'CREATED',
+      action: actionLabel,
       field: 'task',
-      oldValue: null,
-      newValue: `${task.taskType || 'task'} on day ${task.dayOfWeek}`,
+      oldValue: isQueued ? sourceTaskId : null,
+      newValue: summaryText,
       activityLogId: activityLog.id,
     },
   });
+
+  // Also log on the source task's history when queuing
+  if (isQueued) {
+    await prisma.schedulerTaskHistory.create({
+      data: {
+        taskId: sourceTaskId,
+        userId: user.id,
+        action: 'QUEUED',
+        field: 'task',
+        oldValue: null,
+        newValue: `Queued update for ${dayName}, week of ${weekLabel}`,
+        activityLogId: activityLog.id,
+      },
+    });
+  }
 
   await broadcastToScheduler(orgId, {
     type: 'task.created',
