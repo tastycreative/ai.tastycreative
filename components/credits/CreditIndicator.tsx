@@ -1,7 +1,7 @@
 'use client';
 
 import { useCredits } from '@/lib/hooks/useCredits.query';
-import { AlertTriangle, XCircle, Zap } from 'lucide-react';
+import { AlertTriangle, X, XCircle, Zap } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -12,6 +12,7 @@ export function CreditIndicator() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -25,7 +26,7 @@ export function CreditIndicator() {
   }
 
   // Out of credits - show persistent warning banner
-  if (isOutOfCredits) {
+  if (isOutOfCredits && !isDismissed) {
     return createPortal(
       <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-3">
@@ -39,15 +40,24 @@ export function CreditIndicator() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                const tenant = pathname?.split('/')[1];
-                router.push(`/${tenant}/billing`);
-              }}
-              className="px-4 py-2 bg-white text-red-600 rounded-lg font-semibold text-sm hover:bg-red-50 transition-colors whitespace-nowrap"
-            >
-              Buy Credits
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const tenant = pathname?.split('/')[1];
+                  router.push(`/${tenant}/billing`);
+                }}
+                className="px-4 py-2 bg-white text-red-600 rounded-lg font-semibold text-sm hover:bg-red-50 transition-colors whitespace-nowrap"
+              >
+                Buy Credits
+              </button>
+              <button
+                onClick={() => setIsDismissed(true)}
+                className="p-1.5 rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
+                aria-label="Dismiss banner"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>,
