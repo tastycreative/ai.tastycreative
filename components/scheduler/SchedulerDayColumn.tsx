@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clock, Plus, Maximize2, Minimize2 } from 'lucide-react';
-import { SchedulerTask, TaskLimits } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, TaskFields } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
 import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
@@ -18,7 +18,7 @@ function AddTaskMenu({
   align = 'below',
 }: {
   dayIndex: number;
-  onCreateTask: (dayOfWeek: number, taskType: string) => void;
+  onCreateTask: (dayOfWeek: number, taskType: string, initialFields?: TaskFields) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   align?: 'below' | 'above';
@@ -62,18 +62,41 @@ function AddTaskMenu({
       }}
     >
       {TASK_TYPES.map((type) => (
-        <button
-          key={type}
-          onClick={() => {
-            onCreateTask(dayIndex, type);
-            onClose();
-          }}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
-          style={{ color: TASK_TYPE_COLORS[type] }}
-        >
-          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TASK_TYPE_COLORS[type] }} />
-          Add {type}
-        </button>
+        type === 'MM' ? (
+          <div key="MM">
+            <div className="px-3 py-1 text-[8px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-600 font-sans">
+              Mass Message
+            </div>
+            {MM_SUB_TYPES.map((st) => (
+              <button
+                key={st}
+                onClick={() => {
+                  onCreateTask(dayIndex, 'MM', { type: st } as TaskFields);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+                style={{ color: TASK_TYPE_COLORS['MM'] }}
+              >
+                <span className="text-[10px]">{MM_SUB_TYPE_ICONS[st]}</span>
+                {st}
+              </button>
+            ))}
+            <div className="border-b border-gray-100 dark:border-gray-800 my-0.5" />
+          </div>
+        ) : (
+          <button
+            key={type}
+            onClick={() => {
+              onCreateTask(dayIndex, type);
+              onClose();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+            style={{ color: TASK_TYPE_COLORS[type] }}
+          >
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TASK_TYPE_COLORS[type] }} />
+            Add {type}
+          </button>
+        )
       ))}
     </div>,
     document.body,
@@ -192,7 +215,7 @@ interface SchedulerDayColumnProps {
   team: string;
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   onDelete: (id: string) => void;
-  onCreateTask: (dayOfWeek: number, taskType: string) => void;
+  onCreateTask: (dayOfWeek: number, taskType: string, initialFields?: TaskFields) => void;
   isToday: boolean;
   timeZone: string;
   weekStart: string;
@@ -673,6 +696,7 @@ export function SchedulerDayColumn({
                           onDelete={onDelete}
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
+
                         />
                       ))}
                     </div>
@@ -863,6 +887,7 @@ export function SchedulerDayColumn({
                           compact
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
+
                         />
                       ))}
                     </div>
