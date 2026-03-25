@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { SchedulerTask } from '@/lib/hooks/useScheduler.query';
 import { MMCard } from './task-cards/MMCard';
 import { WPCard } from './task-cards/WPCard';
 import { STCard } from './task-cards/STCard';

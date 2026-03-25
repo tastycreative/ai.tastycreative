@@ -696,7 +696,6 @@ export function SchedulerDayColumn({
                           onDelete={onDelete}
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
-
                         />
                       ))}
                     </div>
@@ -887,7 +886,6 @@ export function SchedulerDayColumn({
                           compact
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
-
                         />
                       ))}
                     </div>
