@@ -403,7 +403,7 @@ export default function MyInfluencersPage() {
 
   useEffect(() => {
     if (apiClient) loadProfiles();
-  }, [apiClient]);
+  }, [apiClient, currentOrganization?.id]);
 
   const loadProfiles = async () => {
     if (!apiClient) return;

@@ -443,6 +443,7 @@ function TemplateBoardView({ slug }: { slug: string }) {
           spaceId={space.id}
           boardId={defaultBoard.id}
           firstColumnId={effectiveColumnOrder[0]}
+          columns={boardData?.columns.map((c) => ({ id: c.id, name: c.name }))}
         />
       )}
     </>

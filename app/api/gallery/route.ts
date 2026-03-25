@@ -12,6 +12,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's current organization for scoping
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
     const { searchParams } = new URL(req.url);
 
     // Pagination
@@ -43,6 +49,10 @@ export async function GET(req: NextRequest) {
 
     // Build where clause
     const where: Prisma.gallery_itemsWhereInput = {
+      // Scope to current organization
+      ...(dbUser?.currentOrganizationId
+        ? { organizationId: dbUser.currentOrganizationId }
+        : { organizationId: null }),
       ...(profileId && { profileId }),
       ...(contentType && contentType !== "all" && { contentType }),
       ...(platform && platform !== "all" && { platform }),

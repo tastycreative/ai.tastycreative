@@ -10,11 +10,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's current organization for scoping
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
     const { searchParams } = new URL(req.url);
     const profileId = searchParams.get("profileId") || searchParams.get("modelId");
 
-    // Base where clause
-    const where = profileId ? { profileId } : {};
+    // Base where clause - scoped to current organization
+    const orgFilter = dbUser?.currentOrganizationId
+      ? { organizationId: dbUser.currentOrganizationId }
+      : { organizationId: null as string | null };
+    const where = profileId ? { ...orgFilter, profileId } : orgFilter;
 
     // Get overall aggregates
     const [

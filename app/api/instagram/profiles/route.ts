@@ -67,15 +67,18 @@ export async function GET(request: NextRequest) {
         teamMemberships: {
           select: {
             role: true,
+            organizationId: true,
           },
         },
       },
     });
 
-    // Check if user has CREATOR role (they could be creator in multiple orgs)
-    const isCreator = user?.teamMemberships?.some(
-      (membership) => membership.role === 'CREATOR'
-    ) || false;
+    // Check if user has CREATOR role in the current organization
+    const isCreator = user?.currentOrganizationId
+      ? user.teamMemberships?.some(
+          (membership) => membership.role === 'CREATOR' && membership.organizationId === user.currentOrganizationId
+        ) || false
+      : false;
 
     // Build query based on user role
     let whereCondition: any;
@@ -90,10 +93,17 @@ export async function GET(request: NextRequest) {
         },
       };
     } else {
-      // Regular users see: owned profiles + organization profiles + assigned profiles
+      // Regular users see: owned profiles (scoped to current org) + organization profiles + assigned profiles
+      const ownedProfilesFilter: any[] = [
+        { clerkId: userId, organizationId: null }, // Personal profiles (not shared to any org)
+      ];
+      if (user?.currentOrganizationId) {
+        ownedProfilesFilter.push({ clerkId: userId, organizationId: user.currentOrganizationId }); // Own profiles shared to current org
+      }
+
       whereCondition = {
         OR: [
-          { clerkId: userId }, // User's personal profiles
+          ...ownedProfilesFilter,
           { 
             assignments: {
               some: {

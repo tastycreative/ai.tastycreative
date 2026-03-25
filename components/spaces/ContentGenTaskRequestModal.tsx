@@ -34,6 +34,7 @@ interface ContentGenTaskRequestModalProps {
   spaceId: string;
   boardId: string;
   firstColumnId: string;
+  columns?: { id: string; name: string }[];
   prefilledClientId?: string;
 }
 
@@ -45,6 +46,7 @@ export function ContentGenTaskRequestModal({
   spaceId,
   boardId,
   firstColumnId,
+  columns,
   prefilledClientId,
 }: ContentGenTaskRequestModalProps) {
   const { user } = useUser();
@@ -162,13 +164,24 @@ export function ContentGenTaskRequestModal({
       vaultAssets: [],
     };
 
+    // Determine target column: if assignees selected → find "Assigned" column, else use firstColumnId
+    const targetColumnId = (() => {
+      if (assignedTo.length > 0 && columns && columns.length > 0) {
+        const assignedCol = columns.find((c) =>
+          c.name.toLowerCase().includes('assigned'),
+        );
+        if (assignedCol) return assignedCol.id;
+      }
+      return firstColumnId;
+    })();
+
     try {
       const res = await fetch(`/api/spaces/${spaceId}/boards/${boardId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          columnId: firstColumnId,
+          columnId: targetColumnId,
           metadata,
           assigneeId: assignedTo[0] ?? undefined,
           dueDate: deadline || undefined,

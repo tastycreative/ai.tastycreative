@@ -19,14 +19,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify that the requesting user is an admin (OWNER, ADMIN, or MANAGER)
+    // Get the requesting user and their current organization
     const requestingUser = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { 
         id: true,
+        currentOrganizationId: true,
         teamMemberships: {
           select: {
-            role: true
+            role: true,
+            organizationId: true,
           }
         }
       }
@@ -36,9 +38,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    // Check if user has OWNER, ADMIN, or MANAGER role in any team
+    const currentOrgId = requestingUser.currentOrganizationId;
+
+    // Check if user has OWNER, ADMIN, or MANAGER role in their current organization
     const hasAdminRole = requestingUser.teamMemberships.some(
-      membership => membership.role === 'OWNER' || membership.role === 'ADMIN' || membership.role === 'MANAGER'
+      membership => 
+        (!currentOrgId || membership.organizationId === currentOrgId) &&
+        (membership.role === 'OWNER' || membership.role === 'ADMIN' || membership.role === 'MANAGER')
     );
 
     if (!hasAdminRole) {
@@ -48,10 +54,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const contentCreatorId = searchParams.get("contentCreatorId");
 
-    // Get all team members with CREATOR role
+    // Get team members with CREATOR role in the current organization only
     const creatorMembers = await prisma.teamMember.findMany({
       where: {
-        role: 'CREATOR'
+        role: 'CREATOR',
+        ...(currentOrgId ? { organizationId: currentOrgId } : {}),
       },
       include: {
         user: {

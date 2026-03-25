@@ -30,7 +30,7 @@ import { EditableField } from '../../board/EditableField';
 import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 import { useSpaceBySlug } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
-import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
+import { useOrgMembers, useCurrentOrgRole } from '@/lib/hooks/useOrgMembers.query';
 import { MentionDropdown, type MentionDropdownHandle } from '../../board/MentionDropdown';
 import { CommentContent } from '../../board/CommentContent';
 import { extractMentionedClerkIds } from '@/lib/mention-utils';
@@ -58,7 +58,7 @@ interface Props {
   onUpdate: (updated: BoardTask) => void;
 }
 
-type ModalTab = 'details' | 'vault' | 'history' | 'comments';
+type ModalTab = 'details' | 'vault' | 'activity';
 
 /* ── Constants ───────────────────────────────────────────── */
 
@@ -296,6 +296,20 @@ function formatFieldName(field: string): string {
   return field;
 }
 
+function getDateGroupLabel(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
+
 /* ══════════════════════════════════════════════════════════ */
 /*  Main Modal                                                */
 /* ══════════════════════════════════════════════════════════ */
@@ -312,6 +326,7 @@ export function ContentGenTaskDetailModal({
   const params = useParams<{ tenant: string; slug: string }>();
   const { data: space } = useSpaceBySlug(params.slug);
   const { data: orgMembers = [] } = useOrgMembers();
+  const { data: currentOrgRole } = useCurrentOrgRole();
   const { user } = useUser();
   const spaceId = space?.id;
   const boardId = space?.boards?.[0]?.id;
@@ -334,10 +349,20 @@ export function ContentGenTaskDetailModal({
   const [mentionStartIndex, setMentionStartIndex] = useState(0);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
+  const [assigneesDropdownOpen, setAssigneesDropdownOpen] = useState(false);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [assigneeDropdownPos, setAssigneeDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const [revisionReason, setRevisionReason] = useState('');
+  const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<'all' | 'comments' | 'changes'>('all');
+  const [hasUnreadActivity, setHasUnreadActivity] = useState(false);
+  const lastActivityViewRef = useRef<number>(Date.now());
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionDropdownRef = useRef<MentionDropdownHandle>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const assigneesDropdownRef = useRef<HTMLDivElement>(null);
+  const assigneesTriggerRef = useRef<HTMLButtonElement>(null);
   const alreadyMentionedIds = useMemo(() => extractMentionedClerkIds(newComment), [newComment]);
 
   /* ── Metadata ────────────────────────────────────────── */
@@ -364,6 +389,9 @@ export function ContentGenTaskDetailModal({
   /* ── Submit validation ─────────────────────────────────── */
 
   const isReviewColumn = columnTitle.toLowerCase().includes('review');
+  const isAssignedColumn = columnTitle.toLowerCase() === 'assigned';
+  const isInProgressColumn = columnTitle.toLowerCase().includes('in progress');
+  const isRevisionColumn = columnTitle.toLowerCase().includes('revision');
   const canSubmitToReview = vaultAssets.length > 0;
 
   /* ── API hooks ───────────────────────────────────────── */
@@ -399,6 +427,51 @@ export function ContentGenTaskDetailModal({
     }));
   }, [historyData, user]);
 
+  /* ── Unified activity timeline ───────────────────────── */
+
+  const activityTimeline = useMemo(() => {
+    const items: Array<{
+      id: string;
+      type: 'comment' | 'change';
+      author: string;
+      timestamp: string;
+      content?: string;
+      action?: string;
+      field?: string;
+      oldValue?: string;
+      newValue?: string;
+    }> = [];
+    for (const c of comments) {
+      items.push({ id: `c-${c.id}`, type: 'comment', author: c.author, timestamp: c.createdAt, content: c.content });
+    }
+    for (const h of historyEntries) {
+      items.push({ id: `h-${h.id}`, type: 'change', author: h.changedBy, timestamp: h.changedAt, action: h.action, field: h.field, oldValue: h.oldValue ?? undefined, newValue: h.newValue ?? undefined });
+    }
+    items.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return items;
+  }, [comments, historyEntries]);
+
+  const filteredTimeline = useMemo(() => {
+    if (activityFilter === 'all') return activityTimeline;
+    if (activityFilter === 'comments') return activityTimeline.filter(i => i.type === 'comment');
+    return activityTimeline.filter(i => i.type === 'change');
+  }, [activityTimeline, activityFilter]);
+
+  const groupedTimeline = useMemo(() => {
+    const groups: { label: string; items: typeof filteredTimeline }[] = [];
+    let currentLabel = '';
+    for (const item of filteredTimeline) {
+      const label = getDateGroupLabel(item.timestamp);
+      if (label !== currentLabel) {
+        groups.push({ label, items: [item] });
+        currentLabel = label;
+      } else {
+        groups[groups.length - 1].items.push(item);
+      }
+    }
+    return groups;
+  }, [filteredTimeline]);
+
   /* ── Effects ─────────────────────────────────────────── */
 
   useEffect(() => setMounted(true), []);
@@ -412,11 +485,60 @@ export function ContentGenTaskDetailModal({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !editingTitle && !editingNotes && !vaultPickerOpen) onClose();
+      if (e.key === 'Escape') {
+        if (assigneesDropdownOpen) { setAssigneesDropdownOpen(false); return; }
+        if (!editingTitle && !editingNotes && !vaultPickerOpen) onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, editingTitle, editingNotes, vaultPickerOpen, onClose]);
+  }, [isOpen, editingTitle, editingNotes, vaultPickerOpen, assigneesDropdownOpen, onClose]);
+
+  useEffect(() => {
+    if (!assigneesDropdownOpen) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        assigneesDropdownRef.current && !assigneesDropdownRef.current.contains(target) &&
+        assigneesTriggerRef.current && !assigneesTriggerRef.current.contains(target)
+      ) {
+        setAssigneesDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [assigneesDropdownOpen]);
+
+  // Track unread activity
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      lastActivityViewRef.current = Date.now();
+      setHasUnreadActivity(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'activity' || !lastActivityViewRef.current) return;
+    const lastViewed = lastActivityViewRef.current;
+    const hasNew = activityTimeline.some(item => new Date(item.timestamp).getTime() > lastViewed);
+    setHasUnreadActivity(hasNew);
+  }, [activeTab, activityTimeline]);
+
+  const filteredAssignableMembers = useMemo(() => {
+    const all = spaceMembers ?? [];
+    if (!assigneeSearch.trim()) return all;
+    const q = assigneeSearch.toLowerCase();
+    return all.filter((m) => {
+      const name = getMemberDisplayName(m);
+      return name.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q);
+    });
+  }, [spaceMembers, assigneeSearch]);
+
+  const canReview = useMemo(() => {
+    const orgAllowed = ['OWNER', 'ADMIN', 'MANAGER'].includes(currentOrgRole ?? '');
+    const spaceAllowed = ['OWNER', 'ADMIN'].includes(space?.currentUserRole ?? '');
+    return orgAllowed || spaceAllowed;
+  }, [currentOrgRole, space?.currentUserRole]);
 
   if (!mounted || !isOpen) return null;
 
@@ -444,6 +566,16 @@ export function ContentGenTaskDetailModal({
 
   const handleVaultAssetsSelected = (assets: VaultAssetRef[]) => {
     updateMeta({ vaultAssets: assets });
+    // Auto-promote to "In Progress" when first asset is attached while still in Assigned
+    if (isAssignedColumn && assets.length > 0 && vaultAssets.length === 0) {
+      const inProgressCol = columns?.find(c => c.name.toLowerCase().includes('in progress'));
+      if (inProgressCol && onColumnChange) onColumnChange(inProgressCol.id);
+    }
+    // Auto-promote from Revision back to In Progress when assets are updated
+    if (isRevisionColumn && assets.length > 0) {
+      const inProgressCol = columns?.find(c => c.name.toLowerCase().includes('in progress'));
+      if (inProgressCol && onColumnChange) onColumnChange(inProgressCol.id);
+    }
   };
 
   const handleMoveToReview = () => {
@@ -451,6 +583,46 @@ export function ContentGenTaskDetailModal({
     const reviewCol = columns?.find(c => c.name.toLowerCase().includes('review'));
     if (reviewCol && onColumnChange) {
       onColumnChange(reviewCol.id);
+    }
+  };
+
+  const handleStartWorking = () => {
+    const inProgressCol = columns?.find(c => c.name.toLowerCase().includes('in progress'));
+    if (inProgressCol && onColumnChange) {
+      onColumnChange(inProgressCol.id);
+    }
+  };
+
+  const handleApprove = () => {
+    const completedCol = columns?.find(c => c.name.toLowerCase().includes('completed'));
+    if (completedCol && onColumnChange) onColumnChange(completedCol.id);
+  };
+
+  const handleRequestRevision = () => {
+    const revisionCol = columns?.find(c => c.name.toLowerCase().includes('revision'));
+    if (revisionCol && onColumnChange) {
+      onColumnChange(revisionCol.id);
+      if (revisionReason.trim()) {
+        addCommentMutation.mutate(`📝 Revision requested: ${revisionReason.trim()}`);
+      }
+      setRevisionReason('');
+      setShowRevisionInput(false);
+    }
+  };
+
+  const handleToggleAssignee = (clerkId: string) => {
+    const wasAssigned = assignedTo.includes(clerkId);
+    const newList = wasAssigned
+      ? assignedTo.filter((id) => id !== clerkId)
+      : [...assignedTo, clerkId];
+    updateMeta({ assignedTo: newList });
+    // Auto-move to "Assigned" column when first assignee is added and ticket is still in Open
+    if (!wasAssigned && newList.length === 1) {
+      const isOpenColumn = columnTitle.toLowerCase() === 'open';
+      if (isOpenColumn) {
+        const assignedCol = columns?.find(c => c.name.toLowerCase().includes('assigned'));
+        if (assignedCol && onColumnChange) onColumnChange(assignedCol.id);
+      }
     }
   };
 
@@ -516,9 +688,20 @@ export function ContentGenTaskDetailModal({
   const tabs: { id: ModalTab; label: string; icon: LucideIcon }[] = [
     { id: 'details', label: 'Details', icon: Info },
     { id: 'vault', label: 'Vault', icon: FolderOpen },
-    { id: 'history', label: 'History', icon: History },
-    { id: 'comments', label: 'Comments', icon: MessageSquare },
+    { id: 'activity', label: 'Activity', icon: MessageSquare },
   ];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const tabIds = tabs.map(t => t.id);
+    const idx = tabIds.indexOf(activeTab);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const next = e.key === 'ArrowRight'
+        ? (idx + 1) % tabIds.length
+        : (idx - 1 + tabIds.length) % tabIds.length;
+      setActiveTab(tabIds[next]);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[5vh]">
@@ -574,10 +757,15 @@ export function ContentGenTaskDetailModal({
             )}
 
             {/* Tabs */}
-            <div className="flex gap-1 mt-4 -mb-3">
+            <div className="flex gap-1 mt-4 -mb-3" role="tablist" onKeyDown={handleTabKeyDown}>
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
+                  id={`tab-${tab.id}`}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`tabpanel-${tab.id}`}
+                  tabIndex={activeTab === tab.id ? 0 : -1}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs font-medium transition-colors ${
                     activeTab === tab.id
@@ -592,10 +780,17 @@ export function ContentGenTaskDetailModal({
                       {vaultAssets.length}
                     </span>
                   )}
-                  {tab.id === 'comments' && comments.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-brand-blue/20 text-brand-blue font-bold">
-                      {comments.length}
-                    </span>
+                  {tab.id === 'activity' && (
+                    <>
+                      {(comments.length + historyEntries.length) > 0 && (
+                        <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-brand-blue/20 text-brand-blue font-bold">
+                          {comments.length + historyEntries.length}
+                        </span>
+                      )}
+                      {hasUnreadActivity && activeTab !== 'activity' && (
+                        <span className="ml-1 h-2 w-2 rounded-full bg-brand-light-pink animate-pulse" />
+                      )}
+                    </>
                   )}
                 </button>
               ))}
@@ -603,9 +798,15 @@ export function ContentGenTaskDetailModal({
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-hidden">
             {/* ── Details Tab ──────────────────────────── */}
-            {activeTab === 'details' && (
+            <div
+              role="tabpanel"
+              id="tabpanel-details"
+              aria-labelledby="tab-details"
+              style={{ display: activeTab === 'details' ? undefined : 'none' }}
+              className="h-full overflow-y-auto px-6 py-4"
+            >
               <div className="space-y-1">
                 <Section icon={Info} title="Task Information">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -641,22 +842,98 @@ export function ContentGenTaskDetailModal({
                 </Section>
 
                 <Section icon={Users} title="Assigned Content Generators">
-                  <div className="flex flex-wrap gap-2">
-                    {assignedTo.length > 0 ? (
-                      assignedTo.map((uid) => {
-                        const name = getMemberName(uid) ?? uid;
-                        const color = getAvatarColor(name);
-                        return (
-                          <span key={uid} className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${color} border border-white/[0.06]`}>
-                            <span className="h-5 w-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
-                              {name.charAt(0).toUpperCase()}
-                            </span>
-                            {name}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {assignedTo.map((uid) => {
+                      const name = getMemberName(uid) ?? uid;
+                      const color = getAvatarColor(name);
+                      return (
+                        <span key={uid} className={`inline-flex items-center gap-1 rounded-lg pl-2 pr-1 py-1 text-xs font-medium ${color} border border-white/[0.06]`}>
+                          <span className="h-5 w-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
+                            {name.charAt(0).toUpperCase()}
                           </span>
-                        );
-                      })
-                    ) : (
-                      <span className="text-xs text-gray-600">No assignees</span>
+                          {name}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAssignee(uid)}
+                            className="ml-0.5 rounded p-0.5 hover:bg-white/10 transition-colors"
+                            title={`Remove ${name}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add assignee */}
+                  <div className="relative inline-block">
+                    <button
+                      ref={assigneesTriggerRef}
+                      type="button"
+                      onClick={() => {
+                        if (!assigneesDropdownOpen) {
+                          const rect = assigneesTriggerRef.current?.getBoundingClientRect();
+                          if (rect) setAssigneeDropdownPos({ top: rect.bottom + 6, left: rect.left });
+                        }
+                        setAssigneesDropdownOpen(v => !v);
+                        setAssigneeSearch('');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-white/[0.15] px-2.5 py-1 text-xs text-gray-500 hover:border-brand-light-pink/40 hover:text-brand-light-pink transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add assignee
+                    </button>
+
+                    {assigneesDropdownOpen && assigneeDropdownPos && createPortal(
+                      <div
+                        ref={assigneesDropdownRef}
+                        style={{ position: 'fixed', top: assigneeDropdownPos.top, left: assigneeDropdownPos.left, zIndex: 9999 }}
+                        className="w-64 rounded-xl border border-white/[0.08] bg-[#111113] shadow-2xl overflow-hidden"
+                      >
+                        <div className="p-2 border-b border-white/[0.06]">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+                            <input
+                              autoFocus
+                              type="text"
+                              value={assigneeSearch}
+                              onChange={(e) => setAssigneeSearch(e.target.value)}
+                              placeholder="Search members..."
+                              className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-7 pr-3 py-1.5 text-xs text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:border-brand-mid-pink/30"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto py-1">
+                          {filteredAssignableMembers.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-xs text-gray-600">No members found</div>
+                          ) : (
+                            filteredAssignableMembers.map((m) => {
+                              const name = getMemberDisplayName(m);
+                              const isSelected = assignedTo.includes(m.user.clerkId);
+                              return (
+                                <button
+                                  key={m.user.clerkId}
+                                  type="button"
+                                  onClick={() => handleToggleAssignee(m.user.clerkId)}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors ${
+                                    isSelected ? 'text-brand-light-pink' : 'text-gray-300'
+                                  }`}
+                                >
+                                  <span className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${getAvatarColor(name)}`}>
+                                    {name.charAt(0).toUpperCase()}
+                                  </span>
+                                  <span className="flex-1 min-w-0 flex flex-col items-start">
+                                    <span className="truncate w-full">{name}</span>
+                                    <span className="truncate w-full text-[10px] text-gray-500">{m.user.email}</span>
+                                  </span>
+                                  {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>,
+                      document.body
                     )}
                   </div>
                 </Section>
@@ -681,8 +958,33 @@ export function ContentGenTaskDetailModal({
                   )}
                 </Section>
 
+                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
+                  <div className="text-xs space-y-1.5 text-gray-400">
+                    {createdAt && <div>Created: {formatFullDate(createdAt)}</div>}
+                    {updatedAt && <div>Updated: {formatFullDate(updatedAt)}</div>}
+                  </div>
+                </Section>
+
+                {/* Start Working button */}
+                {isAssignedColumn && (
+                  <div className="mt-4 p-4 rounded-xl border border-brand-light-pink/20 bg-brand-light-pink/[0.05]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Start Working</div>
+                        <div className="text-xs text-gray-400 mt-0.5">Mark this ticket as in progress</div>
+                      </div>
+                      <button
+                        onClick={handleStartWorking}
+                        className="px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-brand-light-pink text-white hover:bg-brand-mid-pink shadow-lg shadow-brand-light-pink/20"
+                      >
+                        Start
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Submit to Review gate */}
-                {!isReviewColumn && (
+                {!isReviewColumn && !isAssignedColumn && (
                   <div className="mt-4 p-4 rounded-xl border border-brand-blue/20 bg-brand-blue/[0.05]">
                     <div className="flex items-center justify-between">
                       <div>
@@ -708,17 +1010,65 @@ export function ContentGenTaskDetailModal({
                   </div>
                 )}
 
-                <Section icon={Clock} title="Timestamps" defaultOpen={false}>
-                  <div className="text-xs space-y-1.5 text-gray-400">
-                    {createdAt && <div>Created: {formatFullDate(createdAt)}</div>}
-                    {updatedAt && <div>Updated: {formatFullDate(updatedAt)}</div>}
+                {/* Review decision — only visible to org OWNER/ADMIN/MANAGER or space OWNER/ADMIN */}
+                {isReviewColumn && canReview && (
+                  <div className="mt-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/4">
+                    <div className="text-sm font-semibold text-white mb-3">Review Decision</div>
+
+                    {showRevisionInput && (
+                      <div className="mb-3">
+                        <textarea
+                          value={revisionReason}
+                          onChange={(e) => setRevisionReason(e.target.value)}
+                          placeholder="Reason for revision (optional)..."
+                          rows={3}
+                          className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-xs text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:border-amber-500/40 resize-none"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleApprove}
+                        className="flex-1 py-2 rounded-xl text-sm font-semibold bg-emerald-500/90 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/20 transition-all"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!showRevisionInput) {
+                            setShowRevisionInput(true);
+                          } else {
+                            handleRequestRevision();
+                          }
+                        }}
+                        className="flex-1 py-2 rounded-xl text-sm font-semibold bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all"
+                      >
+                        {showRevisionInput ? 'Send Revision' : '↩ Request Revision'}
+                      </button>
+                    </div>
+
+                    {showRevisionInput && (
+                      <button
+                        onClick={() => { setShowRevisionInput(false); setRevisionReason(''); }}
+                        className="mt-2 w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
-                </Section>
+                )}
               </div>
-            )}
+            </div>
 
             {/* ── Vault Tab ────────────────────────────── */}
-            {activeTab === 'vault' && (
+            <div
+              role="tabpanel"
+              id="tabpanel-vault"
+              aria-labelledby="tab-vault"
+              style={{ display: activeTab === 'vault' ? undefined : 'none' }}
+              className="h-full overflow-y-auto px-6 py-4"
+            >
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -790,77 +1140,113 @@ export function ContentGenTaskDetailModal({
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
-            {/* ── History Tab ──────────────────────────── */}
-            {activeTab === 'history' && (
-              <div className="space-y-0 divide-y divide-white/[0.04]">
-                {historyLoading ? (
+            {/* ── Activity Tab ─────────────────────────── */}
+            <div
+              role="tabpanel"
+              id="tabpanel-activity"
+              aria-labelledby="tab-activity"
+              style={{ display: activeTab === 'activity' ? 'flex' : 'none' }}
+              className="flex-col h-full"
+            >
+              {/* Filter toggle */}
+              <div className="flex items-center gap-1 px-6 pt-3 pb-2 border-b border-white/[0.04]">
+                {(['all', 'comments', 'changes'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setActivityFilter(filter)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                      activityFilter === filter
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
+                    }`}
+                  >
+                    {filter === 'all' ? 'All' : filter === 'comments' ? 'Comments' : 'Changes'}
+                    {filter === 'comments' && comments.length > 0 && (
+                      <span className="ml-1.5 text-[10px] text-brand-blue font-bold">{comments.length}</span>
+                    )}
+                    {filter === 'changes' && historyEntries.length > 0 && (
+                      <span className="ml-1.5 text-[10px] text-gray-400 font-bold">{historyEntries.length}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Timeline */}
+              <div className="flex-1 overflow-y-auto px-6 py-3">
+                {(commentsLoading || historyLoading) ? (
                   <ActivitySkeleton />
-                ) : historyEntries.length === 0 ? (
-                  <EmptyState icon={History} text="No history yet" />
+                ) : filteredTimeline.length === 0 ? (
+                  <EmptyState
+                    icon={activityFilter === 'comments' ? MessageSquare : activityFilter === 'changes' ? History : Clock}
+                    text={`No ${activityFilter === 'all' ? 'activity' : activityFilter} yet`}
+                  />
                 ) : (
-                  historyEntries.map((entry) => (
-                    <div key={entry.id} className="flex items-start gap-3 py-3">
-                      <div className={`shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold ${getAvatarColor(entry.changedBy)}`}>
-                        {entry.changedBy.charAt(0).toUpperCase()}
+                  groupedTimeline.map((group) => (
+                    <div key={group.label} className="mb-4 last:mb-0">
+                      <div className="sticky top-0 z-10 flex items-center gap-3 py-1.5 mb-1 bg-[#0a0a0b]/80 backdrop-blur-sm">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-600">{group.label}</span>
+                        <div className="flex-1 h-px bg-white/[0.04]" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-300">
-                          <span className="font-semibold text-white">{entry.changedBy}</span>{' '}
-                          {entry.action === 'UPDATE' && entry.field
-                            ? `updated ${formatFieldName(entry.field)}`
-                            : entry.action === 'CREATE'
-                            ? 'created this task'
-                            : entry.action.toLowerCase()}
-                        </p>
-                        {entry.oldValue && entry.newValue && (
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            <span className="line-through">{entry.oldValue}</span>
-                            {' → '}
-                            <span className="text-gray-400">{entry.newValue}</span>
-                          </p>
-                        )}
-                        <p className="text-[10px] text-gray-600 mt-0.5">
-                          {formatDate(entry.changedAt)}
-                        </p>
+                      <div className="space-y-0 divide-y divide-white/[0.04]">
+                        {group.items.map((item) => (
+                          <div key={item.id} className="flex items-start gap-3 py-3">
+                            <div className="relative shrink-0">
+                              <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold ${getAvatarColor(item.author)}`}>
+                                {item.author.charAt(0).toUpperCase()}
+                              </div>
+                              {item.type === 'comment' && (
+                                <MessageSquare className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-brand-blue bg-[#0a0a0b] rounded-sm p-px" />
+                              )}
+                              {item.type === 'change' && (
+                                <History className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-gray-500 bg-[#0a0a0b] rounded-sm p-px" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {item.type === 'comment' ? (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-white">{item.author}</span>
+                                    <span className="text-[10px] text-gray-600">{formatDate(item.timestamp)}</span>
+                                  </div>
+                                  <div className="text-xs text-gray-300 mt-0.5 whitespace-pre-wrap">
+                                    <CommentContent content={item.content!} />
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-gray-300">
+                                    <span className="font-semibold text-white">{item.author}</span>{' '}
+                                    {item.action === 'UPDATE' && item.field
+                                      ? `updated ${formatFieldName(item.field)}`
+                                      : item.action === 'CREATE'
+                                      ? 'created this task'
+                                      : (item.action ?? '').toLowerCase()}
+                                  </p>
+                                  {item.oldValue && item.newValue && (
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                      <span className="line-through">{item.oldValue}</span>
+                                      {' → '}
+                                      <span className="text-gray-400">{item.newValue}</span>
+                                    </p>
+                                  )}
+                                  <p className="text-[10px] text-gray-600 mt-0.5">
+                                    {formatDate(item.timestamp)}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))
                 )}
               </div>
-            )}
 
-            {/* ── Comments Tab ─────────────────────────── */}
-            {activeTab === 'comments' && (
-              <div className="flex flex-col h-full">
-                {/* Comment list */}
-                <div className="flex-1 space-y-0 divide-y divide-white/[0.04] mb-4">
-                  {commentsLoading ? (
-                    <ActivitySkeleton />
-                  ) : comments.length === 0 ? (
-                    <EmptyState icon={MessageSquare} text="No comments yet" />
-                  ) : (
-                    comments.map((c) => (
-                      <div key={c.id} className="flex items-start gap-3 py-3">
-                        <div className={`shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold ${getAvatarColor(c.author)}`}>
-                          {c.author.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-white">{c.author}</span>
-                            <span className="text-[10px] text-gray-600">{formatDate(c.createdAt)}</span>
-                          </div>
-                          <div className="text-xs text-gray-300 mt-0.5 whitespace-pre-wrap">
-                            <CommentContent content={c.content} />
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Comment input */}
+              {/* Sticky comment input */}
+              <div className="px-6 py-3 border-t border-white/[0.06] bg-[#0a0a0b]/80 backdrop-blur-sm">
                 <div className="relative">
                   <textarea
                     ref={commentTextareaRef}
@@ -868,8 +1254,8 @@ export function ContentGenTaskDetailModal({
                     onChange={handleCommentChange}
                     onKeyDown={handleCommentKeyDown}
                     placeholder="Write a comment... Use @mention to notify"
-                    rows={3}
-                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-4 py-3 text-sm text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:border-brand-mid-pink/30 resize-none"
+                    rows={2}
+                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-4 py-2.5 text-sm text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:border-brand-mid-pink/30 resize-none"
                   />
                   {mentionQuery !== null && spaceMembers && (
                     <MentionDropdown
@@ -882,7 +1268,7 @@ export function ContentGenTaskDetailModal({
                       excludeClerkIds={alreadyMentionedIds}
                     />
                   )}
-                  <div className="flex justify-end mt-2">
+                  <div className="flex justify-end mt-1.5">
                     <button
                       onClick={handleCommentSubmit}
                       disabled={!newComment.trim() || addCommentMutation.isPending}
@@ -893,7 +1279,7 @@ export function ContentGenTaskDetailModal({
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -950,7 +1336,14 @@ export function ContentGenTaskDetailModal({
                   );
                 })
               ) : (
-                <span className="text-xs text-gray-600">None</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('details'); setAssigneesDropdownOpen(true); }}
+                  className="text-xs text-gray-600 hover:text-brand-light-pink transition-colors flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Assign
+                </button>
               )}
             </div>
           </SideRow>

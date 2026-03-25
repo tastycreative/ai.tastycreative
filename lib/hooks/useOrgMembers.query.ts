@@ -53,3 +53,19 @@ export function useOrgMembersWithRoles() {
     refetchOnWindowFocus: false,
   });
 }
+
+async function fetchCurrentOrgRole(): Promise<string | null> {
+  const res = await fetch('/api/organization/current');
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.organization?.memberRole ?? null;
+}
+
+export function useCurrentOrgRole() {
+  return useQuery({
+    queryKey: ['organization-current-role'],
+    queryFn: fetchCurrentOrgRole,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}

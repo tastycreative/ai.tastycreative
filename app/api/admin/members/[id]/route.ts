@@ -24,7 +24,7 @@ export async function PATCH(
     }
 
     // Check if user is admin
-    if (user.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Forbidden: Admin access required' },
         { status: 403 }
@@ -110,7 +110,7 @@ export async function DELETE(
     }
 
     // Check if user is admin
-    if (user.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Forbidden: Admin access required' },
         { status: 403 }

@@ -60,11 +60,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Determine which org the user belongs to, for scoping
-    const orgMemberships = await prisma.teamMember.findMany({
-      where: { userId: dbUser.id },
-      select: { organizationId: true },
-    });
-    const orgIds = orgMemberships.map((m) => m.organizationId);
+    const currentOrgId = dbUser.currentOrganizationId;
+    const orgIds = currentOrgId ? [currentOrgId] : [];
 
     // Build where clause — only gallery items with a non-empty caption
     const where: Record<string, unknown> = {

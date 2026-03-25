@@ -10,6 +10,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's current organization for scoping
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
     const { searchParams } = new URL(req.url);
 
     // Parse filters
@@ -19,8 +25,10 @@ export async function GET(req: NextRequest) {
     const isArchived = searchParams.get("isArchived") === "true";
     const format = searchParams.get("format") || "csv"; // csv or json
 
-    // Build where clause
-    const where: Record<string, unknown> = {};
+    // Build where clause - scoped to current organization
+    const where: Record<string, unknown> = dbUser?.currentOrganizationId
+      ? { organizationId: dbUser.currentOrganizationId }
+      : { organizationId: null };
     if (profileId) where.profileId = profileId;
     if (contentType && contentType !== "all") where.contentType = contentType;
     if (platform && platform !== "all") where.platform = platform;

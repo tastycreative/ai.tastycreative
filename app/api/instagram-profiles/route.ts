@@ -108,16 +108,19 @@ export async function GET(request: NextRequest) {
         teamMemberships: {
           select: {
             role: true,
+            organizationId: true,
           },
         },
       },
     });
     console.log('🔍 [instagram-profiles] User organization:', user?.currentOrganizationId || 'none');
 
-    // Check if user has CREATOR role (they could be creator in multiple orgs)
-    const isCreator = user?.teamMemberships?.some(
-      (membership) => membership.role === 'CREATOR'
-    ) || false;
+    // Check if user has CREATOR role in the current organization
+    const isCreator = user?.currentOrganizationId
+      ? user.teamMemberships?.some(
+          (membership) => membership.role === 'CREATOR' && membership.organizationId === user.currentOrganizationId
+        ) || false
+      : false;
     console.log('🔍 [instagram-profiles] Is creator:', isCreator);
 
     let ownProfiles: any[] = [];
@@ -170,12 +173,23 @@ export async function GET(request: NextRequest) {
       console.log('✅ [instagram-profiles] Assigned profiles count:', assignedProfiles.length);
     } else {
       // Regular users see their own profiles + organization profiles + assigned profiles
-      // Get user's own profiles
+      // Get user's own profiles (scoped to current org context)
       console.log('🔍 [instagram-profiles] Fetching own profiles...');
+      const ownProfilesWhere: any = {
+        AND: [
+          { clerkId: userId },
+          {
+            OR: [
+              { organizationId: null }, // Personal profiles (not shared to any org)
+              ...(user?.currentOrganizationId
+                ? [{ organizationId: user.currentOrganizationId }] // Profiles shared to current org
+                : []),
+            ],
+          },
+        ],
+      };
       ownProfiles = await prisma.instagramProfile.findMany({
-        where: {
-          clerkId: userId,
-        },
+        where: ownProfilesWhere,
         orderBy: [
           { isDefault: 'desc' },
           { name: 'asc' },

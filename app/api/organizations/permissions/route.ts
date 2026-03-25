@@ -223,6 +223,7 @@ export async function GET(req: NextRequest) {
       hasSpacesTab: true,
       hasSchedulersTab: true,
       hasAIToolsTab: true,
+      hasContentTab: true,
     };
     for (const [key, val] of Object.entries(TAB_DEFAULTS)) {
       if (permissions[key] === undefined) {
