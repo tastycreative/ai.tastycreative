@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, Lock, DollarSign } from "lucide-react";
+import { Lock, DollarSign } from "lucide-react";
 import {
   isTaskLocked,
   TASK_FIELD_DEFS,
@@ -22,6 +22,7 @@ import {
   CaptionPreview,
   FlyerPreview,
   FlagButton,
+  PostedBadge,
 } from "./shared";
 
 const TYPE_COLOR = TASK_TYPE_COLORS["MM"];
@@ -93,9 +94,7 @@ export function MMCard({
                   flagged={isFlagged}
                   onToggle={() => save("flagged", isFlagged ? "" : "true")}
                 />
-                {task.status === "DONE" && (
-                  <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />
-                )}
+                {task.status === "DONE" && <PostedBadge />}
               </div>
             </div>
             {hasSubType && (

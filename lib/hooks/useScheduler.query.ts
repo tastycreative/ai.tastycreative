@@ -309,8 +309,12 @@ export function useUpdatePodTask() {
         }
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+      // Invalidate gallery cache on any status change (gallery item created/removed server-side)
+      if (variables.status !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['gallery'] });
+      }
     },
   });
 }

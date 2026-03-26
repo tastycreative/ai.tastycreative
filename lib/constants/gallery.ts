@@ -53,6 +53,7 @@ export const GALLERY_ORIGINS = [
   "manual", // Manually entered
   "import", // Imported from external source
   "migration", // Migrated from another system
+  "scheduler", // Auto-created when scheduler task marked DONE
 ] as const;
 
 export type GalleryOrigin = (typeof GALLERY_ORIGINS)[number];

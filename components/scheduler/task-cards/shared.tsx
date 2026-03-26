@@ -36,6 +36,18 @@ export const STATUS_ICONS: Record<string, React.ReactNode> = {
   SKIPPED: <SkipForward className="h-2.5 w-2.5" />,
 };
 
+/** "Done" indicator: green check + "Posted" badge, shown on DONE tasks */
+export function PostedBadge() {
+  return (
+    <>
+      <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />
+      <span className="text-[7px] font-bold px-1 py-px rounded bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+        Posted
+      </span>
+    </>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TaskCardProps {
