@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { isTaskLocked } from '@/lib/hooks/useScheduler.query';
 import { TASK_FIELD_DEFS } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskModal } from '../SchedulerTaskModal';
@@ -18,6 +18,7 @@ import {
   CaptionPreview,
   FlyerPreview,
   FlagButton,
+  PostedBadge,
 } from './shared';
 
 const TYPE_COLOR = TASK_TYPE_COLORS['WP'];
@@ -54,7 +55,7 @@ export function WPCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             )}
             {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
             <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
-            {task.status === 'DONE' && <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-500/70" />}
+            {task.status === 'DONE' && <PostedBadge />}
           </div>
           {fields.contentFlyer && (
             <div className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 ml-[13px] mt-px">

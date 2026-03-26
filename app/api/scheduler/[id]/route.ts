@@ -137,6 +137,50 @@ export async function PATCH(
     });
   }
 
+  // ── Auto-create gallery item when status transitions to DONE ──
+  if (status === 'DONE' && oldTask.status !== 'DONE') {
+    try {
+      const { buildGalleryItemFromTask } = await import(
+        '@/lib/scheduler/gallery-integration'
+      );
+      const galleryPayload = buildGalleryItemFromTask(
+        {
+          id: task.id,
+          organizationId: orgId,
+          taskType: task.taskType,
+          taskName: task.taskName,
+          platform: task.platform,
+          profileId: task.profileId,
+          endTime: task.endTime?.toISOString() ?? null,
+          fields: task.fields as Record<string, string> | null,
+        },
+        userId,
+      );
+
+      if (galleryPayload) {
+        // Unique constraint on schedulerTaskId prevents duplicates
+        await prisma.gallery_items.create({ data: galleryPayload });
+      }
+    } catch (galleryErr) {
+      // P2002 = unique constraint violation (gallery item already exists) — safe to ignore
+      const prismaErr = galleryErr as { code?: string };
+      if (prismaErr.code !== 'P2002') {
+        console.error('[scheduler] Failed to create gallery item on DONE:', { taskId: task.id, orgId, taskType: task.taskType }, galleryErr);
+      }
+    }
+  }
+
+  // ── Remove gallery item if status reverts from DONE ──
+  if (oldTask.status === 'DONE' && status !== undefined && status !== 'DONE') {
+    try {
+      await prisma.gallery_items.deleteMany({
+        where: { schedulerTaskId: task.id },
+      });
+    } catch (cleanupErr) {
+      console.error('[scheduler] Failed to remove gallery item on status revert:', { taskId: task.id, orgId }, cleanupErr);
+    }
+  }
+
   // Broadcast real-time update
   await broadcastToScheduler(orgId, {
     type: 'task.updated',
@@ -183,6 +227,11 @@ export async function DELETE(
   const taskToDelete = await prisma.schedulerTask.findUnique({
     where: { id, organizationId: orgId },
     select: { slotLabel: true, dayOfWeek: true, taskType: true },
+  });
+
+  // Clean up linked gallery item before deleting the task
+  await prisma.gallery_items.deleteMany({
+    where: { schedulerTaskId: id },
   });
 
   const task = await prisma.schedulerTask.delete({
