@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminAccess } from '@/lib/adminAuth';
+import { requireOrgAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
 
 /**
@@ -8,7 +8,7 @@ import { prisma } from '@/lib/database';
  */
 export async function GET() {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     // Fetch all team members with CREATOR role
     const creatorMembers = await prisma.teamMember.findMany({

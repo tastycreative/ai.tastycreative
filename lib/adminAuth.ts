@@ -133,6 +133,45 @@ export async function requireAdminAccess(): Promise<void> {
 }
 
 /**
+ * Require admin access, also allowing org OWNER/ADMIN/MANAGER.
+ * Checks system admin first, then falls back to checking if the user
+ * holds OWNER, ADMIN, or MANAGER role in any of their organizations.
+ */
+export async function requireOrgAdminAccess(): Promise<void> {
+  try {
+    const user = await currentUser();
+    if (!user) {
+      throw new Error('Unauthorized - Authentication required');
+    }
+
+    // System admin passes immediately
+    if (await isUserAdmin()) {
+      return;
+    }
+
+    // Check if user has OWNER/ADMIN/MANAGER role in any organization
+    const { userId } = await auth();
+    if (!userId) {
+      throw new Error('Unauthorized - Authentication required');
+    }
+
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        user: { clerkId: userId },
+        role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+      },
+    });
+
+    if (!membership) {
+      throw new Error('Forbidden - Admin access required');
+    }
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Forbidden - Admin access required');
+  }
+}
+
+/**
  * Check if the current user is an admin for a specific tenant.
  * Returns true if the user is a system admin (ADMIN/SUPER_ADMIN)
  * OR an organization OWNER/ADMIN for the tenant's organization.

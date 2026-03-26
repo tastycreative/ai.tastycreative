@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAccess } from '@/lib/adminAuth';
+import { requireOrgAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
 import { currentUser } from '@clerk/nextjs/server';
 
@@ -9,7 +9,7 @@ import { currentUser } from '@clerk/nextjs/server';
  */
 export async function GET() {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     const user = await currentUser();
     if (!user) {
@@ -62,7 +62,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     const user = await currentUser();
     if (!user) {
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     const user = await currentUser();
     if (!user) {

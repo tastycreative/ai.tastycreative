@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminAccess } from '@/lib/adminAuth';
+import { requireOrgAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
 
 /**
@@ -8,7 +8,7 @@ import { prisma } from '@/lib/database';
  */
 export async function GET() {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     const organizations = await prisma.organization.findMany({
       select: {

@@ -181,11 +181,11 @@ export default function DashboardLayout({
                 name: "Content Ops",
                 collapsible: true,
                 items: [
-                  {
-                    name: "OF Models",
-                    href: `/${tenant}/of-models`,
-                    icon: UserCheck,
-                  },
+                  // {
+                  //   name: "OF Models",
+                  //   href: `/${tenant}/of-models`,
+                  //   icon: UserCheck,
+                  // },
                   {
                     name: "Gallery",
                     href: `/${tenant}/gallery`,

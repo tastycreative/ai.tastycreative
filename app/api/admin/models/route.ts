@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAccess } from '@/lib/adminAuth';
+import { requireOrgAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
 
 /**
@@ -9,7 +9,7 @@ import { prisma } from '@/lib/database';
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireAdminAccess();
+    await requireOrgAdminAccess();
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
