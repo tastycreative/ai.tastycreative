@@ -78,13 +78,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ hasAccess: false });
     }
 
-    // User has access — update activity timestamps
+    // User has access — sync currentOrganizationId and update activity timestamps
     const now = new Date();
     const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     await Promise.all([
       prisma.user.update({
         where: { clerkId: userId },
-        data: { lastLoginAt: now },
+        data: { lastLoginAt: now, currentOrganizationId: organization.id },
       }),
       prisma.teamMember.updateMany({
         where: { userId: user.id, organizationId: organization.id },
