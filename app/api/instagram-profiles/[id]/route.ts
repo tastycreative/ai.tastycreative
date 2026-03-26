@@ -157,9 +157,8 @@ export async function PATCH(
           select: { role: true },
         });
 
-        // Allow OWNER, ADMIN, MANAGER, and CREATOR to edit
-        const elevatedRoles = ["OWNER", "ADMIN", "MANAGER", "CREATOR"];
-        hasElevatedRole = teamMembership ? elevatedRoles.includes(teamMembership.role) : false;
+        // Allow any org member to edit (OWNER, ADMIN, MANAGER, CREATOR, MEMBER, VIEWER)
+        hasElevatedRole = !!teamMembership;
         canEdit = hasElevatedRole;
       }
     }
