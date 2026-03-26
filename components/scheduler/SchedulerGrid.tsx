@@ -31,6 +31,7 @@ import { SchedulerActivityLog } from './SchedulerActivityLog';
 import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
 import { SchedulerExportModal } from './SchedulerExportModal';
+import { SchedulerDashboard } from './SchedulerDashboard';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import { getCountdownToReset } from '@/lib/scheduler/time-helpers';
 import { getTimezoneAbbreviation, getTodayKeyInTimezone } from '@/lib/timezone-utils';
@@ -53,7 +54,7 @@ const PLATFORM_TABS = [
   { key: 'fansly', label: 'Fansly', color: '#c084fc' },
 ] as const;
 
-type PlatformKey = (typeof PLATFORM_TABS)[number]['key'];
+type PlatformKey = 'dashboard' | (typeof PLATFORM_TABS)[number]['key'];
 
 // ─── Sample static tasks for demo/preview ────────────────────────────────────
 function makeSampleTask(
@@ -347,8 +348,8 @@ export function SchedulerGrid() {
   const LA_TZ = 'America/Los_Angeles';
   const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
 
-  // Platform tab state
-  const [activePlatform, setActivePlatform] = useState<PlatformKey>('free');
+  // Platform tab state — default to dashboard
+  const [activePlatform, setActivePlatform] = useState<PlatformKey>('dashboard');
 
   // Fetch full profile details (page strategy, content types)
   const profileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
@@ -459,7 +460,13 @@ export function SchedulerGrid() {
   // Data — wait for profile selector to resolve before fetching
   const profileReady = isAllProfiles || !loadingProfiles;
   const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
-  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(weekStart, activeProfileId, activePlatform, profileReady);
+  const isDashboard = activePlatform === 'dashboard';
+  const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(
+    weekStart,
+    activeProfileId,
+    isDashboard ? undefined : activePlatform,
+    profileReady && !isDashboard,
+  );
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
   const config = configData?.config ?? null;
@@ -608,31 +615,111 @@ export function SchedulerGrid() {
   );
 
   const handleUpdateTaskLimits = useCallback(
-    (dayIndex: number, type: string, newMax: number | null) => {
+    (dayIndex: number, type: string, newMax: number | null, platform?: string) => {
       if (showDemo) return;
       const current: TaskLimits = taskLimits
-        ? { defaults: { ...taskLimits.defaults }, overrides: { ...taskLimits.overrides } }
+        ? {
+            defaults: { ...taskLimits.defaults },
+            overrides: { ...taskLimits.overrides },
+            ...(taskLimits.platformDefaults && {
+              platformDefaults: Object.fromEntries(
+                Object.entries(taskLimits.platformDefaults).map(([k, v]) => [k, { ...v }]),
+              ),
+            }),
+          }
         : { defaults: {}, overrides: {} };
 
-      const dayKey = String(dayIndex);
-      if (newMax === null) {
-        // Remove override for this day+type
-        if (current.overrides[dayKey]) {
-          const { [type]: _, ...rest } = current.overrides[dayKey];
-          if (Object.keys(rest).length > 0) {
-            current.overrides[dayKey] = rest;
-          } else {
-            const { [dayKey]: __, ...restOverrides } = current.overrides;
-            current.overrides = restOverrides;
-          }
+      if (dayIndex === -1 && platform) {
+        // Update per-platform defaults (from dashboard)
+        if (!current.platformDefaults) current.platformDefaults = {};
+        if (!current.platformDefaults[platform]) current.platformDefaults[platform] = {};
+        if (newMax === null) {
+          const { [type]: _, ...rest } = current.platformDefaults[platform];
+          current.platformDefaults[platform] = rest;
+        } else {
+          current.platformDefaults[platform][type] = newMax;
+        }
+      } else if (dayIndex === -1) {
+        // Update global defaults
+        if (newMax === null) {
+          const { [type]: _, ...rest } = current.defaults;
+          current.defaults = rest;
+        } else {
+          current.defaults[type] = newMax;
         }
       } else {
-        // Set override for this day+type
-        current.overrides[dayKey] = { ...(current.overrides[dayKey] ?? {}), [type]: newMax };
+        const dayKey = String(dayIndex);
+        if (newMax === null) {
+          if (current.overrides[dayKey]) {
+            const { [type]: _, ...rest } = current.overrides[dayKey];
+            if (Object.keys(rest).length > 0) {
+              current.overrides[dayKey] = rest;
+            } else {
+              const { [dayKey]: __, ...restOverrides } = current.overrides;
+              current.overrides = restOverrides;
+            }
+          }
+        } else {
+          current.overrides[dayKey] = { ...(current.overrides[dayKey] ?? {}), [type]: newMax };
+        }
       }
 
       const cleaned = cleanTaskLimits(current);
-      const hasAny = Object.keys(cleaned.defaults).length > 0 || Object.keys(cleaned.overrides).length > 0;
+      const hasAny =
+        Object.keys(cleaned.defaults).length > 0 ||
+        Object.keys(cleaned.overrides).length > 0 ||
+        Object.keys(cleaned.platformDefaults ?? {}).length > 0;
+      updateTaskLimits.mutate({ taskLimits: hasAny ? cleaned : null, tabId });
+    },
+    [taskLimits, showDemo, updateTaskLimits],
+  );
+
+  // Batch save all platform limits at once (from dashboard popover)
+  const handleSavePlatformLimits = useCallback(
+    (platform: string, typeLimits: Record<string, number>) => {
+      if (showDemo) return;
+      const current: TaskLimits = taskLimits
+        ? {
+            defaults: { ...taskLimits.defaults },
+            overrides: { ...taskLimits.overrides },
+            ...(taskLimits.platformDefaults && {
+              platformDefaults: Object.fromEntries(
+                Object.entries(taskLimits.platformDefaults).map(([k, v]) => [k, { ...v }]),
+              ),
+            }),
+          }
+        : { defaults: {}, overrides: {} };
+
+      if (!current.platformDefaults) current.platformDefaults = {};
+      // Replace entire platform entry with new values
+      if (Object.keys(typeLimits).length > 0) {
+        current.platformDefaults[platform] = typeLimits;
+      } else {
+        delete current.platformDefaults[platform];
+      }
+
+      // Clear any day-level overrides for types that now have platform defaults
+      // so the platform defaults apply to ALL days consistently
+      for (const [dayKey, dayOverrides] of Object.entries(current.overrides)) {
+        const filtered: Record<string, number> = {};
+        for (const [type, value] of Object.entries(dayOverrides)) {
+          // Keep override only if this type is NOT being set by the platform default
+          if (!(type in typeLimits)) {
+            filtered[type] = value;
+          }
+        }
+        if (Object.keys(filtered).length > 0) {
+          current.overrides[dayKey] = filtered;
+        } else {
+          delete current.overrides[dayKey];
+        }
+      }
+
+      const cleaned = cleanTaskLimits(current);
+      const hasAny =
+        Object.keys(cleaned.defaults).length > 0 ||
+        Object.keys(cleaned.overrides).length > 0 ||
+        Object.keys(cleaned.platformDefaults ?? {}).length > 0;
       updateTaskLimits.mutate({ taskLimits: hasAny ? cleaned : null, tabId });
     },
     [taskLimits, showDemo, updateTaskLimits],
@@ -750,6 +837,21 @@ export function SchedulerGrid() {
 
           {/* Platform tabs */}
           <div className="flex items-center gap-1">
+            {/* Dashboard tab */}
+            <button
+              onClick={() => setActivePlatform('dashboard')}
+              className="text-[10px] font-bold px-3 py-1 rounded-full font-sans transition-all border"
+              style={{
+                background: isDashboard
+                  ? 'linear-gradient(135deg, rgba(236,103,161,0.2), rgba(93,195,248,0.2))'
+                  : 'transparent',
+                color: isDashboard ? '#EC67A1' : '#888',
+                borderColor: isDashboard ? 'rgba(236,103,161,0.5)' : 'transparent',
+              }}
+            >
+              Dashboard
+            </button>
+            <div className="w-px h-3.5 bg-gray-200 dark:bg-[#181828] mx-0.5" />
             {PLATFORM_TABS.map((tab) => {
               const isActive = activePlatform === tab.key;
               return (
@@ -858,8 +960,18 @@ export function SchedulerGrid() {
         </div>
       )}
 
-      {/* Grid */}
-      {isLoading && !showDemo ? (
+      {/* Grid / Dashboard */}
+      {isDashboard ? (
+        <SchedulerDashboard
+          profileId={activeProfileId}
+          schedulerToday={schedulerToday}
+          weekStart={weekStart}
+          onSwitchPlatform={(p) => setActivePlatform(p as PlatformKey)}
+          taskLimits={taskLimits}
+          onSavePlatformLimits={handleSavePlatformLimits}
+          profileName={selectedProfile?.name}
+        />
+      ) : isLoading && !showDemo ? (
         <SchedulerGridSkeleton />
       ) : expandedDay !== null ? (
         /* ── Expanded layout: horizontal row, strips overlap like fanned cards ── */
@@ -890,6 +1002,8 @@ export function SchedulerGrid() {
                 onToggleExpand={() => toggleExpand(dayIndex)}
                 taskLimits={taskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
+                platform={activePlatform}
+                profileName={selectedProfile?.name}
               />
             );
           })}
@@ -924,6 +1038,8 @@ export function SchedulerGrid() {
                 onToggleExpand={() => toggleExpand(dayIndex)}
                 taskLimits={taskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
+                platform={activePlatform}
+                profileName={selectedProfile?.name}
               />
             );
           })}

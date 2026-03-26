@@ -118,6 +118,8 @@ export interface SchedulerTask {
 export interface TaskLimits {
   defaults: Record<string, number>;
   overrides: Record<string, Record<string, number>>;
+  /** Per-platform default limits: platform -> taskType -> max */
+  platformDefaults?: Record<string, Record<string, number>>;
 }
 
 export interface SchedulerConfig {
@@ -165,6 +167,8 @@ interface ActivityLogPage {
 export const schedulerKeys = {
   all: ['scheduler'] as const,
   week: (weekStart: string) => [...schedulerKeys.all, 'week', weekStart] as const,
+  month: (month: string, profileId: string) =>
+    [...schedulerKeys.all, 'month', month, profileId] as const,
   config: () => [...schedulerKeys.all, 'config'] as const,
   activity: () => [...schedulerKeys.all, 'activity'] as const,
   taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
@@ -210,6 +214,35 @@ export function useSchedulerWeek(
     queryKey: [...schedulerKeys.week(weekStart), profileId ?? '', platform ?? ''],
     queryFn: () => fetchWeekTasks(weekStart, profileId, platform),
     enabled: !!user && !!weekStart && enabled,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// ─── Month Fetch ────────────────────────────────────────────────────────
+
+async function fetchMonthTasks(
+  month: string,
+  profileId?: string | null,
+): Promise<WeekResponse> {
+  const params = new URLSearchParams({ month });
+  if (profileId) params.set('profileId', profileId);
+  const res = await fetch(`/api/scheduler/month?${params}`);
+  if (!res.ok) throw new Error('Failed to fetch month tasks');
+  return res.json();
+}
+
+export function useSchedulerMonth(
+  month: string,
+  profileId?: string | null,
+  enabled: boolean = true,
+) {
+  const { user } = useUser();
+  return useQuery({
+    queryKey: schedulerKeys.month(month, profileId ?? ''),
+    queryFn: () => fetchMonthTasks(month, profileId),
+    enabled: !!user && !!month && enabled,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -275,6 +308,55 @@ export function useUpdatePodTask() {
           queryClient.setQueryData(key, data);
         }
       }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
+    },
+  });
+}
+
+/**
+ * Lightweight mutation for toggling individual fields (e.g. flag).
+ * Uses `mergeFields: true` so the server merges instead of replacing,
+ * and does NOT cancel in-flight queries — safe for rapid concurrent calls.
+ */
+export function useMergeTaskFields() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      fields,
+      tabId,
+    }: {
+      id: string;
+      fields: Record<string, string>;
+      tabId?: string;
+    }) => {
+      const res = await fetch(`/api/scheduler/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields, mergeFields: true, tabId }),
+      });
+      if (!res.ok) throw new Error('Failed to update task');
+      return (await res.json()) as SchedulerTask;
+    },
+    onMutate: async (variables) => {
+      // Optimistic update without cancelling other mutations
+      queryClient.setQueriesData<WeekResponse>(
+        { queryKey: schedulerKeys.all },
+        (old) => {
+          if (!old?.tasks) return old;
+          return {
+            ...old,
+            tasks: old.tasks.map((t) => {
+              if (t.id !== variables.id) return t;
+              const existing = (t.fields || {}) as Record<string, string>;
+              return { ...t, fields: { ...existing, ...variables.fields } as TaskFields };
+            }),
+          };
+        },
+      );
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
