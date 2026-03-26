@@ -13,7 +13,8 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { SchedulerTask, TaskFields } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTask, TaskFields, useMergeTaskFields } from '@/lib/hooks/useScheduler.query';
+import { tabId } from '@/lib/hooks/useSchedulerRealtime';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { toast } from 'sonner';
 
@@ -45,6 +46,7 @@ export interface TaskCardProps {
   compact?: boolean;
   schedulerToday?: string;
   weekStart?: string;
+  profileName?: string;
 }
 
 // ─── Inline Editable Field Row (expanded mode) ───────────────────────────────
@@ -267,6 +269,20 @@ export function useFieldSave(
     onUpdate(task.id, { fields: merged });
   }, [fields, task.id, onUpdate]);
   return { fields, save };
+}
+
+// ─── Flag toggle (uses merge mutation — safe for rapid clicks) ───────────────
+
+export function useFlagToggle(taskId: string, currentFlagged: boolean) {
+  const merge = useMergeTaskFields();
+  const toggle = useCallback(() => {
+    merge.mutate({
+      id: taskId,
+      fields: { flagged: currentFlagged ? '' : 'true' },
+      tabId,
+    });
+  }, [taskId, currentFlagged, merge]);
+  return toggle;
 }
 
 // ─── Copy Caption Button ─────────────────────────────────────────────────────

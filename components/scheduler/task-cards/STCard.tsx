@@ -21,7 +21,7 @@ import {
 const TYPE_COLOR = TASK_TYPE_COLORS['ST'];
 const FIELD_DEFS = TASK_FIELD_DEFS['ST'];
 
-export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart }: TaskCardProps) {
+export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart, profileName }: TaskCardProps) {
   const [showModal, setShowModal] = useState(false);
   const { fields, save } = useFieldSave(task, onUpdate);
   const statusOpt = STATUS_OPTIONS.find((s) => s.key === task.status) || STATUS_OPTIONS[0];
@@ -59,7 +59,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             </div>
           )}
         </div>
-        <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} />
+        <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
       </>
     );
   }
@@ -103,7 +103,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
         <TimeDisplay task={task} />
         {task.updatedBy && <div className="text-[8px] px-1 font-mono text-gray-400 dark:text-gray-700">updated by {task.updatedBy}</div>}
       </div>
-      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} />
+      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
     </>
   );
 }

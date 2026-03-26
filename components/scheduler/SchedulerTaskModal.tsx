@@ -67,6 +67,20 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   SKIPPED: <SkipForward className="h-3 w-3" />,
 };
 
+const PLATFORM_COLORS: Record<string, string> = {
+  free: '#4ade80',
+  paid: '#f472b6',
+  oftv: '#38bdf8',
+  fansly: '#c084fc',
+};
+
+const PLATFORM_LABELS: Record<string, string> = {
+  free: 'Free',
+  paid: 'Paid',
+  oftv: 'OFTV',
+  fansly: 'Fansly',
+};
+
 interface SchedulerTaskModalProps {
   task: SchedulerTask;
   open: boolean;
@@ -75,6 +89,7 @@ interface SchedulerTaskModalProps {
   onDelete?: (id: string) => void;
   schedulerToday?: string;
   weekStart?: string;
+  profileName?: string;
 }
 
 export function SchedulerTaskModal({
@@ -85,6 +100,7 @@ export function SchedulerTaskModal({
   onDelete,
   schedulerToday,
   weekStart,
+  profileName,
 }: SchedulerTaskModalProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
@@ -318,6 +334,30 @@ export function SchedulerTaskModal({
                 <ArrowLeft className="h-2.5 w-2.5" />
                 Back
               </button>
+            )}
+
+            {/* Profile name + platform badge */}
+            {(profileName || viewingTask.platform) && (
+              <div className="flex items-center gap-1.5">
+                {profileName && (
+                  <span className="text-[10px] font-bold font-sans text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
+                    {profileName}
+                  </span>
+                )}
+                {viewingTask.platform && (
+                  <span
+                    className="text-[8px] font-bold px-1.5 py-0.5 rounded-full font-sans border"
+                    style={{
+                      background: (PLATFORM_COLORS[viewingTask.platform] || '#888') + '15',
+                      color: PLATFORM_COLORS[viewingTask.platform] || '#888',
+                      borderColor: (PLATFORM_COLORS[viewingTask.platform] || '#888') + '30',
+                    }}
+                  >
+                    {PLATFORM_LABELS[viewingTask.platform] || viewingTask.platform}
+                  </span>
+                )}
+                <div className="w-px h-3 bg-gray-200 dark:bg-[#1a1a2e]" />
+              </div>
             )}
 
             {/* Type + Style label */}
@@ -886,14 +926,7 @@ function ContentPreview({
                 typeColor={typeColor}
               />
             )}
-            {hasFlyerUrl && (
-              <PreviewMedia
-                url={flyerUrl}
-                label="GIF"
-                typeColor={typeColor}
-                compact={hasContentUrl}
-              />
-            )}
+           
           </div>
         )}
       </div>

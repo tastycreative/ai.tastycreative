@@ -2,6 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
+import { useParams } from 'next/navigation';
+import { useMemo } from 'react';
 
 export interface Organization {
   id: string;
@@ -29,6 +31,8 @@ async function fetchOrganizations(): Promise<OrganizationsResponse> {
 
 export function useOrganization() {
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params?.tenant as string | undefined;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['organizations', user?.id],
@@ -37,7 +41,19 @@ export function useOrganization() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  const switchOrganization = async (organizationId: string, tenant: string) => {
+  // Resolve current organization: prefer the one matching the URL tenant
+  const currentOrganization = useMemo(() => {
+    if (!data) return null;
+
+    if (tenant && data.organizations.length > 0) {
+      const matchingOrg = data.organizations.find((org) => org.slug === tenant);
+      if (matchingOrg) return matchingOrg;
+    }
+
+    return data.currentOrganization ?? null;
+  }, [data, tenant]);
+
+  const switchOrganization = async (organizationId: string, slug: string) => {
     try {
       const response = await fetch('/api/organizations/switch', {
         method: 'POST',
@@ -47,7 +63,7 @@ export function useOrganization() {
 
       if (response.ok) {
         // Navigate to the organization's dashboard using tenant
-        window.location.href = `/${tenant}/dashboard`;
+        window.location.href = `/${slug}/dashboard`;
       }
     } catch (error) {
       console.error('Error switching organization:', error);
@@ -55,7 +71,7 @@ export function useOrganization() {
   };
 
   return {
-    currentOrganization: data?.currentOrganization ?? null,
+    currentOrganization,
     organizations: data?.organizations ?? [],
     loading: isLoading,
     error,

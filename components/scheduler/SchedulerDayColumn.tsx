@@ -196,14 +196,15 @@ function TaskLimitBadge({
       }}
       className="text-[8px] font-bold px-1 py-0.5 rounded font-sans transition-all"
       style={{
-        background: overLimit ? '#ef444425' : color + '18',
-        color: overLimit ? '#ef4444' : color,
-        border: `1px solid ${overLimit ? '#ef444450' : color + '30'}`,
+        background: color + '18',
+        color: color,
+        border: `1px solid ${color + '30'}`,
         cursor: onChangeMax ? 'pointer' : 'default',
       }}
       title={onChangeMax ? `${totalCount}${hasLimit ? `/${max}` : ''} ${type} — click to edit max` : undefined}
     >
-      {totalCount}{hasLimit ? `/${max}` : ''}
+      <span style={{ color: overLimit ? '#ef4444' : color }}>{totalCount}</span>
+      {hasLimit && <>/{max}</>}
     </span>
   );
 }
@@ -228,6 +229,8 @@ interface SchedulerDayColumnProps {
   onToggleExpand: () => void;
   taskLimits?: TaskLimits | null;
   onUpdateTaskLimits?: (dayIndex: number, type: string, newMax: number | null) => void;
+  platform?: string;
+  profileName?: string;
 }
 
 export function SchedulerDayColumn({
@@ -248,6 +251,8 @@ export function SchedulerDayColumn({
   onToggleExpand,
   taskLimits,
   onUpdateTaskLimits,
+  platform,
+  profileName,
 }: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
@@ -295,7 +300,7 @@ export function SchedulerDayColumn({
     const counts: { type: string; count: number; doneCount: number; max: number }[] = [];
     for (const t of TASK_TYPES) {
       const matching = tasks.filter((task) => task.taskType === t);
-      const max = getTaskLimit(taskLimits, dayIndex, t);
+      const max = getTaskLimit(taskLimits, dayIndex, t, platform);
       if (matching.length > 0 || isFinite(max)) {
         counts.push({
           type: t,
@@ -482,12 +487,14 @@ export function SchedulerDayColumn({
                         key={type}
                         className="text-[8px] font-bold px-1.5 py-0.5 rounded font-sans"
                         style={{
-                          background: overLimit ? '#ef444425' : color + '20',
-                          color: overLimit ? '#ef4444' : color,
-                          border: `1px solid ${overLimit ? '#ef444450' : color + '40'}`,
+                          background: color + '20',
+                          color: color,
+                          border: `1px solid ${color + '40'}`,
                         }}
                       >
-                        {count}{hasLimit ? `/${max}` : ''} {type}
+                        <span style={{ color: overLimit ? '#ef4444' : color }}>{count}</span>
+                        {hasLimit && <>/{max}</>}
+                        {' '}{type}
                       </span>
                     );
                   })}
@@ -677,7 +684,7 @@ export function SchedulerDayColumn({
                         {(() => {
                           const done = group.tasks.filter((t) => t.status === 'DONE').length;
                           const total = group.tasks.length;
-                          const max = getTaskLimit(taskLimits, dayIndex, group.type);
+                          const max = getTaskLimit(taskLimits, dayIndex, group.type, platform);
                           const hasLimit = isFinite(max);
                           return hasLimit ? `${done}/${total} / ${max}` : `${done}/${total}`;
                         })()}
@@ -696,6 +703,7 @@ export function SchedulerDayColumn({
                           onDelete={onDelete}
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
+                          profileName={profileName}
                         />
                       ))}
                     </div>
@@ -867,7 +875,7 @@ export function SchedulerDayColumn({
                       </span>
                       <span className="text-[7px] font-mono text-gray-400 dark:text-[#3a3a5a]">
                         {(() => {
-                          const max = getTaskLimit(taskLimits, dayIndex, group.type);
+                          const max = getTaskLimit(taskLimits, dayIndex, group.type, platform);
                           return isFinite(max)
                             ? `${group.tasks.length}/${max}`
                             : `${group.tasks.length}`;
@@ -886,6 +894,7 @@ export function SchedulerDayColumn({
                           compact
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
+                          profileName={profileName}
                         />
                       ))}
                     </div>

@@ -65,6 +65,16 @@ export async function PATCH(
     );
   }
 
+  // Merge fields: if `mergeFields` is true, shallow-merge incoming fields into
+  // existing fields instead of replacing. This prevents rapid concurrent updates
+  // (e.g. flagging multiple tasks quickly) from overwriting each other.
+  const mergeFields = body.mergeFields === true;
+  let resolvedFields = fields;
+  if (fields !== undefined && mergeFields) {
+    const existingFields = (oldTask.fields as Record<string, unknown>) || {};
+    resolvedFields = { ...existingFields, ...fields };
+  }
+
   const task = await prisma.schedulerTask.update({
     where: { id, organizationId: orgId },
     data: {
@@ -74,7 +84,7 @@ export async function PATCH(
       ...(startTime !== undefined && { startTime: startTime ? new Date(startTime) : null }),
       ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
       ...(notes !== undefined && { notes }),
-      ...(fields !== undefined && { fields }),
+      ...(resolvedFields !== undefined && { fields: resolvedFields }),
       ...(sortOrder !== undefined && { sortOrder }),
       updatedBy: user.name || userId,
     },
