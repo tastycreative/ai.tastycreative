@@ -58,7 +58,21 @@ export async function PATCH(
     ['DONE', 'SKIPPED'].includes(status) &&
     Object.keys(body).filter((k) => !['tabId', 'status'].includes(k)).length === 0;
 
-  if (isLocked && !isStatusChangeOnly) {
+  // Allow flag-only field changes on locked tasks
+  const isFlagChangeOnly = fields !== undefined &&
+    Object.keys(body).filter((k) => !['tabId', 'fields', 'mergeFields'].includes(k)).length === 0 &&
+    (() => {
+      const oldFields = (oldTask.fields || {}) as Record<string, unknown>;
+      const newFields = fields as Record<string, unknown>;
+      const allKeys = new Set([...Object.keys(oldFields), ...Object.keys(newFields)]);
+      for (const key of allKeys) {
+        if (key === 'flagged') continue;
+        if (String(oldFields[key] ?? '') !== String(newFields[key] ?? '')) return false;
+      }
+      return true;
+    })();
+
+  if (isLocked && !isStatusChangeOnly && !isFlagChangeOnly) {
     return NextResponse.json(
       { error: 'Task is locked. Queue an update for a future week.' },
       { status: 409 },
