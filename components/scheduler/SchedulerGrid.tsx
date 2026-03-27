@@ -35,6 +35,7 @@ import { SchedulerDashboard } from './SchedulerDashboard';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import { getCountdownToReset } from '@/lib/scheduler/time-helpers';
 import { getTimezoneAbbreviation, getTodayKeyInTimezone } from '@/lib/timezone-utils';
+import { type VolumeSettings, getStrategyVolumeTemplate } from '@/lib/scheduler/strategy-volume-templates';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
 const STRATEGY_LABELS: Record<string, string> = {
@@ -358,6 +359,7 @@ export function SchedulerGrid() {
     selectedContentTypes?: string[];
     customStrategies?: { id: string; label: string; desc: string }[];
     customContentTypes?: string[];
+    metadata?: { volumeSettings?: VolumeSettings };
   }>({
     queryKey: ['instagram-profile-detail', profileId],
     queryFn: async () => {
@@ -475,6 +477,34 @@ export function SchedulerGrid() {
   const teamNames = config?.teamNames ?? [];
   const rotationOffset = config?.rotationOffset ?? 0;
   const taskLimits = config?.taskLimits ?? null;
+
+  // Merge profile-level volume settings over org-level task limits.
+  // Priority (per platform+type): scheduler manual overrides > profile volumeSettings > strategy template > org defaults
+  const effectiveTaskLimits = useMemo<TaskLimits | null>(() => {
+    const profileVolume = profileDetail?.metadata?.volumeSettings;
+    const strategyTemplate = profileDetail?.pageStrategy
+      ? getStrategyVolumeTemplate(profileDetail.pageStrategy)
+      : null;
+    const volumeOverride = profileVolume ?? strategyTemplate;
+    if (!volumeOverride) return taskLimits;
+
+    // Deep-merge: start with strategy/profile volume as base, then layer org overrides on top
+    const orgPlatformDefaults = taskLimits?.platformDefaults ?? {};
+    const mergedPlatformDefaults: Record<string, Record<string, number>> = {};
+    const allPlatforms = new Set([...Object.keys(volumeOverride), ...Object.keys(orgPlatformDefaults)]);
+    for (const platform of allPlatforms) {
+      mergedPlatformDefaults[platform] = {
+        ...(volumeOverride[platform] ?? {}),       // strategy/profile as base
+        ...(orgPlatformDefaults[platform] ?? {}),   // scheduler manual overrides win
+      };
+    }
+
+    return {
+      defaults: taskLimits?.defaults ?? {},
+      overrides: taskLimits?.overrides ?? {},
+      platformDefaults: mergedPlatformDefaults,
+    };
+  }, [taskLimits, profileDetail?.metadata?.volumeSettings, profileDetail?.pageStrategy]);
 
   // Mutations
   const updateTask = useUpdatePodTask();
@@ -967,9 +997,13 @@ export function SchedulerGrid() {
           schedulerToday={schedulerToday}
           weekStart={weekStart}
           onSwitchPlatform={(p) => setActivePlatform(p as PlatformKey)}
-          taskLimits={taskLimits}
+          taskLimits={effectiveTaskLimits}
           onSavePlatformLimits={handleSavePlatformLimits}
           profileName={selectedProfile?.name}
+          profileImageUrl={selectedProfile?.profileImageUrl}
+          instagramUsername={selectedProfile?.instagramUsername}
+          pageStrategy={profileDetail?.pageStrategy}
+          selectedContentTypes={profileDetail?.selectedContentTypes}
         />
       ) : isLoading && !showDemo ? (
         <SchedulerGridSkeleton />
@@ -1000,7 +1034,7 @@ export function SchedulerGrid() {
                 collapsed={!isExpanded}
                 popupDirection={dayIndex > expandedDay! ? 'left' : 'right'}
                 onToggleExpand={() => toggleExpand(dayIndex)}
-                taskLimits={taskLimits}
+                taskLimits={effectiveTaskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
                 profileName={selectedProfile?.name}
@@ -1036,7 +1070,7 @@ export function SchedulerGrid() {
                 expanded={false}
                 collapsed={false}
                 onToggleExpand={() => toggleExpand(dayIndex)}
-                taskLimits={taskLimits}
+                taskLimits={effectiveTaskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
                 profileName={selectedProfile?.name}

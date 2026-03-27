@@ -49,6 +49,14 @@ import { MODEL_BIBLE_FIELDS } from "@/lib/model-bible-fields";
 import { usePausedModels } from "@/lib/hooks/usePausedModels.query";
 import { CONTENT_STYLES } from "@/components/content-submission/ContentStyleSelector";
 import { ProfileGalleryTab } from "@/components/gallery/ProfileGalleryTab";
+import {
+  type VolumeSettings,
+  PLATFORMS,
+  TASK_TYPES,
+  getStrategyVolumeTemplate,
+  volumeSettingsEqual,
+} from "@/lib/scheduler/strategy-volume-templates";
+import { useSchedulerConfig } from "@/lib/hooks/useScheduler.query";
 
 interface InfluencerProfile {
   id: string;
@@ -104,6 +112,7 @@ interface InfluencerProfile {
     fieldOrder?: string[];
     appliedMappings?: Record<string, string>;
     appliedEditedValues?: Record<string, string>;
+    volumeSettings?: Record<string, Record<string, number>>;
   };
 }
 
@@ -3169,6 +3178,8 @@ export default function ModelProfilePage() {
   const searchParams = useSearchParams();
   const apiClient = useApiClient();
   const { pausedModelsMap } = usePausedModels();
+  const { data: schedulerConfigData } = useSchedulerConfig();
+  const orgTaskLimits = schedulerConfigData?.config?.taskLimits ?? null;
   const [profile, setProfile] = useState<InfluencerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
@@ -3192,6 +3203,10 @@ export default function ModelProfilePage() {
     [],
   );
   const [customContentTypes, setCustomContentTypes] = useState<string[]>([]);
+  const [volumeSettings, setVolumeSettings] = useState<VolumeSettings | null>(null);
+  const [savingVolume, setSavingVolume] = useState(false);
+  const [editingVolume, setEditingVolume] = useState(false);
+  const volumeSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showContentTypeModal, setShowContentTypeModal] = useState(false);
   const [editingContentType, setEditingContentType] = useState<string | null>(
     null,
@@ -3386,6 +3401,12 @@ export default function ModelProfilePage() {
     if (profile?.customContentTypes) {
       setCustomContentTypes(profile.customContentTypes);
     }
+    // Initialize volume settings only from saved metadata (explicit overrides)
+    if (profile?.metadata?.volumeSettings) {
+      setVolumeSettings(profile.metadata.volumeSettings);
+    } else {
+      setVolumeSettings(null);
+    }
     // Initialize content types form from profile
     if (profile?.modelBible) {
       setContentTypesForm({
@@ -3539,24 +3560,100 @@ export default function ModelProfilePage() {
     try {
       const response = await apiClient.patch(
         `/api/instagram-profiles/${profile.id}`,
-        {
-          pageStrategy: strategyId,
-        },
+        { pageStrategy: strategyId },
       );
 
       if (!response.ok) throw new Error("Failed to save strategy");
 
       toast.success("Page strategy updated!");
-
-      // Update profile data
       setProfile({ ...profile, pageStrategy: strategyId });
     } catch (error) {
       console.error("Error saving strategy:", error);
       toast.error("Failed to save page strategy");
-      // Revert on error
       setPageStrategy(profile.pageStrategy || "gf_experience");
     } finally {
       setSavingStrategy(false);
+    }
+  };
+
+  const saveVolumeSettings = async (newVolume: VolumeSettings) => {
+    if (!apiClient || !profile) return;
+    setSavingVolume(true);
+    try {
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        {
+          metadata: {
+            ...(profile.metadata || {}),
+            volumeSettings: newVolume,
+          },
+        },
+      );
+      if (!response.ok) throw new Error("Failed to save volume");
+      setProfile({
+        ...profile,
+        metadata: { ...(profile.metadata || {}), volumeSettings: newVolume },
+      });
+    } catch (error) {
+      console.error("Error saving volume:", error);
+      toast.error("Failed to save volume settings");
+    } finally {
+      setSavingVolume(false);
+    }
+  };
+
+  const handleVolumeChange = (platform: string, taskType: string, value: number) => {
+    const updated: VolumeSettings = { ...volumeSettings };
+    updated[platform] = { ...(updated[platform] || {}), [taskType]: Math.max(0, value) };
+    setVolumeSettings(updated);
+
+    // Debounce save
+    if (volumeSaveTimeoutRef.current) clearTimeout(volumeSaveTimeoutRef.current);
+    volumeSaveTimeoutRef.current = setTimeout(() => saveVolumeSettings(updated), 800);
+  };
+
+  const handleResetToTemplate = () => {
+    const template = getStrategyVolumeTemplate(pageStrategy);
+    if (!template) return;
+    setVolumeSettings(template);
+    saveVolumeSettings(template);
+  };
+
+  const handleCustomizeVolume = () => {
+    // Initialize from current strategy template, or empty defaults
+    const template = getStrategyVolumeTemplate(pageStrategy);
+    const initial: VolumeSettings = template ?? {
+      free:   { MM: 5, WP: 3, ST: 3, SP: 2 },
+      paid:   { MM: 5, WP: 3, ST: 3, SP: 2 },
+      oftv:   { MM: 3, WP: 2, ST: 2, SP: 1 },
+      fansly: { MM: 4, WP: 3, ST: 3, SP: 2 },
+    };
+    setVolumeSettings(initial);
+    saveVolumeSettings(initial);
+  };
+
+  const handleClearVolume = async () => {
+    if (!apiClient || !profile) return;
+    setVolumeSettings(null);
+    setSavingVolume(true);
+    try {
+      const { volumeSettings: _, ...restMetadata } = profile.metadata || {};
+      const response = await apiClient.patch(
+        `/api/instagram-profiles/${profile.id}`,
+        { metadata: restMetadata },
+      );
+      if (!response.ok) throw new Error("Failed to clear volume");
+      setProfile({ ...profile, metadata: restMetadata });
+      toast.success("Volume override removed");
+    } catch (error) {
+      console.error("Error clearing volume:", error);
+      toast.error("Failed to remove volume override");
+      // Revert
+      if (profile.metadata?.volumeSettings) {
+        setVolumeSettings(profile.metadata.volumeSettings);
+      }
+    } finally {
+      setSavingVolume(false);
     }
   };
 
@@ -5111,102 +5208,204 @@ export default function ModelProfilePage() {
             <div className="flex gap-6">
             {/* Main overview content */}
             <div className={`flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-6 ${hasFormData && showFormSidebar ? "xl:mr-0" : ""}`}>
-              {/* Page Strategy */}
+              {/* Page Strategy & Volume — unified card */}
               <div className="lg:col-span-2 bg-[#18181b] rounded-xl p-6 border border-[#27272a]">
-                <div className="flex items-center justify-between mb-5">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-semibold mb-1">
-                      Page Strategy
-                    </h3>
-                    <p className="text-xs text-[#71717a]">
-                      Affects caption tone, pricing defaults, and content
-                      approach
-                    </p>
+                    <h3 className="text-sm font-semibold mb-0.5">Page Strategy & Volume</h3>
+                    <p className="text-xs text-[#71717a]">Select a strategy — each has preset daily volume per platform</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setShowStrategyModal(true)}
-                      className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
-                    >
-                      <Plus size={12} />
-                      Add Strategy
-                    </button>
-                    <div className="px-3 py-1.5 bg-blue-500/15 text-blue-400 rounded-lg text-[11px] font-semibold">
-                      OPERATOR SET
-                    </div>
-                  </div>
+                  <button
+                    onClick={() => setShowStrategyModal(true)}
+                    className="px-3 py-1.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#e4e4e7] rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5"
+                  >
+                    <Plus size={12} />
+                    Add Strategy
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {pageStrategies.map((strategy) => {
-                    const isCustom = !defaultStrategies.find(
-                      (d) => d.id === strategy.id,
-                    );
-                    return (
-                      <div
-                        key={strategy.id}
-                        onClick={() =>
-                          !savingStrategy && handleStrategyChange(strategy.id)
-                        }
-                        className={`p-4 rounded-xl text-left transition-all relative group cursor-pointer ${
-                          savingStrategy ? "opacity-50 cursor-not-allowed" : ""
-                        } ${
-                          pageStrategy === strategy.id
-                            ? "bg-blue-500/10 border-2 border-blue-500"
-                            : "bg-[#0c0c0f] border-2 border-[#27272a] hover:border-[#3f3f46]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
+                {/* Side-by-side: strategies left, volume right */}
+                <div className="flex gap-5">
+                  {/* Left — Strategy selector */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      {pageStrategies.map((strategy) => {
+                        const isActive = pageStrategy === strategy.id;
+                        const isCustom = !defaultStrategies.find((d) => d.id === strategy.id);
+                        return (
                           <div
-                            className={`text-sm font-semibold ${
-                              pageStrategy === strategy.id
-                                ? "text-blue-400"
-                                : "text-[#e4e4e7]"
+                            key={strategy.id}
+                            onClick={() => !savingStrategy && handleStrategyChange(strategy.id)}
+                            className={`relative group p-3 rounded-xl text-left transition-all cursor-pointer w-[calc(50%-4px)] ${
+                              savingStrategy ? "opacity-50 cursor-not-allowed" : ""
+                            } ${
+                              isActive
+                                ? "bg-blue-500/10 border-2 border-blue-500"
+                                : "bg-[#0c0c0f] border-2 border-[#27272a] hover:border-[#3f3f46]"
                             }`}
                           >
-                            {strategy.label}
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className={`text-xs font-semibold ${isActive ? "text-blue-400" : "text-[#e4e4e7]"}`}>
+                                {strategy.label}
+                              </span>
+                              {isActive && <Check size={12} className="text-blue-400" />}
+                            </div>
+                            <div className="text-[10px] text-[#71717a] leading-tight">{strategy.desc}</div>
+                            {isCustom && (
+                              <div className="absolute top-1.5 right-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditStrategy(strategy); }}
+                                  className="p-1 bg-[#27272a] hover:bg-blue-500/20 rounded transition-colors"
+                                  title="Edit strategy"
+                                >
+                                  <Edit2 size={10} className="text-blue-400" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteStrategy(strategy.id); }}
+                                  className="p-1 bg-[#27272a] hover:bg-red-500/20 rounded transition-colors"
+                                  title="Delete strategy"
+                                >
+                                  <Trash2 size={10} className="text-red-400" />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          {pageStrategy === strategy.id && (
-                            <Check className="w-4 h-4 text-blue-400" />
-                          )}
-                        </div>
-                        <div className="text-xs text-[#71717a]">
-                          {strategy.desc}
-                        </div>
-                        {isCustom && (
-                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditStrategy(strategy);
-                              }}
-                              className="p-1.5 bg-[#27272a] hover:bg-blue-500/20 rounded-lg transition-colors"
-                              title="Edit strategy"
-                            >
-                              <Edit2 size={12} className="text-blue-400" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteStrategy(strategy.id);
-                              }}
-                              className="p-1.5 bg-[#27272a] hover:bg-red-500/20 rounded-lg transition-colors"
-                              title="Delete strategy"
-                            >
-                              <Trash2 size={12} className="text-red-400" />
-                            </button>
+                        );
+                      })}
+                    </div>
+                    {savingStrategy && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-400">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Saving strategy...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vertical divider */}
+                  <div className="w-px bg-[#27272a] shrink-0" />
+
+                  {/* Right — Volume grid (compact table) */}
+                  {(() => {
+                    const activeStrategy = pageStrategies.find((s) => s.id === pageStrategy);
+                    const template = getStrategyVolumeTemplate(pageStrategy);
+                    // Strategy volume: profile override > strategy template > zeros
+                    const strategyVolume: VolumeSettings = volumeSettings ?? template ?? {
+                      free: { MM: 0, WP: 0, ST: 0, SP: 0 },
+                      paid: { MM: 0, WP: 0, ST: 0, SP: 0 },
+                      oftv: { MM: 0, WP: 0, ST: 0, SP: 0 },
+                      fansly: { MM: 0, WP: 0, ST: 0, SP: 0 },
+                    };
+                    // Effective volume: merge org-level scheduler overrides on top
+                    const orgPlatformDefaults = orgTaskLimits?.platformDefaults;
+                    const hasOrgOverrides = orgPlatformDefaults && Object.keys(orgPlatformDefaults).length > 0;
+                    const effectiveVolume: VolumeSettings = {};
+                    for (const p of PLATFORMS) {
+                      effectiveVolume[p] = { ...(strategyVolume[p] ?? {}) };
+                      if (orgPlatformDefaults?.[p]) {
+                        Object.assign(effectiveVolume[p], orgPlatformDefaults[p]);
+                      }
+                    }
+
+                    const isCustomized = volumeSettings !== null && template !== null && !volumeSettingsEqual(volumeSettings, template);
+                    const hasOverride = volumeSettings !== null;
+
+                    const TT_COLORS: Record<string, string> = { MM: "#f472b6", WP: "#38bdf8", ST: "#c084fc", SP: "#fb923c" };
+                    const PL_LABELS: Record<string, string> = { free: "Free", paid: "Paid", oftv: "OFTV", fansly: "Fansly" };
+                    const PL_COLORS: Record<string, string> = { free: "#4ade80", paid: "#f472b6", oftv: "#38bdf8", fansly: "#c084fc" };
+
+                    return (
+                      <div className="shrink-0">
+                        {/* Volume header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <h4 className="text-[11px] font-semibold text-[#a1a1aa] truncate">
+                              {activeStrategy?.label ?? "Custom"}
+                            </h4>
+                            {isCustomized && (
+                              <span className="px-1 py-px bg-amber-500/15 text-amber-400 rounded text-[8px] font-semibold shrink-0">Custom</span>
+                            )}
                           </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {savingVolume && <Loader2 className="w-3 h-3 animate-spin text-blue-400" />}
+                            {editingVolume ? (
+                              <>
+                                {hasOverride && isCustomized && (
+                                  <button onClick={() => { handleResetToTemplate(); setEditingVolume(false); }} className="px-1.5 py-0.5 text-[9px] text-[#71717a] hover:text-[#e4e4e7] transition-colors">Reset</button>
+                                )}
+                                <button onClick={() => setEditingVolume(false)} className="px-2 py-0.5 bg-blue-500/15 text-blue-400 rounded text-[9px] font-medium hover:bg-blue-500/25 transition-colors">Done</button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => { if (!hasOverride) handleCustomizeVolume(); setEditingVolume(true); }}
+                                className="px-2 py-0.5 bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa] rounded text-[9px] font-medium transition-colors flex items-center gap-0.5"
+                              >
+                                <Edit2 size={9} /> Edit
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Compact table */}
+                        <table className="border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="w-10" />
+                              {TASK_TYPES.map((t) => (
+                                <th key={t} className="text-center text-[8px] font-bold pb-1 px-1" style={{ color: TT_COLORS[t] }}>{t}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {PLATFORMS.map((p) => (
+                              <tr key={p}>
+                                <td className="py-0.5 pr-1">
+                                  <span className="text-[9px] font-semibold" style={{ color: PL_COLORS[p] }}>{PL_LABELS[p]}</span>
+                                </td>
+                                {TASK_TYPES.map((t) => {
+                                  const stratVal = strategyVolume[p]?.[t] ?? 0;
+                                  const effVal = effectiveVolume[p]?.[t] ?? 0;
+                                  const isOrgOverridden = orgPlatformDefaults?.[p]?.[t] !== undefined && orgPlatformDefaults[p][t] !== stratVal;
+                                  return (
+                                    <td key={t} className="px-0.5 py-0.5 text-center">
+                                      {editingVolume ? (
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={99}
+                                          value={stratVal}
+                                          onChange={(e) => handleVolumeChange(p, t, parseInt(e.target.value) || 0)}
+                                          className="w-8 bg-[#0c0c0f] border border-[#27272a] rounded px-0.5 py-0.5 text-center text-[10px] font-mono text-[#e4e4e7] focus:border-blue-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                      ) : (
+                                        <span
+                                          className={`inline-block min-w-[20px] px-1 py-px rounded text-[10px] font-mono font-medium ${isOrgOverridden ? "ring-1 ring-amber-500/40" : ""}`}
+                                          style={{ backgroundColor: TT_COLORS[t] + "12", color: TT_COLORS[t] }}
+                                          title={isOrgOverridden ? `Strategy: ${stratVal} → Scheduler override: ${effVal}` : undefined}
+                                        >
+                                          {effVal}
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {hasOrgOverrides && !editingVolume && (
+                          <p className="mt-1.5 text-[8px] text-amber-400/60 flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 rounded-sm ring-1 ring-amber-500/40" />
+                            Overridden by scheduler
+                          </p>
+                        )}
+                        {!hasOverride && template && !editingVolume && (
+                          <p className="mt-1.5 text-[8px] text-[#3f3f46]">Using template defaults</p>
                         )}
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
-                {savingStrategy && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-blue-400">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Saving strategy...
-                  </div>
-                )}
               </div>
 
               {/* Content Types */}

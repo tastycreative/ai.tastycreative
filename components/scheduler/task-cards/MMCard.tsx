@@ -69,12 +69,12 @@ export function MMCard({
             borderLeft: `3px solid ${isFlagged ? "#f59e0b" : TYPE_COLOR}`,
           }}
         >
-          <span
-            className="h-2 w-2 rounded-full shrink-0"
-            style={{ background: statusOpt.color }}
-          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 leading-none">
+              <div
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ background: statusOpt.color }}
+              />
               {fields.time && (
                 <span
                   className="text-[8px] font-mono shrink-0"
@@ -170,8 +170,8 @@ export function MMCard({
           <div className="flex items-center gap-1.5">
             <TypeBadge task={task} onUpdate={onUpdate} />
 
-            {/* Follow-up sub-type badge */}
-            {expandedIsFollowUp && fields.subType && (
+            {/* Unlock / Follow-up sub-type badge */}
+            {(expandedIsFollowUp || expandedIsUnlock) && fields.subType && (
               <span
                 className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{

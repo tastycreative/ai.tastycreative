@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Clock, Zap, Eye, Settings2, DollarSign } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   useSchedulerMonth,
   SchedulerTask,
@@ -11,6 +12,7 @@ import {
 import { TASK_TYPE_COLORS, TASK_TYPES } from './task-cards/shared';
 import { SchedulerTaskModal } from './SchedulerTaskModal';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
+import { getCurrentTimeDisplay } from '@/lib/scheduler/time-helpers';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -35,14 +37,16 @@ const STATUS_COLORS: Record<string, string> = {
   SKIPPED: '#fbbf24',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  IN_PROGRESS: 'In Progress',
-  DONE: 'Done',
-  SKIPPED: 'Skipped',
-};
-
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const STRATEGY_LABELS: Record<string, string> = {
+  gf_experience: 'GF Experience',
+  porn_accurate: 'Porn Accurate',
+  tease_denial: 'Tease & Denial',
+  premium_exclusive: 'Premium Exclusive',
+  girl_next_door: 'Girl Next Door',
+  domme: 'Domme',
+};
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,10 @@ interface SchedulerDashboardProps {
   taskLimits?: TaskLimits | null;
   onSavePlatformLimits?: (platform: string, typeLimits: Record<string, number>) => void;
   profileName?: string;
+  profileImageUrl?: string;
+  instagramUsername?: string;
+  pageStrategy?: string;
+  selectedContentTypes?: string[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -67,6 +75,37 @@ function getTaskDate(task: SchedulerTask): string {
 
 function getMonthKey(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function parsePriceString(price: string | undefined | null): number {
+  if (!price) return 0;
+  const cleaned = price.replace(/[$,]/g, '').trim();
+  if (!cleaned || cleaned.toLowerCase() === 'free') return 0;
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+function parseTimeString(timeStr: string): number | null {
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  let hours = parseInt(match[1]);
+  const minutes = parseInt(match[2]);
+  const ampm = match[3].toUpperCase();
+  if (ampm === 'PM' && hours !== 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function getCurrentLAMinutes(): number {
+  const now = new Date();
+  const laTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).format(now);
+  const [h, m] = laTime.split(':').map(Number);
+  return h * 60 + m;
 }
 
 // ─── Task Chip (reusable for calendar cells + expanded popover) ──────────────
@@ -179,6 +218,42 @@ function TypeCountBadge({ type, count }: { type: string; count: number }) {
   );
 }
 
+// ─── Profile Initials Avatar ─────────────────────────────────────────────────
+
+function ProfileAvatar({ name, imageUrl, size = 80 }: { name?: string; imageUrl?: string; size?: number }) {
+  const initials = (name || '?')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  if (imageUrl) {
+    return (
+      <div
+        className="rounded-full overflow-hidden border-2 border-brand-mid-pink/30 shrink-0"
+        style={{ width: size, height: size }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={name || 'Profile'}
+          className="object-cover w-full h-full"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-full flex items-center justify-center bg-brand-mid-pink/15 border-2 border-brand-mid-pink/30 shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <span className="text-lg font-bold font-sans text-brand-mid-pink">{initials}</span>
+    </div>
+  );
+}
+
 // ─── Limits Settings Popover ─────────────────────────────────────────────────
 
 function LimitsPopover({
@@ -194,7 +269,6 @@ function LimitsPopover({
   const ref = useRef<HTMLDivElement>(null);
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
 
-  // Sync local values from per-platform defaults when popover opens
   useEffect(() => {
     if (open) {
       const vals: Record<string, string> = {};
@@ -207,7 +281,6 @@ function LimitsPopover({
     }
   }, [open, taskLimits, platform]);
 
-  // Build the limits map from local values and save in one call
   const saveAndClose = useCallback(() => {
     const typeLimits: Record<string, number> = {};
     for (const type of TASK_TYPES as readonly string[]) {
@@ -233,6 +306,10 @@ function LimitsPopover({
     }
   }, [open, saveAndClose]);
 
+  // Check if any limits are configured for this platform
+  const platLimits = taskLimits?.platformDefaults?.[platform];
+  const hasLimits = platLimits && Object.values(platLimits).some((v) => v > 0);
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -244,10 +321,14 @@ function LimitsPopover({
             setOpen(true);
           }
         }}
-        className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-        title="Set volume limits per type"
+        className={`p-0.5 rounded transition-colors ${
+          hasLimits
+            ? 'hover:bg-brand-mid-pink/10 text-brand-mid-pink'
+            : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 dark:text-gray-600'
+        }`}
+        title="Set volume per type"
       >
-        <Settings2 className="h-3 w-3 text-gray-400 dark:text-gray-600" />
+        <Settings2 className="h-3 w-3" />
       </button>
       {open && (
         <div
@@ -255,7 +336,7 @@ function LimitsPopover({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="text-[9px] font-bold font-sans text-gray-500 dark:text-gray-500 uppercase tracking-wider mb-2">
-            Default Limits
+            Volume Per Type
           </div>
           <div className="space-y-2">
             {(TASK_TYPES as readonly string[]).map((type) => {
@@ -264,10 +345,7 @@ function LimitsPopover({
               const hasLimit = val !== '' && val !== '0';
               return (
                 <div key={type} className="flex items-center gap-2">
-                  <span
-                    className="text-[9px] font-bold font-sans w-6"
-                    style={{ color }}
-                  >
+                  <span className="text-[9px] font-bold font-sans w-6" style={{ color }}>
                     {type}
                   </span>
                   <input
@@ -293,7 +371,7 @@ function LimitsPopover({
             })}
           </div>
           <p className="text-[8px] font-mono text-gray-400 dark:text-gray-600 mt-2">
-            Set max tasks per type per day. Clear to remove.
+            Set volume per type per day. Clear to remove.
           </p>
         </div>
       )}
@@ -311,6 +389,10 @@ export function SchedulerDashboard({
   taskLimits,
   onSavePlatformLimits,
   profileName,
+  profileImageUrl,
+  instagramUsername,
+  pageStrategy,
+  selectedContentTypes,
 }: SchedulerDashboardProps) {
   const today = new Date(schedulerToday + 'T00:00:00Z');
   const [calendarMonth, setCalendarMonth] = useState(() => getMonthKey(today));
@@ -344,69 +426,127 @@ export function SchedulerDashboard({
     [updateTask],
   );
 
+  // ─── LA time (ticks every second — drives both clock display and spotlight) ───
+  const [laTimeDisplay, setLaTimeDisplay] = useState(() => getCurrentTimeDisplay('America/Los_Angeles'));
+  const [currentLAMinutes, setCurrentLAMinutes] = useState(getCurrentLAMinutes);
 
-  // ─── Week-based summary (tasks in the current week) ───
-  const weekTasks = useMemo(() => {
-    const ws = new Date(weekStart + 'T00:00:00Z');
-    const weEnd = new Date(ws);
-    weEnd.setUTCDate(weEnd.getUTCDate() + 6);
-    const wsKey = weekStart;
-    const weKey = weEnd.toISOString().split('T')[0];
-    return tasks.filter((t) => {
-      const d = getTaskDate(t);
-      return d >= wsKey && d <= weKey;
-    });
-  }, [tasks, weekStart]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLaTimeDisplay(getCurrentTimeDisplay('America/Los_Angeles'));
+      setCurrentLAMinutes(getCurrentLAMinutes());
+    }, 1_000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // ─── Platform summary ───
+  // ─── Today's tasks ───
+  const todayTasks = useMemo(() => {
+    return tasks.filter((t) => getTaskDate(t) === schedulerToday);
+  }, [tasks, schedulerToday]);
+
+  // ─── Platform summary (today only) ───
   const platformSummary = useMemo(() => {
     const platforms = ['free', 'paid', 'oftv', 'fansly'];
     return platforms.map((p) => {
-      const pTasks = weekTasks.filter((t) => t.platform === p);
+      const pTasks = todayTasks.filter((t) => t.platform === p);
       const total = pTasks.length;
       const pending = pTasks.filter((t) => t.status === 'PENDING').length;
       const inProgress = pTasks.filter((t) => t.status === 'IN_PROGRESS').length;
       const done = pTasks.filter((t) => t.status === 'DONE').length;
       const skipped = pTasks.filter((t) => t.status === 'SKIPPED').length;
       const completionPct = total > 0 ? Math.round((done / total) * 100) : 0;
-      // Per-type counts (weekly total across all 7 days)
       const typeCounts = (TASK_TYPES as readonly string[]).map((type) => ({
         type,
-        count: pTasks.filter((t) => t.taskType === type).length,
+        count: pTasks.filter((t) => t.taskType === type && t.status !== 'DONE' && t.status !== 'SKIPPED').length,
       }));
       return { key: p, total, pending, inProgress, done, skipped, completionPct, typeCounts };
     });
-  }, [weekTasks]);
+  }, [todayTasks]);
 
-  // ─── Analytics: completion per platform ───
-  const overallCompletion = useMemo(() => {
-    const total = weekTasks.length;
-    const done = weekTasks.filter((t) => t.status === 'DONE').length;
-    return total > 0 ? Math.round((done / total) * 100) : 0;
-  }, [weekTasks]);
+  // ─── Today's completion ───
+  const todayCompletion = useMemo(() => {
+    const total = todayTasks.length;
+    const done = todayTasks.filter((t) => t.status === 'DONE').length;
+    return { total, done, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+  }, [todayTasks]);
 
-  // ─── Analytics: workload heatmap (this week) ───
-  const weeklyHeatmap = useMemo(() => {
-    const counts = Array(7).fill(0) as number[];
-    for (const t of weekTasks) {
-      if (t.dayOfWeek >= 0 && t.dayOfWeek < 7) counts[t.dayOfWeek]++;
-    }
-    const max = Math.max(...counts, 1);
-    return counts.map((count, i) => ({ day: DAY_LABELS[i], count, intensity: count / max }));
-  }, [weekTasks]);
+  // ─── MM Revenue ───
+  const mmRevenue = useMemo(() => {
+    const [year, mon] = calendarMonth.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(year, mon, 0)).getUTCDate();
 
-  // ─── Analytics: type breakdown ───
-  const typeBreakdown = useMemo(() => {
-    return TASK_TYPES.map((type) => {
-      const typed = weekTasks.filter((t) => t.taskType === type);
-      const total = typed.length;
-      const pending = typed.filter((t) => t.status === 'PENDING').length;
-      const inProgress = typed.filter((t) => t.status === 'IN_PROGRESS').length;
-      const done = typed.filter((t) => t.status === 'DONE').length;
-      const skipped = typed.filter((t) => t.status === 'SKIPPED').length;
-      return { type, total, pending, inProgress, done, skipped };
+    const mmWithPrice = tasks.filter((t) => {
+      if (t.taskType !== 'MM') return false;
+      const f = (t.fields || {}) as Record<string, string>;
+      if (!f.price || !f.price.trim()) return false;
+      // Only count locked (past) tasks or tasks marked DONE
+      const taskDate = getTaskDate(t);
+      const isLocked = taskDate < schedulerToday;
+      return isLocked || t.status === 'DONE';
     });
-  }, [weekTasks]);
+
+    let totalRevenue = 0;
+    const byPlatform: Record<string, { revenue: number; count: number }> = {};
+    const dailyMap: Record<string, number> = {};
+
+    for (const t of mmWithPrice) {
+      const f = (t.fields || {}) as Record<string, string>;
+      const amount = parsePriceString(f.price);
+      totalRevenue += amount;
+
+      if (!byPlatform[t.platform]) byPlatform[t.platform] = { revenue: 0, count: 0 };
+      byPlatform[t.platform].revenue += amount;
+      byPlatform[t.platform].count += 1;
+
+      const dateKey = getTaskDate(t);
+      dailyMap[dateKey] = (dailyMap[dateKey] || 0) + amount;
+    }
+
+    const dailyChartData = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const dateKey = `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return { date: dateKey, label: String(day), revenue: dailyMap[dateKey] || 0 };
+    });
+
+    const tasksWithRevenue = mmWithPrice.filter(
+      (t) => parsePriceString(((t.fields || {}) as Record<string, string>).price) > 0,
+    ).length;
+
+    return {
+      totalRevenue,
+      totalTasks: mmWithPrice.length,
+      tasksWithRevenue,
+      avgPerTask: tasksWithRevenue > 0 ? totalRevenue / tasksWithRevenue : 0,
+      byPlatform,
+      dailyChartData,
+    };
+  }, [tasks, calendarMonth, schedulerToday]);
+
+  // ─── Current task spotlight ───
+  const { spotlightTask, upNextTasks } = useMemo(() => {
+    const withTime = todayTasks
+      .map((t) => ({
+        task: t,
+        minutes: parseTimeString(getTaskTime(t)),
+      }))
+      .filter((t) => t.minutes !== null)
+      .sort((a, b) => a.minutes! - b.minutes!);
+
+    if (withTime.length === 0) return { spotlightTask: null, upNextTasks: [] };
+
+    const nowMinutes = currentLAMinutes;
+    const nextIdx = withTime.findIndex((t) => t.minutes! >= nowMinutes);
+
+    let spotlightIdx: number;
+    if (nextIdx === -1) {
+      spotlightIdx = withTime.length - 1;
+    } else {
+      spotlightIdx = nextIdx;
+    }
+
+    const spotlight = withTime[spotlightIdx].task;
+    const upcoming = withTime.slice(spotlightIdx + 1).map((t) => t.task).slice(0, 3);
+    return { spotlightTask: spotlight, upNextTasks: upcoming };
+  }, [todayTasks, currentLAMinutes]);
 
   // ─── Calendar data ───
   const calendarData = useMemo(() => {
@@ -414,9 +554,8 @@ export function SchedulerDashboard({
     const firstDay = new Date(Date.UTC(year, mon - 1, 1));
     const lastDay = new Date(Date.UTC(year, mon, 0));
     const daysInMonth = lastDay.getUTCDate();
-    const startDow = firstDay.getUTCDay(); // 0=Sun
+    const startDow = firstDay.getUTCDay();
 
-    // Build task map: dateKey -> tasks
     const taskMap = new Map<string, SchedulerTask[]>();
     for (const t of tasks) {
       const dateKey = getTaskDate(t);
@@ -424,11 +563,9 @@ export function SchedulerDashboard({
       taskMap.get(dateKey)!.push(t);
     }
 
-    // Build calendar grid (6 rows x 7 cols max)
     const weeks: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[][] = [];
     let currentWeek: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[] = [];
 
-    // Leading blanks
     for (let i = 0; i < startDow; i++) {
       currentWeek.push({ date: null, dateKey: '', tasks: [] });
     }
@@ -441,7 +578,6 @@ export function SchedulerDashboard({
         currentWeek = [];
       }
     }
-    // Trailing blanks
     if (currentWeek.length > 0) {
       while (currentWeek.length < 7) {
         currentWeek.push({ date: null, dateKey: '', tasks: [] });
@@ -468,237 +604,410 @@ export function SchedulerDashboard({
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }, [calendarMonth]);
 
+  // ─── Spotlight content preview ───
+  const spotlightFields = spotlightTask
+    ? ((spotlightTask.fields || {}) as Record<string, string>)
+    : {};
+  const spotlightPreviewUrl =
+    spotlightFields.contentPreview || spotlightFields.contentFlyer || '';
+  const spotlightCaption =
+    spotlightFields.captionBankText || spotlightFields.caption || '';
+  const spotlightTypeColor = spotlightTask
+    ? TASK_TYPE_COLORS[spotlightTask.taskType] || '#888'
+    : '#888';
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {/* ─── Section A: Platform Summary Cards ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {platformSummary.map((p) => (
-          <div
-            key={p.key}
-            className="text-left rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: PLATFORM_COLORS[p.key] }}
-              />
-              <span className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
-                {PLATFORM_LABELS[p.key]}
-              </span>
-              <span className="ml-auto text-[10px] font-mono text-gray-400 dark:text-gray-600">
-                {p.total} tasks
-              </span>
-              {/* {onSavePlatformLimits && (
-                <LimitsPopover
-                  platform={p.key}
-                  taskLimits={taskLimits}
-                  onSave={onSavePlatformLimits}
-                />
-              )} */}
+      {/* ─── Section A: Profile Card + Today's Stats ─── */}
+      <div className="flex flex-col lg:flex-row gap-3">
+        {/* Left: Profile Card */}
+        <div className="lg:w-1/4 rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] flex flex-col items-center text-center gap-2">
+          <ProfileAvatar name={profileName} imageUrl={profileImageUrl} size={80} />
+          <div>
+            <div className="text-sm font-bold font-sans text-gray-800 dark:text-zinc-200">
+              {profileName || 'No Profile'}
             </div>
-            {/* Per-type volume counts */}
-            <div className="flex items-center gap-1 mb-2 flex-wrap">
-              {p.typeCounts.map((tc) => (
-                <TypeCountBadge key={tc.type} type={tc.type} count={tc.count} />
+            {instagramUsername && (
+              <div className="text-[10px] font-mono text-gray-400 dark:text-gray-600">
+                @{instagramUsername}
+              </div>
+            )}
+          </div>
+          {/* Strategy badge */}
+          {pageStrategy && (
+            <span className="text-[9px] font-bold px-2.5 py-0.5 rounded-full font-sans bg-brand-blue/10 text-brand-blue border border-brand-blue/20">
+              {STRATEGY_LABELS[pageStrategy] || pageStrategy}
+            </span>
+          )}
+          {/* Content type pills */}
+          {selectedContentTypes && selectedContentTypes.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1 mt-1">
+              {selectedContentTypes.map((ct) => (
+                <span
+                  key={ct}
+                  className="text-[8px] font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                >
+                  {ct}
+                </span>
               ))}
             </div>
-            <div className="flex items-center gap-2 text-[9px] font-mono mb-2">
-              <span style={{ color: STATUS_COLORS.PENDING }}>{p.pending} pending</span>
-              <span style={{ color: STATUS_COLORS.IN_PROGRESS }}>{p.inProgress} active</span>
-              <span style={{ color: STATUS_COLORS.DONE }}>{p.done} done</span>
-              <span style={{ color: STATUS_COLORS.SKIPPED }}>{p.skipped} skip</span>
-            </div>
-            {/* Progress bar */}
-            <div className="h-1.5 rounded-full bg-gray-100 dark:bg-[#151528] overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${p.completionPct}%`,
-                  backgroundColor: PLATFORM_COLORS[p.key],
-                }}
-              />
-            </div>
-            <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600 mt-1 block">
-              {p.completionPct}% complete
-            </span>
-          </div>
-        ))}
-      </div>
+          )}
+          {/* Active badge */}
+          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 mt-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Active
+          </span>
+        </div>
 
-      {/* ─── Section B: Analytics Charts ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Completion Donut */}
-        <div className="rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]">
-          <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-            Completion Rate
-          </h3>
-          <div className="flex items-center justify-center">
-            <div className="relative w-28 h-28">
+        {/* Right: Today's Overview */}
+        <div className="lg:w-3/4 flex flex-col gap-3">
+          {/* Platform summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {platformSummary.map((p) => (
+              <div
+                key={p.key}
+                className="text-left rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: PLATFORM_COLORS[p.key] }}
+                  />
+                  <span className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
+                    {PLATFORM_LABELS[p.key]}
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-gray-400 dark:text-gray-600">
+                    {p.total} today
+                  </span>
+                  {onSavePlatformLimits && (
+                    <LimitsPopover
+                      platform={p.key}
+                      taskLimits={taskLimits}
+                      onSave={onSavePlatformLimits}
+                    />
+                  )}
+                </div>
+                <div className="flex items-center gap-1 mb-2 flex-wrap">
+                  {p.typeCounts
+                    .filter((tc) => tc.count > 0)
+                    .map((tc) => (
+                      <TypeCountBadge key={tc.type} type={tc.type} count={tc.count} />
+                    ))}
+                  {p.total === 0 && (
+                    <span className="text-[8px] font-mono text-gray-300 dark:text-gray-700">
+                      No tasks today
+                    </span>
+                  )}
+                </div>
+                {/* Configured limits indicator */}
+                {(() => {
+                  const platLimits = taskLimits?.platformDefaults?.[p.key];
+                  const activeLimits = platLimits
+                    ? (TASK_TYPES as readonly string[])
+                        .filter((type) => platLimits[type] && platLimits[type] > 0)
+                        .map((type) => [type, platLimits[type]] as [string, number])
+                    : [];
+                  if (activeLimits.length === 0) return null;
+                  return (
+                    <div className="flex items-center gap-1 mb-2 flex-wrap">
+                      <span className="text-[7px] font-mono text-gray-400 dark:text-gray-600">volume:</span>
+                      {activeLimits.map(([type, limit]) => {
+                        const color = TASK_TYPE_COLORS[type] || '#3a3a5a';
+                        return (
+                          <span
+                            key={type}
+                            className="text-[7px] font-mono px-1 rounded"
+                            style={{ color, background: color + '10' }}
+                          >
+                            {limit} {type}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                <div className="flex items-center gap-2 text-[9px] font-mono mb-2">
+                  <span style={{ color: STATUS_COLORS.PENDING }}>{p.pending} pending</span>
+                  <span style={{ color: STATUS_COLORS.IN_PROGRESS }}>{p.inProgress} active</span>
+                  <span style={{ color: STATUS_COLORS.DONE }}>{p.done} done</span>
+                  <span style={{ color: STATUS_COLORS.SKIPPED }}>{p.skipped} skip</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-gray-100 dark:bg-[#151528] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${p.completionPct}%`,
+                      backgroundColor: PLATFORM_COLORS[p.key],
+                    }}
+                  />
+                </div>
+                <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600 mt-1 block">
+                  {p.completionPct}% complete
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Today's completion donut */}
+          <div className="rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] flex items-center gap-4">
+            <div className="relative w-16 h-16 shrink-0">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                {/* Background ring */}
                 <circle
                   cx="50" cy="50" r="40"
                   fill="none" stroke="currentColor"
                   className="text-gray-100 dark:text-[#151528]"
-                  strokeWidth="8"
+                  strokeWidth="10"
                 />
-                {/* Platform rings */}
-                {platformSummary.map((p, i) => {
-                  const total = p.total || 1;
-                  const pct = p.done / total;
-                  const circumference = 2 * Math.PI * (40 - i * 2);
-                  const radius = 40 - i * 2;
-                  return (
-                    <circle
-                      key={p.key}
-                      cx="50" cy="50" r={radius}
-                      fill="none"
-                      stroke={PLATFORM_COLORS[p.key]}
-                      strokeWidth="3"
-                      strokeDasharray={`${pct * circumference} ${circumference}`}
-                      strokeLinecap="round"
-                      opacity={p.total > 0 ? 0.85 : 0.15}
-                    />
-                  );
-                })}
+                <circle
+                  cx="50" cy="50" r="40"
+                  fill="none"
+                  stroke="#EC67A1"
+                  strokeWidth="10"
+                  strokeDasharray={`${(todayCompletion.pct / 100) * 2 * Math.PI * 40} ${2 * Math.PI * 40}`}
+                  strokeLinecap="round"
+                  opacity={todayCompletion.total > 0 ? 0.85 : 0.15}
+                />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-bold font-sans text-gray-800 dark:text-zinc-200">
-                  {overallCompletion}%
+                <span className="text-sm font-bold font-sans text-gray-800 dark:text-zinc-200">
+                  {todayCompletion.pct}%
                 </span>
-                <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600">overall</span>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
-            {platformSummary
-              .filter((p) => p.total > 0)
-              .map((p) => (
-                <div key={p.key} className="flex items-center gap-1">
-                  <div
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: PLATFORM_COLORS[p.key] }}
-                  />
-                  <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600">
-                    {PLATFORM_LABELS[p.key]} {p.completionPct}%
-                  </span>
-                </div>
-              ))}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500">
+                Today&apos;s Completion
+              </h3>
+              <p className="text-xs font-mono text-gray-600 dark:text-gray-400 mt-0.5">
+                {todayCompletion.done} of {todayCompletion.total} tasks done
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                {platformSummary
+                  .filter((p) => p.total > 0)
+                  .map((p) => (
+                    <div key={p.key} className="flex items-center gap-1">
+                      <div
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: PLATFORM_COLORS[p.key] }}
+                      />
+                      <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600">
+                        {PLATFORM_LABELS[p.key]} {p.done}/{p.total}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[9px] font-mono text-gray-400 dark:text-gray-600">LA Time</div>
+              <div className="text-xs font-bold font-mono text-brand-mid-pink">{laTimeDisplay}</div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Weekly Workload Heatmap */}
-        <div className="rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]">
-          <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-            Weekly Workload
-          </h3>
-          <div className="grid grid-cols-7 gap-1.5">
-            {weeklyHeatmap.map((cell) => (
-              <div key={cell.day} className="flex flex-col items-center gap-1">
-                <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600">
-                  {cell.day}
-                </span>
+      {/* ─── MM Revenue Section ─── */}
+      {mmRevenue.totalTasks > 0 && (
+        <div className="rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-500" />
+              <h3 className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
+                MM Revenue — {monthLabel}
+              </h3>
+            </div>
+            <span className="text-sm font-bold font-mono text-emerald-500">
+              ${mmRevenue.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {/* Stat badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              ${mmRevenue.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
+            </span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              {mmRevenue.tasksWithRevenue} paid tasks
+            </span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              ${mmRevenue.avgPerTask.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} avg/task
+            </span>
+          </div>
+
+          {/* Platform breakdown */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {Object.entries(mmRevenue.byPlatform).map(([platform, data]) => (
+              <div key={platform} className="flex items-center gap-1.5">
                 <div
-                  className="w-full aspect-square rounded-lg flex items-center justify-center transition-all"
-                  style={{
-                    backgroundColor: cell.count > 0
-                      ? `rgba(236, 103, 161, ${0.1 + cell.intensity * 0.6})`
-                      : 'rgba(128, 128, 128, 0.05)',
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: PLATFORM_COLORS[platform] || '#888' }}
+                />
+                <span className="text-[9px] font-bold font-sans text-gray-600 dark:text-gray-400">
+                  {PLATFORM_LABELS[platform] || platform}
+                </span>
+                <span className="text-[9px] font-mono text-emerald-500">
+                  ${data.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[8px] font-mono text-gray-400 dark:text-gray-600">
+                  ({data.count})
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Daily bar chart */}
+          <div className="h-[120px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={mmRevenue.dailyChartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-gray-100 dark:text-[#151528]" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 8, fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 8, fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `$${v}`}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const val = payload[0].value as number;
+                    return (
+                      <div className="rounded-lg border px-2.5 py-1.5 shadow-lg text-xs bg-white border-gray-200 dark:bg-[#0c0c1a] dark:border-[#1a1a2e]">
+                        <div className="font-sans font-bold text-gray-700 dark:text-zinc-300">Day {label}</div>
+                        <div className="font-mono text-emerald-500">
+                          ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    );
                   }}
-                >
+                />
+                <Bar dataKey="revenue" fill="#4ade80" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Section B: Current Task Spotlight ─── */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Zap className="h-3.5 w-3.5 text-brand-mid-pink" />
+          <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500">
+            Current Task
+          </h3>
+        </div>
+
+        {spotlightTask ? (
+          <button
+            onClick={() => setSelectedTask(spotlightTask)}
+            className="w-full text-left rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] transition-all hover:shadow-md hover:border-brand-mid-pink/30 dark:hover:border-brand-mid-pink/20"
+            style={{ borderLeftWidth: '4px', borderLeftColor: spotlightTypeColor }}
+          >
+            <div className="flex items-start gap-4">
+              {/* Left: content preview */}
+              {spotlightPreviewUrl &&
+                spotlightPreviewUrl.startsWith('http') && (
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-[#151528] shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={spotlightPreviewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+              {/* Right: task info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  {/* Type badge */}
                   <span
-                    className="text-[10px] font-bold font-sans"
+                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans"
                     style={{
-                      color: cell.count > 0
-                        ? `rgba(236, 103, 161, ${0.5 + cell.intensity * 0.5})`
-                        : 'rgba(128, 128, 128, 0.3)',
+                      background: spotlightTypeColor + '18',
+                      color: spotlightTypeColor,
+                      border: `1px solid ${spotlightTypeColor + '30'}`,
                     }}
                   >
-                    {cell.count}
+                    {spotlightTask.taskType}
+                  </span>
+                  {/* Platform badge */}
+                  <span
+                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans uppercase"
+                    style={{
+                      background: (PLATFORM_COLORS[spotlightTask.platform] || '#888') + '18',
+                      color: PLATFORM_COLORS[spotlightTask.platform] || '#888',
+                      border: `1px solid ${(PLATFORM_COLORS[spotlightTask.platform] || '#888') + '30'}`,
+                    }}
+                  >
+                    {PLATFORM_LABELS[spotlightTask.platform] || spotlightTask.platform}
+                  </span>
+                  {/* Status badge */}
+                  <span
+                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans"
+                    style={{
+                      background: (STATUS_COLORS[spotlightTask.status] || '#888') + '18',
+                      color: STATUS_COLORS[spotlightTask.status] || '#888',
+                      border: `1px solid ${(STATUS_COLORS[spotlightTask.status] || '#888') + '30'}`,
+                    }}
+                  >
+                    {spotlightTask.status.replace('_', ' ')}
                   </span>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Type Breakdown */}
-        <div className="rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]">
-          <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-            Type Breakdown
-          </h3>
-          <div className="space-y-2.5">
-            {typeBreakdown.map((tb) => {
-              const total = tb.total || 1;
-              return (
-                <div key={tb.type}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span
-                      className="text-[10px] font-bold font-sans"
-                      style={{ color: TASK_TYPE_COLORS[tb.type] }}
-                    >
-                      {tb.type}
-                    </span>
-                    <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600">
-                      {tb.total}
-                    </span>
-                  </div>
-                  {/* Stacked bar */}
-                  <div className="h-2 rounded-full bg-gray-100 dark:bg-[#151528] overflow-hidden flex">
-                    {tb.done > 0 && (
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${(tb.done / total) * 100}%`,
-                          backgroundColor: STATUS_COLORS.DONE,
-                        }}
-                      />
-                    )}
-                    {tb.inProgress > 0 && (
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${(tb.inProgress / total) * 100}%`,
-                          backgroundColor: STATUS_COLORS.IN_PROGRESS,
-                        }}
-                      />
-                    )}
-                    {tb.pending > 0 && (
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${(tb.pending / total) * 100}%`,
-                          backgroundColor: STATUS_COLORS.PENDING,
-                        }}
-                      />
-                    )}
-                    {tb.skipped > 0 && (
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${(tb.skipped / total) * 100}%`,
-                          backgroundColor: STATUS_COLORS.SKIPPED,
-                        }}
-                      />
-                    )}
-                  </div>
+                {/* Time */}
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="h-3.5 w-3.5 text-gray-400" />
+                  <span className="text-sm font-bold font-mono text-gray-800 dark:text-zinc-200">
+                    {getTaskTime(spotlightTask) || 'No time'}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-          {/* Legend */}
-          <div className="flex items-center gap-3 mt-3">
-            {Object.entries(STATUS_LABELS).map(([key, label]) => (
-              <div key={key} className="flex items-center gap-1">
-                <div
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: STATUS_COLORS[key] }}
-                />
-                <span className="text-[7px] font-mono text-gray-400 dark:text-gray-600">{label}</span>
+                {/* Label */}
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  {getTaskLabel(spotlightTask)}
+                </p>
+                {/* Caption preview */}
+                {spotlightCaption && (
+                  <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 line-clamp-2">
+                    {spotlightCaption}
+                  </p>
+                )}
               </div>
-            ))}
+              {/* Click hint */}
+              <div className="shrink-0 self-center">
+                <Eye className="h-4 w-4 text-gray-300 dark:text-gray-700" />
+              </div>
+            </div>
+          </button>
+        ) : (
+          <div className="rounded-xl border p-6 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] text-center">
+            <p className="text-xs font-mono text-gray-400 dark:text-gray-600">
+              No tasks scheduled for today
+            </p>
           </div>
-        </div>
+        )}
+
+        {/* Up Next row */}
+        {upNextTasks.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
+                Up Next
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto">
+              {upNextTasks.map((task) => (
+                <div key={task.id} className="shrink-0 w-[220px]">
+                  <TaskChip task={task} onSelect={setSelectedTask} showPlatformLabel />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Section C: Master Queue Calendar ─── */}
@@ -762,7 +1071,6 @@ export function SchedulerDashboard({
                   const visibleTasks = cell.tasks.slice(0, 4);
                   const overflow = cell.tasks.length - 4;
                   const isExpanded = expandedDay === cell.dateKey;
-                  // Open popover upward if in the bottom half of the calendar
                   const totalWeeks = calendarData.weeks.length;
                   const openUpward = wi >= totalWeeks / 2;
 
