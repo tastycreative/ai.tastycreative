@@ -163,6 +163,7 @@ import {
 } from './summary';
 import { ContentGenTaskDetailModal } from './ContentGenTaskDetailModal';
 import { ContentGenTaskCard } from './ContentGenTaskCard';
+import { SextingSetsTaskCard } from './SextingSetsTaskCard';
 
 export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
   KANBAN: {
@@ -203,6 +204,7 @@ export const TEMPLATE_CONFIG: Record<string, TemplateConfig> = {
     ],
     itemToTask: sextingSetsItemToTask,
     DetailModal: SextingSetsTaskDetailModal,
+    CardComponent: SextingSetsTaskCard,
     SummaryComponent: SextingSetsSummary,
   },
   OTP_PTR: {

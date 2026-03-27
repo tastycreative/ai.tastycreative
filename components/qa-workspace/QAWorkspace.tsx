@@ -57,10 +57,12 @@ export default function QAWorkspace() {
       const meta = item.metadata;
       const model = (meta.model as string) ?? '';
       const postOrigin = (meta.postOrigin as string) ?? '';
+      const category = (meta.category as string) ?? '';
       return (
         item.title.toLowerCase().includes(q) ||
         model.toLowerCase().includes(q) ||
         postOrigin.toLowerCase().includes(q) ||
+        category.toLowerCase().includes(q) ||
         String(item.itemNo).includes(q)
       );
     });

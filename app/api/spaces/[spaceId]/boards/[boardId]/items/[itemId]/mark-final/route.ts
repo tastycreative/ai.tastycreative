@@ -76,26 +76,28 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    // 2. Validate item is in a "Ready to Deploy" or "Ready to Post" column
+    // 2. Validate item is in an eligible source column
     const currentColumnName = item.column.name.toLowerCase();
+    const isSextingSets = item.column.board.workspace?.templateType === 'SEXTING_SETS';
     const isValidSourceColumn =
       currentColumnName.includes('ready to deploy') ||
-      currentColumnName.includes('ready to post');
+      currentColumnName.includes('ready to post') ||
+      (isSextingSets && currentColumnName.includes('review'));
     if (!isValidSourceColumn) {
       return NextResponse.json(
-        { error: 'Item must be in a "Ready to Deploy" or "Ready to Post" column' },
+        { error: isSextingSets ? 'Item must be in the "Review" column' : 'Item must be in a "Ready to Deploy" or "Ready to Post" column' },
         { status: 400 },
       );
     }
 
-    // 3. Find the "Posted" column in the same board
-    const postedColumn = item.column.board.columns.find(
-      (c) => c.name.toLowerCase() === 'posted',
-    );
+    // 3. Find the destination column ("Completed" for sexting sets, "Posted" otherwise)
+    const destinationColumn = isSextingSets
+      ? item.column.board.columns.find((c) => c.name.toLowerCase() === 'completed')
+      : item.column.board.columns.find((c) => c.name.toLowerCase() === 'posted');
 
-    if (!postedColumn) {
+    if (!destinationColumn) {
       return NextResponse.json(
-        { error: 'No "Posted" column found in this board' },
+        { error: isSextingSets ? 'No "Completed" column found in this board' : 'No "Posted" column found in this board' },
         { status: 400 },
       );
     }
@@ -227,7 +229,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
         const updated = await tx.boardItem.update({
           where: { id: itemId },
-          data: { columnId: postedColumn.id },
+          data: { columnId: destinationColumn.id },
         });
 
         const gallery = await tx.gallery_items.create({
@@ -262,7 +264,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           action: 'MOVED',
           field: 'column',
           oldValue: item.column.name,
-          newValue: postedColumn.name,
+          newValue: destinationColumn.name,
         },
       });
 
@@ -357,6 +359,253 @@ export async function POST(req: NextRequest, { params }: Params) {
           title: updatedItem.title,
         },
         galleryItem,
+        totalGalleryItems: 1,
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════ */
+    /*  Sexting Sets flow: one gallery item with carousel      */
+    /* ═══════════════════════════════════════════════════════ */
+
+    if (isSextingSets) {
+      // Dedup: one gallery item per board item
+      const existingSetsGallery = await prisma.gallery_items.findFirst({
+        where: { boardItemId: itemId },
+      });
+      if (existingSetsGallery) {
+        return NextResponse.json(
+          { error: 'This item has already been marked as final' },
+          { status: 409 },
+        );
+      }
+
+      // Resolve profile ID from metadata
+      let profileId: string | null =
+        (meta.profileId as string) || (meta.modelId as string) || null;
+      if (profileId) {
+        const profileExists = await prisma.instagramProfile.findUnique({
+          where: { id: profileId },
+          select: { id: true },
+        });
+        if (!profileExists) profileId = null;
+      }
+
+      // Caption items from metadata
+      const captionItems: CaptionItemMeta[] = Array.isArray(meta.captionItems)
+        ? (meta.captionItems as CaptionItemMeta[])
+        : [];
+
+      // Build media entries from BoardItemMedia joined with caption metadata
+      const mediaEntries: {
+        url: string;
+        mimeType: string | null;
+        name: string | null;
+        captionText: string | null;
+        contentItemId: string | null;
+      }[] = item.media.map((m, idx) => {
+        const match =
+          captionItems.find((ci) => ci.url === m.url) ??
+          captionItems.find((ci) => ci.fileName === m.name) ??
+          captionItems[idx] ??
+          null;
+        return {
+          url: m.url,
+          mimeType: m.type,
+          name: m.name,
+          captionText: match?.captionText ?? null,
+          contentItemId: match?.contentItemId ?? null,
+        };
+      });
+
+      // Fallback to captionItems URLs if no BoardItemMedia
+      if (mediaEntries.length === 0 && captionItems.length > 0) {
+        for (const ci of captionItems) {
+          if (ci.url) {
+            mediaEntries.push({
+              url: ci.url,
+              mimeType: null,
+              name: ci.fileName ?? null,
+              captionText: ci.captionText ?? null,
+              contentItemId: ci.contentItemId ?? null,
+            });
+          }
+        }
+      }
+
+      // Final fallback: placeholder
+      if (mediaEntries.length === 0) {
+        mediaEntries.push({
+          url: '/placeholder-gallery.png',
+          mimeType: null,
+          name: null,
+          captionText: null,
+          contentItemId: null,
+        });
+      }
+
+      // Build carousel mediaItems for boardMetadata
+      const carouselItems = mediaEntries.map((e) => ({
+        url: e.url,
+        captionText: e.captionText ?? null,
+        contentType: contentTypeFromMime(e.mimeType),
+        fileName: e.name ?? null,
+        contentItemId: e.contentItemId ?? null,
+      }));
+
+      const firstEntry = mediaEntries[0];
+      const primaryContentType = contentTypeFromMime(firstEntry.mimeType);
+      const primaryCaption = mediaEntries.find((e) => e.captionText)?.captionText ?? null;
+
+      // Tags
+      const setsTags: string[] = ['SEXTING_SETS'];
+      if (meta.category) setsTags.push(String(meta.category));
+      if (Array.isArray(meta.tags)) setsTags.push(...(meta.tags as string[]));
+
+      const setsBoardMetadata: Record<string, unknown> = {
+        mediaItems: carouselItems,
+      };
+      if (meta.captionTicketId) setsBoardMetadata.captionTicketId = meta.captionTicketId;
+      if (profileId) setsBoardMetadata.profileId = profileId;
+      if (meta.category) setsBoardMetadata.category = meta.category;
+      if (meta.quality) setsBoardMetadata.quality = meta.quality;
+
+      // Transaction: move to "Completed" + create gallery item
+      const { updatedItem: setsUpdated, galleryItem: setsGallery } = await prisma.$transaction(async (tx) => {
+        const updated = await tx.boardItem.update({
+          where: { id: itemId },
+          data: {
+            columnId: destinationColumn.id,
+            metadata: {
+              ...(item.metadata as Record<string, unknown>),
+              sextingSetStatus: 'COMPLETED',
+            },
+          },
+        });
+
+        const gallery = await tx.gallery_items.create({
+          data: {
+            title: item.title,
+            contentType: primaryContentType,
+            captionUsed: primaryCaption,
+            tags: setsTags,
+            previewUrl: firstEntry.url || '/placeholder-gallery.png',
+            originalAssetUrl: firstEntry.url || null,
+            platform: 'OF',
+            postedAt: new Date(),
+            origin: 'sexting_sets',
+            boardItemId: item.id,
+            organizationId: item.organizationId,
+            profileId,
+            createdBy: userId,
+            postOrigin: 'SEXTING_SETS',
+            boardMetadata: setsBoardMetadata as unknown as Prisma.InputJsonValue,
+          },
+          select: { id: true, title: true, contentType: true, platform: true, previewUrl: true },
+        });
+
+        return { updatedItem: updated, galleryItem: gallery };
+      });
+
+      // History entry
+      await prisma.boardItemHistory.create({
+        data: {
+          itemId: item.id,
+          userId,
+          action: 'MOVED',
+          field: 'column',
+          oldValue: item.column.name,
+          newValue: destinationColumn.name,
+        },
+      });
+
+      // Save each captioned content item to Caption Bank
+      const captionTicketId = (meta.captionTicketId as string) || null;
+      let setsTicketData: {
+        id: string;
+        profileId: string | null;
+        modelName: string;
+        boardItemId: string | null;
+        organizationId: string | null;
+      } | null = null;
+
+      if (captionTicketId) {
+        const ticket = await prisma.captionQueueTicket.findUnique({
+          where: { id: captionTicketId },
+          select: { id: true, profileId: true, modelName: true, boardItemId: true, organizationId: true },
+        });
+        if (ticket) setsTicketData = ticket;
+      }
+
+      const fallbackSetsTicket = setsTicketData ?? {
+        id: captionTicketId || itemId,
+        profileId,
+        modelName: (meta.model as string) || '',
+        boardItemId: itemId,
+        organizationId: item.organizationId,
+      };
+
+      // Save captions from media entries
+      const savedSetsItemIds = new Set<string>();
+      for (const entry of mediaEntries) {
+        if (!entry.captionText?.trim() || !entry.contentItemId) continue;
+        try {
+          await saveCaptionFromWallPost({
+            contentItemId: entry.contentItemId,
+            captionText: entry.captionText,
+            ticket: fallbackSetsTicket,
+            clerkId: userId,
+          });
+          savedSetsItemIds.add(entry.contentItemId);
+        } catch (e) {
+          console.error('[mark-final] Failed to save sexting sets caption to bank:', e);
+        }
+      }
+
+      // Fallback: query DB caption items directly
+      if (captionTicketId) {
+        try {
+          const dbContentItems = await prisma.captionQueueContentItem.findMany({
+            where: { ticketId: captionTicketId },
+            select: { id: true, captionText: true },
+          });
+          for (const ci of dbContentItems) {
+            if (savedSetsItemIds.has(ci.id)) continue;
+            if (!ci.captionText?.trim()) continue;
+            try {
+              await saveCaptionFromWallPost({
+                contentItemId: ci.id,
+                captionText: ci.captionText,
+                ticket: fallbackSetsTicket,
+                clerkId: userId,
+              });
+            } catch (e) {
+              console.error('[mark-final] Failed to save caption from DB fallback:', e);
+            }
+          }
+        } catch (e) {
+          console.error('[mark-final] Failed to query caption queue content items:', e);
+        }
+      }
+
+      // Publish realtime event
+      const senderTab = req.headers.get('x-tab-id') ?? undefined;
+      try {
+        publishBoardEvent(boardId, 'item.updated', {
+          userId,
+          entityId: item.id,
+          tabId: senderTab,
+        });
+      } catch (_) {
+        // Ably not configured
+      }
+
+      return NextResponse.json({
+        item: {
+          id: setsUpdated.id,
+          columnId: setsUpdated.columnId,
+          title: setsUpdated.title,
+        },
+        galleryItem: setsGallery,
         totalGalleryItems: 1,
       });
     }
@@ -503,7 +752,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { updatedItem, galleryItem } = await prisma.$transaction(async (tx) => {
       const updated = await tx.boardItem.update({
         where: { id: itemId },
-        data: { columnId: postedColumn.id },
+        data: { columnId: destinationColumn.id },
       });
 
       // Primary gallery entry (linked to board item)
@@ -549,7 +798,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         action: 'MOVED',
         field: 'column',
         oldValue: item.column.name,
-        newValue: postedColumn.name,
+        newValue: destinationColumn.name,
       },
     });
 

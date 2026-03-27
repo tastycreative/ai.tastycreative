@@ -82,9 +82,19 @@ import {
   LogOut,
   Info,
   Move,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
+  Minimize2,
+  PanelRightOpen,
+  PanelRightClose,
+  Send,
+  LayoutGrid,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useSpaces, type SpaceWithBoards, type SpaceBoardColumn } from "@/lib/hooks/useSpaces.query";
 import KeycardGenerator from "./KeycardGenerator";
 import EmbeddedVoiceGenerator from "./EmbeddedVoiceGenerator";
 
@@ -684,6 +694,14 @@ export default function SextingSetOrganizer({
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Push to Board state
+  const [showPushToBoardModal, setShowPushToBoardModal] = useState(false);
+  const [pushingToBoard, setPushingToBoard] = useState(false);
+  const [pushToBoardSuccess, setPushToBoardSuccess] = useState<{ itemNo: number; title: string } | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedSpaceDetail, setSelectedSpaceDetail] = useState<SpaceWithBoards | null>(null);
+  const [loadingSpaceDetail, setLoadingSpaceDetail] = useState(false);
+
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -744,6 +762,101 @@ export default function SextingSetOrganizer({
     if (profile.user.name) return profile.user.name;
     return null;
   }, [isSharedProfile, profileId, globalProfiles]);
+
+  // Fetch spaces for push-to-board (only SEXTING_SETS template spaces)
+  const { data: spacesData } = useSpaces();
+  const sextingSetsSpaces = useMemo(() => {
+    if (!spacesData?.spaces) return [];
+    return spacesData.spaces.filter(s => s.templateType === 'SEXTING_SETS');
+  }, [spacesData]);
+
+  // Fetch space detail when selected for push-to-board
+  const fetchSpaceDetail = useCallback(async (spaceId: string) => {
+    setLoadingSpaceDetail(true);
+    setSelectedSpaceDetail(null);
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}`);
+      if (!res.ok) throw new Error('Failed to fetch space');
+      const data: SpaceWithBoards = await res.json();
+      setSelectedSpaceDetail(data);
+    } catch (err) {
+      console.error('Error fetching space detail:', err);
+    } finally {
+      setLoadingSpaceDetail(false);
+    }
+  }, []);
+
+  // Open push-to-board modal
+  const openPushToBoardModal = () => {
+    if (!selectedSet) return;
+    if (selectedSet.images.length === 0) {
+      setToast({ message: 'This set has no images to push', type: 'error' });
+      return;
+    }
+    setShowPushToBoardModal(true);
+    setPushToBoardSuccess(null);
+    setSelectedSpaceId(null);
+    setSelectedSpaceDetail(null);
+  };
+
+  // Push to board action
+  const pushToBoard = async () => {
+    if (!selectedSet || !selectedSpaceId || !selectedSpaceDetail) return;
+
+    const board = selectedSpaceDetail.boards[0];
+    if (!board) {
+      setToast({ message: 'No board found in this space', type: 'error' });
+      return;
+    }
+    const column =
+      board.columns.find((c) => c.name.toLowerCase().includes('submission')) ??
+      board.columns[0];
+    if (!column) {
+      setToast({ message: 'No column found in this space', type: 'error' });
+      return;
+    }
+
+    try {
+      setPushingToBoard(true);
+      const response = await fetch('/api/sexting-sets/push-to-board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          setId: selectedSet.id,
+          spaceId: selectedSpaceId,
+          boardId: board.id,
+          columnId: column.id,
+          category: selectedSet.category,
+          model: selectedSet.profileName || '',
+          clientId: isAllProfiles ? selectedSet.category : profileId,
+          clientName: selectedSet.profileName || '',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to push to board');
+      }
+
+      setPushToBoardSuccess({ itemNo: data.item.itemNo, title: data.item.title });
+      setToast({ message: `Pushed "${selectedSet.name}" to board successfully!`, type: 'success' });
+
+      // Auto-close after success
+      setTimeout(() => {
+        setShowPushToBoardModal(false);
+        setPushToBoardSuccess(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Error pushing to board:', error);
+      setToast({ 
+        message: error instanceof Error ? error.message : 'Failed to push to board', 
+        type: 'error' 
+      });
+    } finally {
+      setPushingToBoard(false);
+    }
+  };
 
   // Set mounted state for portals
   useEffect(() => {
@@ -1184,11 +1297,98 @@ export default function SextingSetOrganizer({
     }
   };
 
+  // Zoom/pan state for image detail viewer
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  const resetZoom = useCallback(() => {
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel(prev => Math.min(prev + 0.5, 8));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel(prev => {
+      const next = Math.max(prev - 0.5, 0.5);
+      if (next <= 1) setPanPosition({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    setZoomLevel(prev => {
+      const next = Math.min(Math.max(prev + delta, 0.5), 8);
+      if (next <= 1) setPanPosition({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  const handlePanStart = useCallback((e: React.MouseEvent) => {
+    if (zoomLevel <= 1) return;
+    e.preventDefault();
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+  }, [zoomLevel, panPosition]);
+
+  const handlePanMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setPanPosition({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+  }, [isPanning, panStart]);
+
+  const handlePanEnd = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Touch support for pinch-to-zoom
+  const lastTouchDistance = useRef<number | null>(null);
+  const handleZoomTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDistance.current = Math.hypot(dx, dy);
+    } else if (e.touches.length === 1 && zoomLevel > 1) {
+      setPanStart({ x: e.touches[0].clientX - panPosition.x, y: e.touches[0].clientY - panPosition.y });
+      setIsPanning(true);
+    }
+  }, [zoomLevel, panPosition]);
+
+  const handleZoomTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const scale = dist / lastTouchDistance.current;
+      setZoomLevel(prev => Math.min(Math.max(prev * scale, 0.5), 8));
+      lastTouchDistance.current = dist;
+    } else if (e.touches.length === 1 && isPanning) {
+      setPanPosition({ x: e.touches[0].clientX - panStart.x, y: e.touches[0].clientY - panStart.y });
+    }
+  }, [isPanning, panStart]);
+
+  const handleZoomTouchEnd = useCallback(() => {
+    lastTouchDistance.current = null;
+    setIsPanning(false);
+  }, []);
+
   // Open image detail modal
   const openImageDetail = useCallback((image: SextingImage) => {
     setSelectedImageForDetail(image);
     setShowImageDetailModal(true);
-  }, []);
+    resetZoom();
+    setIsFullscreen(false);
+  }, [resetZoom]);
 
   // Navigate to prev/next image in the detail modal
   const navigateImageDetail = useCallback((direction: 'prev' | 'next') => {
@@ -1202,7 +1402,8 @@ export default function SextingSetOrganizer({
     setSelectedImageForDetail(images[nextIdx]);
     setEditingImageId(null);
     setEditingImageName('');
-  }, [selectedSet, selectedImageForDetail]);
+    resetZoom();
+  }, [selectedSet, selectedImageForDetail, resetZoom]);
 
   // Keyboard arrow navigation for image detail modal
   useEffect(() => {
@@ -1210,16 +1411,32 @@ export default function SextingSetOrganizer({
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') navigateImageDetail('next');
       else if (e.key === 'ArrowLeft') navigateImageDetail('prev');
+      else if (e.key === '=' || e.key === '+') { e.preventDefault(); handleZoomIn(); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); handleZoomOut(); }
+      else if (e.key === '0') { e.preventDefault(); resetZoom(); }
+      else if (e.key === 'f' || e.key === 'F') { setIsFullscreen(f => !f); }
+      else if (e.key === 'i' || e.key === 'I') { setShowInfoPanel(p => !p); }
       else if (e.key === 'Escape') {
-        setShowImageDetailModal(false);
-        setSelectedImageForDetail(null);
-        setEditingImageId(null);
-        setEditingImageName('');
+        if (zoomLevel > 1) {
+          resetZoom();
+        } else if (showInfoPanel) {
+          setShowInfoPanel(false);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        } else {
+          setShowImageDetailModal(false);
+          setSelectedImageForDetail(null);
+          setEditingImageId(null);
+          setEditingImageName('');
+          setIsFullscreen(false);
+          setShowInfoPanel(false);
+          resetZoom();
+        }
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [showImageDetailModal, navigateImageDetail]);
+  }, [showImageDetailModal, navigateImageDetail, handleZoomIn, handleZoomOut, resetZoom, zoomLevel, isFullscreen, showInfoPanel]);
 
   // Stable ref so useCallback closures always call the latest deleteImage
   const deleteImageRef = useRef(deleteImage);
@@ -2578,6 +2795,14 @@ export default function SextingSetOrganizer({
                           </button>
                           <div className="border-t border-border my-2" />
                           <button
+                            onClick={() => { openPushToBoardModal(); setShowActionsMenu(false); }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
+                          >
+                            <Send className="w-4 h-4 text-[var(--color-brand-light-pink)]" />
+                            <span>Push to Board</span>
+                          </button>
+                          <div className="border-t border-border my-2" />
+                          <button
                             onClick={() => { setShowKeycardModal(true); setShowActionsMenu(false); }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-foreground hover:bg-muted transition-colors"
                           >
@@ -3565,239 +3790,345 @@ export default function SextingSetOrganizer({
         typeof document !== "undefined" &&
         createPortal(
           <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => {
-              setShowImageDetailModal(false);
-              setSelectedImageForDetail(null);
-              setEditingImageId(null);
-              setEditingImageName("");
+            className="fixed inset-0 bg-black z-50 flex"
+            onClick={(e) => {
+              // Only close if clicking the image area background (not controls or info panel)
+              if (e.target === e.currentTarget) {
+                setShowImageDetailModal(false);
+                setSelectedImageForDetail(null);
+                setEditingImageId(null);
+                setEditingImageName("");
+                setIsFullscreen(false);
+                setShowInfoPanel(false);
+                resetZoom();
+              }
             }}
           >
-            {/* Prev button */}
-            {selectedSet.images.length > 1 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); navigateImageDetail('prev'); }}
-                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
-                aria-label="Previous"
-              >
-                <ChevronRight className="w-6 h-6 rotate-180" />
-              </button>
-            )}
-
-            <div 
-              className="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-lg flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">
-                      {selectedImageForDetail.sequence}
+            {/* Main image area - fills available space */}
+            <div className={`relative flex-1 flex flex-col min-w-0 transition-all duration-300`}>
+              
+              {/* Top floating toolbar */}
+              <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
+                {/* Left: counter + filename */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-3 py-1.5">
+                    <div className="w-6 h-6 bg-gradient-to-br from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] rounded-full flex items-center justify-center">
+                      <span className="text-white text-[10px] font-bold">
+                        {selectedImageForDetail.sequence}
+                      </span>
+                    </div>
+                    <span className="text-white/90 text-sm font-medium">
+                      {selectedSet.images.findIndex(i => i.id === selectedImageForDetail.id) + 1} / {selectedSet.images.length}
                     </span>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">Image Details</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Click on filename to edit &bull; {selectedSet.images.findIndex(i => i.id === selectedImageForDetail.id) + 1} / {selectedSet.images.length}
-                    </p>
-                  </div>
+                  <span className="text-white/60 text-sm truncate max-w-[200px] sm:max-w-[350px] hidden sm:block">
+                    {selectedImageForDetail.name}
+                  </span>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowImageDetailModal(false);
-                    setSelectedImageForDetail(null);
-                    setEditingImageId(null);
-                    setEditingImageName("");
-                  }}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
+
+                {/* Right: action buttons */}
+                <div className="flex items-center gap-1">
+                  {/* Zoom controls - inline in toolbar for images */}
+                  {!isVideo(selectedImageForDetail.type) && !isAudio(selectedImageForDetail.type) && (
+                    <div className="flex items-center gap-0.5 bg-white/10 backdrop-blur-md rounded-full px-1 py-0.5 mr-1">
+                      <button
+                        onClick={handleZoomOut}
+                        disabled={zoomLevel <= 0.5}
+                        className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white disabled:opacity-30"
+                        title="Zoom out"
+                      >
+                        <ZoomOut className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={resetZoom}
+                        className="px-1.5 py-0.5 hover:bg-white/10 rounded-full transition-colors text-white text-[11px] font-mono min-w-[40px] text-center"
+                        title="Reset zoom"
+                      >
+                        {Math.round(zoomLevel * 100)}%
+                      </button>
+                      <button
+                        onClick={handleZoomIn}
+                        disabled={zoomLevel >= 8}
+                        className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white disabled:opacity-30"
+                        title="Zoom in"
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowInfoPanel(p => !p)}
+                    className={`p-2 rounded-full transition-colors ${showInfoPanel ? 'bg-[var(--color-brand-mid-pink)]/30 text-[var(--color-brand-light-pink)]' : 'hover:bg-white/10 text-white/80'}`}
+                    title={showInfoPanel ? "Hide info" : "Show info (I)"}
+                  >
+                    {showInfoPanel ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+                  </button>
+                  <a
+                    href={selectedImageForDetail.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80"
+                    title="Open original"
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                  </a>
+                  <button
+                    onClick={() => {
+                      setShowImageDetailModal(false);
+                      setSelectedImageForDetail(null);
+                      setEditingImageId(null);
+                      setEditingImageName("");
+                      setIsFullscreen(false);
+                      setShowInfoPanel(false);
+                      resetZoom();
+                    }}
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80"
+                    title="Close (Esc)"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
-              {/* Content */}
-              <div className="p-6 space-y-6">
-                {/* Preview */}
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-black/50">
-                  {isVideo(selectedImageForDetail.type) ? (
-                    <video
+              {/* Prev button */}
+              {selectedSet.images.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigateImageDetail('prev'); }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
+                  aria-label="Previous"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+              )}
+
+              {/* Next button */}
+              {selectedSet.images.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigateImageDetail('next'); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
+                  aria-label="Next"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Image viewer area */}
+              <div
+                ref={imageContainerRef}
+                className={`flex-1 relative overflow-hidden ${
+                  zoomLevel > 1 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
+                }`}
+                onWheel={!isVideo(selectedImageForDetail.type) && !isAudio(selectedImageForDetail.type) ? handleWheel : undefined}
+                onMouseDown={handlePanStart}
+                onMouseMove={handlePanMove}
+                onMouseUp={handlePanEnd}
+                onMouseLeave={handlePanEnd}
+                onTouchStart={handleZoomTouchStart}
+                onTouchMove={handleZoomTouchMove}
+                onTouchEnd={handleZoomTouchEnd}
+                onDoubleClick={() => {
+                  if (zoomLevel === 1) {
+                    setZoomLevel(3);
+                  } else {
+                    resetZoom();
+                  }
+                }}
+              >
+                {isVideo(selectedImageForDetail.type) ? (
+                  <video
+                    src={selectedImageForDetail.url}
+                    className="w-full h-full object-contain"
+                    controls
+                  />
+                ) : isAudio(selectedImageForDetail.type) ? (
+                  <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-6">
+                    <Music className="w-20 h-20 text-violet-500 mb-4" />
+                    <audio
                       src={selectedImageForDetail.url}
-                      className="w-full h-full object-contain"
                       controls
+                      className="w-full max-w-md"
                     />
+                    <span className="text-sm text-white/70 mt-4">{selectedImageForDetail.name}</span>
+                  </div>
+                ) : (
+                  <img
+                    src={selectedImageForDetail.url}
+                    alt={selectedImageForDetail.name}
+                    className="w-full h-full object-contain select-none"
+                    draggable={false}
+                    style={{
+                      transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${panPosition.y / zoomLevel}px)`,
+                      transformOrigin: 'center center',
+                      transition: isPanning ? 'none' : 'transform 0.2s ease-out',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Bottom hint - shown only at 1x zoom */}
+              {!isVideo(selectedImageForDetail.type) && !isAudio(selectedImageForDetail.type) && zoomLevel === 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 text-xs text-white/40 bg-white/5 backdrop-blur-sm rounded-full px-4 py-1.5 pointer-events-none">
+                  Scroll to zoom &bull; Double-click for 3x &bull; Drag to pan
+                </div>
+              )}
+            </div>
+
+            {/* Right info panel - slides in/out */}
+            <div className={`shrink-0 bg-card border-l border-border overflow-y-auto transition-all duration-300 ease-in-out ${
+              showInfoPanel ? 'w-[340px] opacity-100' : 'w-0 opacity-0 overflow-hidden'
+            }`}>
+              <div className="w-[340px] p-5 space-y-5">
+                {/* Panel header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Details</h3>
+                  <button
+                    onClick={() => setShowInfoPanel(false)}
+                    className="p-1 hover:bg-muted rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+
+                {/* Thumbnail preview */}
+                <div className="aspect-square rounded-xl overflow-hidden bg-black/20 border border-border/50">
+                  {isVideo(selectedImageForDetail.type) ? (
+                    <video src={selectedImageForDetail.url} className="w-full h-full object-cover" />
                   ) : isAudio(selectedImageForDetail.type) ? (
-                    <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 dark:from-violet-900/50 dark:to-fuchsia-900/50 flex flex-col items-center justify-center p-6">
-                      <Music className="w-20 h-20 text-violet-500 mb-4" />
-                      <audio
-                        src={selectedImageForDetail.url}
-                        controls
-                        className="w-full max-w-md"
-                      />
-                      <span className="text-sm text-foreground mt-4">{selectedImageForDetail.name}</span>
+                    <div className="w-full h-full flex items-center justify-center bg-violet-500/10">
+                      <Music className="w-10 h-10 text-violet-500" />
                     </div>
                   ) : (
-                    <img
-                      src={selectedImageForDetail.url}
-                      alt={selectedImageForDetail.name}
-                      className="w-full h-full object-contain"
-                    />
+                    <img src={selectedImageForDetail.url} alt="" className="w-full h-full object-cover" />
                   )}
                 </div>
 
-                {/* Metadata */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Filename - Editable */}
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Filename
-                    </label>
-                    {editingImageId === selectedImageForDetail.id ? (
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={editingImageName}
-                          onChange={(e) => setEditingImageName(e.target.value)}
-                          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName);
-                            } else if (e.key === "Escape") {
-                              setEditingImageId(null);
-                              setEditingImageName("");
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={() => renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName)}
-                          disabled={savingImageName || !editingImageName.trim()}
-                          className="px-4 py-2.5 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          {savingImageName ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
+                {/* Filename - Editable */}
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Filename
+                  </label>
+                  {editingImageId === selectedImageForDetail.id ? (
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={editingImageName}
+                        onChange={(e) => setEditingImageName(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-mid-pink)] focus:border-transparent"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName);
+                          } else if (e.key === "Escape") {
                             setEditingImageId(null);
                             setEditingImageName("");
-                          }}
-                          className="px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => {
-                          setEditingImageId(selectedImageForDetail.id);
-                          setEditingImageName(selectedImageForDetail.name.replace(/\.[^/.]+$/, ''));
+                          }
                         }}
-                        className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground cursor-pointer hover:border-[var(--color-brand-mid-pink)]/50 transition-colors flex items-center justify-between group"
+                      />
+                      <button
+                        onClick={() => renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName)}
+                        disabled={savingImageName || !editingImageName.trim()}
+                        className="px-2.5 py-2 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] text-white rounded-lg transition-all disabled:opacity-50 flex items-center"
                       >
-                        <span className="truncate">{selectedImageForDetail.name}</span>
-                        <Edit3 className="w-4 h-4 text-muted-foreground group-hover:text-[var(--color-brand-mid-pink)] transition-colors" />
-                      </div>
-                    )}
-                  </div>
+                        {savingImageName ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => { setEditingImageId(null); setEditingImageName(""); }}
+                        className="px-2.5 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        setEditingImageId(selectedImageForDetail.id);
+                        setEditingImageName(selectedImageForDetail.name.replace(/\.[^/.]+$/, ''));
+                      }}
+                      className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm cursor-pointer hover:border-[var(--color-brand-mid-pink)]/50 transition-colors flex items-center justify-between group"
+                    >
+                      <span className="truncate">{selectedImageForDetail.name}</span>
+                      <Edit3 className="w-3.5 h-3.5 text-muted-foreground group-hover:text-[var(--color-brand-mid-pink)] transition-colors shrink-0 ml-2" />
+                    </div>
+                  )}
+                </div>
 
-                  {/* Sequence */}
+                {/* Metadata grid */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Sequence
-                    </label>
-                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
+                    <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Sequence</label>
+                    <div className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm">
                       #{selectedImageForDetail.sequence}
                     </div>
                   </div>
-
-                  {/* Size */}
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      File Size
-                    </label>
-                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
+                    <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">File Size</label>
+                    <div className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm">
                       {formatFileSize(selectedImageForDetail.size)}
                     </div>
                   </div>
-
-                  {/* Type */}
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Type
-                    </label>
-                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground flex items-center gap-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Type</label>
+                    <div className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm flex items-center gap-1.5">
                       {isVideo(selectedImageForDetail.type) ? (
-                        <>
-                          <Video className="w-4 h-4 text-[var(--color-brand-blue)]" />
-                          Video
-                        </>
+                        <><Video className="w-3.5 h-3.5 text-[var(--color-brand-blue)]" />Video</>
                       ) : isAudio(selectedImageForDetail.type) ? (
-                        <>
-                          <Volume2 className="w-4 h-4 text-violet-500" />
-                          Audio
-                        </>
+                        <><Volume2 className="w-3.5 h-3.5 text-violet-500" />Audio</>
                       ) : (
-                        <>
-                          <ImageIcon className="w-4 h-4 text-[var(--color-brand-mid-pink)]" />
-                          Image
-                        </>
+                        <><ImageIcon className="w-3.5 h-3.5 text-[var(--color-brand-mid-pink)]" />Image</>
                       )}
                     </div>
                   </div>
-
-                  {/* Uploaded Date */}
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Uploaded
-                    </label>
-                    <div className="px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground">
+                    <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Uploaded</label>
+                    <div className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm">
                       {new Date(selectedImageForDetail.uploadedAt).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="p-4 border-t border-border flex justify-between">
-                <button
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this image?")) {
-                      deleteImage(selectedSet.id, selectedImageForDetail.id);
-                      setShowImageDetailModal(false);
-                      setSelectedImageForDetail(null);
-                    }
-                  }}
-                  className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-medium transition-colors flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
-                <a
-                  href={selectedImageForDetail.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Open Original
-                </a>
+                {/* Divider */}
+                <div className="border-t border-border" />
+
+                {/* Actions */}
+                <div className="space-y-2">
+                  <a
+                    href={selectedImageForDetail.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Open Original
+                  </a>
+                  <button
+                    onClick={() => {
+                      if (confirm("Are you sure you want to delete this image?")) {
+                        deleteImage(selectedSet.id, selectedImageForDetail.id);
+                        setShowImageDetailModal(false);
+                        setSelectedImageForDetail(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+
+                {/* Keyboard shortcuts hint */}
+                <div className="border-t border-border pt-4">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Shortcuts</p>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">&larr;&rarr;</kbd> Navigate</span>
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">+/-</kbd> Zoom</span>
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">0</kbd> Reset</span>
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">I</kbd> Info</span>
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> Close</span>
+                    <span><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Dbl-click</kbd> 3x</span>
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Next button */}
-            {selectedSet.images.length > 1 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); navigateImageDetail('next'); }}
-                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all hover:scale-110 active:scale-95 backdrop-blur-sm"
-                aria-label="Next"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            )}
           </div>,
           document.body,
         )}
@@ -3914,6 +4245,167 @@ export default function SextingSetOrganizer({
                   }}
                 />
               </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Push to Board Modal - React Portal */}
+      {showPushToBoardModal &&
+        selectedSet &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => {
+              if (!pushingToBoard) {
+                setShowPushToBoardModal(false);
+                setPushToBoardSuccess(null);
+              }
+            }}
+          >
+            <div
+              className="bg-card border-t sm:border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-[var(--color-brand-light-pink)] to-[var(--color-brand-dark-pink)] rounded-xl">
+                    <Send className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Push to Board
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedSet.images.length} image
+                      {selectedSet.images.length !== 1 ? "s" : ""} from &ldquo;
+                      {selectedSet.name}&rdquo;
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {pushToBoardSuccess ? (
+                  <div className="text-center py-6">
+                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle2 className="w-8 h-8 text-green-500" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-foreground mb-2">
+                      Pushed to Board!
+                    </h4>
+                    <p className="text-muted-foreground">
+                      Task <span className="text-[var(--color-brand-light-pink)] font-medium">#{pushToBoardSuccess.itemNo}</span>{" "}
+                      &ldquo;{pushToBoardSuccess.title}&rdquo; created
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Space Selector */}
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Select Space
+                      </label>
+                      {sextingSetsSpaces.length === 0 ? (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-muted border border-border rounded-xl">
+                          <AlertCircle className="w-4 h-4 text-amber-400" />
+                          <span className="text-sm text-muted-foreground">
+                            No Sexting Sets spaces found. Create one first.
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedSpaceId || ""}
+                          onChange={(e) => {
+                            const spaceId = e.target.value;
+                            setSelectedSpaceId(spaceId);
+                            if (spaceId) fetchSpaceDetail(spaceId);
+                          }}
+                          className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-light-pink)] focus:border-transparent"
+                        >
+                          <option value="" disabled>Select a space</option>
+                          {sextingSetsSpaces.map((space) => (
+                            <option key={space.id} value={space.id}>
+                              {space.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Space loading / resolve preview */}
+                    {selectedSpaceId && (
+                      loadingSpaceDetail ? (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-muted border border-border rounded-xl">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          <span className="text-muted-foreground">Loading space details...</span>
+                        </div>
+                      ) : selectedSpaceDetail ? (() => {
+                        const board = selectedSpaceDetail.boards[0];
+                        const column = board?.columns.find((c) => c.name.toLowerCase().includes('submission')) ?? board?.columns[0];
+                        if (!board || !column) return (
+                          <div className="flex items-center gap-2 px-4 py-3 bg-muted border border-border rounded-xl">
+                            <AlertCircle className="w-4 h-4 text-amber-400" />
+                            <span className="text-sm text-muted-foreground">No usable board/column in this space.</span>
+                          </div>
+                        );
+                        return (
+                          <div className="bg-muted/50 border border-border rounded-xl p-4 space-y-2">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Summary</h4>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Set Name</span>
+                              <span className="text-foreground font-medium">{selectedSet.name}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Images</span>
+                              <span className="text-foreground font-medium">{selectedSet.images.length}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Board</span>
+                              <span className="text-foreground font-medium">{board.name}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Column</span>
+                              <span className="text-[var(--color-brand-light-pink)] font-medium">{column.name}</span>
+                            </div>
+                          </div>
+                        );
+                      })() : null
+                    )}
+                  </>
+                )}
+              </div>
+
+              {!pushToBoardSuccess && (
+                <div className="p-6 border-t border-border flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowPushToBoardModal(false);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={pushToBoard}
+                    disabled={pushingToBoard || !selectedSpaceId || !selectedSpaceDetail || loadingSpaceDetail}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[var(--color-brand-mid-pink)] to-[var(--color-brand-dark-pink)] hover:from-[var(--color-brand-light-pink)] hover:to-[var(--color-brand-mid-pink)] text-white rounded-xl font-medium transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {pushingToBoard ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Pushing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Push to Board
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>,
           document.body,

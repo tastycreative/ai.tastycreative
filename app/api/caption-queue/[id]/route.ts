@@ -5,6 +5,7 @@ import { canManageQueue, canViewQueue, isCreatorRole, type OrgRole } from '@/lib
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import { captionStatusToWallPostStatus } from '@/lib/wall-post-status';
 import { captionStatusToOtpPtrStatus } from '@/lib/otp-ptr-caption-status';
+import { captionStatusToSextingSetStatus } from '@/lib/sexting-set-status';
 import { autoMoveColumnIfNeeded } from '@/lib/board-auto-column-move';
 
 async function resolveUserContext(clerkId: string) {
@@ -89,8 +90,13 @@ async function syncCaptionToBoardItem(
           : status === 'pending_qa' ? 'pending_qa'
           : status,
       } : {}),
+      // For sexting_sets workflow: sync sextingSetStatus
+      ...(status !== undefined && effectiveWorkflowType === 'sexting_sets' ? (() => {
+        const sts = captionStatusToSextingSetStatus(status ?? '');
+        return sts ? { sextingSetStatus: sts } : {};
+      })() : {}),
       // For wall_post workflow: sync wallPostStatus
-      ...(status !== undefined && effectiveWorkflowType !== 'otp_ptr' ? (() => {
+      ...(status !== undefined && effectiveWorkflowType !== 'otp_ptr' && effectiveWorkflowType !== 'sexting_sets' ? (() => {
         const wps = captionStatusToWallPostStatus(status ?? '');
         return wps ? { wallPostStatus: wps } : {};
       })() : {}),

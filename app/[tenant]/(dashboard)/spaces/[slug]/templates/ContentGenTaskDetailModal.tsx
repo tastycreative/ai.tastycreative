@@ -23,6 +23,7 @@ import {
   Clapperboard,
   Hash,
   Users,
+  ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
 import type { BoardTask } from '../../board/BoardTaskCard';
@@ -438,14 +439,14 @@ export function ContentGenTaskDetailModal({
       content?: string;
       action?: string;
       field?: string;
-      oldValue?: string;
-      newValue?: string;
+      oldValue?: string | null;
+      newValue?: string | null;
     }> = [];
     for (const c of comments) {
       items.push({ id: `c-${c.id}`, type: 'comment', author: c.author, timestamp: c.createdAt, content: c.content });
     }
     for (const h of historyEntries) {
-      items.push({ id: `h-${h.id}`, type: 'change', author: h.changedBy, timestamp: h.changedAt, action: h.action, field: h.field, oldValue: h.oldValue ?? undefined, newValue: h.newValue ?? undefined });
+      items.push({ id: `h-${h.id}`, type: 'change', author: h.changedBy, timestamp: h.changedAt, action: h.action, field: h.field, oldValue: h.oldValue, newValue: h.newValue });
     }
     items.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return items;
@@ -1056,6 +1057,29 @@ export function ContentGenTaskDetailModal({
                         Cancel
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* Open in Sexting Set Organizer — shows when task has vault assets */}
+                {vaultAssets.length > 0 && (
+                  <div className="mt-4 p-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.05]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Sexting Set Organizer</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          Set up a sexting set from the generated content
+                        </div>
+                      </div>
+                      <a
+                        href={`/${params.tenant}/workspace/content-studio/sexting-set-organizer?contentGenTaskId=${task.id}${clientId ? `&clientId=${clientId}` : ''}${clientName ? `&clientName=${encodeURIComponent(clientName)}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-violet-500/90 text-white hover:bg-violet-500 shadow-lg shadow-violet-500/20"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>

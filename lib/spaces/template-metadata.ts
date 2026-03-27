@@ -99,6 +99,24 @@ export const WALL_POST_METADATA_FIELDS: MetadataFieldDescriptor[] = [
 /*  SEXTING SETS                                                       */
 /* ================================================================== */
 
+export interface SextingSetImageRef {
+  id: string;
+  url: string;
+  name: string;
+  type: string;
+  sequence: number;
+}
+
+export interface SextingSetCaptionItem {
+  contentItemId: string | null;
+  url: string;
+  fileName: string | null;
+  captionText: string | null;
+  captionStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'not_required';
+  qaRejectionReason: string | null;
+  isPosted: boolean;
+}
+
 export interface SextingSetsItemMetadata {
   category: string;
   setSize: number;
@@ -106,6 +124,19 @@ export interface SextingSetsItemMetadata {
   quality: string;
   watermarked: boolean;
   tags: string[];
+  // ── Linkage fields ──
+  sextingSetId: string;
+  contentGenTaskId: string;
+  clientId: string;
+  clientName: string;
+  profileId: string;
+  // ── Caption workflow fields ──
+  captionTicketId: string;
+  captionStatus: string;
+  sextingSetStatus: string;
+  captionItems: SextingSetCaptionItem[];
+  // ── Actual images from organizer ──
+  images: SextingSetImageRef[];
 }
 
 export const SEXTING_SETS_METADATA_DEFAULTS: SextingSetsItemMetadata = {
@@ -115,6 +146,16 @@ export const SEXTING_SETS_METADATA_DEFAULTS: SextingSetsItemMetadata = {
   quality: 'HD',
   watermarked: false,
   tags: [],
+  sextingSetId: '',
+  contentGenTaskId: '',
+  clientId: '',
+  clientName: '',
+  profileId: '',
+  captionTicketId: '',
+  captionStatus: '',
+  sextingSetStatus: '',
+  captionItems: [],
+  images: [],
 };
 
 export const SEXTING_SETS_METADATA_FIELDS: MetadataFieldDescriptor[] = [

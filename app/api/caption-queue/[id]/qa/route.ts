@@ -9,6 +9,8 @@ import {
   deriveTicketStatus,
   captionStatusToWallPostStatus,
 } from '@/lib/wall-post-status';
+import { SEXTING_SET_STATUS, captionStatusToSextingSetStatus } from '@/lib/sexting-set-status';
+import { autoMoveColumnIfNeeded } from '@/lib/board-auto-column-move';
 
 /**
  * PATCH /api/caption-queue/[id]/qa
@@ -257,12 +259,15 @@ export async function PATCH(
             isPosted: ci.isPosted,
           }));
 
-          const newWallPostStatus = captionStatusToWallPostStatus(newTicketStatus)
-            || (isApprove ? WALL_POST_STATUS.COMPLETED : WALL_POST_STATUS.PARTIALLY_APPROVED);
+          const isSextingSets = ticket.workflowType === 'sexting_sets';
+          const statusField = isSextingSets ? 'sextingSetStatus' : 'wallPostStatus';
+          const resolvedStatus = isSextingSets
+            ? (captionStatusToSextingSetStatus(newTicketStatus) || (isApprove ? SEXTING_SET_STATUS.QA_APPROVED : SEXTING_SET_STATUS.PARTIALLY_APPROVED))
+            : (captionStatusToWallPostStatus(newTicketStatus) || (isApprove ? WALL_POST_STATUS.COMPLETED : WALL_POST_STATUS.PARTIALLY_APPROVED));
 
           const updatedMeta: Record<string, unknown> = {
             ...prevMeta,
-            wallPostStatus: newWallPostStatus,
+            [statusField]: resolvedStatus,
             captionStatus: newTicketStatus,
             captionItems,
             ...(ticketCaptionText ? { captionText: ticketCaptionText } : {}),
@@ -290,8 +295,36 @@ export async function PATCH(
       return { updated, newTicketStatus, allItems };
     }, { timeout: 30000 });
 
-    const newWallPostStatus = captionStatusToWallPostStatus(updatedTicket.newTicketStatus)
-      || (isApprove ? WALL_POST_STATUS.COMPLETED : WALL_POST_STATUS.PARTIALLY_APPROVED);
+    const isSextingSetsTicket = ticket.workflowType === 'sexting_sets';
+    const newWallPostStatus = isSextingSetsTicket
+      ? (captionStatusToSextingSetStatus(updatedTicket.newTicketStatus) || (isApprove ? SEXTING_SET_STATUS.QA_APPROVED : SEXTING_SET_STATUS.PARTIALLY_APPROVED))
+      : (captionStatusToWallPostStatus(updatedTicket.newTicketStatus) || (isApprove ? WALL_POST_STATUS.COMPLETED : WALL_POST_STATUS.PARTIALLY_APPROVED));
+
+    // ── Auto-move board column based on updated metadata ──
+    if (ticket.boardItemId) {
+      try {
+        const boardItem = await prisma.boardItem.findUnique({
+          where: { id: ticket.boardItemId },
+          select: {
+            columnId: true,
+            metadata: true,
+            column: { select: { boardId: true, name: true } },
+          },
+        });
+        if (boardItem?.column) {
+          await autoMoveColumnIfNeeded({
+            boardItemId: ticket.boardItemId,
+            currentColumnId: boardItem.columnId,
+            currentColumnName: boardItem.column.name,
+            boardId: boardItem.column.boardId,
+            metadata: (boardItem.metadata as Record<string, unknown>) ?? {},
+            userId: ctx.userId,
+          });
+        }
+      } catch (e) {
+        console.error('[auto-column-move] QA bulk action:', e);
+      }
+    }
 
     // ── Real-time broadcasts ──
     if (ctx.organizationId) {
@@ -323,6 +356,7 @@ export async function PATCH(
       item: updatedTicket.updated,
       action,
       wallPostStatus: newWallPostStatus,
+      ...(isSextingSetsTicket ? { sextingSetStatus: newWallPostStatus } : {}),
       ...(reason ? { reason } : {}),
     });
   } catch (error) {

@@ -2079,11 +2079,11 @@ model gallery_items {
   createdBy        String?
   boardItemId      String?           @unique
   boardMetadata    Json?
-  schedulerTaskId  String?           @unique
   pageType         String?
   postOrigin       String?
   pricingTier      String?
   profileId        String?
+  schedulerTaskId  String?           @unique
   board_items      BoardItem?        @relation(fields: [boardItemId], references: [id])
   model            of_models?        @relation(fields: [modelId], references: [id])
   organization     Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)

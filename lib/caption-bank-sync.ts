@@ -18,7 +18,7 @@ interface SaveCaptionToBankInput {
   /** The influencer/model display name */
   modelName: string;
   /** Source workflow type */
-  sourceType: 'wall_post' | 'otp_ptr';
+  sourceType: 'wall_post' | 'otp_ptr' | 'sexting_sets';
   /** The board item ID this caption originated from */
   sourceBoardItemId: string | null;
   /** For wall_post: the CaptionQueueContentItem ID (unique per item) */
@@ -104,7 +104,7 @@ export async function saveCaptionToBank(
         sourceBoardItemId,
         sourceContentItemId: sourceContentItemId ?? null,
         sourceTicketId: sourceTicketId ?? null,
-        notes: `Auto-saved from ${sourceType === 'wall_post' ? 'Wall Post' : 'OTP/PTR'} board`,
+        notes: `Auto-saved from ${sourceType === 'wall_post' ? 'Wall Post' : sourceType === 'sexting_sets' ? 'Sexting Sets' : 'OTP/PTR'} board`,
       },
       select: { id: true, caption: true, profileId: true },
     });

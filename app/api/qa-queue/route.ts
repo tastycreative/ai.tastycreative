@@ -39,7 +39,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Find all board items in "QA" columns across OTP_PTR boards in this org
+    // Find all board items in "QA" columns across OTP_PTR and SEXTING_SETS boards in this org
     const items = await prisma.boardItem.findMany({
       where: {
         organizationId: orgId,
@@ -48,7 +48,7 @@ export async function GET() {
           board: {
             workspace: {
               organizationId: orgId,
-              templateType: 'OTP_PTR',
+              templateType: { in: ['OTP_PTR', 'SEXTING_SETS'] },
             },
           },
         },
@@ -66,6 +66,7 @@ export async function GET() {
                     id: true,
                     slug: true,
                     name: true,
+                    templateType: true,
                   },
                 },
               },
@@ -213,6 +214,7 @@ export async function GET() {
         spaceId: item.column.board.workspace.id,
         spaceSlug: item.column.board.workspace.slug,
         spaceName: item.column.board.workspace.name,
+        workflowType: item.column.board.workspace.templateType,
         metadata: meta,
         media: item.media,
         _count: item._count,

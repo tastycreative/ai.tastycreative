@@ -347,16 +347,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     // ── Auto-save caption to Caption Bank when item moves to "Posted" column ──
+    // ── Auto-push to Caption Workspace when SEXTING_SETS item moves to "Needs Captioning" ──
     if (data.columnId !== undefined && current) {
       const oldColumnId = current.columnId;
       const newColumnId = data.columnId as string;
 
       if (oldColumnId !== newColumnId) {
         try {
-          // Resolve the new column name
+          // Resolve the new column name + space template
           const newColumn = await prisma.boardColumn.findUnique({
             where: { id: newColumnId },
-            select: { name: true },
+            select: {
+              name: true,
+              board: { select: { workspace: { select: { templateType: true } } } },
+            },
           });
 
           if (newColumn?.name?.toLowerCase() === 'posted') {
@@ -365,6 +369,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               boardItemId: itemId,
               metadata: itemMeta,
               clerkId: userId,
+            });
+          }
+
+          // Auto-push sexting sets to caption workspace on "Needs Captioning"
+          if (
+            newColumn?.name?.toLowerCase().includes('captioning') &&
+            newColumn?.board?.workspace?.templateType === 'SEXTING_SETS'
+          ) {
+            const { autoPushSextingSetToCaption } = await import(
+              '@/lib/sexting-sets-column-automation'
+            );
+            await autoPushSextingSetToCaption({
+              boardItemId: itemId,
+              clerkId: userId,
+              organizationId: updated.organizationId!,
             });
           }
         } catch (e) {

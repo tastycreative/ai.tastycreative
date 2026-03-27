@@ -4,6 +4,7 @@ import { prisma } from '@/lib/database';
 import { canCreateQueue, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import { WALL_POST_STATUS } from '@/lib/wall-post-status';
+import { SEXTING_SET_STATUS } from '@/lib/sexting-set-status';
 
 /**
  * POST /api/caption-queue/from-board-item
@@ -81,12 +82,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'boardItemId is required' }, { status: 400 });
     }
 
-    // ── Fetch board item with its column for board ID ──
+    // ── Fetch board item with its column + board + space for template type ──
     const boardItem = await prisma.boardItem.findUnique({
       where: { id: boardItemId },
       include: {
         column: {
-          select: { boardId: true },
+          select: {
+            boardId: true,
+            board: {
+              select: {
+                workspace: {
+                  select: { templateType: true },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -100,6 +110,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // ── Determine workflow type from board's space template ──
+    const templateType = boardItem.column?.board?.workspace?.templateType ?? 'OTP_PTR';
+    const isSextingSets = templateType === 'SEXTING_SETS';
+    const workflowType = isSextingSets ? 'sexting_sets' : 'wall_post';
+    const statusField = isSextingSets ? 'sextingSetStatus' : 'wallPostStatus';
+    const inCaptionStatus = isSextingSets ? SEXTING_SET_STATUS.IN_CAPTION : WALL_POST_STATUS.IN_CAPTION;
+
     // ── Prevent duplicate push ──
     const metadata = (boardItem.metadata as Record<string, unknown>) ?? {};
     if (metadata.captionTicketId) {
@@ -111,7 +128,7 @@ export async function POST(request: NextRequest) {
       if (existingTicket) {
         return NextResponse.json(
           {
-            error: 'This wall post already has an active caption ticket',
+            error: 'This item already has an active caption ticket',
             ticketId: existingTicket.id,
             ticketStatus: existingTicket.status,
           },
@@ -202,7 +219,7 @@ export async function POST(request: NextRequest) {
       bodyDescription ||
       (metadata.description as string) ||
       boardItem.description ||
-      `Wall Post caption for ${modelName}`;
+      `${isSextingSets ? 'Sexting Set' : 'Wall Post'} caption for ${modelName}`;
 
     // Derive contentTypes and messageTypes from metadata or defaults — deduplicate to avoid React key warnings
     const contentTypes = [...new Set(
@@ -213,7 +230,7 @@ export async function POST(request: NextRequest) {
     const messageTypes = [...new Set(
       metadata.messageTypes
         ? (metadata.messageTypes as string[])
-        : ['wall_post']
+        : [workflowType]
     )];
 
     // ── Atomic transaction: create ticket + link board item ──
@@ -229,11 +246,12 @@ export async function POST(request: NextRequest) {
           profileImageUrl,
           description,
           contentTypes: contentTypes.length > 0 ? contentTypes : ['image'],
-          messageTypes: messageTypes.length > 0 ? messageTypes : ['wall_post'],
+          messageTypes: messageTypes.length > 0 ? messageTypes : [workflowType],
           urgency,
           releaseDate: releaseDate ? new Date(releaseDate) : new Date(),
           status: 'pending',
           boardItemId,
+          workflowType,
         },
       });
 
@@ -278,12 +296,12 @@ export async function POST(request: NextRequest) {
       await tx.boardItem.update({
         where: { id: boardItemId },
         data: {
-          metadata: {
+          metadata: JSON.parse(JSON.stringify({
             ...prevMeta,
             captionTicketId: newTicket.id,
             captionStatus: 'pending',
-            wallPostStatus: WALL_POST_STATUS.IN_CAPTION,
-          },
+            [statusField]: inCaptionStatus,
+          })),
           updatedAt: new Date(),
         },
       });
@@ -325,7 +343,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Notify board subscribers so UI updates the item status
-      const boardId = boardItem.column?.boardId;
+      const boardId = (boardItem as unknown as { column?: { boardId?: string } }).column?.boardId;
       if (boardId) {
         await broadcastToBoard(boardId, boardItemId);
       }
@@ -335,7 +353,8 @@ export async function POST(request: NextRequest) {
       {
         item: ticket,
         boardItemId,
-        wallPostStatus: WALL_POST_STATUS.IN_CAPTION,
+        wallPostStatus: inCaptionStatus,
+        [statusField]: inCaptionStatus,
       },
       { status: 201 },
     );

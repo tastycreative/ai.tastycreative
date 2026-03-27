@@ -50,6 +50,27 @@ export async function autoMoveColumnIfNeeded(params: {
     }
   }
 
+  // ── SEXTING SETS column automation ──
+
+  // "Needs Captioning" → "QA" when captions are submitted for QA review
+  if (colNameLower === 'needs captioning') {
+    const sextingStatus = (metadata.sextingSetStatus as string) ?? '';
+    if (sextingStatus === 'FOR_QA') {
+      targetColumnName = 'QA';
+    }
+  }
+
+  // "QA" → "Review" when QA approved / "Needs Captioning" when rejected
+  if (colNameLower === 'qa') {
+    const sextingStatus = (metadata.sextingSetStatus as string) ?? '';
+    if (sextingStatus === 'QA_APPROVED') {
+      targetColumnName = 'Review';
+    }
+    if (sextingStatus === 'REVISION_REQUIRED' || sextingStatus === 'IN_REVISION') {
+      targetColumnName = 'Needs Captioning';
+    }
+  }
+
   if (!targetColumnName) return { moved: false };
 
   try {

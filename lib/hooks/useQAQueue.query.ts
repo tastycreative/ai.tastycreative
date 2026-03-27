@@ -66,6 +66,7 @@ export interface QAQueueItem {
   spaceId: string;
   spaceSlug: string;
   spaceName: string;
+  workflowType: string;
   metadata: Record<string, unknown>;
   media: { id: string; url: string; type: string; name?: string | null; size?: number | null }[];
   _count: { comments: number; media: number };

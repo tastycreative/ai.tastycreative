@@ -65,9 +65,22 @@ const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
   DM_FUNNEL: { bg: 'bg-indigo-500/15 border-indigo-500/25', text: 'text-indigo-400' },
   RENEW_ON: { bg: 'bg-teal-500/15 border-teal-500/25', text: 'text-teal-400' },
   CUSTOM: { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' },
+  // Sexting set category badges
+  SEXTING_SET: { bg: 'bg-fuchsia-500/15 border-fuchsia-500/25', text: 'text-fuchsia-400' },
 };
 
 /* ── Status indicators ────────────────────────────────────────── */
+
+const SEXTING_SET_STATUS_COLORS: Record<string, string> = {
+  PENDING_CAPTION: 'bg-gray-400',
+  IN_CAPTION: 'bg-amber-400',
+  FOR_QA: 'bg-brand-blue',
+  REVISION_REQUIRED: 'bg-red-400',
+  PARTIALLY_APPROVED: 'bg-orange-400',
+  IN_REVISION: 'bg-orange-400',
+  QA_APPROVED: 'bg-cyan-400',
+  COMPLETED: 'bg-emerald-400',
+};
 
 function CaptionStatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -110,13 +123,18 @@ const QueueItemCard = memo(function QueueItemCard({
   searchQuery: string;
 }) {
   const meta = item.metadata;
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
   const postOrigin = (meta.postOrigin as string) ?? (meta.requestType as string) ?? '';
+  const category = (meta.category as string) ?? '';
   const model = (meta.model as string) ?? '';
   const price = meta.price as number | undefined;
   const captionStatus = (meta.otpPtrCaptionStatus as string) ?? '';
+  const sextingSetStatus = (meta.sextingSetStatus as string) ?? '';
   const gifUrl = (meta.gifUrl as string) ?? '';
   const hasGif = !!gifUrl.trim();
-  const typeBadge = TYPE_BADGE[postOrigin] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
+  const badgeKey = isSextingSets ? 'SEXTING_SET' : postOrigin;
+  const badgeLabel = isSextingSets ? (category || 'Sexting Set') : (postOrigin || 'N/A');
+  const typeBadge = TYPE_BADGE[badgeKey] ?? TYPE_BADGE[postOrigin] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
   const priorityBorder = PRIORITY_BORDER[item.priority ?? ''] ?? 'border-l-transparent';
   const assigneeName = getMemberName(item.assigneeId);
   const revisionCount = (item.history ?? []).filter(h => h.action?.toLowerCase().includes('reject')).length;
@@ -137,7 +155,7 @@ const QueueItemCard = memo(function QueueItemCard({
         {/* Row 1: Type badge + ticket no + statuses */}
         <div className="flex items-center gap-1.5 mb-1.5">
           <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold tracking-wide ${typeBadge.bg} ${typeBadge.text}`}>
-            {postOrigin || 'N/A'}
+            {badgeLabel}
           </span>
           <span className="text-[10px] text-gray-500 dark:text-gray-500 font-mono">
             #{item.itemNo}
@@ -151,8 +169,16 @@ const QueueItemCard = memo(function QueueItemCard({
           <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${age.color}`} title="Time in queue">
             <Clock className="w-2.5 h-2.5" />{age.label}
           </span>
-          <CaptionStatusDot status={captionStatus} />
-          <FlyerStatusDot hasGif={hasGif} />
+          <CaptionStatusDot status={isSextingSets ? '' : captionStatus} />
+          {isSextingSets ? (
+            sextingSetStatus ? (
+              <div className="flex items-center gap-1" title={`Status: ${sextingSetStatus}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${SEXTING_SET_STATUS_COLORS[sextingSetStatus] ?? 'bg-gray-400'}`} />
+              </div>
+            ) : null
+          ) : (
+            <FlyerStatusDot hasGif={hasGif} />
+          )}
         </div>
 
         {/* Row 2: Title */}
@@ -175,7 +201,7 @@ const QueueItemCard = memo(function QueueItemCard({
             </span>
           )}
           <span className="truncate max-w-[100px]"><Highlight text={model || 'Unknown'} query={searchQuery} /></span>
-          {price != null && price > 0 && (
+          {!isSextingSets && price != null && price > 0 && (
             <>
               <span className="text-gray-400">·</span>
               <span className="font-medium text-emerald-400">${price}</span>

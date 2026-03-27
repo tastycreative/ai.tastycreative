@@ -29,7 +29,9 @@ import {
   Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQAReview, useQAComment, type QAQueueItem, type QAReviewAction, type QAQueueHistoryEntry, type QAQueueComment } from '@/lib/hooks/useQAQueue.query';
+import { useQAReview, useQAComment, type QAQueueItem, type QAReviewAction, type QAQueueHistoryEntry, type QAQueueComment, qaQueueKeys } from '@/lib/hooks/useQAQueue.query';
+import { useQAItemAction, useRepushRejected } from '@/lib/hooks/useCaptionQueue.query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useGoogleDriveAccount, type GoogleDriveProfile } from '@/lib/hooks/useGoogleDriveAccount';
 
 /* ── helpers ────────────────────────────────────────────────────── */
@@ -697,6 +699,104 @@ function ContentPreview({ item, isSignedIn, onSignIn, onSignOut, onSwitch, profi
   onSwitch: () => void;
 }) {
   const meta = item.metadata;
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
+  const sextingImages = (meta.images as Array<{ id: string; url: string; name: string; type: string; sequence: number }>) ?? [];
+  const [selectedImg, setSelectedImg] = useState<{ url: string; name: string; type: string } | null>(null);
+
+  // Sexting sets: show image carousel from metadata.images[]
+  if (isSextingSets) {
+    if (sextingImages.length === 0 && (!item.media || item.media.length === 0)) {
+      return (
+        <div className="flex items-center justify-center h-24 text-gray-500 dark:text-gray-600 text-xs">
+          No images attached
+        </div>
+      );
+    }
+
+    const allImages = sextingImages.length > 0
+      ? sextingImages.sort((a, b) => a.sequence - b.sequence)
+      : item.media;
+
+    // Full-size single image view
+    if (selectedImg) {
+      const isVideo = selectedImg.type.startsWith('video/');
+      return (
+        <div className="pt-3 space-y-2">
+          <button
+            onClick={() => setSelectedImg(null)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            Back to all images
+          </button>
+          <div className="flex items-center justify-center rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.06] bg-black/5 dark:bg-black/20">
+            {isVideo ? (
+              <video
+                src={selectedImg.url}
+                controls
+                className="max-h-[480px] max-w-full object-contain"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedImg.url}
+                alt={selectedImg.name}
+                className="max-h-[480px] max-w-full object-contain"
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-gray-600 dark:text-gray-400 truncate">{selectedImg.name}</p>
+            <a
+              href={selectedImg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] text-brand-blue hover:underline shrink-0"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Open in new tab
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="pt-3">
+        <div className="grid grid-cols-3 gap-2">
+          {allImages.map((img, idx) => {
+            const imgUrl = 'url' in img ? img.url : '';
+            const imgName = ('name' in img ? img.name : null) ?? `Image ${idx + 1}`;
+            const imgType = ('type' in img ? img.type : '') ?? '';
+            const isVideo = imgType.startsWith('video/');
+            return (
+              <button
+                key={'id' in img ? img.id : idx}
+                onClick={() => setSelectedImg({ url: imgUrl, name: imgName, type: imgType })}
+                className="group relative aspect-square rounded-lg overflow-hidden bg-black/20 border border-gray-200 dark:border-white/[0.06] hover:border-fuchsia-500/30 transition-all text-left"
+              >
+                {isVideo ? (
+                  <video src={imgUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imgUrl} alt={imgName} className="w-full h-full object-cover" />
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                  <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <span className="absolute bottom-1 left-1 text-[9px] text-white bg-black/60 px-1.5 py-0.5 rounded font-mono">
+                  {idx + 1}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-gray-400 mt-2">{allImages.length} image{allImages.length !== 1 ? 's' : ''} in set</p>
+      </div>
+    );
+  }
+
+  // OTP/PTR: Drive content + media attachments (original behavior)
   const driveLink = (meta.driveLink as string) ?? (meta.contentLink as string) ?? '';
   const hasMedia = item.media && item.media.length > 0;
   const hasDriveContent = !!driveLink;
@@ -763,8 +863,229 @@ function ContentPreview({ item, isSignedIn, onSignIn, onSignOut, onSwitch, profi
 
 /* ── Caption Review Section ───────────────────────────────────── */
 
+const CAPTION_ITEM_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Pending', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  submitted: { label: 'Submitted', color: 'text-brand-blue bg-brand-blue/10 border-brand-blue/20' },
+  approved: { label: 'Approved', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  rejected: { label: 'Rejected', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+  not_required: { label: 'Not Required', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' },
+};
+
 function CaptionReview({ item }: { item: QAQueueItem }) {
   const meta = item.metadata;
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
+  const captionTicketId = (meta.captionTicketId as string) ?? '';
+  const qaItemAction = useQAItemAction();
+  const repushRejected = useRepushRejected();
+  const queryClient = useQueryClient();
+  const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Sexting sets: show per-item captions from metadata.captionItems[]
+  if (isSextingSets) {
+    const captionItems = (meta.captionItems as Array<{
+      contentItemId: string | null;
+      url: string;
+      fileName: string | null;
+      captionText: string | null;
+      captionStatus: string;
+      qaRejectionReason: string | null;
+      isPosted: boolean;
+    }>) ?? [];
+
+    if (captionItems.length === 0) {
+      return (
+        <div className="pt-3">
+          <p className="text-xs text-gray-500 dark:text-gray-600 italic py-2">No caption items found.</p>
+        </div>
+      );
+    }
+
+    const hasRejectedItems = captionItems.some(ci => ci.captionStatus === 'rejected');
+    const allDecided = captionItems.every(ci => ci.captionStatus === 'approved' || ci.captionStatus === 'rejected' || ci.captionStatus === 'not_required' || ci.captionStatus === 'pending');
+    const submittedCount = captionItems.filter(ci => ci.captionStatus === 'submitted').length;
+
+    const handlePerItemAction = (contentItemId: string, action: 'approve' | 'reject' | 'revert', reason?: string) => {
+      if (!captionTicketId) {
+        toast.error('Caption ticket not linked — cannot perform action');
+        return;
+      }
+      qaItemAction.mutate(
+        {
+          ticketId: captionTicketId,
+          items: [{ contentItemId, action, reason: reason || undefined }],
+        },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+            toast.success(action === 'approve' ? 'Caption approved' : action === 'reject' ? 'Caption rejected' : 'Action reverted');
+            setRejectingItemId(null);
+            setRejectReason('');
+          },
+          onError: (err) => {
+            toast.error(err?.message ?? 'Failed to process action');
+          },
+        },
+      );
+    };
+
+    const handleRepush = () => {
+      if (!captionTicketId) {
+        toast.error('Caption ticket not linked — cannot repush');
+        return;
+      }
+      repushRejected.mutate(captionTicketId, {
+        onSuccess: (data) => {
+          queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+          toast.success(`${data.repushedCount} rejected item${data.repushedCount !== 1 ? 's' : ''} sent back to caption workspace`);
+        },
+        onError: (err) => {
+          toast.error(err?.message ?? 'Failed to repush rejected items');
+        },
+      });
+    };
+
+    return (
+      <div className="space-y-3 pt-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            {captionItems.length} caption item{captionItems.length !== 1 ? 's' : ''}
+            {submittedCount > 0 && (
+              <span className="ml-1.5 text-brand-blue">· {submittedCount} awaiting review</span>
+            )}
+          </p>
+        </div>
+        {captionItems.map((ci, idx) => {
+          const statusCfg = CAPTION_ITEM_STATUS_LABELS[ci.captionStatus] ?? { label: ci.captionStatus || 'Unknown', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' };
+          const isSubmitted = ci.captionStatus === 'submitted';
+          const isRejected = ci.captionStatus === 'rejected';
+          const isApproved = ci.captionStatus === 'approved';
+          const canAct = !!ci.contentItemId && !!captionTicketId;
+          const isRejectingThis = rejectingItemId === ci.contentItemId;
+
+          return (
+            <div key={ci.contentItemId ?? idx} className="rounded-xl border border-gray-200/60 dark:border-white/[0.06] overflow-hidden">
+              {/* Header: thumbnail + status */}
+              <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-white/[0.02]">
+                {ci.url && (
+                  <div className="shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ci.url} alt={ci.fileName ?? ''} className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-white/[0.06]" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                    {ci.fileName ?? `Image ${idx + 1}`}
+                  </p>
+                  <div className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${statusCfg.color}`}>
+                    <span className="w-1 h-1 rounded-full bg-current" />
+                    {statusCfg.label}
+                  </div>
+                </div>
+                <span className="text-[9px] text-gray-400 font-mono shrink-0">#{idx + 1}</span>
+              </div>
+              {/* Caption text */}
+              {ci.captionText ? (
+                <div className="px-3 py-2 border-t border-gray-100 dark:border-white/[0.04]">
+                  <p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">
+                    {ci.captionText}
+                  </p>
+                  <p className="text-[9px] text-gray-400 mt-1">{ci.captionText.length} chars</p>
+                </div>
+              ) : (
+                <div className="px-3 py-2 border-t border-gray-100 dark:border-white/[0.04]">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-600 italic">No caption yet</p>
+                </div>
+              )}
+              {/* Rejection reason */}
+              {ci.qaRejectionReason && isRejected && (
+                <div className="mx-3 mb-2 flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/15 text-[11px]">
+                  <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-red-600 dark:text-red-300/80">{ci.qaRejectionReason}</p>
+                </div>
+              )}
+              {/* Per-item action buttons */}
+              {canAct && isSubmitted && !isRejectingThis && (
+                <div className="flex gap-2 px-3 py-2 border-t border-gray-100 dark:border-white/[0.04]">
+                  <button
+                    disabled={qaItemAction.isPending}
+                    onClick={() => handlePerItemAction(ci.contentItemId!, 'approve')}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/25 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors disabled:opacity-40"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Approve
+                  </button>
+                  <button
+                    disabled={qaItemAction.isPending}
+                    onClick={() => setRejectingItemId(ci.contentItemId)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors disabled:opacity-40"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Reject
+                  </button>
+                </div>
+              )}
+              {/* Inline reject reason form */}
+              {canAct && isRejectingThis && (
+                <div className="px-3 py-2 border-t border-gray-100 dark:border-white/[0.04] space-y-2">
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    placeholder="Reason for rejection (optional)..."
+                    autoFocus
+                    className="w-full rounded-lg border border-red-300 dark:border-red-500/20 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-200 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={qaItemAction.isPending}
+                      onClick={() => handlePerItemAction(ci.contentItemId!, 'reject', rejectReason.trim())}
+                      className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40"
+                    >
+                      {qaItemAction.isPending ? 'Rejecting...' : 'Confirm Reject'}
+                    </button>
+                    <button
+                      onClick={() => { setRejectingItemId(null); setRejectReason(''); }}
+                      className="px-3 py-1.5 rounded-lg text-[11px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Revert button for already-decided items */}
+              {canAct && (isApproved || isRejected) && (
+                <div className="px-3 py-1.5 border-t border-gray-100 dark:border-white/[0.04]">
+                  <button
+                    disabled={qaItemAction.isPending}
+                    onClick={() => handlePerItemAction(ci.contentItemId!, 'revert')}
+                    className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-40"
+                  >
+                    <Undo2 className="w-3 h-3" />
+                    Revert to submitted
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Repush rejected items button */}
+        {hasRejectedItems && (
+          <button
+            disabled={repushRejected.isPending}
+            onClick={handleRepush}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/25 hover:bg-amber-50 dark:hover:bg-amber-500/5 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${repushRejected.isPending ? 'animate-spin' : ''}`} />
+            {repushRejected.isPending ? 'Sending back...' : 'Repush Rejected to Caption Workspace'}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // OTP/PTR: single caption view (original behavior)
   const captionText = (meta.captionText as string) ?? '';
   const captionStatus = (meta.otpPtrCaptionStatus as string) ?? '';
   const qaRejectionReason = (meta.qaRejectionReason as string) ?? '';
@@ -936,6 +1257,7 @@ function QADecisionBar({
   onReviewComplete: () => void;
 }) {
   const reviewMutation = useQAReview();
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
   const [rejectTarget, setRejectTarget] = useState<'caption' | 'flyer' | 'both' | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [qaNotes, setQaNotes] = useState(() => (item.metadata.qaNotes as string) ?? '');
@@ -994,42 +1316,46 @@ function QADecisionBar({
   );
 
   const meta = item.metadata;
-  const hasCaption = !!((meta.captionText as string) ?? '').trim();
-  const hasGif = !!((meta.gifUrl as string) ?? '').trim();
+  const hasCaption = isSextingSets
+    ? ((meta.captionItems as unknown[]) ?? []).length > 0
+    : !!((meta.captionText as string) ?? '').trim();
+  const hasGif = !isSextingSets && !!((meta.gifUrl as string) ?? '').trim();
 
   return (
     <div className="space-y-4 pt-3">
-      {/* QA Fields */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
-            Campaign / Unlock
-          </label>
-          <select
-            value={campaignOrUnlock}
-            onChange={(e) => setCampaignOrUnlock(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2.5 py-2 text-xs text-gray-900 dark:text-gray-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/30"
-          >
-            <option value="" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Select...</option>
-            <option value="Campaign" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Campaign</option>
-            <option value="Unlock" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Unlock</option>
-          </select>
+      {/* QA Fields — Campaign/Total Sale only for OTP/PTR */}
+      {!isSextingSets && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
+              Campaign / Unlock
+            </label>
+            <select
+              value={campaignOrUnlock}
+              onChange={(e) => setCampaignOrUnlock(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2.5 py-2 text-xs text-gray-900 dark:text-gray-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/30"
+            >
+              <option value="" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Select...</option>
+              <option value="Campaign" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Campaign</option>
+              <option value="Unlock" className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200">Unlock</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
+              Total Sale ($)
+            </label>
+            <input
+              type="number"
+              value={totalSale}
+              onChange={(e) => setTotalSale(e.target.value)}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2.5 py-2 text-xs text-gray-900 dark:text-gray-200 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/30"
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
-            Total Sale ($)
-          </label>
-          <input
-            type="number"
-            value={totalSale}
-            onChange={(e) => setTotalSale(e.target.value)}
-            placeholder="0.00"
-            min="0"
-            step="0.01"
-            className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2.5 py-2 text-xs text-gray-900 dark:text-gray-200 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/30"
-          />
-        </div>
-      </div>
+      )}
 
       <div>
         <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
@@ -1093,46 +1419,78 @@ function QADecisionBar({
       {/* Action Buttons */}
       {!rejectTarget && (
         <div className="space-y-2">
-          {/* Approve */}
-          <button
-            disabled={reviewMutation.isPending}
-            onClick={() => handleAction('approve')}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-40"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            {reviewMutation.isPending ? 'Processing...' : 'Approve — Move to For Approval'}
-          </button>
+          {/* For sexting sets: show summary + approve-all after per-item review */}
+          {isSextingSets ? (
+            <>
+              {(() => {
+                const captionItems = (meta.captionItems as Array<{ captionStatus: string }>) ?? [];
+                const approvedCount = captionItems.filter(ci => ci.captionStatus === 'approved').length;
+                const rejectedCount = captionItems.filter(ci => ci.captionStatus === 'rejected').length;
+                const submittedCount = captionItems.filter(ci => ci.captionStatus === 'submitted').length;
+                const allReviewed = submittedCount === 0 && captionItems.length > 0;
+                return (
+                  <>
+                    <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
+                      {approvedCount > 0 && <span className="text-emerald-500 font-medium">{approvedCount} approved</span>}
+                      {rejectedCount > 0 && <span className="text-red-400 font-medium">{rejectedCount} rejected</span>}
+                      {submittedCount > 0 && <span className="text-brand-blue font-medium">{submittedCount} pending review</span>}
+                    </div>
+                    <button
+                      disabled={reviewMutation.isPending || !allReviewed}
+                      onClick={() => handleAction('approve')}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-40"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {reviewMutation.isPending ? 'Processing...' : !allReviewed ? 'Review all captions above first' : 'Finalize — Move to Review'}
+                    </button>
+                  </>
+                );
+              })()}
+            </>
+          ) : (
+            <>
+              {/* OTP/PTR: Approve */}
+              <button
+                disabled={reviewMutation.isPending}
+                onClick={() => handleAction('approve')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-40"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {reviewMutation.isPending ? 'Processing...' : 'Approve — Move to For Approval'}
+              </button>
 
-          {/* Reject options */}
-          <div className="flex gap-2">
-            {hasCaption && (
-              <button
-                onClick={() => setRejectTarget('caption')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Reject Caption
-              </button>
-            )}
-            {hasGif && (
-              <button
-                onClick={() => setRejectTarget('flyer')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Reject Flyer
-              </button>
-            )}
-            {hasCaption && hasGif && (
-              <button
-                onClick={() => setRejectTarget('both')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Reject Both
-              </button>
-            )}
-          </div>
+              {/* OTP/PTR: Reject options */}
+              <div className="flex gap-2">
+                {hasCaption && (
+                  <button
+                    onClick={() => setRejectTarget('caption')}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject Caption
+                  </button>
+                )}
+                {hasGif && (
+                  <button
+                    onClick={() => setRejectTarget('flyer')}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject Flyer
+                  </button>
+                )}
+                {hasCaption && hasGif && (
+                  <button
+                    onClick={() => setRejectTarget('both')}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject Both
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1149,8 +1507,10 @@ function TicketHeader({
   getMemberName: (id?: string | null) => string | null;
 }) {
   const meta = item.metadata;
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
   const model = (meta.model as string) ?? '';
   const postOrigin = (meta.postOrigin as string) ?? '';
+  const category = (meta.category as string) ?? '';
   const price = meta.price as number | undefined;
   const platforms = (meta.platforms as string[]) ?? [];
   const assigneeName = getMemberName(item.assigneeId);
@@ -1178,7 +1538,15 @@ function TicketHeader({
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
             <span className="font-medium">{model}</span>
-            {postOrigin && (
+            {isSextingSets && category && (
+              <>
+                <span>·</span>
+                <span className="px-1.5 py-0.5 rounded bg-fuchsia-100 dark:bg-fuchsia-500/10 font-semibold text-fuchsia-600 dark:text-fuchsia-400">
+                  {category}
+                </span>
+              </>
+            )}
+            {!isSextingSets && postOrigin && (
               <>
                 <span>·</span>
                 <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.05] font-semibold">
@@ -1186,7 +1554,7 @@ function TicketHeader({
                 </span>
               </>
             )}
-            {price != null && price > 0 && (
+            {!isSextingSets && price != null && price > 0 && (
               <>
                 <span>·</span>
                 <span className="font-medium text-emerald-500">${price}</span>
@@ -1234,6 +1602,40 @@ function ReviewPanelComponent({ item, getMemberName, onReviewComplete, tenant }:
     );
   }
 
+  const isSextingSets = item.workflowType === 'SEXTING_SETS';
+  const sextingSetStatus = (item.metadata.sextingSetStatus as string) ?? '';
+
+  // Caption review badge — use sextingSetStatus for sexting sets, otpPtrCaptionStatus for OTP/PTR
+  const captionBadge = isSextingSets ? (
+    sextingSetStatus ? (
+      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-fuchsia-500 bg-fuchsia-500/10">
+        {sextingSetStatus.replace(/_/g, ' ')}
+      </span>
+    ) : null
+  ) : (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+      (item.metadata.otpPtrCaptionStatus as string) === 'APPROVED'
+        ? 'text-emerald-500 bg-emerald-500/10'
+        : 'text-gray-400'
+    }`}>
+      {CAPTION_STATUS_LABELS[(item.metadata.otpPtrCaptionStatus as string)]?.label ?? ''}
+    </span>
+  );
+
+  // Content badge — count images for sexting sets, files for OTP/PTR
+  const contentBadge = isSextingSets ? (
+    (() => {
+      const imgCount = ((item.metadata.images as unknown[]) ?? []).length || item.media.length;
+      return imgCount > 0 ? (
+        <span className="text-[10px] text-gray-400 font-medium">{imgCount} image{imgCount !== 1 ? 's' : ''}</span>
+      ) : undefined;
+    })()
+  ) : (
+    item.media.length > 0 ? (
+      <span className="text-[10px] text-gray-400 font-medium">{item.media.length} file{item.media.length !== 1 ? 's' : ''}</span>
+    ) : undefined
+  );
+
   return (
     <div className="flex flex-col h-full overflow-auto bg-gray-50 dark:bg-gray-950/50 custom-scrollbar">
       {/* Ticket header */}
@@ -1246,11 +1648,7 @@ function ReviewPanelComponent({ item, getMemberName, onReviewComplete, tenant }:
       {/* Scrollable review sections */}
       <div className="flex-1 p-4 lg:p-5 space-y-3">
         {/* Content Preview */}
-        <Section icon={ImageIcon} title="Content" badge={
-          item.media.length > 0 ? (
-            <span className="text-[10px] text-gray-400 font-medium">{item.media.length} file{item.media.length !== 1 ? 's' : ''}</span>
-          ) : undefined
-        }>
+        <Section icon={ImageIcon} title="Content" badge={contentBadge}>
           <ContentPreview
             item={item}
             isSignedIn={isSignedIn}
@@ -1263,28 +1661,22 @@ function ReviewPanelComponent({ item, getMemberName, onReviewComplete, tenant }:
         </Section>
 
         {/* Caption Review */}
-        <Section icon={FileText} title="Caption Review" badge={
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            (item.metadata.otpPtrCaptionStatus as string) === 'APPROVED'
-              ? 'text-emerald-500 bg-emerald-500/10'
-              : 'text-gray-400'
-          }`}>
-            {CAPTION_STATUS_LABELS[(item.metadata.otpPtrCaptionStatus as string)]?.label ?? ''}
-          </span>
-        }>
+        <Section icon={FileText} title="Caption Review" badge={captionBadge}>
           <CaptionReview item={item} />
         </Section>
 
-        {/* Flyer/GIF Review */}
-        <Section icon={Film} title="Flyer / GIF Review" badge={
-          ((item.metadata.gifUrl as string) ?? '').trim() ? (
-            <span className="text-[10px] text-emerald-400 font-medium">Attached</span>
-          ) : (
-            <span className="text-[10px] text-amber-400 font-medium">Missing</span>
-          )
-        }>
-          <FlyerReview item={item} />
-        </Section>
+        {/* Flyer/GIF Review — only for OTP/PTR */}
+        {!isSextingSets && (
+          <Section icon={Film} title="Flyer / GIF Review" badge={
+            ((item.metadata.gifUrl as string) ?? '').trim() ? (
+              <span className="text-[10px] text-emerald-400 font-medium">Attached</span>
+            ) : (
+              <span className="text-[10px] text-amber-400 font-medium">Missing</span>
+            )
+          }>
+            <FlyerReview item={item} />
+          </Section>
+        )}
 
         {/* Comments Thread */}
         <Section icon={MessageSquare} title="Comments" defaultOpen={false} badge={

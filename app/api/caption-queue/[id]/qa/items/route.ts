@@ -9,6 +9,8 @@ import {
   captionStatusToWallPostStatus,
   MAX_REVISIONS_PER_ITEM,
 } from '@/lib/wall-post-status';
+import { SEXTING_SET_STATUS, captionStatusToSextingSetStatus } from '@/lib/sexting-set-status';
+import { autoMoveColumnIfNeeded } from '@/lib/board-auto-column-move';
 
 /**
  * PATCH /api/caption-queue/[id]/qa/items
@@ -220,7 +222,7 @@ export async function PATCH(
                     qaRejectedBy: null,
                   }
                 : {
-                    qaRejectionReason: item.reason!.trim(),
+                    qaRejectionReason: item.reason?.trim() || null,
                     qaRejectedAt: new Date(),
                     qaRejectedBy: clerkId,
                     revisionCount: { increment: 1 },
@@ -305,9 +307,12 @@ export async function PATCH(
 
         if (boardItem) {
           const prevMeta = (boardItem.metadata as Record<string, unknown>) ?? {};
+          const isSextingSets = ticket.workflowType === 'sexting_sets';
+          const statusField = isSextingSets ? 'sextingSetStatus' : 'wallPostStatus';
 
-          const newWallPostStatus = captionStatusToWallPostStatus(newTicketStatus)
-            || WALL_POST_STATUS.IN_CAPTION;
+          const newWallPostStatus = isSextingSets
+            ? (captionStatusToSextingSetStatus(newTicketStatus) || SEXTING_SET_STATUS.IN_CAPTION)
+            : (captionStatusToWallPostStatus(newTicketStatus) || WALL_POST_STATUS.IN_CAPTION);
 
           // Build enriched captionItems for the board item
           const captionItems = finalItems.map((ci) => ({
@@ -333,7 +338,7 @@ export async function PATCH(
 
           const updatedMeta: Record<string, unknown> = {
             ...prevMeta,
-            wallPostStatus: newWallPostStatus,
+            [statusField]: newWallPostStatus,
             captionStatus: newTicketStatus,
             captionItems,
             ...(combined.trim() ? { captionText: combined.trim() } : {}),
@@ -369,9 +374,37 @@ export async function PATCH(
       isPosted: ci.isPosted,
     }));
 
-    // Derive wall post status for response
-    const newWallPostStatus = captionStatusToWallPostStatus(result.ticketStatus)
-      || WALL_POST_STATUS.IN_CAPTION;
+    // Derive workflow status for response
+    const isSextingSets = ticket.workflowType === 'sexting_sets';
+    const newWallPostStatus = isSextingSets
+      ? (captionStatusToSextingSetStatus(result.ticketStatus) || SEXTING_SET_STATUS.IN_CAPTION)
+      : (captionStatusToWallPostStatus(result.ticketStatus) || WALL_POST_STATUS.IN_CAPTION);
+
+    // ── Auto-move board column based on updated metadata ──
+    if (ticket.boardItemId) {
+      try {
+        const boardItemForMove = await prisma.boardItem.findUnique({
+          where: { id: ticket.boardItemId },
+          select: {
+            columnId: true,
+            metadata: true,
+            column: { select: { boardId: true, name: true } },
+          },
+        });
+        if (boardItemForMove?.column) {
+          await autoMoveColumnIfNeeded({
+            boardItemId: ticket.boardItemId,
+            currentColumnId: boardItemForMove.columnId,
+            currentColumnName: boardItemForMove.column.name,
+            boardId: boardItemForMove.column.boardId,
+            metadata: (boardItemForMove.metadata as Record<string, unknown>) ?? {},
+            userId: ctx.userId,
+          });
+        }
+      } catch (e) {
+        console.error('[auto-column-move] QA per-item action:', e);
+      }
+    }
 
     // ── Real-time broadcasts ──
     if (ctx.organizationId) {
@@ -404,6 +437,7 @@ export async function PATCH(
       results: result.results,
       ticketStatus: result.ticketStatus,
       wallPostStatus: newWallPostStatus,
+      ...(isSextingSets ? { sextingSetStatus: newWallPostStatus } : {}),
       captionItems,
     });
   } catch (error) {

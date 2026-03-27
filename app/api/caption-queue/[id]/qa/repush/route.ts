@@ -4,6 +4,7 @@ import { prisma } from '@/lib/database';
 import { canManageQueue, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg, broadcastToBoard } from '@/lib/ably-server';
 import { WALL_POST_STATUS } from '@/lib/wall-post-status';
+import { SEXTING_SET_STATUS } from '@/lib/sexting-set-status';
 
 /**
  * POST /api/caption-queue/[id]/qa/repush
@@ -166,9 +167,13 @@ export async function POST(
             isPosted: ci.isPosted,
           }));
 
+          const isSextingSets = ticket.workflowType === 'sexting_sets';
+          const statusField = isSextingSets ? 'sextingSetStatus' : 'wallPostStatus';
+          const inRevisionStatus = isSextingSets ? SEXTING_SET_STATUS.IN_REVISION : WALL_POST_STATUS.IN_REVISION;
+
           const updatedMeta: Record<string, unknown> = {
             ...prevMeta,
-            wallPostStatus: WALL_POST_STATUS.IN_REVISION,
+            [statusField]: inRevisionStatus,
             captionStatus: 'in_revision',
             captionItems,
           };
@@ -220,9 +225,13 @@ export async function POST(
       isPosted: ci.isPosted,
     }));
 
+    const isSextingSetsTicket = ticket.workflowType === 'sexting_sets';
+    const inRevision = isSextingSetsTicket ? SEXTING_SET_STATUS.IN_REVISION : WALL_POST_STATUS.IN_REVISION;
+
     return NextResponse.json({
       ticket: result,
-      wallPostStatus: WALL_POST_STATUS.IN_REVISION,
+      wallPostStatus: inRevision,
+      ...(isSextingSetsTicket ? { sextingSetStatus: inRevision } : {}),
       ticketStatus: 'in_revision',
       captionItems,
       repushedCount: rejectedItems.length,

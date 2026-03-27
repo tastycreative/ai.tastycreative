@@ -163,11 +163,9 @@ const DEFAULT_STATUSES: StatusItem[] = [
 
 const SEXTING_SETS_STATUSES: StatusItem[] = [
   { id: 'submissions', name: 'Submissions', color: 'blue' },
-  { id: 'count-confirmed', name: 'Count Confirmed', color: 'cyan' },
-  { id: 'editing-scripting', name: 'Editing and Scripting', color: 'purple' },
-  { id: 'review', name: 'Review', color: 'amber' },
-  { id: 'revision', name: 'Revision', color: 'orange' },
-  { id: 'ready-vault', name: 'Ready for Vault Upload', color: 'pink' },
+  { id: 'needs-captioning', name: 'Needs Captioning', color: 'amber' },
+  { id: 'qa', name: 'QA', color: 'purple' },
+  { id: 'review', name: 'Review', color: 'cyan' },
   { id: 'completed', name: 'Completed', color: 'green' },
 ];
 

@@ -4,35 +4,31 @@ import { prisma } from '@/lib/database';
 import { canManageQueue, type OrgRole } from '@/lib/rbac';
 import { broadcastToBoard } from '@/lib/ably-server';
 import { OTP_PTR_CAPTION_STATUS } from '@/lib/otp-ptr-caption-status';
+import { SEXTING_SET_STATUS } from '@/lib/sexting-set-status';
 
 /**
  * PATCH /api/qa-queue/[id]/review
  *
- * QA review action for an OTP/PTR board item.
+ * QA review action for an OTP/PTR or SEXTING_SETS board item.
  *
  * Body:
  *   action: 'approve' | 'reject_caption' | 'reject_flyer' | 'reject_both'
  *   reason?: string   (optional rejection reason)
  *   qaNotes?: string  (optional QA notes)
- *   campaignOrUnlock?: string
- *   totalSale?: number
+ *   campaignOrUnlock?: string  (OTP/PTR only)
+ *   totalSale?: number         (OTP/PTR only)
  *
  * approve:
- *   - moves item to "For Approval" column
- *   - saves QA metadata (notes, campaign/unlock, total sale)
+ *   OTP/PTR: moves item to "For Approval" column, sets otpPtrCaptionStatus = APPROVED
+ *   SEXTING_SETS: moves item to "Review" column, sets sextingSetStatus = QA_APPROVED
  *
  * reject_caption:
- *   - moves item back to "PGT Team" column
- *   - sets otpPtrCaptionStatus = NEEDS_REVISION
- *   - updates linked caption ticket status
+ *   OTP/PTR: moves item back to "PGT Team" column
+ *   SEXTING_SETS: moves item back to "Needs Captioning" column
+ *   Both: sets caption status to NEEDS_REVISION/REVISION_REQUIRED
  *
- * reject_flyer:
- *   - moves item back to "Flyer Team" column
- *   - stores flyer rejection reason
- *
- * reject_both:
- *   - moves item back to "PGT Team" column
- *   - sets both caption and flyer rejection reasons
+ * reject_flyer / reject_both:
+ *   OTP/PTR only — returns 400 for SEXTING_SETS
  */
 export async function PATCH(
   request: NextRequest,
@@ -80,7 +76,7 @@ export async function PATCH(
       );
     }
 
-    // Fetch the board item
+    // Fetch the board item with workspace templateType
     const item = await prisma.boardItem.findUnique({
       where: { id },
       include: {
@@ -89,6 +85,13 @@ export async function PATCH(
             id: true,
             name: true,
             boardId: true,
+            board: {
+              select: {
+                workspace: {
+                  select: { templateType: true },
+                },
+              },
+            },
           },
         },
       },
@@ -100,16 +103,26 @@ export async function PATCH(
 
     const boardId = item.column.boardId;
     const meta = (item.metadata ?? {}) as Record<string, unknown>;
+    const workflowType = item.column.board.workspace.templateType;
+    const isSextingSets = workflowType === 'SEXTING_SETS';
 
-    // Find target column
+    // Block flyer-related actions for sexting sets
+    if (isSextingSets && (action === 'reject_flyer' || action === 'reject_both')) {
+      return NextResponse.json(
+        { error: 'Flyer rejection is not available for sexting sets' },
+        { status: 400 },
+      );
+    }
+
+    // Find target column based on workflow type and action
     let targetColumnName: string;
     switch (action) {
       case 'approve':
-        targetColumnName = 'For Approval';
+        targetColumnName = isSextingSets ? 'Review' : 'For Approval';
         break;
       case 'reject_caption':
       case 'reject_both':
-        targetColumnName = 'PGT Team';
+        targetColumnName = isSextingSets ? 'Needs Captioning' : 'PGT Team';
         break;
       case 'reject_flyer':
         targetColumnName = 'Flyer Team';
@@ -141,21 +154,32 @@ export async function PATCH(
 
     // Save QA metadata if provided
     if (qaNotes !== undefined) metaUpdates.qaNotes = qaNotes;
-    if (campaignOrUnlock !== undefined) metaUpdates.campaignOrUnlock = campaignOrUnlock;
-    if (totalSale !== undefined) metaUpdates.totalSale = totalSale;
+    if (!isSextingSets) {
+      if (campaignOrUnlock !== undefined) metaUpdates.campaignOrUnlock = campaignOrUnlock;
+      if (totalSale !== undefined) metaUpdates.totalSale = totalSale;
+    }
 
     if (action === 'approve') {
       metaUpdates.qaApprovedAt = now.toISOString();
       metaUpdates.qaApprovedBy = clerkId;
-      metaUpdates.qaFlyerRejectionReason = null;
-      metaUpdates.otpPtrCaptionStatus = OTP_PTR_CAPTION_STATUS.APPROVED;
       metaUpdates.qaRejectionReason = null;
+      if (isSextingSets) {
+        metaUpdates.sextingSetStatus = SEXTING_SET_STATUS.QA_APPROVED;
+      } else {
+        metaUpdates.qaFlyerRejectionReason = null;
+        metaUpdates.otpPtrCaptionStatus = OTP_PTR_CAPTION_STATUS.APPROVED;
+      }
     } else if (action === 'reject_caption' || action === 'reject_both') {
-      metaUpdates.otpPtrCaptionStatus = OTP_PTR_CAPTION_STATUS.NEEDS_REVISION;
-      metaUpdates.captionStatus = 'in_revision';
       metaUpdates.qaRejectionReason = reason;
-      if (action === 'reject_both') {
-        metaUpdates.qaFlyerRejectionReason = reason;
+      if (isSextingSets) {
+        metaUpdates.sextingSetStatus = SEXTING_SET_STATUS.REVISION_REQUIRED;
+        metaUpdates.captionStatus = 'in_revision';
+      } else {
+        metaUpdates.otpPtrCaptionStatus = OTP_PTR_CAPTION_STATUS.NEEDS_REVISION;
+        metaUpdates.captionStatus = 'in_revision';
+        if (action === 'reject_both') {
+          metaUpdates.qaFlyerRejectionReason = reason;
+        }
       }
     } else if (action === 'reject_flyer') {
       metaUpdates.qaFlyerRejectionReason = reason;
