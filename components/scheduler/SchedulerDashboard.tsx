@@ -467,7 +467,8 @@ export function SchedulerDashboard({
     const mmWithFinal = tasks.filter((t) => {
       if (t.taskType !== 'MM') return false;
       const f = (t.fields || {}) as Record<string, string>;
-      // Only count tasks with a finalAmount set
+      // Only count Unlock tasks with a finalAmount set
+      if (!(f.type || '').toLowerCase().includes('unlock')) return false;
       if (!f.finalAmount || !f.finalAmount.trim()) return false;
       return true;
     });

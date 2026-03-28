@@ -571,6 +571,7 @@ export function SchedulerTaskModal({
                 .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(viewingTask.taskType))
                 .filter((def) => def.key !== 'type') // type rendered as chips above
                 .filter((def) => def.key !== 'subType')
+                .filter((def) => def.key !== 'finalAmount' || (fields.type || '').toLowerCase().includes('unlock'))
                 .map((def) => {
                     const isLockedField = locked && def.key !== 'finalAmount';
                     const isCurrency = def.key === 'price' || def.key === 'finalAmount';

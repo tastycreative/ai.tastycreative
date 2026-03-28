@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
         sortOrder,
         taskType: source.taskType,
         taskName: source.taskName,
-        fields: source.fields,
+        fields: source.fields ?? undefined,
         platform: source.platform,
         profileId: source.profileId,
         lineageId: source.lineageId || crypto.randomUUID(),
