@@ -6,7 +6,10 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
+import * as Ably from "ably";
+import { useUser } from "@clerk/nextjs";
 
 export interface GenerationJob {
   jobId: string;
@@ -115,198 +118,134 @@ export function GenerationProvider({
   const [activeJobs, setActiveJobs] = useState<GenerationJob[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // 🔥 SSE connection for real-time updates (replaces polling)
+  const { user } = useUser();
+  const ablyClientRef = useRef<Ably.Realtime | null>(null);
+
+  // Helper to map a DB job row to our client-side GenerationJob shape
+  const mapJob = useCallback((job: any): GenerationJob => ({
+    jobId: job.jobId,
+    generationType: job.generationType
+      .toLowerCase()
+      .replace(/_/g, "-") as GenerationJob["generationType"],
+    progress: job.progress,
+    stage: job.stage,
+    message: job.message,
+    status: job.status.toLowerCase() as GenerationJob["status"],
+    startedAt: new Date(job.startedAt).getTime(),
+    completedAt: job.completedAt
+      ? new Date(job.completedAt).getTime()
+      : undefined,
+    elapsedTime: job.elapsedTime,
+    estimatedTimeRemaining: job.estimatedTimeRemaining,
+    metadata: job.metadata,
+    results: job.results,
+    error: job.error,
+  }), []);
+
+  // 🔥 Ably real-time subscription (replaces SSE — no Vercel timeout issues)
   useEffect(() => {
-    console.log("📡 Establishing SSE connection for real-time updates...");
+    if (!user?.id) return;
 
-    let eventSource: EventSource | null = null;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
+    const userId = user.id;
     let isUnmounted = false;
-    let reconnectAttempts = 0;
 
-    const connect = () => {
-      if (isUnmounted) return;
-
-      try {
-        eventSource = new EventSource("/api/active-generations/stream");
-
-        eventSource.onopen = () => {
-          console.log("📡 SSE connection established");
-          reconnectAttempts = 0; // Reset on successful connection
-        };
-
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            switch (data.type) {
-              case "connected":
-                console.log("📡 SSE:", data.message);
-                break;
-
-              case "initial":
-                // Initial state from server
-                if (data.jobs && Array.isArray(data.jobs)) {
-                  const jobs: GenerationJob[] = data.jobs.map((job: any) => ({
-                    jobId: job.jobId,
-                    generationType: job.generationType
-                      .toLowerCase()
-                      .replace(/_/g, "-") as GenerationJob["generationType"],
-                    progress: job.progress,
-                    stage: job.stage,
-                    message: job.message,
-                    status: job.status.toLowerCase() as GenerationJob["status"],
-                    startedAt: new Date(job.startedAt).getTime(),
-                    completedAt: job.completedAt
-                      ? new Date(job.completedAt).getTime()
-                      : undefined,
-                    elapsedTime: job.elapsedTime,
-                    estimatedTimeRemaining: job.estimatedTimeRemaining,
-                    metadata: job.metadata,
-                    results: job.results,
-                    error: job.error,
-                  }));
-
-                  setActiveJobs(jobs);
-                  setIsHydrated(true);
-                  console.log(`📡 Loaded ${jobs.length} initial jobs via SSE`);
-                }
-                break;
-
-              case "job-update":
-                // Real-time job update
-                if (data.job) {
-                  const job = data.job;
-                  const updatedJob: GenerationJob = {
-                    jobId: job.jobId,
-                    generationType: job.generationType
-                      .toLowerCase()
-                      .replace(/_/g, "-") as GenerationJob["generationType"],
-                    progress: job.progress,
-                    stage: job.stage,
-                    message: job.message,
-                    status: job.status.toLowerCase() as GenerationJob["status"],
-                    startedAt: new Date(job.startedAt).getTime(),
-                    completedAt: job.completedAt
-                      ? new Date(job.completedAt).getTime()
-                      : undefined,
-                    elapsedTime: job.elapsedTime,
-                    estimatedTimeRemaining: job.estimatedTimeRemaining,
-                    metadata: job.metadata,
-                    results: job.results,
-                    error: job.error,
-                  };
-
-                  setActiveJobs((prev) => {
-                    const existingIndex = prev.findIndex(
-                      (j) => j.jobId === updatedJob.jobId,
-                    );
-                    if (existingIndex >= 0) {
-                      const updated = [...prev];
-                      updated[existingIndex] = updatedJob;
-                      return updated;
-                    } else {
-                      return [...prev, updatedJob];
-                    }
-                  });
-                }
-                break;
-
-              case "job-deleted":
-                // Job deletion
-                if (data.jobId) {
-                  setActiveJobs((prev) =>
-                    prev.filter((j) => j.jobId !== data.jobId),
-                  );
-                  console.log(`📡 Job deleted: ${data.jobId}`);
-                }
-                break;
-
-              case "jobs-cleared":
-                // Bulk job clearing
-                if (data.generationType) {
-                  setActiveJobs((prev) =>
-                    prev.filter(
-                      (j) =>
-                        !(
-                          j.generationType === data.generationType &&
-                          (j.status === "completed" || j.status === "failed")
-                        ),
-                    ),
-                  );
-                  console.log(
-                    `📡 Cleared ${data.count} completed jobs for ${data.generationType}`,
-                  );
-                } else {
-                  setActiveJobs((prev) =>
-                    prev.filter(
-                      (j) =>
-                        j.status === "pending" || j.status === "processing",
-                    ),
-                  );
-                  console.log(`📡 Cleared ${data.count} completed jobs`);
-                }
-                break;
-
-              case "reconnect":
-                // Server is closing connection (Vercel timeout approaching)
-                // Immediately reconnect without waiting for error backoff
-                console.log("📡 SSE server requested reconnect, reconnecting immediately...");
-                eventSource?.close();
-                // Reconnect immediately (reset attempts for instant reconnect)
-                reconnectAttempts = 0;
-                setTimeout(connect, 100); // Small delay to ensure clean close
-                break;
-            }
-          } catch (error) {
-            console.error("Failed to parse SSE message:", error);
-          }
-        };
-
-        eventSource.onerror = (error) => {
-          // Note: Vercel timeouts after 60s are expected on Pro plan
-          // This is normal SSE behavior - connection will auto-reconnect
-          eventSource?.close();
-
-          // Exponential backoff: 1s, 2s, 3s, max 5s
-          if (!isUnmounted) {
-            reconnectAttempts++;
-            const delay = Math.min(reconnectAttempts * 1000, 5000);
-            console.log(`📡 SSE reconnecting in ${delay / 1000}s...`);
-            reconnectTimeout = setTimeout(connect, delay);
-          }
-        };
-      } catch (error) {
-        console.error("Failed to establish SSE connection:", error);
-        if (!isUnmounted) {
-          reconnectAttempts++;
-          const delay = Math.min(reconnectAttempts * 1000, 5000);
-          reconnectTimeout = setTimeout(connect, delay);
+    // 1. Fetch initial state via REST (one-time)
+    fetch("/api/active-generations")
+      .then((res) => res.ok ? res.json() : Promise.reject(res.statusText))
+      .then((data) => {
+        if (isUnmounted) return;
+        if (data.jobs && Array.isArray(data.jobs)) {
+          const jobs: GenerationJob[] = data.jobs.map(mapJob);
+          setActiveJobs(jobs);
+          setIsHydrated(true);
+          console.log(`📡 Loaded ${jobs.length} initial jobs`);
         }
-      }
-    };
+      })
+      .catch((err) => console.error("Failed to fetch initial jobs:", err));
 
-    // Initial connection
-    connect();
+    // 2. Subscribe to Ably channel for real-time pushes
+    const client = new Ably.Realtime({
+      authUrl: "/api/ably/auth",
+      autoConnect: true,
+    });
+    ablyClientRef.current = client;
+
+    const channelName = `generation:user:${userId}`;
+    const channel = client.channels.get(channelName);
+
+    // job-update event
+    channel.subscribe("job-update", (msg) => {
+      const data = msg.data as { job: any };
+      if (!data?.job) return;
+      const updatedJob = mapJob(data.job);
+      setActiveJobs((prev) => {
+        const idx = prev.findIndex((j) => j.jobId === updatedJob.jobId);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = updatedJob;
+          return updated;
+        }
+        return [...prev, updatedJob];
+      });
+    });
+
+    // job-deleted event
+    channel.subscribe("job-deleted", (msg) => {
+      const data = msg.data as { jobId: string };
+      if (!data?.jobId) return;
+      setActiveJobs((prev) => prev.filter((j) => j.jobId !== data.jobId));
+      console.log(`📡 Job deleted: ${data.jobId}`);
+    });
+
+    // jobs-cleared event
+    channel.subscribe("jobs-cleared", (msg) => {
+      const data = msg.data as { generationType?: string; count: number };
+      if (data.generationType) {
+        setActiveJobs((prev) =>
+          prev.filter(
+            (j) =>
+              !(
+                j.generationType === data.generationType &&
+                (j.status === "completed" || j.status === "failed")
+              ),
+          ),
+        );
+        console.log(`📡 Cleared ${data.count} completed jobs for ${data.generationType}`);
+      } else {
+        setActiveJobs((prev) =>
+          prev.filter((j) => j.status === "pending" || j.status === "processing"),
+        );
+        console.log(`📡 Cleared ${data.count} completed jobs`);
+      }
+    });
+
+    // Also handle legacy generation:update events (from RunPod webhook callbacks)
+    channel.subscribe("generation:update", (msg) => {
+      const data = msg.data as { jobId: string; status: string; [key: string]: unknown };
+      if (!data?.jobId) return;
+      // Treat as a job-update — refetch the full job from server to get complete data
+      fetch("/api/active-generations")
+        .then((res) => res.ok ? res.json() : Promise.reject(res.statusText))
+        .then((result) => {
+          if (isUnmounted) return;
+          if (result.jobs && Array.isArray(result.jobs)) {
+            setActiveJobs(result.jobs.map(mapJob));
+          }
+        })
+        .catch((err) => console.error("Failed to refetch jobs after generation:update:", err));
+    });
+
+    console.log(`📡 Ably subscribed to ${channelName}`);
 
     // Cleanup on unmount
     return () => {
       isUnmounted = true;
-      if (eventSource) {
-        eventSource.close();
-      }
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-      console.log("📡 SSE connection closed");
+      channel.unsubscribe();
+      client.close();
+      ablyClientRef.current = null;
+      console.log("📡 Ably connection closed");
     };
-  }, []);
-
-  // ❌ REMOVED: Debounced save to database (SSE handles sync now)
-  // ❌ REMOVED: Polling via useEffect (SSE replaces this)
-
-  // ❌ REMOVED: Debounced save to database (SSE handles sync now)
-  // ❌ REMOVED: Polling via useEffect (SSE replaces this)
+  }, [user?.id, mapJob]);
 
   // ✅ KEPT: Update elapsed time for active jobs locally (client-side only, not saved)
   useEffect(() => {

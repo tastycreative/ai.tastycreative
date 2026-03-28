@@ -203,6 +203,12 @@ export async function POST(request: NextRequest) {
       return newItem;
     });
 
+    // Mark the sexting set as pushed so it no longer appears in the organizer
+    await prisma.sextingSet.update({
+      where: { id: setId },
+      data: { status: 'pushed' },
+    });
+
     // Real-time broadcast
     try {
       publishBoardEvent(boardId, 'item.created', {

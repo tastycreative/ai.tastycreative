@@ -112,3 +112,20 @@ export async function publishToUser(
     console.error('[Ably] Failed to publish user generation event:', err);
   }
 }
+
+/**
+ * Publish a typed generation event to a user's channel (job-update, job-deleted, jobs-cleared).
+ * Replaces SSE broadcaster for real-time generation updates.
+ */
+export async function publishGenerationEvent(
+  clerkId: string,
+  eventName: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const channel = getAblyRest().channels.get(generationChannel(clerkId));
+    await channel.publish(eventName, data);
+  } catch (err) {
+    console.error(`[Ably] Failed to publish ${eventName} to ${clerkId}:`, err);
+  }
+}

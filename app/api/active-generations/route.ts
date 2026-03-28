@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
-import { sseBroadcaster } from "@/lib/sse-broadcaster";
+import { publishGenerationEvent } from "@/lib/ably-server";
 
 /**
  * GET /api/active-generations
@@ -144,11 +144,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 🔥 Broadcast update to connected SSE clients
-    sseBroadcaster.broadcastToUser(userId, {
-      type: 'job-update',
-      job,
-    }, generationType?.toLowerCase().replace(/_/g, '-'));
+    // 🔥 Broadcast update via Ably (no SSE connection overhead)
+    await publishGenerationEvent(userId, 'job-update', { job });
 
     return NextResponse.json({ job });
   } catch (error: any) {
@@ -185,11 +182,8 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      // 🔥 Broadcast deletion to connected SSE clients
-      sseBroadcaster.broadcastToUser(userId, {
-        type: 'job-deleted',
-        jobId,
-      });
+      // 🔥 Broadcast deletion via Ably
+      await publishGenerationEvent(userId, 'job-deleted', { jobId });
 
       return NextResponse.json({ success: true, deleted: 1 });
     }
@@ -207,12 +201,11 @@ export async function DELETE(request: NextRequest) {
 
       const result = await prisma.activeGeneration.deleteMany({ where });
 
-      // 🔥 Broadcast bulk deletion to connected SSE clients
-      sseBroadcaster.broadcastToUser(userId, {
-        type: 'jobs-cleared',
+      // 🔥 Broadcast bulk deletion via Ably
+      await publishGenerationEvent(userId, 'jobs-cleared', {
         generationType: generationType?.toLowerCase().replace(/_/g, '-'),
         count: result.count,
-      }, generationType?.toLowerCase().replace(/_/g, '-'));
+      });
 
       return NextResponse.json({ success: true, deleted: result.count });
     }

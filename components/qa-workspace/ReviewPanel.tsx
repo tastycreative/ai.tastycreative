@@ -880,6 +880,9 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
   const queryClient = useQueryClient();
   const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Optimistic: per-item pending tracking & local status overrides
+  const [pendingItems, setPendingItems] = useState<Set<string>>(new Set());
+  const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, { status: string; reason?: string }>>({});
 
   // Sexting sets: show per-item captions from metadata.captionItems[]
   if (isSextingSets) {
@@ -901,28 +904,54 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
       );
     }
 
-    const hasRejectedItems = captionItems.some(ci => ci.captionStatus === 'rejected');
-    const allDecided = captionItems.every(ci => ci.captionStatus === 'approved' || ci.captionStatus === 'rejected' || ci.captionStatus === 'not_required' || ci.captionStatus === 'pending');
-    const submittedCount = captionItems.filter(ci => ci.captionStatus === 'submitted').length;
+    // Apply optimistic status overrides to caption items for display
+    const displayItems = captionItems.map(ci => {
+      const override = ci.contentItemId ? optimisticStatuses[ci.contentItemId] : null;
+      if (!override) return ci;
+      return {
+        ...ci,
+        captionStatus: override.status,
+        qaRejectionReason: override.status === 'rejected' ? (override.reason ?? ci.qaRejectionReason) : (override.status === 'approved' ? null : ci.qaRejectionReason),
+      };
+    });
+
+    const hasRejectedItems = displayItems.some(ci => ci.captionStatus === 'rejected');
+    const allDecided = displayItems.every(ci => ci.captionStatus === 'approved' || ci.captionStatus === 'rejected' || ci.captionStatus === 'not_required' || ci.captionStatus === 'pending');
+    const submittedCount = displayItems.filter(ci => ci.captionStatus === 'submitted').length;
 
     const handlePerItemAction = (contentItemId: string, action: 'approve' | 'reject' | 'revert', reason?: string) => {
       if (!captionTicketId) {
         toast.error('Caption ticket not linked — cannot perform action');
         return;
       }
+
+      // Optimistic UI: immediately update the status locally
+      const optimisticStatus = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'submitted';
+      setOptimisticStatuses(prev => ({ ...prev, [contentItemId]: { status: optimisticStatus, reason: reason?.trim() } }));
+      setPendingItems(prev => { const next = new Set(prev); next.add(contentItemId); return next; });
+      if (action === 'reject') {
+        setRejectingItemId(null);
+        setRejectReason('');
+      }
+
       qaItemAction.mutate(
         {
           ticketId: captionTicketId,
           items: [{ contentItemId, action, reason: reason || undefined }],
         },
         {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+          onSuccess: async () => {
+            // Keep optimistic override visible while refetching to prevent stale "submitted" flash
+            setPendingItems(prev => { const next = new Set(prev); next.delete(contentItemId); return next; });
             toast.success(action === 'approve' ? 'Caption approved' : action === 'reject' ? 'Caption rejected' : 'Action reverted');
-            setRejectingItemId(null);
-            setRejectReason('');
+            // Wait for fresh data before clearing the optimistic override
+            await queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+            setOptimisticStatuses(prev => { const next = { ...prev }; delete next[contentItemId]; return next; });
           },
           onError: (err) => {
+            // Roll back optimistic update
+            setPendingItems(prev => { const next = new Set(prev); next.delete(contentItemId); return next; });
+            setOptimisticStatuses(prev => { const next = { ...prev }; delete next[contentItemId]; return next; });
             toast.error(err?.message ?? 'Failed to process action');
           },
         },
@@ -949,22 +978,23 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
       <div className="space-y-3 pt-3">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            {captionItems.length} caption item{captionItems.length !== 1 ? 's' : ''}
+            {displayItems.length} caption item{displayItems.length !== 1 ? 's' : ''}
             {submittedCount > 0 && (
               <span className="ml-1.5 text-brand-blue">· {submittedCount} awaiting review</span>
             )}
           </p>
         </div>
-        {captionItems.map((ci, idx) => {
+        {displayItems.map((ci, idx) => {
           const statusCfg = CAPTION_ITEM_STATUS_LABELS[ci.captionStatus] ?? { label: ci.captionStatus || 'Unknown', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' };
           const isSubmitted = ci.captionStatus === 'submitted';
           const isRejected = ci.captionStatus === 'rejected';
           const isApproved = ci.captionStatus === 'approved';
           const canAct = !!ci.contentItemId && !!captionTicketId;
           const isRejectingThis = rejectingItemId === ci.contentItemId;
+          const isItemPending = ci.contentItemId ? pendingItems.has(ci.contentItemId) : false;
 
           return (
-            <div key={ci.contentItemId ?? idx} className="rounded-xl border border-gray-200/60 dark:border-white/[0.06] overflow-hidden">
+            <div key={ci.contentItemId ?? idx} className={`rounded-xl border overflow-hidden transition-all duration-200 ${isItemPending ? 'border-brand-blue/30 dark:border-brand-blue/20 opacity-80' : 'border-gray-200/60 dark:border-white/[0.06]'}`}>
               {/* Header: thumbnail + status */}
               <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-white/[0.02]">
                 {ci.url && (
@@ -1005,20 +1035,18 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
                 </div>
               )}
               {/* Per-item action buttons */}
-              {canAct && isSubmitted && !isRejectingThis && (
+              {canAct && isSubmitted && !isRejectingThis && !isItemPending && (
                 <div className="flex gap-2 px-3 py-2 border-t border-gray-100 dark:border-white/[0.04]">
                   <button
-                    disabled={qaItemAction.isPending}
                     onClick={() => handlePerItemAction(ci.contentItemId!, 'approve')}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/25 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors disabled:opacity-40"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/25 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors"
                   >
                     <CheckCircle2 className="w-3 h-3" />
                     Approve
                   </button>
                   <button
-                    disabled={qaItemAction.isPending}
                     onClick={() => setRejectingItemId(ci.contentItemId)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors disabled:opacity-40"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 border border-red-300 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
                   >
                     <XCircle className="w-3 h-3" />
                     Reject
@@ -1038,11 +1066,11 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
                   />
                   <div className="flex gap-2">
                     <button
-                      disabled={qaItemAction.isPending}
+                      disabled={isItemPending}
                       onClick={() => handlePerItemAction(ci.contentItemId!, 'reject', rejectReason.trim())}
                       className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40"
                     >
-                      {qaItemAction.isPending ? 'Rejecting...' : 'Confirm Reject'}
+                      Confirm Reject
                     </button>
                     <button
                       onClick={() => { setRejectingItemId(null); setRejectReason(''); }}
@@ -1054,12 +1082,11 @@ function CaptionReview({ item }: { item: QAQueueItem }) {
                 </div>
               )}
               {/* Revert button for already-decided items */}
-              {canAct && (isApproved || isRejected) && (
+              {canAct && (isApproved || isRejected) && !isItemPending && (
                 <div className="px-3 py-1.5 border-t border-gray-100 dark:border-white/[0.04]">
                   <button
-                    disabled={qaItemAction.isPending}
                     onClick={() => handlePerItemAction(ci.contentItemId!, 'revert')}
-                    className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
                     <Undo2 className="w-3 h-3" />
                     Revert to submitted

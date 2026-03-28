@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, useParams } from 'next/navigation';
 import { Draggable } from '@hello-pangea/dnd';
 import {
   Pencil,
@@ -11,7 +12,7 @@ import {
   User,
   Trash2,
   Image as ImageIcon,
-  Send,
+  ExternalLink,
   BadgeCheck,
   Loader2,
 } from 'lucide-react';
@@ -59,6 +60,8 @@ export const SextingSetsTaskCard = memo(function SextingSetsTaskCard({
   columnTitle,
   onMarkFinal,
 }: BoardTaskCardProps) {
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
   const [markingFinal, setMarkingFinal] = useState(false);
@@ -364,13 +367,18 @@ export const SextingSetsTaskCard = memo(function SextingSetsTaskCard({
                 <span className="flex-1" />
 
                 {captionTicketId && (
-                  <span
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-blue px-1.5 py-0.5 rounded-md border border-brand-blue/20 bg-brand-blue/10"
-                    title="Has caption ticket"
+                  <button
+                    type="button"
+                    title="Open in Caption Workspace"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`);
+                    }}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-blue hover:text-brand-blue/80 px-1.5 py-0.5 rounded-md border border-brand-blue/20 bg-brand-blue/10 hover:bg-brand-blue/15 transition-colors cursor-pointer"
                   >
-                    <Send className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" />
                     Caption
-                  </span>
+                  </button>
                 )}
 
                 {assigneeInitial ? (

@@ -151,16 +151,19 @@ export async function GET(request: NextRequest) {
       // Get sets for all accessible profiles
       setsWhere = {
         category: { in: accessibleProfileIds },
+        status: { not: 'pushed' },
       };
     } else if (profileId) {
       // Get sets for the specific profile
       setsWhere = {
         category: profileId,
+        status: { not: 'pushed' },
       };
     } else {
       // No profile specified - get only user's own sets
       setsWhere = {
         userId,
+        status: { not: 'pushed' },
       };
     }
 

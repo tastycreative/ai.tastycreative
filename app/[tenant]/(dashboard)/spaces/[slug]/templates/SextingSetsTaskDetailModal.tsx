@@ -20,6 +20,7 @@ import {
   Loader2,
   RefreshCw,
   Undo2,
+  ExternalLink,
 } from 'lucide-react';
 import type { BoardTask } from '../../board/BoardTaskCard';
 import { EditableField } from '../../board/EditableField';
@@ -99,7 +100,7 @@ interface MediaWithCaption {
  * Sexting Sets detail modal — full media gallery with caption/QA workflow.
  */
 export function SextingSetsTaskDetailModal({ task, columnTitle, columns, onColumnChange, isOpen, onClose, onUpdate }: Props) {
-  const params = useParams<{ slug: string }>();
+  const params = useParams<{ slug: string; tenant: string }>();
   const { data: space } = useSpaceBySlug(params.slug);
   const { user } = useUser();
   const spaceId = space?.id;
@@ -359,9 +360,16 @@ export function SextingSetsTaskDetailModal({ task, columnTitle, columns, onColum
                 </button>
               )}
               {captionTicketId && (
-                <span className="text-[10px] text-gray-400">
-                  Ticket: <span className="font-mono text-brand-blue">{captionTicketId.slice(-8)}</span>
-                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`/${params.tenant}/workspace/caption-workspace?ticket=${captionTicketId}`, '_blank');
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-brand-blue transition-colors cursor-pointer group/ticket"
+                >
+                  Ticket: <span className="font-mono text-brand-blue group-hover/ticket:underline">{captionTicketId.slice(-8)}</span>
+                  <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/ticket:opacity-100 transition-opacity" />
+                </button>
               )}
             </div>
 

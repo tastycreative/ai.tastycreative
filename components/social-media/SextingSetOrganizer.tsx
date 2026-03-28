@@ -34,6 +34,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Plus,
@@ -95,6 +96,7 @@ import {
 import { useUser } from "@clerk/nextjs";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useSpaces, type SpaceWithBoards, type SpaceBoardColumn } from "@/lib/hooks/useSpaces.query";
+import { boardItemKeys } from "@/lib/hooks/useBoardItems.query";
 import KeycardGenerator from "./KeycardGenerator";
 import EmbeddedVoiceGenerator from "./EmbeddedVoiceGenerator";
 
@@ -605,6 +607,7 @@ export default function SextingSetOrganizer({
   profileId,
   tenant,
 }: SextingSetOrganizerProps) {
+  const queryClient = useQueryClient();
   const [sets, setSets] = useState<SextingSet[]>([]);
   const [selectedSet, setSelectedSet] = useState<SextingSet | null>(null);
   const [loading, setLoading] = useState(true);
@@ -841,6 +844,15 @@ export default function SextingSetOrganizer({
 
       setPushToBoardSuccess({ itemNo: data.item.itemNo, title: data.item.title });
       setToast({ message: `Pushed "${selectedSet.name}" to board successfully!`, type: 'success' });
+
+      // Remove the pushed set from the organizer list and clear selection
+      const pushedSetId = selectedSet.id;
+      setSets((prev) => prev.filter((s) => s.id !== pushedSetId));
+      setSelectedSet((prev) => prev?.id === pushedSetId ? null : prev);
+
+      // Invalidate the board items cache so the board shows the new ticket immediately
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.list(board.id) });
+      queryClient.invalidateQueries({ queryKey: boardItemKeys.all });
 
       // Auto-close after success
       setTimeout(() => {
