@@ -70,6 +70,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
     { key: 'captionGuide', label: 'Caption Guide', placeholder: 'Guide...' },
     { key: 'price', label: 'Price', placeholder: '$0.00' },
+    { key: 'finalAmount', label: 'Final Amount', placeholder: '$0.00' },
   ],
   WP: [
     { key: 'type', label: 'Type', placeholder: 'Post type...' },

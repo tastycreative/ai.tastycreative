@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Settings, History, CalendarClock, Download, Upload, ChevronDown, Info } from 'lucide-react';
+import { toast } from 'sonner';
+import { Settings, History, CalendarClock, Download, Upload, ChevronDown, Copy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -26,15 +27,14 @@ import { TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { cleanTaskLimits } from '@/lib/scheduler/task-limits';
 import { SchedulerDayColumn } from './SchedulerDayColumn';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
+import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
 import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
 import { SchedulerExportModal } from './SchedulerExportModal';
-import { SchedulerDashboard } from './SchedulerDashboard';
+import { SchedulerDashboard, SchedulerCalendar } from './SchedulerDashboard';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
-import { getCountdownToReset } from '@/lib/scheduler/time-helpers';
-import { getTimezoneAbbreviation, getTodayKeyInTimezone } from '@/lib/timezone-utils';
 import { type VolumeSettings, getStrategyVolumeTemplate } from '@/lib/scheduler/strategy-volume-templates';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
@@ -55,7 +55,7 @@ const PLATFORM_TABS = [
   { key: 'fansly', label: 'Fansly', color: '#c084fc' },
 ] as const;
 
-type PlatformKey = 'dashboard' | (typeof PLATFORM_TABS)[number]['key'];
+type PlatformKey = 'dashboard' | 'calendar' | (typeof PLATFORM_TABS)[number]['key'];
 
 // ─── Sample static tasks for demo/preview ────────────────────────────────────
 function makeSampleTask(
@@ -400,27 +400,6 @@ export function SchedulerGrid() {
     return formatDateKey(getWeekStart(today));
   });
 
-  // ─── UTC clock & reset countdown ───
-  const [countdown, setCountdown] = useState('');
-  const [utcTime, setUtcTime] = useState('');
-  const [isAdvanced, setIsAdvanced] = useState(false);
-
-  useEffect(() => {
-    const update = () => {
-      setCountdown(getCountdownToReset());
-      const now = new Date();
-      const datePart = now.toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
-      const timePart = now.toLocaleString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
-      setUtcTime(`${datePart}, ${timePart} UTC`);
-      const calendarToday = getTodayKeyInTimezone('America/Los_Angeles');
-      setIsAdvanced(schedulerToday !== calendarToday);
-    };
-    update();
-    const interval = setInterval(update, 1_000);
-    return () => clearInterval(interval);
-  }, [schedulerToday]);
-
-  const schedulerDayName = new Date(schedulerToday + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 
   const [showConfig, setShowConfig] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
@@ -463,11 +442,12 @@ export function SchedulerGrid() {
   const profileReady = isAllProfiles || !loadingProfiles;
   const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
   const isDashboard = activePlatform === 'dashboard';
+  const isCalendar = activePlatform === 'calendar';
   const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(
     weekStart,
     activeProfileId,
-    isDashboard ? undefined : activePlatform,
-    profileReady && !isDashboard,
+    isDashboard || isCalendar ? undefined : activePlatform,
+    profileReady && !isDashboard && !isCalendar,
   );
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
@@ -755,6 +735,53 @@ export function SchedulerGrid() {
     [taskLimits, showDemo, updateTaskLimits],
   );
 
+  // ── Clone to next week (server-side via /api/scheduler/clone-week) ──────
+  // dayIndex = specific day, or -1 = whole week
+  const [cloningDay, setCloningDay] = useState<number | null>(null);
+  const [cloningWeek, setCloningWeek] = useState(false);
+
+  const handleCloneToNextWeek = useCallback(
+    async (dayIndex: number) => {
+      if (showDemo || cloningDay !== null || cloningWeek) return;
+      const isWholeWeek = dayIndex === -1;
+      if (isWholeWeek) setCloningWeek(true);
+      else setCloningDay(dayIndex);
+
+      try {
+        // Compute next week's start date
+        const ws = new Date(weekStart + 'T00:00:00Z');
+        ws.setUTCDate(ws.getUTCDate() + 7);
+        const targetWeekStart = ws.toISOString().split('T')[0];
+
+        // Fire-and-forget to server — progress comes via Ably to all users
+        const res = await fetch('/api/scheduler/clone-week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceWeekStart: weekStart,
+            targetWeekStart,
+            profileId: activeProfileId || undefined,
+            platform: !isDashboard && !isCalendar ? activePlatform : undefined,
+            days: isWholeWeek ? undefined : [dayIndex],
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error('Clone failed', { description: err.error || 'Server error' });
+        }
+        // Success toast comes from Ably clone.complete event in useSchedulerRealtime
+      } catch (err) {
+        console.error('Clone to next week failed:', err);
+        toast.error('Clone failed', { description: 'Network error' });
+      } finally {
+        setCloningDay(null);
+        setCloningWeek(false);
+      }
+    },
+    [weekStart, activeProfileId, activePlatform, isDashboard, isCalendar, showDemo, cloningDay, cloningWeek],
+  );
+
   const showSetup = !configLoading && !config;
   const isLoading = weekLoading || configLoading || !profileReady;
 
@@ -881,6 +908,20 @@ export function SchedulerGrid() {
             >
               Dashboard
             </button>
+            {/* Calendar tab */}
+            <button
+              onClick={() => setActivePlatform('calendar')}
+              className="text-[10px] font-bold px-3 py-1 rounded-full font-sans transition-all border"
+              style={{
+                background: isCalendar
+                  ? 'linear-gradient(135deg, rgba(236,103,161,0.2), rgba(93,195,248,0.2))'
+                  : 'transparent',
+                color: isCalendar ? '#EC67A1' : '#888',
+                borderColor: isCalendar ? 'rgba(236,103,161,0.5)' : 'transparent',
+              }}
+            >
+              Calendar
+            </button>
             <div className="w-px h-3.5 bg-gray-200 dark:bg-[#181828] mx-0.5" />
             {PLATFORM_TABS.map((tab) => {
               const isActive = activePlatform === tab.key;
@@ -961,34 +1002,29 @@ export function SchedulerGrid() {
               <Upload className="h-3 w-3" />
               EXPORT
             </button>
+
+            <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
+
+            {/* Clone whole week to next week */}
+            <button
+              onClick={() => handleCloneToNextWeek(-1)}
+              disabled={cloningWeek}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/30 hover:border-purple-400/60 hover:bg-purple-500/5 dark:text-purple-400 dark:border-purple-500/25 dark:hover:border-purple-400/50 dark:hover:bg-purple-500/10 disabled:opacity-50"
+              title="Clone all tasks to next week (skips existing)"
+            >
+              <Copy className="h-3 w-3" />
+              {cloningWeek ? 'CLONING...' : 'CLONE WEEK →'}
+            </button>
           </div>
         </div>
       )}
 
-      {/* UTC time & reset countdown */}
-      <div className="flex items-center justify-end flex-wrap gap-3 px-2 py-1.5 border-b border-gray-200 dark:border-[#111124]">
-        {utcTime && (
-          <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
-            {utcTime}
-          </span>
-        )}
-        {countdown && (
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse bg-brand-mid-pink dark:bg-[#f472b6]" />
-            <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
-              resets in {countdown} (5 PM {getTimezoneAbbreviation('America/Los_Angeles', new Date())})
-            </span>
-          </div>
-        )}
-      </div>
-      {isAdvanced && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-amber-50 border-amber-200 dark:bg-[#fbbf2408] dark:border-[#fbbf2420]">
-          <Info className="h-3 w-3 flex-shrink-0 text-amber-500 dark:text-[#fbbf24]" />
-          <span className="text-[10px] font-mono text-amber-600 dark:text-[#fbbf24cc]">
-            5 PM LA reset passed — Running Queue has moved to {schedulerDayName}
-          </span>
-        </div>
-      )}
+      {/* Week navigation + UTC time & reset countdown */}
+      <SchedulerWeekNav
+        weekStart={weekStart}
+        todayKey={schedulerToday}
+        onWeekChange={setWeekStart}
+      />
 
       {/* Grid / Dashboard */}
       {isDashboard ? (
@@ -1004,6 +1040,12 @@ export function SchedulerGrid() {
           instagramUsername={selectedProfile?.instagramUsername}
           pageStrategy={profileDetail?.pageStrategy}
           selectedContentTypes={profileDetail?.selectedContentTypes}
+        />
+      ) : isCalendar ? (
+        <SchedulerCalendar
+          profileId={activeProfileId}
+          schedulerToday={schedulerToday}
+          profileName={selectedProfile?.name}
         />
       ) : isLoading && !showDemo ? (
         <SchedulerGridSkeleton />
@@ -1038,6 +1080,8 @@ export function SchedulerGrid() {
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
                 profileName={selectedProfile?.name}
+                onCloneToNextWeek={handleCloneToNextWeek}
+                cloning={cloningDay !== null || cloningWeek}
               />
             );
           })}
@@ -1074,6 +1118,8 @@ export function SchedulerGrid() {
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
                 profileName={selectedProfile?.name}
+                onCloneToNextWeek={handleCloneToNextWeek}
+                cloning={cloningDay !== null || cloningWeek}
               />
             );
           })}

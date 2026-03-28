@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, Clock, Zap, Eye, Settings2, DollarSign } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Clock, Zap, Eye, Settings2, DollarSign, Flag } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   useSchedulerMonth,
@@ -395,7 +395,7 @@ export function SchedulerDashboard({
   selectedContentTypes,
 }: SchedulerDashboardProps) {
   const today = new Date(schedulerToday + 'T00:00:00Z');
-  const [calendarMonth, setCalendarMonth] = useState(() => getMonthKey(today));
+  const calendarMonth = getMonthKey(today);
 
   const { data: monthData, isLoading } = useSchedulerMonth(calendarMonth, profileId);
   const tasks = monthData?.tasks ?? [];
@@ -405,19 +405,9 @@ export function SchedulerDashboard({
   // ─── Task modal state ───
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
 
-  // ─── Expanded day popover (for "+N more") ───
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
-  const expandedRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (expandedRef.current && !expandedRef.current.contains(e.target as Node)) {
-        setExpandedDay(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  // ─── Flagged filter state ───
+  const [flagPlatformFilter, setFlagPlatformFilter] = useState<string | null>(null);
+  const [flagTypeFilter, setFlagTypeFilter] = useState<string | null>(null);
 
   const handleTaskUpdate = useCallback(
     (id: string, data: Partial<SchedulerTask>) => {
@@ -474,23 +464,21 @@ export function SchedulerDashboard({
     const [year, mon] = calendarMonth.split('-').map(Number);
     const daysInMonth = new Date(Date.UTC(year, mon, 0)).getUTCDate();
 
-    const mmWithPrice = tasks.filter((t) => {
+    const mmWithFinal = tasks.filter((t) => {
       if (t.taskType !== 'MM') return false;
       const f = (t.fields || {}) as Record<string, string>;
-      if (!f.price || !f.price.trim()) return false;
-      // Only count locked (past) tasks or tasks marked DONE
-      const taskDate = getTaskDate(t);
-      const isLocked = taskDate < schedulerToday;
-      return isLocked || t.status === 'DONE';
+      // Only count tasks with a finalAmount set
+      if (!f.finalAmount || !f.finalAmount.trim()) return false;
+      return true;
     });
 
     let totalRevenue = 0;
     const byPlatform: Record<string, { revenue: number; count: number }> = {};
     const dailyMap: Record<string, number> = {};
 
-    for (const t of mmWithPrice) {
+    for (const t of mmWithFinal) {
       const f = (t.fields || {}) as Record<string, string>;
-      const amount = parsePriceString(f.price);
+      const amount = parsePriceString(f.finalAmount);
       totalRevenue += amount;
 
       if (!byPlatform[t.platform]) byPlatform[t.platform] = { revenue: 0, count: 0 };
@@ -507,13 +495,14 @@ export function SchedulerDashboard({
       return { date: dateKey, label: String(day), revenue: dailyMap[dateKey] || 0 };
     });
 
-    const tasksWithRevenue = mmWithPrice.filter(
-      (t) => parsePriceString(((t.fields || {}) as Record<string, string>).price) > 0,
-    ).length;
+    const tasksWithRevenue = mmWithFinal.filter((t) => {
+      const f = (t.fields || {}) as Record<string, string>;
+      return parsePriceString(f.finalAmount) > 0;
+    }).length;
 
     return {
       totalRevenue,
-      totalTasks: mmWithPrice.length,
+      totalTasks: mmWithFinal.length,
       tasksWithRevenue,
       avgPerTask: tasksWithRevenue > 0 ? totalRevenue / tasksWithRevenue : 0,
       byPlatform,
@@ -521,100 +510,75 @@ export function SchedulerDashboard({
     };
   }, [tasks, calendarMonth, schedulerToday]);
 
-  // ─── Current task spotlight ───
-  const { spotlightTask, upNextTasks } = useMemo(() => {
-    const withTime = todayTasks
-      .map((t) => ({
-        task: t,
-        minutes: parseTimeString(getTaskTime(t)),
-      }))
-      .filter((t) => t.minutes !== null)
-      .sort((a, b) => a.minutes! - b.minutes!);
+  // ─── Per-platform spotlights (sorted by task count, busiest first) ───
+  const platformSpotlights = useMemo(() => {
+    const platforms = ['free', 'paid', 'oftv', 'fansly'] as const;
+    const results = platforms.map((platform) => {
+      const pTasks = todayTasks.filter((t) => t.platform === platform);
 
-    if (withTime.length === 0) return { spotlightTask: null, upNextTasks: [] };
+      const withTime = pTasks
+        .map((t) => ({ task: t, minutes: parseTimeString(getTaskTime(t)) }))
+        .filter((t) => t.minutes !== null)
+        .sort((a, b) => a.minutes! - b.minutes!);
 
-    const nowMinutes = currentLAMinutes;
-    const nextIdx = withTime.findIndex((t) => t.minutes! >= nowMinutes);
+      let spotlightTask: SchedulerTask | null = null;
+      let upNextTasks: SchedulerTask[] = [];
 
-    let spotlightIdx: number;
-    if (nextIdx === -1) {
-      spotlightIdx = withTime.length - 1;
-    } else {
-      spotlightIdx = nextIdx;
-    }
+      if (withTime.length > 0) {
+        const nowMinutes = currentLAMinutes;
+        const nextIdx = withTime.findIndex((t) => t.minutes! >= nowMinutes);
+        const spotlightIdx = nextIdx === -1 ? withTime.length - 1 : nextIdx;
+        spotlightTask = withTime[spotlightIdx].task;
+        upNextTasks = withTime.slice(spotlightIdx + 1).map((t) => t.task).slice(0, 3);
+      }
 
-    const spotlight = withTime[spotlightIdx].task;
-    const upcoming = withTime.slice(spotlightIdx + 1).map((t) => t.task).slice(0, 3);
-    return { spotlightTask: spotlight, upNextTasks: upcoming };
+      return {
+        platform,
+        spotlightTask,
+        upNextTasks,
+        totalTasks: pTasks.length,
+        doneTasks: pTasks.filter((t) => t.status === 'DONE').length,
+      };
+    });
+    return results.sort((a, b) => b.totalTasks - a.totalTasks);
   }, [todayTasks, currentLAMinutes]);
 
-  // ─── Calendar data ───
-  const calendarData = useMemo(() => {
-    const [year, mon] = calendarMonth.split('-').map(Number);
-    const firstDay = new Date(Date.UTC(year, mon - 1, 1));
-    const lastDay = new Date(Date.UTC(year, mon, 0));
-    const daysInMonth = lastDay.getUTCDate();
-    const startDow = firstDay.getUTCDay();
+  // ─── Flagged tasks breakdown (all tasks in current month) ───
+  const flaggedSummary = useMemo(() => {
+    const flagged = tasks.filter((t) => {
+      const f = (t.fields || {}) as Record<string, string>;
+      return f.flagged === 'true' || f.flagged === (true as unknown as string);
+    });
 
-    const taskMap = new Map<string, SchedulerTask[]>();
-    for (const t of tasks) {
-      const dateKey = getTaskDate(t);
-      if (!taskMap.has(dateKey)) taskMap.set(dateKey, []);
-      taskMap.get(dateKey)!.push(t);
+    // By platform
+    const byPlatform: Record<string, number> = {};
+    for (const t of flagged) {
+      byPlatform[t.platform] = (byPlatform[t.platform] || 0) + 1;
     }
 
-    const weeks: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[][] = [];
-    let currentWeek: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[] = [];
-
-    for (let i = 0; i < startDow; i++) {
-      currentWeek.push({ date: null, dateKey: '', tasks: [] });
+    // By type
+    const byType: Record<string, number> = {};
+    for (const t of flagged) {
+      byType[t.taskType] = (byType[t.taskType] || 0) + 1;
     }
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateKey = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      currentWeek.push({ date: d, dateKey, tasks: taskMap.get(dateKey) ?? [] });
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-      }
-    }
-    if (currentWeek.length > 0) {
-      while (currentWeek.length < 7) {
-        currentWeek.push({ date: null, dateKey: '', tasks: [] });
-      }
-      weeks.push(currentWeek);
-    }
+    return { total: flagged.length, byPlatform, byType, tasks: flagged };
+  }, [tasks]);
 
-    return { weeks, year, mon, daysInMonth };
-  }, [calendarMonth, tasks]);
-
-  // ─── Month navigation ───
-  const navigateMonth = useCallback(
-    (delta: number) => {
-      const [y, m] = calendarMonth.split('-').map(Number);
-      const d = new Date(Date.UTC(y, m - 1 + delta, 1));
-      setCalendarMonth(getMonthKey(d));
-    },
-    [calendarMonth],
-  );
+  const filteredFlaggedTasks = useMemo(() => {
+    if (!flaggedSummary) return [];
+    return flaggedSummary.tasks.filter((t) => {
+      if (flagPlatformFilter && t.platform !== flagPlatformFilter) return false;
+      if (flagTypeFilter && t.taskType !== flagTypeFilter) return false;
+      return true;
+    });
+  }, [flaggedSummary, flagPlatformFilter, flagTypeFilter]);
 
   const monthLabel = useMemo(() => {
     const [y, m] = calendarMonth.split('-').map(Number);
     const d = new Date(Date.UTC(y, m - 1, 1));
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }, [calendarMonth]);
-
-  // ─── Spotlight content preview ───
-  const spotlightFields = spotlightTask
-    ? ((spotlightTask.fields || {}) as Record<string, string>)
-    : {};
-  const spotlightPreviewUrl =
-    spotlightFields.contentPreview || spotlightFields.contentFlyer || '';
-  const spotlightCaption =
-    spotlightFields.captionBankText || spotlightFields.caption || '';
-  const spotlightTypeColor = spotlightTask
-    ? TASK_TYPE_COLORS[spotlightTask.taskType] || '#888'
-    : '#888';
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -806,8 +770,7 @@ export function SchedulerDashboard({
       </div>
 
       {/* ─── MM Revenue Section ─── */}
-      {mmRevenue.totalTasks > 0 && (
-        <div className="rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] space-y-3">
+      <div className="rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] space-y-3">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -891,126 +854,397 @@ export function SchedulerDashboard({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+      </div>
 
-      {/* ─── Section B: Current Task Spotlight ─── */}
+      {/* ─── Section B: Per-Platform Spotlights ─── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-brand-mid-pink" />
           <h3 className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-500 dark:text-gray-500">
-            Current Task
+            Platform Spotlights
           </h3>
         </div>
 
-        {spotlightTask ? (
-          <button
-            onClick={() => setSelectedTask(spotlightTask)}
-            className="w-full text-left rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] transition-all hover:shadow-md hover:border-brand-mid-pink/30 dark:hover:border-brand-mid-pink/20"
-            style={{ borderLeftWidth: '4px', borderLeftColor: spotlightTypeColor }}
-          >
-            <div className="flex items-start gap-4">
-              {/* Left: content preview */}
-              {spotlightPreviewUrl &&
-                spotlightPreviewUrl.startsWith('http') && (
-                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-[#151528] shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={spotlightPreviewUrl}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {platformSpotlights.map(({ platform, spotlightTask: sTask, upNextTasks: upNext, totalTasks, doneTasks }) => {
+            const platformColor = PLATFORM_COLORS[platform] || '#888';
+            const platformLabel = PLATFORM_LABELS[platform] || platform;
+
+            return (
+              <div
+                key={platform}
+                className="rounded-xl border p-3 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]"
+              >
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: platformColor }}
+                  />
+                  <span className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
+                    {platformLabel}
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-gray-400 dark:text-gray-600">
+                    {doneTasks}/{totalTasks} done
+                  </span>
+                </div>
+
+                {/* Current task */}
+                {sTask ? (() => {
+                  const fields = (sTask.fields || {}) as Record<string, string>;
+                  const typeColor = TASK_TYPE_COLORS[sTask.taskType] || '#888';
+                  const previewUrl = fields.contentPreview || fields.contentFlyer || '';
+                  const caption = fields.captionBankText || fields.caption || '';
+
+                  return (
+                    <button
+                      onClick={() => setSelectedTask(sTask)}
+                      className="w-full text-left rounded-lg border p-2.5 transition-all hover:shadow-md bg-gray-50 border-gray-100 dark:bg-[#0c0c18] dark:border-[#151528] hover:border-brand-mid-pink/30 dark:hover:border-brand-mid-pink/20"
+                      style={{ borderLeftWidth: '3px', borderLeftColor: typeColor }}
+                    >
+                      <div className="flex items-start gap-3">
+                        {previewUrl && previewUrl.startsWith('http') && (
+                          <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-[#151528] shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span
+                              className="text-[8px] font-bold px-1.5 py-0.5 rounded-full font-sans"
+                              style={{ background: typeColor + '18', color: typeColor, border: `1px solid ${typeColor + '30'}` }}
+                            >
+                              {sTask.taskType}
+                            </span>
+                            <span
+                              className="text-[8px] font-bold px-1.5 py-0.5 rounded-full font-sans"
+                              style={{ background: (STATUS_COLORS[sTask.status] || '#888') + '18', color: STATUS_COLORS[sTask.status] || '#888' }}
+                            >
+                              {sTask.status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span className="text-xs font-bold font-mono text-gray-800 dark:text-zinc-200">
+                              {getTaskTime(sTask) || 'No time'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 truncate">
+                            {getTaskLabel(sTask)}
+                          </p>
+                          {sTask.taskType === 'MM' && fields.subType && (() => {
+                            const label = (fields.type || sTask.taskName || '').toLowerCase();
+                            const isUnlockOrFollowUp = label.includes('unlock') || label.includes('follow up') || label.includes('follow-up');
+                            if (!isUnlockOrFollowUp) return null;
+                            return (
+                              <span
+                                className="text-[8px] font-bold"
+                                style={{ color: typeColor }}
+                              >
+                                {fields.subType}
+                              </span>
+                            );
+                          })()}
+                          {caption && (
+                            <p className="text-[9px] font-mono text-gray-400 dark:text-gray-600 line-clamp-1 mt-0.5">
+                              {caption}
+                            </p>
+                          )}
+                        </div>
+                        <Eye className="h-3.5 w-3.5 text-gray-300 dark:text-gray-700 shrink-0 self-center" />
+                      </div>
+                    </button>
+                  );
+                })() : (
+                  <div className="rounded-lg border p-3 text-center bg-gray-50 border-gray-100 dark:bg-[#0c0c18] dark:border-[#151528]">
+                    <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600">
+                      No tasks for today
+                    </p>
                   </div>
                 )}
-              {/* Right: task info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  {/* Type badge */}
-                  <span
-                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans"
-                    style={{
-                      background: spotlightTypeColor + '18',
-                      color: spotlightTypeColor,
-                      border: `1px solid ${spotlightTypeColor + '30'}`,
-                    }}
-                  >
-                    {spotlightTask.taskType}
-                  </span>
-                  {/* Platform badge */}
-                  <span
-                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans uppercase"
-                    style={{
-                      background: (PLATFORM_COLORS[spotlightTask.platform] || '#888') + '18',
-                      color: PLATFORM_COLORS[spotlightTask.platform] || '#888',
-                      border: `1px solid ${(PLATFORM_COLORS[spotlightTask.platform] || '#888') + '30'}`,
-                    }}
-                  >
-                    {PLATFORM_LABELS[spotlightTask.platform] || spotlightTask.platform}
-                  </span>
-                  {/* Status badge */}
-                  <span
-                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans"
-                    style={{
-                      background: (STATUS_COLORS[spotlightTask.status] || '#888') + '18',
-                      color: STATUS_COLORS[spotlightTask.status] || '#888',
-                      border: `1px solid ${(STATUS_COLORS[spotlightTask.status] || '#888') + '30'}`,
-                    }}
-                  >
-                    {spotlightTask.status.replace('_', ' ')}
-                  </span>
+
+                {/* Up Next */}
+                {upNext.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-[8px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
+                      Up Next
+                    </span>
+                    <div className="mt-1 space-y-0.5">
+                      {upNext.map((task) => (
+                        <TaskChip key={task.id} task={task} onSelect={setSelectedTask} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── Flagged Tasks Summary ─── */}
+      <div className="rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flag className="h-4 w-4 text-amber-500" />
+            <h3 className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
+              Flagged Tasks
+            </h3>
+            <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600">
+              {monthLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {(flagPlatformFilter || flagTypeFilter) && (
+              <button
+                onClick={() => { setFlagPlatformFilter(null); setFlagTypeFilter(null); }}
+                className="text-[8px] font-bold font-sans px-1.5 py-0.5 rounded-full border transition-all text-gray-400 border-gray-300 hover:text-gray-600 dark:text-gray-600 dark:border-gray-700 dark:hover:text-gray-400"
+              >
+                Clear filters
+              </button>
+            )}
+            <span className={`text-sm font-bold font-mono ${flaggedSummary.total > 0 ? 'text-amber-500' : 'text-gray-300 dark:text-gray-700'}`}>
+              {flaggedSummary.total}
+            </span>
+          </div>
+        </div>
+
+        {flaggedSummary.total > 0 ? (
+          <>
+            {/* By Platform + By Type row */}
+            <div className="flex flex-wrap gap-4">
+              {/* By Platform */}
+              <div className="flex-1 min-w-35">
+                <div className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600 mb-1.5">
+                  By Platform
                 </div>
-                {/* Time */}
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Clock className="h-3.5 w-3.5 text-gray-400" />
-                  <span className="text-sm font-bold font-mono text-gray-800 dark:text-zinc-200">
-                    {getTaskTime(spotlightTask) || 'No time'}
-                  </span>
+                <div className="flex items-end gap-1.5">
+                  {Object.entries(flaggedSummary.byPlatform)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([platform, count]) => {
+                      const maxCount = Math.max(...Object.values(flaggedSummary.byPlatform));
+                      const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const isSelected = flagPlatformFilter === platform;
+                      const isDimmed = flagPlatformFilter !== null && !isSelected;
+                      return (
+                        <button
+                          key={platform}
+                          onClick={() => setFlagPlatformFilter(isSelected ? null : platform)}
+                          className="flex flex-col items-center gap-1 flex-1 transition-all cursor-pointer"
+                          style={{ opacity: isDimmed ? 0.25 : 1 }}
+                        >
+                          <span className="text-[9px] font-bold font-mono text-amber-500">{count}</span>
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{
+                              height: `${Math.max(heightPct * 0.4, 4)}px`,
+                              backgroundColor: PLATFORM_COLORS[platform] || '#888',
+                              opacity: isDimmed ? 0.3 : 0.7,
+                            }}
+                          />
+                          <span
+                            className="text-[8px] font-bold font-sans uppercase"
+                            style={{ color: PLATFORM_COLORS[platform] || '#888' }}
+                          >
+                            {PLATFORM_LABELS[platform] || platform}
+                          </span>
+                          {isSelected && (
+                            <div className="h-0.5 w-full rounded-full" style={{ backgroundColor: PLATFORM_COLORS[platform] || '#888' }} />
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
-                {/* Label */}
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  {getTaskLabel(spotlightTask)}
-                </p>
-                {/* Caption preview */}
-                {spotlightCaption && (
-                  <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 line-clamp-2">
-                    {spotlightCaption}
+              </div>
+
+              {/* By Type */}
+              <div className="flex-1 min-w-35">
+                <div className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600 mb-1.5">
+                  By Type
+                </div>
+                <div className="flex items-end gap-1.5">
+                  {Object.entries(flaggedSummary.byType)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([type, count]) => {
+                      const maxCount = Math.max(...Object.values(flaggedSummary.byType));
+                      const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const color = TASK_TYPE_COLORS[type] || '#888';
+                      const isSelected = flagTypeFilter === type;
+                      const isDimmed = flagTypeFilter !== null && !isSelected;
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => setFlagTypeFilter(isSelected ? null : type)}
+                          className="flex flex-col items-center gap-1 flex-1 transition-all cursor-pointer"
+                          style={{ opacity: isDimmed ? 0.25 : 1 }}
+                        >
+                          <span className="text-[9px] font-bold font-mono text-amber-500">{count}</span>
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{
+                              height: `${Math.max(heightPct * 0.4, 4)}px`,
+                              backgroundColor: color,
+                              opacity: isDimmed ? 0.3 : 0.7,
+                            }}
+                          />
+                          <span
+                            className="text-[8px] font-bold font-sans"
+                            style={{ color }}
+                          >
+                            {type}
+                          </span>
+                          {isSelected && (
+                            <div className="h-0.5 w-full rounded-full" style={{ backgroundColor: color }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Flagged task chips */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
+                  {flagPlatformFilter || flagTypeFilter ? 'Filtered' : 'All Flagged'}
+                </span>
+                {(flagPlatformFilter || flagTypeFilter) && (
+                  <span className="text-[9px] font-mono text-amber-500">
+                    {filteredFlaggedTasks.length} of {flaggedSummary.total}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-0.5 max-h-30 overflow-y-auto">
+                {filteredFlaggedTasks.length > 0 ? (
+                  filteredFlaggedTasks.map((task) => (
+                    <TaskChip key={task.id} task={task} onSelect={setSelectedTask} showPlatformLabel />
+                  ))
+                ) : (
+                  <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 py-1">
+                    No matches for selected filters
                   </p>
                 )}
               </div>
-              {/* Click hint */}
-              <div className="shrink-0 self-center">
-                <Eye className="h-4 w-4 text-gray-300 dark:text-gray-700" />
-              </div>
             </div>
-          </button>
+          </>
         ) : (
-          <div className="rounded-xl border p-6 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] text-center">
-            <p className="text-xs font-mono text-gray-400 dark:text-gray-600">
-              No tasks scheduled for today
-            </p>
-          </div>
-        )}
-
-        {/* Up Next row */}
-        {upNextTasks.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
-                Up Next
-              </span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto">
-              {upNextTasks.map((task) => (
-                <div key={task.id} className="shrink-0 w-[220px]">
-                  <TaskChip task={task} onSelect={setSelectedTask} showPlatformLabel />
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 text-center py-2">
+            No flagged tasks this month
+          </p>
         )}
       </div>
 
-      {/* ─── Section C: Master Queue Calendar ─── */}
+      {/* ─── Task Detail Modal ─── */}
+      {selectedTask && (
+        <SchedulerTaskModal
+          task={selectedTask}
+          open={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={handleTaskUpdate}
+          schedulerToday={schedulerToday}
+          weekStart={selectedTask.weekStartDate?.toString().split('T')[0] || weekStart}
+          profileName={profileName}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── SchedulerCalendar (standalone, used in Calendar tab) ────────────────────
+
+interface SchedulerCalendarProps {
+  profileId: string | null;
+  schedulerToday: string;
+  profileName?: string;
+}
+
+export function SchedulerCalendar({ profileId, schedulerToday, profileName }: SchedulerCalendarProps) {
+  const today = new Date(schedulerToday + 'T00:00:00Z');
+  const [calendarMonth, setCalendarMonth] = useState(() => getMonthKey(today));
+
+  const { data: monthData, isLoading } = useSchedulerMonth(calendarMonth, profileId);
+  const tasks = monthData?.tasks ?? [];
+
+  const updateTask = useUpdatePodTask();
+  const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const expandedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (expandedRef.current && !expandedRef.current.contains(e.target as Node)) {
+        setExpandedDay(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleTaskUpdate = useCallback(
+    (id: string, data: Partial<SchedulerTask>) => {
+      updateTask.mutate({ id, ...data, tabId });
+    },
+    [updateTask],
+  );
+
+  const calendarData = useMemo(() => {
+    const [year, mon] = calendarMonth.split('-').map(Number);
+    const firstDay = new Date(Date.UTC(year, mon - 1, 1));
+    const lastDay = new Date(Date.UTC(year, mon, 0));
+    const daysInMonth = lastDay.getUTCDate();
+    const startDow = firstDay.getUTCDay();
+
+    const taskMap = new Map<string, SchedulerTask[]>();
+    for (const t of tasks) {
+      const dateKey = getTaskDate(t);
+      if (!taskMap.has(dateKey)) taskMap.set(dateKey, []);
+      taskMap.get(dateKey)!.push(t);
+    }
+
+    const weeks: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[][] = [];
+    let currentWeek: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[] = [];
+
+    for (let i = 0; i < startDow; i++) {
+      currentWeek.push({ date: null, dateKey: '', tasks: [] });
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      currentWeek.push({ date: d, dateKey, tasks: taskMap.get(dateKey) ?? [] });
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push({ date: null, dateKey: '', tasks: [] });
+      }
+      weeks.push(currentWeek);
+    }
+
+    return { weeks, year, mon, daysInMonth };
+  }, [calendarMonth, tasks]);
+
+  const navigateMonth = useCallback(
+    (delta: number) => {
+      const [y, m] = calendarMonth.split('-').map(Number);
+      const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+      setCalendarMonth(getMonthKey(d));
+    },
+    [calendarMonth],
+  );
+
+  const monthLabel = useMemo(() => {
+    const [y, m] = calendarMonth.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 1, 1));
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }, [calendarMonth]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4">
       <div className="rounded-xl border bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124]">
         {/* Calendar header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-[#111124]">
@@ -1175,7 +1409,7 @@ export function SchedulerDashboard({
         )}
       </div>
 
-      {/* ─── Task Detail Modal ─── */}
+      {/* Task Detail Modal */}
       {selectedTask && (
         <SchedulerTaskModal
           task={selectedTask}
@@ -1183,7 +1417,7 @@ export function SchedulerDashboard({
           onClose={() => setSelectedTask(null)}
           onUpdate={handleTaskUpdate}
           schedulerToday={schedulerToday}
-          weekStart={selectedTask.weekStartDate?.toString().split('T')[0] || weekStart}
+          weekStart={selectedTask.weekStartDate?.toString().split('T')[0] || schedulerToday}
           profileName={profileName}
         />
       )}

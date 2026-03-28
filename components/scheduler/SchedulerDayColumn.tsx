@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Clock, Plus, Maximize2, Minimize2 } from 'lucide-react';
+import { Clock, Plus, Maximize2, Minimize2, Copy } from 'lucide-react';
 import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, TaskFields } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
@@ -231,6 +231,8 @@ interface SchedulerDayColumnProps {
   onUpdateTaskLimits?: (dayIndex: number, type: string, newMax: number | null) => void;
   platform?: string;
   profileName?: string;
+  onCloneToNextWeek?: (dayIndex: number) => void;
+  cloning?: boolean;
 }
 
 export function SchedulerDayColumn({
@@ -253,6 +255,8 @@ export function SchedulerDayColumn({
   onUpdateTaskLimits,
   platform,
   profileName,
+  onCloneToNextWeek,
+  cloning,
 }: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
@@ -614,6 +618,19 @@ export function SchedulerDayColumn({
               />
             )}
 
+            {/* Clone to next week button */}
+            {onCloneToNextWeek && totalTasks > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onCloneToNextWeek(dayIndex); }}
+                disabled={cloning}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/25 bg-purple-500/5 dark:text-purple-400 dark:border-purple-400/30 dark:bg-purple-500/10 disabled:opacity-50"
+                title="Clone tasks to next week"
+              >
+                <Copy className="h-3 w-3" />
+                {cloning ? 'CLONING...' : 'CLONE →'}
+              </button>
+            )}
+
             {/* Collapse button */}
             <button
               onClick={onToggleExpand}
@@ -903,8 +920,8 @@ export function SchedulerDayColumn({
               })}
             </div>
 
-            {/* Add task */}
-            <div className="flex items-center pt-1">
+            {/* Add task + Clone */}
+            <div className="flex items-center gap-1.5 pt-1">
               <button
                 ref={addBtnRef}
                 onClick={() => setShowAddMenu(!showAddMenu)}
@@ -921,6 +938,17 @@ export function SchedulerDayColumn({
                   anchorRef={addBtnRef}
                   align="above"
                 />
+              )}
+              {onCloneToNextWeek && totalTasks > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCloneToNextWeek(dayIndex); }}
+                  disabled={cloning}
+                  className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans px-2 py-1 rounded-full border transition-colors text-purple-400 border-purple-300/30 hover:border-purple-400/50 dark:text-purple-400/70 dark:border-purple-500/20 dark:hover:border-purple-400/40 disabled:opacity-50"
+                  title="Clone tasks to next week"
+                >
+                  <Copy className="h-2.5 w-2.5" />
+                  {cloning ? '...' : 'CLONE →'}
+                </button>
               )}
             </div>
           </>

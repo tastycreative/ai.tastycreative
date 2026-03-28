@@ -113,17 +113,22 @@ export function MMCard({
             )}
           </div>
 
-          {/* Row 3: content/preview + price */}
-          {(fields.contentPreview || fields.price) && (
+          {/* Row 3: content/preview + price + final amount */}
+          {(fields.contentPreview || fields.price || fields.finalAmount) && (
             <div className="flex items-center gap-1.5 ml-[13px] mt-px">
               {fields.contentPreview && (
                 <span className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 flex-1 min-w-0">
                   {fields.contentPreview}
                 </span>
               )}
-              {fields.price && (
-                <span className="text-[7px] font-mono text-green-600 dark:text-green-500 shrink-0 ml-auto">
-                  {fields.price}
+              {(fields.price || fields.finalAmount) && (
+                <span className="text-[7px] font-mono shrink-0 ml-auto flex items-center gap-1">
+                  {fields.price && (
+                    <span className={fields.finalAmount ? 'text-gray-400 dark:text-gray-600 line-through' : 'text-green-600 dark:text-green-500'}>{fields.price}</span>
+                  )}
+                  {fields.finalAmount && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">{fields.finalAmount}</span>
+                  )}
                 </span>
               )}
             </div>
@@ -184,6 +189,11 @@ export function MMCard({
               </span>
             )}
             <StatusBadge task={task} onUpdate={onUpdate} />
+            {fields.finalAmount && (
+              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {fields.finalAmount}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-0.5">
             <FlagButton

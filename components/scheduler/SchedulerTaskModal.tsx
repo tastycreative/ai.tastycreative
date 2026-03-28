@@ -571,15 +571,22 @@ export function SchedulerTaskModal({
                 .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(viewingTask.taskType))
                 .filter((def) => def.key !== 'type') // type rendered as chips above
                 .filter((def) => def.key !== 'subType')
-                .map((def) => (
-                    <ModalFieldRow
-                      key={def.key}
-                      label={def.label}
-                      value={fields[def.key] || ''}
-                      placeholder={def.placeholder}
-                      onChange={(val) => handleFieldChange(def.key, val)}
-                    />
-                ))}
+                .map((def) => {
+                    const isLockedField = locked && def.key !== 'finalAmount';
+                    const isCurrency = def.key === 'price' || def.key === 'finalAmount';
+                    return (
+                      <ModalFieldRow
+                        key={def.key}
+                        label={def.label}
+                        value={fields[def.key] || ''}
+                        placeholder={def.placeholder}
+                        onChange={(val) => handleFieldChange(def.key, val)}
+                        disabled={isLockedField}
+                        highlight={locked && def.key === 'finalAmount'}
+                        currency={isCurrency}
+                      />
+                    );
+                })}
 
               {fieldDefs.length === 0 && viewingTask.taskName && (
                 <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
@@ -754,31 +761,91 @@ function ModalFieldRow({
   value,
   placeholder,
   onChange,
+  disabled,
+  highlight,
+  currency,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onChange: (val: string) => void;
+  disabled?: boolean;
+  highlight?: boolean;
+  currency?: boolean;
 }) {
-  const [localVal, setLocalVal] = useState(value);
+  // For currency fields, strip the $ prefix for local editing
+  const toRaw = (v: string) => currency ? v.replace(/^\$/, '').trim() : v;
+  const [localVal, setLocalVal] = useState(toRaw(value));
 
   useEffect(() => {
-    setLocalVal(value);
+    setLocalVal(toRaw(value));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (currency) {
+      // Only allow digits and a single decimal point
+      const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+      setLocalVal(cleaned);
+    } else {
+      setLocalVal(e.target.value);
+    }
+  };
+
+  const handleBlur = () => {
+    if (currency) {
+      const num = parseFloat(localVal);
+      if (!localVal || isNaN(num)) {
+        onChange('');
+        setLocalVal('');
+      } else {
+        const formatted = `$${num.toFixed(2)}`;
+        onChange(formatted);
+        setLocalVal(num.toFixed(2));
+      }
+    } else {
+      onChange(localVal);
+    }
+  };
+
+  const inputClasses = `flex-1 text-xs py-1 rounded border outline-none font-mono transition-colors ${
+    disabled
+      ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed dark:bg-[#0c0c18] dark:border-[#1a1a2e] dark:text-gray-400'
+      : highlight
+        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:border-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-300 dark:focus:border-emerald-500'
+        : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]'
+  }`;
+
   return (
-    <div className="flex items-center gap-3">
-      <label className="text-[10px] font-bold text-gray-400 dark:text-gray-600 font-sans min-w-[90px] whitespace-nowrap">
+    <div className={`flex items-center gap-3 transition-opacity ${disabled ? 'opacity-75' : ''}`}>
+      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-600'}`}>
         {label}
       </label>
-      <input
-        value={localVal}
-        onChange={(e) => setLocalVal(e.target.value)}
-        onBlur={() => onChange(localVal)}
-        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        placeholder={placeholder}
-        className="flex-1 text-xs px-2 py-1 rounded border outline-none font-mono transition-colors bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]"
-      />
+      {currency ? (
+        <div className={`flex items-center ${inputClasses} px-0`}>
+          <span className={`text-xs font-mono pl-2 pr-0.5 ${disabled ? 'text-gray-400 dark:text-gray-700' : highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-500'}`}>$</span>
+          <input
+            value={localVal}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder="0.00"
+            disabled={disabled}
+            inputMode="decimal"
+            className="flex-1 text-xs py-0 bg-transparent outline-none font-mono text-inherit pr-2"
+          />
+        </div>
+      ) : (
+        <input
+          value={localVal}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`${inputClasses} px-2`}
+        />
+      )}
     </div>
   );
 }

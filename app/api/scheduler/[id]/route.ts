@@ -58,21 +58,22 @@ export async function PATCH(
     ['DONE', 'SKIPPED'].includes(status) &&
     Object.keys(body).filter((k) => !['tabId', 'status'].includes(k)).length === 0;
 
-  // Allow flag-only field changes on locked tasks
-  const isFlagChangeOnly = fields !== undefined &&
+  // Allow flag-only or finalAmount-only field changes on locked tasks
+  const LOCKED_EDITABLE_KEYS = new Set(['flagged', 'finalAmount']);
+  const isAllowedFieldChange = fields !== undefined &&
     Object.keys(body).filter((k) => !['tabId', 'fields', 'mergeFields'].includes(k)).length === 0 &&
     (() => {
       const oldFields = (oldTask.fields || {}) as Record<string, unknown>;
       const newFields = fields as Record<string, unknown>;
       const allKeys = new Set([...Object.keys(oldFields), ...Object.keys(newFields)]);
       for (const key of allKeys) {
-        if (key === 'flagged') continue;
+        if (LOCKED_EDITABLE_KEYS.has(key)) continue;
         if (String(oldFields[key] ?? '') !== String(newFields[key] ?? '')) return false;
       }
       return true;
     })();
 
-  if (isLocked && !isStatusChangeOnly && !isFlagChangeOnly) {
+  if (isLocked && !isStatusChangeOnly && !isAllowedFieldChange) {
     return NextResponse.json(
       { error: 'Task is locked. Queue an update for a future week.' },
       { status: 409 },
