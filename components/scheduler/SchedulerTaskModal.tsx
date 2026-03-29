@@ -33,7 +33,7 @@ import {
   MM_SUB_TYPES,
   MM_SUB_TYPE_ICONS,
 } from '@/lib/hooks/useScheduler.query';
-import { TASK_TYPE_COLORS } from './task-cards/shared';
+import { TASK_TYPE_COLORS, TaskViewerBanner } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { QueueCalendar } from './QueueCalendar';
@@ -715,6 +715,7 @@ export function SchedulerTaskModal({
                 updated by {viewingTask.updatedBy}
               </span>
             )}
+            <TaskViewerBanner taskId={viewingTask.id} />
           </div>
         </div>
       </div>

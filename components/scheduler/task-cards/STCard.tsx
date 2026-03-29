@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { isTaskLocked } from '@/lib/hooks/useScheduler.query';
 import { TASK_FIELD_DEFS } from '@/lib/hooks/useScheduler.query';
@@ -17,13 +17,42 @@ import {
   useFieldSave,
   FlagButton,
   PostedBadge,
+  TaskViewerAvatars,
 } from './shared';
+import { useSchedulerPresenceContext } from '../SchedulerPresenceContext';
 
 const TYPE_COLOR = TASK_TYPE_COLORS['ST'];
 const FIELD_DEFS = TASK_FIELD_DEFS['ST'];
 
-export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart, profileName }: TaskCardProps) {
+export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart, profileName, autoOpen, onModalOpen, onModalClose }: TaskCardProps) {
   const [showModal, setShowModal] = useState(false);
+  const { setActiveTask } = useSchedulerPresenceContext();
+
+  const wasAutoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpen && !showModal) {
+      setShowModal(true);
+      setActiveTask(task.id);
+      wasAutoOpened.current = true;
+    } else if (!autoOpen && showModal && wasAutoOpened.current) {
+      setShowModal(false);
+      setActiveTask(null);
+      wasAutoOpened.current = false;
+    }
+  }, [autoOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCardClick = useCallback(() => {
+    setShowModal(true);
+    setActiveTask(task.id);
+    onModalOpen?.(task.slotLabel);
+  }, [onModalOpen, task.slotLabel, task.id, setActiveTask]);
+
+  const handleModalClose = useCallback(() => {
+    setShowModal(false);
+    setActiveTask(null);
+    wasAutoOpened.current = false;
+    onModalClose?.();
+  }, [onModalClose, setActiveTask]);
   const { fields, save } = useFieldSave(task, onUpdate);
   const statusOpt = STATUS_OPTIONS.find((s) => s.key === task.status) || STATUS_OPTIONS[0];
   const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
@@ -34,7 +63,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
     return (
       <>
         <div
-          onClick={() => setShowModal(true)}
+          onClick={handleCardClick}
           className={`rounded-sm pl-2 pr-1 py-[3px] cursor-pointer transition-colors ${
             isFlagged
               ? 'bg-amber-100/80 dark:bg-amber-900/20'
@@ -50,6 +79,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">
               {task.taskName || ''}
             </span>
+            <TaskViewerAvatars taskId={task.id} size="sm" />
             {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
             <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
             {task.status === 'DONE' && <PostedBadge />}
@@ -60,7 +90,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             </div>
           )}
         </div>
-        <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
+        <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
       </>
     );
   }
@@ -69,7 +99,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
   return (
     <>
       <div
-        onClick={() => setShowModal(true)}
+        onClick={handleCardClick}
         className={`flex flex-col gap-1.5 rounded-lg border p-2.5 cursor-pointer transition-colors ${
           isFlagged
             ? 'bg-amber-100/80 dark:bg-amber-900/20 border-amber-400/30 dark:border-amber-500/20'
@@ -82,7 +112,8 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             <TypeBadge task={task} />
             <StatusBadge task={task} onUpdate={onUpdate} />
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1">
+            <TaskViewerAvatars taskId={task.id} size="md" />
             <FlagButton
               flagged={isFlagged}
               onToggle={() => save('flagged', isFlagged ? '' : 'true')}
@@ -104,7 +135,7 @@ export function STCard({ task, team, onUpdate, onDelete, compact, schedulerToday
         <TimeDisplay task={task} />
         {task.updatedBy && <div className="text-[8px] px-1 font-mono text-gray-400 dark:text-gray-700">updated by {task.updatedBy}</div>}
       </div>
-      <SchedulerTaskModal task={task} open={showModal} onClose={() => setShowModal(false)} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
+      <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
     </>
   );
 }

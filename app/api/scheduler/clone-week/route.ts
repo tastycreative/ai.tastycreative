@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, currentOrganizationId: true, name: true },
+    select: { id: true, currentOrganizationId: true, name: true, firstName: true, lastName: true },
   });
   if (!user?.currentOrganizationId) {
     return NextResponse.json({ error: 'No organization selected' }, { status: 400 });
@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userName = user.name || userId;
+  const rawName = user.name && !user.name.startsWith('user_') ? user.name : null;
+  let userName = rawName || [user.firstName, user.lastName].filter(Boolean).join(' ') || '';
+  // Fallback: fetch name from Clerk if DB has no name
+  if (!userName) {
+    const clerkUser = await currentUser();
+    userName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || userId;
+  }
   const cloneDays = days && days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6];
   const isWholeWeek = cloneDays.length === 7;
 
@@ -153,6 +159,15 @@ export async function POST(request: NextRequest) {
     // Build batch data for createMany
     const batchData = dayTasks.map((source) => {
       const sortOrder = baseSortOrder++;
+      // Strip finalAmount from cloned fields — it's week-specific revenue data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let clonedFields: any = source.fields ?? undefined;
+      if (clonedFields && typeof clonedFields === 'object' && !Array.isArray(clonedFields)) {
+        const { finalAmount: _, ...rest } = clonedFields;
+        if (_ !== undefined) {
+          clonedFields = Object.keys(rest).length > 0 ? rest : undefined;
+        }
+      }
       return {
         organizationId: orgId,
         weekStartDate: new Date(targetWeekStart),
@@ -161,7 +176,7 @@ export async function POST(request: NextRequest) {
         sortOrder,
         taskType: source.taskType,
         taskName: source.taskName,
-        fields: source.fields ?? undefined,
+        fields: clonedFields,
         platform: source.platform,
         profileId: source.profileId,
         lineageId: source.lineageId || crypto.randomUUID(),
@@ -196,6 +211,35 @@ export async function POST(request: NextRequest) {
       taskTypes,
       userName,
     });
+  }
+
+  // Unflag source tasks that were flagged — the flag has been carried to the clone
+  if (totalCreated > 0) {
+    const flaggedSourceIds: string[] = [];
+    for (const [, dayTasks] of toCloneByDay) {
+      for (const task of dayTasks) {
+        const fields = task.fields as Record<string, unknown> | null;
+        if (fields && (fields.flagged === 'true' || fields.flagged === true)) {
+          flaggedSourceIds.push(task.id);
+        }
+      }
+    }
+    if (flaggedSourceIds.length > 0) {
+      // Remove flagged from each source task's fields JSON
+      await Promise.all(
+        flaggedSourceIds.map(async (id) => {
+          const t = sourceTasks.find((s) => s.id === id);
+          if (!t) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const fields = { ...(t.fields as any || {}) };
+          delete fields.flagged;
+          await prisma.schedulerTask.update({
+            where: { id },
+            data: { fields: Object.keys(fields).length > 0 ? fields : undefined },
+          });
+        }),
+      );
+    }
   }
 
   // Broadcast completion

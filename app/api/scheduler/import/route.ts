@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';
@@ -35,13 +35,21 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, currentOrganizationId: true, name: true },
+    select: { id: true, currentOrganizationId: true, name: true, firstName: true, lastName: true },
   });
   if (!user?.currentOrganizationId) {
     return NextResponse.json({ error: 'No organization selected' }, { status: 400 });
   }
 
   const orgId = user.currentOrganizationId;
+
+  // Resolve display name — DB first, then Clerk fallback
+  const rawName = user.name && !user.name.startsWith('user_') ? user.name : null;
+  let displayName = rawName || [user.firstName, user.lastName].filter(Boolean).join(' ') || '';
+  if (!displayName) {
+    const clerkUser = await currentUser();
+    displayName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || userId;
+  }
 
   const member = await prisma.teamMember.findUnique({
     where: {
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest) {
       platform: platform || 'free',
       profileId: profileId || null,
       lineageId: crypto.randomUUID(),
-      updatedBy: user.name || userId,
+      updatedBy: displayName,
     };
   });
 

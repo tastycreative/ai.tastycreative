@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { diffTaskChanges } from '@/lib/scheduler/history-utils';
@@ -18,13 +18,21 @@ export async function PATCH(
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, currentOrganizationId: true, name: true },
+    select: { id: true, currentOrganizationId: true, name: true, firstName: true, lastName: true },
   });
   if (!user?.currentOrganizationId) {
     return NextResponse.json({ error: 'No organization selected' }, { status: 400 });
   }
 
   const orgId = user.currentOrganizationId;
+
+  // Resolve display name — DB first, then Clerk fallback
+  const rawName = user.name && !user.name.startsWith('user_') ? user.name : null;
+  let displayName = rawName || [user.firstName, user.lastName].filter(Boolean).join(' ') || '';
+  if (!displayName) {
+    const clerkUser = await currentUser();
+    displayName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || userId;
+  }
 
   const member = await prisma.teamMember.findUnique({
     where: { userId_organizationId: { userId: user.id, organizationId: orgId } },
@@ -101,7 +109,7 @@ export async function PATCH(
       ...(notes !== undefined && { notes }),
       ...(resolvedFields !== undefined && { fields: resolvedFields }),
       ...(sortOrder !== undefined && { sortOrder }),
-      updatedBy: user.name || userId,
+      updatedBy: displayName,
     },
   });
 
@@ -114,13 +122,18 @@ export async function PATCH(
   );
 
   const hasStatusChange = changes.some((c) => c.field === 'status');
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const taskDayName = dayNames[task.dayOfWeek] || `day ${task.dayOfWeek}`;
+  const activityDate = new Date(task.weekStartDate);
+  activityDate.setUTCDate(activityDate.getUTCDate() + task.dayOfWeek);
+  const taskDateLabel = activityDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
       taskId: task.id,
       action: hasStatusChange ? 'STATUS_CHANGED' : 'UPDATED',
-      summary: `Updated ${task.slotLabel} on day ${task.dayOfWeek}`,
+      summary: `Updated ${task.slotLabel} on ${taskDayName}, ${taskDateLabel}`,
     },
   });
 
@@ -240,13 +253,18 @@ export async function DELETE(
   });
 
   // Log deletion activity (taskId null since task is deleted)
+  const delDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const delDayName = delDayNames[task.dayOfWeek] || `day ${task.dayOfWeek}`;
+  const delDate = new Date(task.weekStartDate);
+  delDate.setUTCDate(delDate.getUTCDate() + task.dayOfWeek);
+  const delDateLabel = delDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
       taskId: null,
       action: 'DELETED',
-      summary: `Deleted ${taskToDelete?.slotLabel || 'task'} (${taskToDelete?.taskType || ''}) on day ${taskToDelete?.dayOfWeek ?? ''}`,
+      summary: `Deleted ${task.slotLabel || 'task'} (${task.taskType || ''}) on ${delDayName}, ${delDateLabel}`,
     },
   });
 

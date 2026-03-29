@@ -27,6 +27,7 @@ import { TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { cleanTaskLimits } from '@/lib/scheduler/task-limits';
 import { SchedulerDayColumn } from './SchedulerDayColumn';
 import { SchedulerPresenceBar } from './SchedulerPresenceBar';
+import { SchedulerPresenceProvider } from './SchedulerPresenceContext';
 import { SchedulerWeekNav } from './SchedulerWeekNav';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { SchedulerActivityLog } from './SchedulerActivityLog';
@@ -36,6 +37,7 @@ import { SchedulerExportModal } from './SchedulerExportModal';
 import { SchedulerDashboard, SchedulerCalendar } from './SchedulerDashboard';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import { type VolumeSettings, getStrategyVolumeTemplate } from '@/lib/scheduler/strategy-volume-templates';
+import { useSchedulerUrlParams } from '@/hooks/useSchedulerUrlParams';
 
 // ─── Page strategy label map ─────────────────────────────────────────────────
 const STRATEGY_LABELS: Record<string, string> = {
@@ -57,217 +59,9 @@ const PLATFORM_TABS = [
 
 type PlatformKey = 'dashboard' | 'calendar' | (typeof PLATFORM_TABS)[number]['key'];
 
-// ─── Sample static tasks for demo/preview ────────────────────────────────────
-function makeSampleTask(
-  overrides: Partial<SchedulerTask> & { dayOfWeek: number; taskType: string },
-): SchedulerTask {
-  const id = `sample-${overrides.dayOfWeek}-${overrides.taskType}-${Math.random().toString(36).slice(2, 8)}`;
-  return {
-    id,
-    organizationId: '',
-    weekStartDate: '',
-    dayOfWeek: overrides.dayOfWeek,
-    slotLabel: `1${String.fromCharCode(65 + overrides.dayOfWeek)}-demo`,
-    team: '',
-    taskName: overrides.taskName ?? '',
-    taskType: overrides.taskType,
-    status: overrides.status ?? 'PENDING',
-    startTime: overrides.startTime ?? null,
-    endTime: overrides.endTime ?? null,
-    notes: overrides.notes ?? '',
-    fields: overrides.fields ?? null,
-    platform: overrides.platform ?? 'free',
-    profileId: overrides.profileId ?? null,
-    sortOrder: overrides.sortOrder ?? 0,
-    updatedBy: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    lineageId: null,
-    sourceTaskId: null,
-  };
-}
-
-function generateSampleTasks(): SchedulerTask[] {
-  const samples: SchedulerTask[] = [];
-  for (let day = 0; day < 7; day++) {
-    // MM tasks — 5 per day
-    const mmTasks: { name: string; fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
-      {
-        name: 'Unlock',
-        status: day < 3 ? 'DONE' : day === 3 ? 'IN_PROGRESS' : 'PENDING',
-        fields: {
-          time: '5:31 PM',
-          contentPreview: 'https://www.allthiscash.com/uploads/Universal-GIF/2025-03-22_09:49:44-8.gif',
-          paywallContent: '1 pussy vid, 1 solo fingering vid, 1 tit vid, 1 joi vid, 1 gg vid, 10 nsfw vids, 5 feet pics',
-          caption: '🔞𝐓𝐡𝐫𝐞𝐞 𝐇𝐮𝐧𝐝𝐫𝐞𝐝 𝐅𝐨𝐫 𝐓𝐞𝐧 🔞\n𝐓𝐡𝐚𝐭\'𝐬 𝐫𝐢𝐠𝐡𝐭!! 𝐎𝐕𝐄𝐑 $𝟑𝟎𝟎 𝐰𝐨𝐫𝐭𝐡 𝐨𝐟 𝐯𝐢𝐝𝐞𝐨𝐬 𝐟𝐨𝐫 $𝟏𝟎!! 𝐘𝐨𝐮 𝐒𝐩𝐨𝐢𝐥𝐭 𝐁𝐨𝐲 😜\n𝐓𝐡𝐞 𝐯𝐢𝐝𝐞𝐨𝐬 𝐢𝐧𝐜𝐥𝐮𝐝𝐞 ⬇️\n- 𝐏𝐔𝐒𝐒𝐘 - 𝐒𝐓𝐎𝐂𝐊𝐈𝐍𝐆𝐒 - 𝐓𝐎𝐄𝐒 - 𝐅𝐈𝐍𝐆𝐄𝐑𝐈𝐍𝐆 - 𝐎𝐑𝐆𝐀𝐒𝐌 - 𝐓𝐈𝐓 𝐖𝐀𝐍𝐊 - 𝐉𝐎𝐈 - 𝐂𝐔𝐌 & 𝐌𝐎𝐑𝐄!\n𝐀𝐥𝐥 𝐟𝐨𝐫 𝐎𝐧𝐥𝐲 $𝟏𝟎 ⬆️',
-          captionGuide: '.',
-          price: '$10.00',
-        },
-      },
-      {
-        name: 'Follow up',
-        status: day < 2 ? 'DONE' : day === 2 ? 'IN_PROGRESS' : 'PENDING',
-        fields: {
-          type: 'Follow up',
-          time: '5:56 PM',
-          subType: 'Universal Flyer ⬆',
-          contentPreview: 'https://www.allthiscash.com/uploads/Universal-GIF/2025-03-22_09:49:44-8.gif',
-          caption: 'You wanna cum, right? 💦 Open that videos now and I will give you a ANOTHER FREE VIDEO ⬆️',
-          captionGuide: '.',
-        },
-      },
-      {
-        name: 'Photo bump',
-        status: day < 1 ? 'DONE' : 'PENDING',
-        fields: {
-          time: '6:37 PM',
-          contentPreview: 'SFW NIGHT',
-          caption: '**THINKING ABOUT YOU** 💦',
-        },
-      },
-      {
-        name: 'Photo bump',
-        status: 'PENDING',
-        fields: {
-          time: '8:05 PM',
-          contentPreview: 'SFW NIGHT',
-          caption: '### Cum take me as your little slutt tonight 😈',
-        },
-      },
-      {
-        name: 'Photo bump',
-        status: 'PENDING',
-        fields: {
-          time: '10:45 PM',
-          contentPreview: 'SFW NIGHT',
-          caption: '### I want you to spread me open and make me feel how big you are 🥵',
-          captionGuide: '.',
-        },
-      },
-    ];
-    for (let i = 0; i < mmTasks.length; i++) {
-      samples.push(
-        makeSampleTask({
-          dayOfWeek: day,
-          taskType: 'MM',
-          taskName: mmTasks[i].name,
-          sortOrder: i,
-          status: mmTasks[i].status,
-          fields: mmTasks[i].fields,
-        }),
-      );
-    }
-
-    // WP tasks — 3 per day
-    const wpTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
-      {
-        status: day < 3 ? 'DONE' : 'PENDING',
-        fields: {
-          postSchedule: 'GIF BUMP',
-          time: '5:35 PM',
-          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-02-24_04:55:38-6.gif',
-          tag: '.',
-          caption: '### FINGERING THIS PUSSY\nYou better be careful whenever you view this because this is the best pussy you will ever see in your life babe I\'m going to have you cumming in your pants 😘 I\'m the baddest bitch on here for real 🥵 DM me "😘" if you want to cum',
-          priceInfo: '.',
-        },
-      },
-      {
-        status: day < 1 ? 'DONE' : 'PENDING',
-        fields: {
-          postSchedule: 'Photo bump',
-          time: '8:05 PM',
-          contentFlyer: 'SFW NIGHT',
-          tag: '.',
-          caption: '### Cum take me as your little slutt tonight 😈',
-          priceInfo: '.',
-        },
-      },
-      {
-        status: 'PENDING',
-        fields: {
-          postSchedule: 'Photo bump',
-          time: '10:45 PM',
-          contentFlyer: 'SFW NIGHT',
-          tag: '.',
-          caption: '### I want you to spread me open and make me feel how big you are 🥵',
-          priceInfo: '.',
-        },
-      },
-    ];
-    for (let i = 0; i < wpTasks.length; i++) {
-      samples.push(
-        makeSampleTask({
-          dayOfWeek: day,
-          taskType: 'WP',
-          sortOrder: i,
-          status: wpTasks[i].status,
-          fields: wpTasks[i].fields,
-        }),
-      );
-    }
-
-    // ST tasks — 3 per day
-    const stTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
-      { status: day < 3 ? 'DONE' : 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '5:00 PM' } },
-      { status: day < 1 ? 'DONE' : 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '7:00 PM' } },
-      { status: 'PENDING', fields: { contentFlyer: '.', storyPostSchedule: '9:00 PM' } },
-    ];
-    for (let i = 0; i < stTasks.length; i++) {
-      samples.push(
-        makeSampleTask({
-          dayOfWeek: day,
-          taskType: 'ST',
-          sortOrder: i,
-          status: stTasks[i].status,
-          fields: stTasks[i].fields,
-        }),
-      );
-    }
-
-    // SP tasks — 3 per day
-    const spTasks: { fields: Record<string, string>; status: SchedulerTask['status'] }[] = [
-      {
-        status: day < 2 ? 'DONE' : 'PENDING',
-        fields: {
-          subscriberPromoSchedule: 'Renew Promo',
-          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-0.gif',
-          time: '5:48 PM',
-          caption: 'Wanna see the **𝐔𝐍𝐂𝐄𝐍𝐒𝐎𝐑𝐄𝐃 𝐏𝐈𝐂?** 🔞 If so then turn your renew on right now I send **𝐃𝐀𝐈𝐋𝐘 𝐅𝐑𝐄𝐄 𝐔𝐍𝐑𝐄𝐋𝐄𝐀𝐒𝐄𝐃 𝐁𝐔𝐍𝐃𝐋𝐄𝐒** to all of my renew on subs n I KNOW you won\'t wanna miss out 🥰\n\n**click the link below to turn renew on** ⬇️\nhttps://onlyfans.com/titasaharaofficial?enable_renew=1',
-        },
-      },
-      {
-        status: 'PENDING',
-        fields: {
-          subscriberPromoSchedule: 'Expired Promo',
-          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-1.gif',
-          time: '9:13 PM',
-          caption: '𝐅𝐑𝐄𝐄 𝐒𝐔𝐑𝐏𝐑𝐈𝐒𝐄 😱 I made my page 𝗙𝗥𝗘𝗘 𝗙𝗢𝗥 𝟮𝟰 𝗛𝗢𝗨𝗥𝗦 👀 so that you can come back and see my 𝐔𝐍𝐑𝐄𝐋𝐄𝐀𝐒𝐄𝐃 𝐍𝐔𝐃𝐄𝐒 ❗️ DM me a 🔞 when you subscribe and I will spoil you with it for free 🥵',
-        },
-      },
-      {
-        status: 'PENDING',
-        fields: {
-          subscriberPromoSchedule: 'Renew Promo',
-          contentFlyer: 'https://www.allthiscash.com/uploads/Tita-Paid/2025-03-22_19:43:52-2.gif',
-          time: '6:05 AM',
-          caption: '**𝙁𝙍𝙀𝙀 𝙐𝙉𝙍𝙀𝙇𝙀𝘼𝙎𝙀𝘿 𝙓𝙓𝙓𝙑𝙄𝘿𝙀𝙊** 🤫\nI am sending a **𝙁𝙐𝙇𝙇𝙔 𝙁𝙍𝙀𝙀** video bundle 🎥 out to everyone with renew on tonight... I love sending all my renew on subs **𝙁𝙍𝙀𝙀 𝙉𝙀𝙑𝙀𝙍 𝙍𝙀𝙇𝙀𝘼𝙎𝙀𝘿 𝙎𝙐𝙍𝙋𝙍𝙄𝙎𝙀𝙎** everyday\n\n**𝘾𝙡𝙞𝙘𝙠 𝙩𝙝𝙚 𝙡𝙞𝙣𝙠 𝙗𝙚𝙡𝙤𝙬 𝙩𝙤 𝙩𝙪𝙧𝙣 𝙧𝙚𝙣𝙚𝙬 𝙤𝙣** 👇🏻\nhttps://onlyfans.com/titasaharaofficial?enable_renew=1',
-        },
-      },
-    ];
-    for (let i = 0; i < spTasks.length; i++) {
-      samples.push(
-        makeSampleTask({
-          dayOfWeek: day,
-          taskType: 'SP',
-          sortOrder: i,
-          status: spTasks[i].status,
-          fields: spTasks[i].fields,
-        }),
-      );
-    }
-  }
-  return samples;
-}
+const VALID_PLATFORM_KEYS = new Set<string>([
+  'dashboard', 'calendar', ...PLATFORM_TABS.map((t) => t.key),
+]);
 
 // ─── Skeleton Loader ─────────────────────────────────────────────────────────
 
@@ -347,10 +141,45 @@ export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
-  const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
+  const { selectedProfile, isAllProfiles, loadingProfiles, profiles, setProfileId } = useInstagramProfile();
+  const { params: urlParams, setParams: setUrlParams, pushParams } = useSchedulerUrlParams();
 
-  // Platform tab state — default to dashboard
-  const [activePlatform, setActivePlatform] = useState<PlatformKey>('dashboard');
+  // ─── URL → initial profile sync (once profiles are loaded) ────────────
+  // If ?model= is in the URL, we must resolve it before rendering the grid.
+  const hasUrlModel = !!urlParams.model;
+  const [profileSynced, setProfileSynced] = useState(!hasUrlModel); // instantly resolved if no URL model
+  const profileSyncedRef = useRef(false);
+  useEffect(() => {
+    if (profileSyncedRef.current || loadingProfiles) return;
+    if (!urlParams.model) {
+      setProfileSynced(true);
+      profileSyncedRef.current = true;
+      return;
+    }
+    const target = urlParams.model.toLowerCase();
+    const match = profiles.find((p) => p.name.toLowerCase() === target);
+    if (match) {
+      setProfileId(match.id);
+    }
+    profileSyncedRef.current = true;
+    setProfileSynced(true);
+  }, [loadingProfiles, profiles, urlParams.model, setProfileId]);
+
+  // Platform tab state — read from URL or default to dashboard
+  const [activePlatform, setActivePlatformRaw] = useState<PlatformKey>(() => {
+    const urlPlatform = urlParams.platform?.toLowerCase();
+    if (urlPlatform && VALID_PLATFORM_KEYS.has(urlPlatform)) return urlPlatform as PlatformKey;
+    return 'dashboard';
+  });
+
+  // Wrap setActivePlatform to sync → URL
+  const setActivePlatform = useCallback(
+    (p: PlatformKey) => {
+      setActivePlatformRaw(p);
+      setUrlParams({ platform: p === 'dashboard' ? null : p, task: null });
+    },
+    [setUrlParams],
+  );
 
   // Fetch full profile details (page strategy, content types)
   const profileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
@@ -395,10 +224,24 @@ export function SchedulerGrid() {
     return () => clearInterval(interval);
   }, []);
 
-  const [weekStart, setWeekStart] = useState(() => {
+  const [weekStart, setWeekStartRaw] = useState(() => {
+    // Try URL param first
+    if (urlParams.week) {
+      const parsed = new Date(urlParams.week + 'T00:00:00Z');
+      if (!isNaN(parsed.getTime())) return formatDateKey(getWeekStart(parsed));
+    }
     const today = new Date(schedulerToday + 'T00:00:00Z');
     return formatDateKey(getWeekStart(today));
   });
+
+  // Wrap setWeekStart to sync → URL
+  const setWeekStart = useCallback(
+    (ws: string) => {
+      setWeekStartRaw(ws);
+      setUrlParams({ week: ws });
+    },
+    [setUrlParams],
+  );
 
 
   const [showConfig, setShowConfig] = useState(false);
@@ -413,10 +256,6 @@ export function SchedulerGrid() {
   const toggleExpand = useCallback((dayIndex: number) => {
     setExpandedDay((prev) => (prev === dayIndex ? null : dayIndex));
   }, []);
-
-  // Demo mode toggle
-  const [showDemo, setShowDemo] = useState(false);
-  const sampleTasks = useMemo(() => generateSampleTasks(), []);
 
   // Type filter state
   const [activeTypes, setActiveTypes] = useState<Set<string>>(
@@ -453,7 +292,7 @@ export function SchedulerGrid() {
 
   const config = configData?.config ?? null;
   const realTasks = weekData?.tasks ?? [];
-  const tasks = showDemo ? sampleTasks : realTasks;
+  const tasks = realTasks;
   const teamNames = config?.teamNames ?? [];
   const rotationOffset = config?.rotationOffset ?? 0;
   const taskLimits = config?.taskLimits ?? null;
@@ -486,6 +325,54 @@ export function SchedulerGrid() {
     };
   }, [taskLimits, profileDetail?.metadata?.volumeSettings, profileDetail?.pageStrategy]);
 
+  // ─── Sync profile name → URL (after initial sync) ──────────────────────
+  const prevProfileNameRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loadingProfiles) return;
+    const name = selectedProfile && !isAllProfiles ? selectedProfile.name : null;
+    // Skip the first render if we already set it from URL
+    if (prevProfileNameRef.current === null && profileSyncedRef.current) {
+      prevProfileNameRef.current = name;
+      return;
+    }
+    if (name !== prevProfileNameRef.current) {
+      prevProfileNameRef.current = name;
+      setUrlParams({ model: name, task: null });
+    }
+  }, [selectedProfile, isAllProfiles, loadingProfiles, setUrlParams]);
+
+  // ─── Task modal URL sync ──────────────────────────────────────────────
+  const urlTaskSlot = urlParams.task;
+  const autoOpenTaskId = useMemo(() => {
+    if (!urlTaskSlot) return null;
+    const found = realTasks.find((t) => t.slotLabel === urlTaskSlot);
+    return found?.id ?? null;
+  }, [urlTaskSlot, realTasks]);
+
+  // Show toast if task param is set but not found after data loads
+  const taskNotFoundToasted = useRef(false);
+  useEffect(() => {
+    if (!urlTaskSlot || weekLoading) {
+      taskNotFoundToasted.current = false;
+      return;
+    }
+    if (!autoOpenTaskId && realTasks.length > 0 && !taskNotFoundToasted.current) {
+      taskNotFoundToasted.current = true;
+      toast.error('Task not found in this week');
+      setUrlParams({ task: null });
+    }
+  }, [urlTaskSlot, autoOpenTaskId, realTasks, weekLoading, setUrlParams]);
+
+  const openTaskInUrl = useCallback(
+    (slotLabel: string) => pushParams({ task: slotLabel }),
+    [pushParams],
+  );
+
+  const clearTaskParam = useCallback(
+    () => setUrlParams({ task: null }),
+    [setUrlParams],
+  );
+
   // Mutations
   const updateTask = useUpdatePodTask();
   const createTask = useCreateSchedulerTask();
@@ -496,6 +383,28 @@ export function SchedulerGrid() {
     () => getWeekDays(new Date(weekStart + 'T00:00:00Z')),
     [weekStart],
   );
+
+  // Is the currently displayed week the one containing "today"?
+  const isCurrentWeek = useMemo(() => {
+    const todayWeekStart = formatDateKey(getWeekStart(new Date(schedulerToday + 'T00:00:00Z')));
+    return weekStart === todayWeekStart;
+  }, [weekStart, schedulerToday]);
+
+  // Auto-advance weekStart when schedulerToday crosses into a new week
+  // (e.g., 5 PM PDT Saturday → Sunday = new week)
+  const prevSchedulerTodayRef = useRef(schedulerToday);
+  useEffect(() => {
+    const prev = prevSchedulerTodayRef.current;
+    prevSchedulerTodayRef.current = schedulerToday;
+    if (prev === schedulerToday) return;
+    // Only auto-advance if the user was viewing the week that contained the old "today"
+    const oldWeek = formatDateKey(getWeekStart(new Date(prev + 'T00:00:00Z')));
+    const newWeek = formatDateKey(getWeekStart(new Date(schedulerToday + 'T00:00:00Z')));
+    if (oldWeek !== newWeek && weekStart === oldWeek) {
+      setWeekStartRaw(newWeek);
+      setUrlParams({ week: newWeek });
+    }
+  }, [schedulerToday, weekStart, setUrlParams]);
 
   // Map tasks by day, filtered by active types, sorted by type group then sortOrder
   const tasksByDay = useMemo(() => {
@@ -523,7 +432,6 @@ export function SchedulerGrid() {
 
   const handleUpdate = useCallback(
     (id: string, data: Partial<SchedulerTask>) => {
-      if (showDemo) return;
       updateTask.mutate({ id, ...data, tabId });
 
       // ── Bidirectional sync: Unlock ↔ Follow up (contentPreview + style) ──
@@ -597,20 +505,18 @@ export function SchedulerGrid() {
         }
       }
     },
-    [updateTask, showDemo, tasks, tasksByDay],
+    [updateTask, tasks, tasksByDay],
   );
 
   const handleDelete = useCallback(
     (id: string) => {
-      if (showDemo) return;
       deleteTask.mutate({ id, tabId });
     },
-    [deleteTask, showDemo],
+    [deleteTask],
   );
 
   const handleCreateTask = useCallback(
     (dayOfWeek: number, taskType: string, initialFields?: import('@/lib/hooks/useScheduler.query').TaskFields) => {
-      if (showDemo) return;
       createTask.mutate({
         weekStart,
         dayOfWeek,
@@ -621,12 +527,11 @@ export function SchedulerGrid() {
         tabId,
       });
     },
-    [createTask, weekStart, showDemo, activePlatform, activeProfileId],
+    [createTask, weekStart, activePlatform, activeProfileId],
   );
 
   const handleUpdateTaskLimits = useCallback(
     (dayIndex: number, type: string, newMax: number | null, platform?: string) => {
-      if (showDemo) return;
       const current: TaskLimits = taskLimits
         ? {
             defaults: { ...taskLimits.defaults },
@@ -681,13 +586,12 @@ export function SchedulerGrid() {
         Object.keys(cleaned.platformDefaults ?? {}).length > 0;
       updateTaskLimits.mutate({ taskLimits: hasAny ? cleaned : null, tabId });
     },
-    [taskLimits, showDemo, updateTaskLimits],
+    [taskLimits, updateTaskLimits],
   );
 
   // Batch save all platform limits at once (from dashboard popover)
   const handleSavePlatformLimits = useCallback(
     (platform: string, typeLimits: Record<string, number>) => {
-      if (showDemo) return;
       const current: TaskLimits = taskLimits
         ? {
             defaults: { ...taskLimits.defaults },
@@ -732,7 +636,7 @@ export function SchedulerGrid() {
         Object.keys(cleaned.platformDefaults ?? {}).length > 0;
       updateTaskLimits.mutate({ taskLimits: hasAny ? cleaned : null, tabId });
     },
-    [taskLimits, showDemo, updateTaskLimits],
+    [taskLimits, updateTaskLimits],
   );
 
   // ── Clone to next week (server-side via /api/scheduler/clone-week) ──────
@@ -742,7 +646,7 @@ export function SchedulerGrid() {
 
   const handleCloneToNextWeek = useCallback(
     async (dayIndex: number) => {
-      if (showDemo || cloningDay !== null || cloningWeek) return;
+      if (cloningDay !== null || cloningWeek) return;
       const isWholeWeek = dayIndex === -1;
       if (isWholeWeek) setCloningWeek(true);
       else setCloningDay(dayIndex);
@@ -779,13 +683,28 @@ export function SchedulerGrid() {
         setCloningWeek(false);
       }
     },
-    [weekStart, activeProfileId, activePlatform, isDashboard, isCalendar, showDemo, cloningDay, cloningWeek],
+    [weekStart, activeProfileId, activePlatform, isDashboard, isCalendar, cloningDay, cloningWeek],
   );
 
   const showSetup = !configLoading && !config;
   const isLoading = weekLoading || configLoading || !profileReady;
 
+  // Gate: if URL has ?model= but profile hasn't synced yet, show skeleton
+  if (!profileSynced) {
+    return (
+      <div className="flex flex-col h-full rounded-xl overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#07070e] dark:text-zinc-300">
+        <div className="px-4 py-3 border-b flex items-center gap-3 bg-white border-gray-200 dark:bg-[#090912] dark:border-[#111122]">
+          <span className="text-sm font-extrabold tracking-tight font-sans text-brand-dark-pink dark:text-brand-light-pink">
+            Scheduler
+          </span>
+        </div>
+        <SchedulerGridSkeleton />
+      </div>
+    );
+  }
+
   return (
+    <SchedulerPresenceProvider profileId={activeProfileId}>
     <div className="flex flex-col h-full rounded-xl overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#07070e] dark:text-zinc-300">
       {/* Header */}
       <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-3 bg-white border-gray-200 dark:bg-[#090912] dark:border-[#111122]">
@@ -800,44 +719,33 @@ export function SchedulerGrid() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Type filter toggles */}
-          <div className="flex items-center gap-1 mr-2">
-            {TASK_TYPES.map((type) => {
-              const color = TASK_TYPE_COLORS[type];
-              const isActive = activeTypes.has(type);
-              return (
-                <button
-                  key={type}
-                  onClick={() => toggleType(type)}
-                  className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
-                  style={{
-                    background: isActive ? color + '25' : 'transparent',
-                    color: isActive ? color : '#555',
-                    borderColor: isActive ? color + '50' : '#333',
-                    opacity: isActive ? 1 : 0.5,
-                  }}
-                  title={`${isActive ? 'Hide' : 'Show'} ${type} tasks`}
-                >
-                  {type}
-                </button>
-              );
-            })}
-          </div>
+          {/* Type filter toggles — only on platform tabs */}
+          {!isDashboard && !isCalendar && (
+            <div className="flex items-center gap-1 mr-2">
+              {TASK_TYPES.map((type) => {
+                const color = TASK_TYPE_COLORS[type];
+                const isActive = activeTypes.has(type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => toggleType(type)}
+                    className="text-[9px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
+                    style={{
+                      background: isActive ? color + '25' : 'transparent',
+                      color: isActive ? color : '#555',
+                      borderColor: isActive ? color + '50' : '#333',
+                      opacity: isActive ? 1 : 0.5,
+                    }}
+                    title={`${isActive ? 'Hide' : 'Show'} ${type} tasks`}
+                  >
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-          {/* Demo toggle */}
-          <button
-            onClick={() => setShowDemo((p) => !p)}
-            className={`text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border transition-all ${
-              showDemo
-                ? 'bg-amber-500/20 text-amber-400 border-amber-400/50'
-                : 'text-gray-500 border-gray-600 opacity-50'
-            }`}
-            title="Toggle sample data preview"
-          >
-            DEMO
-          </button>
-
-          <SchedulerPresenceBar orgId={orgId} />
+          <SchedulerPresenceBar />
 
 
           {/* Setup teams button */}
@@ -983,48 +891,55 @@ export function SchedulerGrid() {
               </div>
             )}
 
-            <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
+            {/* Import, Export, Clone — only on platform tabs */}
+            {!isDashboard && !isCalendar && (
+              <>
+                <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
 
-            {/* Import button */}
-            <button
-              onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
-            >
-              <Download className="h-3 w-3" />
-              IMPORT
-            </button>
+                {/* Import button */}
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
+                >
+                  <Download className="h-3 w-3" />
+                  IMPORT
+                </button>
 
-            {/* Export button */}
-            <button
-              onClick={() => setShowExport(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
-            >
-              <Upload className="h-3 w-3" />
-              EXPORT
-            </button>
+                {/* Export button */}
+                <button
+                  onClick={() => setShowExport(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700 dark:text-gray-500 dark:border-[#252545] dark:hover:border-[#3a3a5a] dark:hover:text-gray-300"
+                >
+                  <Upload className="h-3 w-3" />
+                  EXPORT
+                </button>
 
-            <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
+                <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
 
-            {/* Clone whole week to next week */}
-            <button
-              onClick={() => handleCloneToNextWeek(-1)}
-              disabled={cloningWeek}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/30 hover:border-purple-400/60 hover:bg-purple-500/5 dark:text-purple-400 dark:border-purple-500/25 dark:hover:border-purple-400/50 dark:hover:bg-purple-500/10 disabled:opacity-50"
-              title="Clone all tasks to next week (skips existing)"
-            >
-              <Copy className="h-3 w-3" />
-              {cloningWeek ? 'CLONING...' : 'CLONE WEEK →'}
-            </button>
+                {/* Clone whole week to next week */}
+                <button
+                  onClick={() => handleCloneToNextWeek(-1)}
+                  disabled={cloningWeek}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/30 hover:border-purple-400/60 hover:bg-purple-500/5 dark:text-purple-400 dark:border-purple-500/25 dark:hover:border-purple-400/50 dark:hover:bg-purple-500/10 disabled:opacity-50"
+                  title="Clone all tasks to next week (skips existing)"
+                >
+                  <Copy className="h-3 w-3" />
+                  {cloningWeek ? 'CLONING...' : 'CLONE WEEK →'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* Week navigation + UTC time & reset countdown */}
-      <SchedulerWeekNav
-        weekStart={weekStart}
-        todayKey={schedulerToday}
-        onWeekChange={setWeekStart}
-      />
+      {/* Week navigation — only on platform tabs */}
+      {!isDashboard && !isCalendar && (
+        <SchedulerWeekNav
+          weekStart={weekStart}
+          todayKey={schedulerToday}
+          onWeekChange={setWeekStart}
+        />
+      )}
 
       {/* Grid / Dashboard */}
       {isDashboard ? (
@@ -1047,7 +962,7 @@ export function SchedulerGrid() {
           schedulerToday={schedulerToday}
           profileName={selectedProfile?.name}
         />
-      ) : isLoading && !showDemo ? (
+      ) : isLoading ? (
         <SchedulerGridSkeleton />
       ) : expandedDay !== null ? (
         /* ── Expanded layout: horizontal row, strips overlap like fanned cards ── */
@@ -1082,6 +997,10 @@ export function SchedulerGrid() {
                 profileName={selectedProfile?.name}
                 onCloneToNextWeek={handleCloneToNextWeek}
                 cloning={cloningDay !== null || cloningWeek}
+                autoOpenTaskId={autoOpenTaskId}
+                onTaskModalOpen={openTaskInUrl}
+                onTaskModalClose={clearTaskParam}
+                isCurrentWeek={isCurrentWeek}
               />
             );
           })}
@@ -1120,6 +1039,10 @@ export function SchedulerGrid() {
                 profileName={selectedProfile?.name}
                 onCloneToNextWeek={handleCloneToNextWeek}
                 cloning={cloningDay !== null || cloningWeek}
+                autoOpenTaskId={autoOpenTaskId}
+                onTaskModalOpen={openTaskInUrl}
+                onTaskModalClose={clearTaskParam}
+                isCurrentWeek={isCurrentWeek}
               />
             );
           })}
@@ -1157,5 +1080,6 @@ export function SchedulerGrid() {
         tasksByDay={tasksByDay}
       />
     </div>
+    </SchedulerPresenceProvider>
   );
 }

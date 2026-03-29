@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useSchedulerPresenceContext, type PresenceMember } from '../SchedulerPresenceContext';
 import {
   Clock,
   Play,
@@ -59,6 +60,9 @@ export interface TaskCardProps {
   schedulerToday?: string;
   weekStart?: string;
   profileName?: string;
+  autoOpen?: boolean;
+  onModalOpen?: (slotLabel: string) => void;
+  onModalClose?: () => void;
 }
 
 // ─── Inline Editable Field Row (expanded mode) ───────────────────────────────
@@ -223,7 +227,7 @@ export function TypeBadge({
         border: `1px solid ${typeColor}40`,
       }}
     >
-      {task.taskType || 'TYPE'}
+      #{task.slotLabel}-{task.taskType || 'TYPE'}
     </span>
   );
 }
@@ -439,5 +443,95 @@ export function FlagButton({
     >
       <Flag className="h-3 w-3" fill={flagged ? 'currentColor' : 'none'} style={{ pointerEvents: 'none' }} />
     </button>
+  );
+}
+
+// ─── Task Viewers (who's currently viewing this task) ─────────────────────
+
+/** Hook to get viewers for a specific task */
+export function useTaskViewers(taskId: string): PresenceMember[] {
+  const { taskViewers } = useSchedulerPresenceContext();
+  return useMemo(() => taskViewers.get(taskId) || [], [taskViewers, taskId]);
+}
+
+/** Small stacked avatars showing who is viewing a task */
+export function TaskViewerAvatars({
+  taskId,
+  size = 'sm',
+}: {
+  taskId: string;
+  size?: 'sm' | 'md';
+}) {
+  const viewers = useTaskViewers(taskId);
+  if (viewers.length === 0) return null;
+
+  const dim = size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
+  const textSize = size === 'md' ? 'text-[7px]' : 'text-[6px]';
+  const border = size === 'md' ? 'border-[1.5px]' : 'border';
+
+  return (
+    <div className="flex -space-x-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+      {viewers.slice(0, 3).map((v) =>
+        v.imageUrl ? (
+          <img
+            key={v.clientId}
+            src={v.imageUrl}
+            alt={v.name}
+            title={v.name}
+            className={`${dim} rounded-full object-cover ${border} border-white dark:border-[#0c0c1a] ring-1 ring-green-400/50`}
+          />
+        ) : (
+          <div
+            key={v.clientId}
+            title={v.name}
+            className={`${dim} rounded-full flex items-center justify-center ${textSize} font-bold font-sans bg-green-500/15 text-green-500 ${border} border-white dark:border-[#0c0c1a] ring-1 ring-green-400/50`}
+          >
+            {(v.name || '?')[0].toUpperCase()}
+          </div>
+        ),
+      )}
+      {viewers.length > 3 && (
+        <div
+          className={`${dim} rounded-full flex items-center justify-center ${textSize} font-bold font-mono bg-gray-100 text-gray-500 ${border} border-white dark:bg-[#111124] dark:text-gray-400 dark:border-[#0c0c1a]`}
+        >
+          +{viewers.length - 3}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Larger viewers display for inside the task modal */
+export function TaskViewerBanner({ taskId }: { taskId: string }) {
+  const viewers = useTaskViewers(taskId);
+  if (viewers.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 px-1 py-1">
+      <div className="flex -space-x-1.5">
+        {viewers.slice(0, 5).map((v) =>
+          v.imageUrl ? (
+            <img
+              key={v.clientId}
+              src={v.imageUrl}
+              alt={v.name}
+              title={v.name}
+              className="h-5 w-5 rounded-full object-cover border-[1.5px] border-white dark:border-[#0c0c1a] ring-1 ring-green-400/50"
+            />
+          ) : (
+            <div
+              key={v.clientId}
+              title={v.name}
+              className="h-5 w-5 rounded-full flex items-center justify-center text-[7px] font-bold font-sans bg-green-500/15 text-green-500 border-[1.5px] border-white dark:border-[#0c0c1a] ring-1 ring-green-400/50"
+            >
+              {(v.name || '?')[0].toUpperCase()}
+            </div>
+          ),
+        )}
+      </div>
+      <span className="text-[9px] font-mono text-green-500/70">
+        {viewers.map((v) => v.name).join(', ')} viewing
+      </span>
+    </div>
   );
 }

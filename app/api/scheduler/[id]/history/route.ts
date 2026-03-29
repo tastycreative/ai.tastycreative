@@ -51,7 +51,7 @@ export async function GET(
   const userIds = [...new Set(items.map((i) => i.userId))];
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
-    select: { id: true, name: true, imageUrl: true },
+    select: { id: true, name: true, firstName: true, lastName: true, imageUrl: true },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -63,7 +63,11 @@ export async function GET(
       oldValue: item.oldValue,
       newValue: item.newValue,
       createdAt: item.createdAt.toISOString(),
-      user: userMap.get(item.userId) ?? { name: null, imageUrl: null },
+      user: (() => {
+        const u = userMap.get(item.userId);
+        if (!u) return { name: null, imageUrl: null };
+        return { name: (u.name && !u.name.startsWith('user_') ? u.name : null) || [u.firstName, u.lastName].filter(Boolean).join(' ') || null, imageUrl: u.imageUrl };
+      })(),
     })),
     nextCursor,
   });

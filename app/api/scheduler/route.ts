@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser, clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';
@@ -47,6 +47,56 @@ export async function GET(request: NextRequest) {
     orderBy: [{ dayOfWeek: 'asc' }, { sortOrder: 'asc' }, { slotLabel: 'asc' }],
   });
 
+  // Resolve clerkId-based updatedBy values to real names
+  const clerkIds = [...new Set(
+    tasks.map((t) => t.updatedBy).filter((v): v is string => !!v && v.startsWith('user_')),
+  )];
+  if (clerkIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { clerkId: { in: clerkIds } },
+      select: { clerkId: true, name: true, firstName: true, lastName: true },
+    });
+    const nameMap = new Map(
+      users.map((u) => [
+        u.clerkId,
+        (u.name && !u.name.startsWith('user_') ? u.name : null) || [u.firstName, u.lastName].filter(Boolean).join(' ') || null,
+      ]),
+    );
+    // Collect unresolved clerkIds (DB had no name)
+    const unresolvedIds: string[] = [];
+    for (const t of tasks) {
+      if (t.updatedBy && t.updatedBy.startsWith('user_')) {
+        const resolved = nameMap.get(t.updatedBy);
+        if (resolved) {
+          (t as Record<string, unknown>).updatedBy = resolved;
+        } else {
+          unresolvedIds.push(t.updatedBy);
+        }
+      }
+    }
+    // Fallback: resolve remaining from Clerk API
+    if (unresolvedIds.length > 0) {
+      try {
+        const clerk = await clerkClient();
+        const uniqueUnresolved = [...new Set(unresolvedIds)];
+        const clerkNameMap = new Map<string, string>();
+        for (const cid of uniqueUnresolved) {
+          try {
+            const cu = await clerk.users.getUser(cid);
+            const name = [cu.firstName, cu.lastName].filter(Boolean).join(' ');
+            if (name) clerkNameMap.set(cid, name);
+          } catch {}
+        }
+        for (const t of tasks) {
+          if (t.updatedBy && t.updatedBy.startsWith('user_')) {
+            const name = clerkNameMap.get(t.updatedBy);
+            if (name) (t as Record<string, unknown>).updatedBy = name;
+          }
+        }
+      } catch {}
+    }
+  }
+
   return NextResponse.json({ tasks });
 }
 
@@ -59,13 +109,21 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, currentOrganizationId: true, name: true },
+    select: { id: true, currentOrganizationId: true, name: true, firstName: true, lastName: true },
   });
   if (!user?.currentOrganizationId) {
     return NextResponse.json({ error: 'No organization selected' }, { status: 400 });
   }
 
   const orgId = user.currentOrganizationId;
+
+  // Resolve display name — DB first, then Clerk fallback
+  const rawName = user.name && !user.name.startsWith('user_') ? user.name : null;
+  let displayName = rawName || [user.firstName, user.lastName].filter(Boolean).join(' ') || '';
+  if (!displayName) {
+    const clerkUser = await currentUser();
+    displayName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || userId;
+  }
 
   const member = await prisma.teamMember.findUnique({
     where: { userId_organizationId: { userId: user.id, organizationId: orgId } },
@@ -136,7 +194,7 @@ export async function POST(request: NextRequest) {
       profileId: resolvedProfileId,
       lineageId: resolvedLineageId,
       sourceTaskId: sourceTaskId || null,
-      updatedBy: user.name || userId,
+      updatedBy: displayName,
     },
   });
 

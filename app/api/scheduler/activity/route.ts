@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
-      user: { select: { name: true, imageUrl: true } },
+      user: { select: { name: true, firstName: true, lastName: true, imageUrl: true } },
       task: { select: { id: true, taskType: true, slotLabel: true, dayOfWeek: true, taskName: true } },
       changes: {
         orderBy: { createdAt: 'asc' },

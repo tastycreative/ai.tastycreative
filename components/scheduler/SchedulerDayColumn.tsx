@@ -233,6 +233,11 @@ interface SchedulerDayColumnProps {
   profileName?: string;
   onCloneToNextWeek?: (dayIndex: number) => void;
   cloning?: boolean;
+  autoOpenTaskId?: string | null;
+  onTaskModalOpen?: (slotLabel: string) => void;
+  onTaskModalClose?: () => void;
+  /** When false, hides team name, countdown, and live time (only shown for current week) */
+  isCurrentWeek?: boolean;
 }
 
 export function SchedulerDayColumn({
@@ -257,6 +262,10 @@ export function SchedulerDayColumn({
   profileName,
   onCloneToNextWeek,
   cloning,
+  autoOpenTaskId,
+  onTaskModalOpen,
+  onTaskModalClose,
+  isCurrentWeek = true,
 }: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
@@ -269,7 +278,7 @@ export function SchedulerDayColumn({
   const addBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (isNotRunning) return;
+    if (isNotRunning || !isCurrentWeek) return;
     const update = () => {
       if (isRunningQueue) {
         setLiveTime(getCurrentTimeDisplay(timeZone));
@@ -280,7 +289,7 @@ export function SchedulerDayColumn({
     update();
     const interval = setInterval(update, 1_000);
     return () => clearInterval(interval);
-  }, [isRunningQueue, isNotRunning, timeZone]);
+  }, [isRunningQueue, isNotRunning, timeZone, isCurrentWeek]);
 
   const dateStr = date.toLocaleDateString('en-US', {
     month: 'short',
@@ -364,19 +373,21 @@ export function SchedulerDayColumn({
               className="text-[7px] font-bold font-mono"
               style={{ color: teamColor, writingMode: 'vertical-lr', textOrientation: 'mixed' }}
             >
-              {slotLabel}
+              #{slotLabel}
             </span>
 
-            {/* Team name */}
-            <span
-              className="text-[7px] font-bold tracking-wide font-sans max-h-[60px] overflow-hidden"
-              style={{ color: teamColor, writingMode: 'vertical-lr', textOrientation: 'mixed' }}
-            >
-              {team}
-            </span>
+            {/* Team name — only on current week */}
+            {isCurrentWeek && team && (
+              <span
+                className="text-[7px] font-bold tracking-wide font-sans max-h-[60px] overflow-hidden"
+                style={{ color: teamColor, writingMode: 'vertical-lr', textOrientation: 'mixed' }}
+              >
+                {team}
+              </span>
+            )}
 
-            {/* Time */}
-            {isRunningQueue && liveTime && (
+            {/* Time — only on current week */}
+            {isCurrentWeek && isRunningQueue && liveTime && (
               <span
                 className="text-[7px] font-bold font-mono animate-pulse"
                 style={{ color: teamColor, writingMode: 'vertical-lr', textOrientation: 'mixed' }}
@@ -384,7 +395,7 @@ export function SchedulerDayColumn({
                 {liveTime}
               </span>
             )}
-            {!isRunningQueue && !isNotRunning && countdown && (
+            {isCurrentWeek && !isRunningQueue && !isNotRunning && countdown && (
               <span
                 className="text-[7px] font-mono text-gray-500 dark:text-gray-500"
                 style={{ writingMode: 'vertical-lr', textOrientation: 'mixed' }}
@@ -448,30 +459,32 @@ export function SchedulerDayColumn({
                 className="text-[8px] font-bold px-1.5 py-0.5 rounded font-mono"
                 style={{ background: teamColor + '20', color: teamColor, border: `1px solid ${teamColor}40` }}
               >
-                {slotLabel}
+                #{slotLabel}
               </span>
               <span className="text-[8px] font-mono text-gray-500 dark:text-gray-400">{dateStr}</span>
             </div>
 
-            {/* Team */}
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                style={{ background: teamColor, boxShadow: isRunningQueue ? `0 0 4px ${teamColor}` : 'none' }}
-              />
-              <span className="text-[9px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
-                {team}
-              </span>
-            </div>
+            {/* Team — only on current week */}
+            {isCurrentWeek && team && (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+                  style={{ background: teamColor, boxShadow: isRunningQueue ? `0 0 4px ${teamColor}` : 'none' }}
+                />
+                <span className="text-[9px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
+                  {team}
+                </span>
+              </div>
+            )}
 
-            {/* Time */}
-            {isRunningQueue && liveTime && (
+            {/* Time — only on current week */}
+            {isCurrentWeek && isRunningQueue && liveTime && (
               <div className="flex items-center gap-1">
                 <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: teamColor }} />
                 <span className="text-[9px] font-bold font-mono" style={{ color: teamColor }}>{liveTime}</span>
               </div>
             )}
-            {!isRunningQueue && !isNotRunning && countdown && (
+            {isCurrentWeek && !isRunningQueue && !isNotRunning && countdown && (
               <div className="flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5 text-gray-500" />
                 <span className="text-[9px] font-mono text-gray-500">{countdown}</span>
@@ -571,26 +584,28 @@ export function SchedulerDayColumn({
                     border: `1px solid ${teamColor}30`,
                   }}
                 >
-                  {slotLabel}
+                  #{slotLabel}
                 </span>
                 <span className="text-xs font-mono text-gray-400 dark:text-[#3a3a5a]">
                   {dateStr}
                 </span>
               </div>
               <div className="flex items-center gap-3 mt-1">
-                <span className="text-[10px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
-                  {team}
-                </span>
+                {isCurrentWeek && team && (
+                  <span className="text-[10px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
+                    {team}
+                  </span>
+                )}
                 <span className="text-[9px] font-mono text-gray-500 dark:text-[#3a3a5a]">
                   {doneCount}/{totalTasks} done
                 </span>
-                {/* Time */}
-                {isRunningQueue && liveTime && (
+                {/* Time — only on current week */}
+                {isCurrentWeek && isRunningQueue && liveTime && (
                   <span className="text-[10px] font-bold font-mono animate-pulse" style={{ color: teamColor }}>
                     {liveTime}
                   </span>
                 )}
-                {!isRunningQueue && !isNotRunning && countdown && (
+                {isCurrentWeek && !isRunningQueue && !isNotRunning && countdown && (
                   <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">
                     {countdown}
                   </span>
@@ -721,6 +736,9 @@ export function SchedulerDayColumn({
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
                           profileName={profileName}
+                          autoOpen={autoOpenTaskId === task.id}
+                          onModalOpen={onTaskModalOpen}
+                          onModalClose={onTaskModalClose}
                         />
                       ))}
                     </div>
@@ -781,7 +799,7 @@ export function SchedulerDayColumn({
               }}
               title="Expand day"
             >
-              {slotLabel}
+              #{slotLabel}
               <Maximize2 className="h-2.5 w-2.5" />
             </button>
           </div>
@@ -790,37 +808,41 @@ export function SchedulerDayColumn({
           </span>
         </div>
 
-        {/* Row 2: Team */}
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-            style={{
-              background: teamColor,
-              boxShadow: isRunningQueue ? `0 0 6px ${teamColor}` : 'none',
-            }}
-          />
-          <span className="text-[10px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
-            {team}
-          </span>
-        </div>
+        {/* Row 2: Team — only on current week */}
+        {isCurrentWeek && team && (
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+              style={{
+                background: teamColor,
+                boxShadow: isRunningQueue ? `0 0 6px ${teamColor}` : 'none',
+              }}
+            />
+            <span className="text-[10px] font-bold tracking-wide font-sans" style={{ color: teamColor }}>
+              {team}
+            </span>
+          </div>
+        )}
 
-        {/* Row 3: Time */}
-        <div className="flex items-center gap-1.5 min-h-[16px]">
-          {isRunningQueue && liveTime && (
-            <>
-              <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: teamColor }} />
-              <span className="text-[10px] font-bold tracking-wide font-mono" style={{ color: teamColor }}>
-                {liveTime}
-              </span>
-            </>
-          )}
-          {!isRunningQueue && !isNotRunning && countdown && (
-            <>
-              <Clock className="h-3 w-3 text-gray-400 dark:text-[#3a3a5a]" />
-              <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">{countdown}</span>
-            </>
-          )}
-        </div>
+        {/* Row 3: Time — only on current week */}
+        {isCurrentWeek && (
+          <div className="flex items-center gap-1.5 min-h-[16px]">
+            {isRunningQueue && liveTime && (
+              <>
+                <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: teamColor }} />
+                <span className="text-[10px] font-bold tracking-wide font-mono" style={{ color: teamColor }}>
+                  {liveTime}
+                </span>
+              </>
+            )}
+            {!isRunningQueue && !isNotRunning && countdown && (
+              <>
+                <Clock className="h-3 w-3 text-gray-400 dark:text-[#3a3a5a]" />
+                <span className="text-[10px] font-mono text-gray-400 dark:text-[#3a3a5a]">{countdown}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -912,6 +934,9 @@ export function SchedulerDayColumn({
                           schedulerToday={schedulerToday}
                           weekStart={weekStart}
                           profileName={profileName}
+                          autoOpen={autoOpenTaskId === task.id}
+                          onModalOpen={onTaskModalOpen}
+                          onModalClose={onTaskModalClose}
                         />
                       ))}
                     </div>
