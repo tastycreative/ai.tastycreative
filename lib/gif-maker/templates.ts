@@ -26,6 +26,7 @@ export interface Template {
 }
 
 export type TemplateCategory =
+  | "of-content"
   | "social-media"
   | "marketing"
   | "tutorials"
@@ -48,17 +49,222 @@ export interface TemplateEffects {
 }
 
 // ═══════════════════════════════════════════════════════
+// SHARED OVERLAY PROPERTY BASES
+// ═══════════════════════════════════════════════════════
+
+/** Properties shared by all OF-style Impact text overlays */
+const OF_TEXT_BASE = {
+  fontFamily: "Impact",
+  fontWeight: 400,
+  textAlign: "center",
+  textTransform: "uppercase",
+  strokeColor: "#000000",
+  backgroundColor: "transparent",
+  backgroundOpacity: 0,
+} as const;
+
+/** Standard shadow for OF headline text (strong dark shadow) */
+const OF_SHADOW_STRONG = {
+  shadowOffsetX: 2,
+  shadowOffsetY: 2,
+  shadowBlur: 4,
+  shadowColor: "rgba(0,0,0,0.8)",
+} as const;
+
+/** Lighter shadow for OF subtitle text */
+const OF_SHADOW_LIGHT = {
+  shadowOffsetX: 1,
+  shadowOffsetY: 1,
+  shadowBlur: 3,
+  shadowColor: "rgba(0,0,0,0.7)",
+} as const;
+
+/** Standard OF content settings (900x1200 @ 15fps) */
+const OF_SETTINGS = {
+  width: 900,
+  height: 1200,
+  fps: 15,
+} as const;
+
+/** Build a headline overlay for OF templates */
+function ofHeadline(
+  text: string,
+  y: number,
+  overrides: Record<string, unknown> = {},
+): TemplateOverlay {
+  return {
+    type: "text",
+    position: { x: 5, y },
+    size: { width: 90, height: 20 },
+    properties: {
+      text,
+      fontSize: 56,
+      ...OF_TEXT_BASE,
+      strokeWidth: 3,
+      ...OF_SHADOW_STRONG,
+      color: "#ffffff",
+      ...overrides,
+    },
+  };
+}
+
+/** Build a subtitle overlay for OF templates */
+function ofSubtitle(
+  text: string,
+  y: number,
+  overrides: Record<string, unknown> = {},
+): TemplateOverlay {
+  return {
+    type: "text",
+    position: { x: 5, y },
+    size: { width: 90, height: 12 },
+    properties: {
+      text,
+      fontSize: 36,
+      ...OF_TEXT_BASE,
+      strokeWidth: 2,
+      ...OF_SHADOW_LIGHT,
+      color: "#ffffff",
+      ...overrides,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════
 // TEMPLATE LIBRARY
 // ═══════════════════════════════════════════════════════
 
 export const TEMPLATES: Template[] = [
   // ─────────────────────────────────────────────────────
-  // SOCIAL MEDIA TEMPLATES
+  // OF CONTENT TEMPLATES (PRIMARY)
+  // ─────────────────────────────────────────────────────
+  {
+    id: "of-renewal-promo",
+    name: "Renewal Promo",
+    description: "Bold renewal call-to-action with accent keywords — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 4 },
+    overlays: [
+      ofHeadline("TURN ON RENEW", 55),
+      ofHeadline("FOR HUGE GIFT", 72, {
+        fontSize: 64,
+        color: "#FF8C00",
+        size: { width: 90, height: 18 },
+      }),
+    ],
+    tags: ["of", "renewal", "promo", "gift", "3:4"],
+  },
+  {
+    id: "of-content-teaser",
+    name: "Content Teaser",
+    description: "Descriptive content teaser with colored buzz word — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 4 },
+    overlays: [
+      ofHeadline("NEW EXCLUSIVE", 58),
+      ofHeadline("CONTENT", 74, {
+        fontSize: 72,
+        color: "#00D4FF",
+        strokeWidth: 3,
+        shadowBlur: 6,
+        shadowColor: "rgba(0,212,255,0.4)",
+        size: { width: 90, height: 16 },
+      }),
+    ],
+    tags: ["of", "content", "teaser", "exclusive", "3:4"],
+  },
+  {
+    id: "of-mass-message",
+    name: "Mass Message",
+    description: "Eye-catching mass message promo with colored headline — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 5 },
+    overlays: [
+      ofHeadline("CHECK YOUR DMS", 55, {
+        fontSize: 60,
+        color: "#FF1493",
+        shadowBlur: 6,
+        shadowColor: "rgba(255,20,147,0.3)",
+      }),
+      ofSubtitle("SOMETHING SPECIAL WAITING", 73),
+    ],
+    tags: ["of", "mass-message", "dm", "promo", "3:4"],
+  },
+  {
+    id: "of-sale-promo",
+    name: "Sale / Discount",
+    description: "Limited-time discount promo with gold accent — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 5 },
+    overlays: [
+      ofHeadline("LIMITED TIME", 50, { fontSize: 48 }),
+      ofHeadline("50% OFF", 66, {
+        fontSize: 80,
+        color: "#FFD700",
+        shadowBlur: 6,
+        shadowColor: "rgba(255,215,0,0.4)",
+        size: { width: 90, height: 22 },
+      }),
+    ],
+    tags: ["of", "sale", "discount", "promo", "gold", "3:4"],
+  },
+  {
+    id: "of-ppv-unlock",
+    name: "PPV Unlock",
+    description: "Pay-per-view unlock teaser with neon glow — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 4 },
+    overlays: [
+      ofHeadline("UNLOCK NOW", 56, {
+        fontSize: 64,
+        color: "#39FF14",
+        strokeWidth: 2,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
+        shadowBlur: 15,
+        shadowColor: "#39FF14",
+        size: { width: 90, height: 18 },
+      }),
+      ofSubtitle("EXCLUSIVE VIDEO", 73),
+    ],
+    tags: ["of", "ppv", "unlock", "neon", "3:4"],
+  },
+  {
+    id: "of-gradient-headline",
+    name: "Gradient Headline",
+    description: "Gradient text headline with clean subtitle — 3:4 format",
+    category: "of-content",
+    platform: "of-standard",
+    settings: { ...OF_SETTINGS, duration: 5 },
+    overlays: [
+      ofHeadline("NEW DROP", 55, {
+        fontSize: 72,
+        color: "#FF6B35",
+        useGradient: true,
+        gradientColors: ["#FF6B35", "#FFD700"],
+        gradientAngle: 180,
+        size: { width: 90, height: 22 },
+      }),
+      ofSubtitle("AVAILABLE NOW", 75, {
+        fontSize: 32,
+        size: { width: 85, height: 10 },
+      }),
+    ],
+    tags: ["of", "gradient", "headline", "new", "3:4"],
+  },
+
+  // ─────────────────────────────────────────────────────
+  // SOCIAL MEDIA TEMPLATES (kept for non-OF use cases)
   // ─────────────────────────────────────────────────────
   {
     id: "instagram-story-promo",
-    name: "Instagram Story Promo",
-    description: "Eye-catching vertical story with bold text and vibrant colors",
+    name: "Instagram Story",
+    description: "Vertical story with bold text overlay",
     category: "social-media",
     platform: "ig-story",
     settings: {
@@ -70,77 +276,25 @@ export const TEMPLATES: Template[] = [
     overlays: [
       {
         type: "text",
-        position: { x: 540, y: 300 },
-        size: { width: 800, height: 150 },
+        position: { x: 10, y: 15 },
+        size: { width: 80, height: 10 },
         properties: {
           text: "YOUR MESSAGE HERE",
           fontSize: 72,
-          fontWeight: "bold",
+          fontWeight: 700,
           color: "#FFFFFF",
           textAlign: "center",
-          textShadow: "0 4px 12px rgba(0,0,0,0.5)",
-        },
-      },
-      {
-        type: "text",
-        position: { x: 540, y: 1600 },
-        size: { width: 700, height: 100 },
-        properties: {
-          text: "Swipe Up to Learn More",
-          fontSize: 42,
-          fontWeight: "medium",
-          color: "#F774B9",
-          textAlign: "center",
+          strokeWidth: 2,
+          strokeColor: "#000000",
         },
       },
     ],
-    effects: {
-      brightness: 105,
-      contrast: 110,
-      saturation: 140,
-    },
-    tags: ["instagram", "story", "promo", "vibrant"],
-  },
-  {
-    id: "tiktok-trend",
-    name: "TikTok Trend",
-    description: "Square format with centered text overlay, perfect for trends",
-    category: "social-media",
-    platform: "ig-post",
-    settings: {
-      width: 1080,
-      height: 1080,
-      fps: 30,
-      duration: 10,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 540, y: 900 },
-        size: { width: 900, height: 120 },
-        properties: {
-          text: "POV:",
-          fontSize: 64,
-          fontWeight: "bold",
-          color: "#FFFFFF",
-          textAlign: "center",
-          backgroundColor: "rgba(0,0,0,0.7)",
-          padding: "20px",
-          borderRadius: "16px",
-        },
-      },
-    ],
-    effects: {
-      brightness: 110,
-      contrast: 115,
-      saturation: 130,
-    },
-    tags: ["tiktok", "trend", "pov", "square"],
+    tags: ["instagram", "story", "vertical"],
   },
   {
     id: "twitter-gif",
-    name: "Twitter GIF",
-    description: "Optimized for Twitter timeline with quick message",
+    name: "Twitter / X Post",
+    description: "Landscape format optimized for timeline",
     category: "social-media",
     platform: "twitter",
     settings: {
@@ -152,246 +306,20 @@ export const TEMPLATES: Template[] = [
     overlays: [
       {
         type: "text",
-        position: { x: 600, y: 338 },
-        size: { width: 1000, height: 100 },
+        position: { x: 5, y: 50 },
+        size: { width: 90, height: 15 },
         properties: {
-          text: "Breaking News",
+          text: "YOUR TEXT",
           fontSize: 56,
-          fontWeight: "bold",
+          fontWeight: 700,
           color: "#FFFFFF",
           textAlign: "center",
-          textShadow: "0 2px 8px rgba(0,0,0,0.6)",
+          strokeWidth: 2,
+          strokeColor: "#000000",
         },
       },
     ],
-    effects: {
-      brightness: 100,
-      contrast: 105,
-      saturation: 110,
-    },
-    tags: ["twitter", "news", "timeline", "landscape"],
-  },
-
-  // ─────────────────────────────────────────────────────
-  // MARKETING TEMPLATES
-  // ─────────────────────────────────────────────────────
-  {
-    id: "product-showcase",
-    name: "Product Showcase",
-    description: "Clean product display with elegant vignette",
-    category: "marketing",
-    platform: "of-standard",
-    settings: {
-      width: 1200,
-      height: 1600,
-      fps: 30,
-      duration: 6,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 600, y: 200 },
-        size: { width: 1000, height: 100 },
-        properties: {
-          text: "NEW ARRIVAL",
-          fontSize: 48,
-          fontWeight: "bold",
-          color: "#F774B9",
-          textAlign: "center",
-          letterSpacing: "4px",
-        },
-      },
-      {
-        type: "text",
-        position: { x: 600, y: 1400 },
-        size: { width: 800, height: 80 },
-        properties: {
-          text: "Limited Edition",
-          fontSize: 36,
-          fontWeight: "medium",
-          color: "#FFFFFF",
-          textAlign: "center",
-        },
-      },
-    ],
-    effects: {
-      brightness: 105,
-      contrast: 110,
-      saturation: 100,
-      vignette: 30,
-    },
-    tags: ["product", "showcase", "marketing", "elegant"],
-  },
-  {
-    id: "sale-announcement",
-    name: "Sale Announcement",
-    description: "Bold announcement with high-energy vibes",
-    category: "marketing",
-    platform: "ig-post",
-    settings: {
-      width: 1080,
-      height: 1080,
-      fps: 30,
-      duration: 5,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 540, y: 400 },
-        size: { width: 900, height: 150 },
-        properties: {
-          text: "50% OFF",
-          fontSize: 96,
-          fontWeight: "black",
-          color: "#FFFFFF",
-          textAlign: "center",
-          textShadow: "0 6px 16px rgba(0,0,0,0.7)",
-        },
-      },
-      {
-        type: "text",
-        position: { x: 540, y: 680 },
-        size: { width: 800, height: 100 },
-        properties: {
-          text: "Limited Time Only",
-          fontSize: 42,
-          fontWeight: "semibold",
-          color: "#5DC3F8",
-          textAlign: "center",
-        },
-      },
-    ],
-    effects: {
-      brightness: 115,
-      contrast: 120,
-      saturation: 150,
-    },
-    tags: ["sale", "promo", "discount", "bold"],
-  },
-
-  // ─────────────────────────────────────────────────────
-  // TUTORIAL TEMPLATES
-  // ─────────────────────────────────────────────────────
-  {
-    id: "step-by-step",
-    name: "Step-by-Step Tutorial",
-    description: "Clear instructional format with numbered steps",
-    category: "tutorials",
-    platform: "ig-story",
-    settings: {
-      width: 1080,
-      height: 1920,
-      fps: 24,
-      duration: 15,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 540, y: 200 },
-        size: { width: 900, height: 100 },
-        properties: {
-          text: "Step 1",
-          fontSize: 56,
-          fontWeight: "bold",
-          color: "#F774B9",
-          textAlign: "center",
-        },
-      },
-      {
-        type: "text",
-        position: { x: 540, y: 1700 },
-        size: { width: 900, height: 120 },
-        properties: {
-          text: "Follow for more tips",
-          fontSize: 36,
-          fontWeight: "medium",
-          color: "#FFFFFF",
-          textAlign: "center",
-          backgroundColor: "rgba(0,0,0,0.6)",
-          padding: "16px",
-          borderRadius: "12px",
-        },
-      },
-    ],
-    effects: {
-      brightness: 110,
-      contrast: 110,
-      saturation: 105,
-    },
-    tags: ["tutorial", "howto", "educational", "steps"],
-  },
-
-  // ─────────────────────────────────────────────────────
-  // PROFESSIONAL TEMPLATES
-  // ─────────────────────────────────────────────────────
-  {
-    id: "cinematic-intro",
-    name: "Cinematic Intro",
-    description: "Moody, professional look with subtle vignette",
-    category: "professional",
-    platform: "twitter",
-    settings: {
-      width: 1920,
-      height: 1080,
-      fps: 30,
-      duration: 8,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 960, y: 540 },
-        size: { width: 1400, height: 120 },
-        properties: {
-          text: "Your Brand Name",
-          fontSize: 72,
-          fontWeight: "light",
-          color: "#FFFFFF",
-          textAlign: "center",
-          letterSpacing: "8px",
-        },
-      },
-    ],
-    effects: {
-      brightness: 95,
-      contrast: 115,
-      saturation: 90,
-      vignette: 40,
-    },
-    tags: ["cinematic", "professional", "intro", "moody"],
-  },
-  {
-    id: "minimal-portfolio",
-    name: "Minimal Portfolio",
-    description: "Clean, minimalist design for showcasing work",
-    category: "professional",
-    platform: "of-standard",
-    settings: {
-      width: 1200,
-      height: 1600,
-      fps: 24,
-      duration: 7,
-    },
-    overlays: [
-      {
-        type: "text",
-        position: { x: 600, y: 1450 },
-        size: { width: 1000, height: 80 },
-        properties: {
-          text: "Portfolio 2026",
-          fontSize: 32,
-          fontWeight: "light",
-          color: "#FFFFFF",
-          textAlign: "center",
-          letterSpacing: "4px",
-        },
-      },
-    ],
-    effects: {
-      brightness: 100,
-      contrast: 105,
-      saturation: 85,
-    },
-    tags: ["minimal", "portfolio", "clean", "professional"],
+    tags: ["twitter", "landscape", "timeline"],
   },
 ];
 
@@ -428,6 +356,14 @@ export function searchTemplates(query: string): Template[] {
   );
 }
 
+function formatCategoryName(cat: TemplateCategory): string {
+  if (cat === "of-content") return "OF Content";
+  return cat
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 /**
  * Get all template categories
  */
@@ -437,6 +373,7 @@ export function getTemplateCategories(): {
   count: number;
 }[] {
   const categories: TemplateCategory[] = [
+    "of-content",
     "social-media",
     "marketing",
     "tutorials",
@@ -444,12 +381,11 @@ export function getTemplateCategories(): {
     "professional",
   ];
 
-  return categories.map((cat) => ({
-    id: cat,
-    name: cat
-      .split("-")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" "),
-    count: getTemplatesByCategory(cat).length,
-  }));
+  return categories
+    .map((cat) => ({
+      id: cat,
+      name: formatCategoryName(cat),
+      count: getTemplatesByCategory(cat).length,
+    }))
+    .filter((c) => c.count > 0);
 }

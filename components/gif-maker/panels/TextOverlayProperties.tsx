@@ -12,6 +12,17 @@ import { TextAnimationControls } from "./text-overlay/TextAnimationControls";
 const inputClass =
   "w-full h-7 px-2 bg-slate-900 border border-[#2d3142] rounded-md text-xs text-slate-100 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none transition-all duration-150";
 
+const GRADIENT_PRESETS = [
+  { label: "Sunset", colors: ["#FF6B35", "#FFD700"] },
+  { label: "Pink", colors: ["#FF1493", "#FF69B4"] },
+  { label: "Ocean", colors: ["#00D4FF", "#0066FF"] },
+  { label: "Fire", colors: ["#FF0000", "#FF8C00"] },
+  { label: "Neon", colors: ["#39FF14", "#00FFFF"] },
+  { label: "Purple", colors: ["#8B5CF6", "#EC4899"] },
+  { label: "Gold", colors: ["#FFD700", "#FFA500"] },
+  { label: "Ice", colors: ["#FFFFFF", "#00D4FF"] },
+];
+
 interface TextOverlayPropertiesProps {
   overlay: TextOverlay;
 }
@@ -35,13 +46,18 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
   const textTransform = overlay.textTransform ?? "none";
   const opacity = overlay.opacity ?? 1;
   const borderRadius = overlay.borderRadius ?? 4;
-  const backgroundOpacity = overlay.backgroundOpacity ?? 0.5;
+  const backgroundOpacity = overlay.backgroundOpacity ?? 0;
   const strokeWidth = overlay.strokeWidth ?? 0;
   const strokeColor = overlay.strokeColor ?? "#000000";
   const shadowOffsetX = overlay.shadowOffsetX ?? 0;
   const shadowOffsetY = overlay.shadowOffsetY ?? 0;
   const shadowBlur = overlay.shadowBlur ?? 0;
   const shadowColor = overlay.shadowColor ?? "rgba(0,0,0,0.5)";
+
+  // Gradient fields
+  const useGradient = overlay.useGradient ?? false;
+  const gradientColors = overlay.gradientColors ?? ["#FF6B35", "#FFD700"];
+  const gradientAngle = overlay.gradientAngle ?? 180;
 
   // Extract hex from shadowColor for color input
   const shadowColorHex = shadowColor.startsWith("rgba")
@@ -112,9 +128,83 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
 
       {/* Color */}
       <Section title="Color" defaultOpen={true}>
-        <div className="grid grid-cols-2 gap-2">
+        {/* Gradient Toggle */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useGradient}
+            onChange={(e) => update({ useGradient: e.target.checked })}
+            className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500/30"
+          />
+          <span className="text-xs text-slate-400">Use Gradient</span>
+        </label>
+
+        {useGradient ? (
+          <>
+            {/* Gradient Color Stops */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400">Start</label>
+                <input
+                  type="color"
+                  value={gradientColors[0] ?? "#FF6B35"}
+                  onChange={(e) => {
+                    update({ gradientColors: [e.target.value, gradientColors[1]] });
+                  }}
+                  className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400">End</label>
+                <input
+                  type="color"
+                  value={gradientColors[1] ?? "#FFD700"}
+                  onChange={(e) => {
+                    update({ gradientColors: [gradientColors[0], e.target.value] });
+                  }}
+                  className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
+                />
+              </div>
+            </div>
+
+            {/* Gradient Angle */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-400">Angle: {gradientAngle}°</label>
+              <input
+                type="range"
+                min={0}
+                max={360}
+                step={15}
+                value={gradientAngle}
+                onChange={(e) => update({ gradientAngle: Number(e.target.value) })}
+                className="w-full h-1.5 pro-slider"
+              />
+            </div>
+
+            {/* Quick Gradient Presets */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">Quick Gradients</label>
+              <div className="flex flex-wrap gap-1">
+                {GRADIENT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() => update({ gradientColors: [preset.colors[0], preset.colors[1]] })}
+                    className="px-1.5 py-0.5 rounded text-[9px] font-medium border border-[#2d3142] hover:border-slate-500 transition-all duration-150"
+                    style={{
+                      background: `linear-gradient(90deg, ${preset.colors[0]}, ${preset.colors[1]})`,
+                      color: "#fff",
+                      textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
           <div className="space-y-1">
-            <label className="text-xs text-slate-400">Text</label>
+            <label className="text-xs text-slate-400">Text Color</label>
             <input
               type="color"
               value={overlay.color === "transparent" ? "#000000" : overlay.color}
@@ -122,21 +212,23 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
               className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
             />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400">Background</label>
-            <input
-              type="color"
-              value={
-                !overlay.backgroundColor || overlay.backgroundColor === "transparent"
+        )}
+
+        {/* Background Color */}
+        <div className="space-y-1">
+          <label className="text-xs text-slate-400">Background</label>
+          <input
+            type="color"
+            value={
+              !overlay.backgroundColor || overlay.backgroundColor === "transparent"
+                ? "#000000"
+                : overlay.backgroundColor.startsWith("rgba")
                   ? "#000000"
-                  : overlay.backgroundColor.startsWith("rgba")
-                    ? "#000000"
-                    : overlay.backgroundColor
-              }
-              onChange={(e) => update({ backgroundColor: e.target.value })}
-              className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
-            />
-          </div>
+                  : overlay.backgroundColor
+            }
+            onChange={(e) => update({ backgroundColor: e.target.value })}
+            className="w-full h-7 rounded cursor-pointer bg-slate-800 border border-[#2d3142]"
+          />
         </div>
 
         <div className="space-y-1.5">

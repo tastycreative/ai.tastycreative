@@ -20,6 +20,7 @@ import {
   Briefcase,
   PartyPopper,
   Check,
+  Star,
 } from "lucide-react";
 
 export function TemplateLibrary() {
@@ -212,8 +213,12 @@ function TemplateCard({ template, onApply, isApplied }: TemplateCardProps) {
     <div className="group relative p-4 rounded-xl bg-zinc-800/30 border border-zinc-700/50 hover:border-brand-light-pink/30 transition-all duration-200">
       {/* Category Badge */}
       <div className="absolute top-3 right-3">
-        <span className="px-2 py-1 text-[10px] font-medium bg-zinc-700/50 text-zinc-400 rounded-full">
-          {template.category}
+        <span className={`px-2 py-1 text-[10px] font-semibold rounded-full ${
+          template.category === "of-content"
+            ? "bg-brand-light-pink/20 text-brand-light-pink"
+            : "bg-brand-blue/20 text-brand-blue"
+        }`}>
+          {template.category === "of-content" ? "OF" : "Social"}
         </span>
       </div>
 
@@ -285,6 +290,7 @@ function TemplateCard({ template, onApply, isApplied }: TemplateCardProps) {
 
 function getCategoryIcon(category: TemplateCategory): React.ReactNode {
   const icons: Record<TemplateCategory, React.ReactNode> = {
+    "of-content": <Star className="w-3.5 h-3.5" />,
     "social-media": <TrendingUp className="w-3.5 h-3.5" />,
     marketing: <Zap className="w-3.5 h-3.5" />,
     tutorials: <GraduationCap className="w-3.5 h-3.5" />,
