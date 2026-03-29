@@ -155,7 +155,7 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
   const textTransform = overlay.textTransform ?? "none";
   const textOpacity = overlay.opacity ?? 1;
   const borderRadius = overlay.borderRadius ?? 4;
-  const backgroundOpacity = overlay.backgroundOpacity ?? 1;
+  const backgroundOpacity = overlay.backgroundOpacity ?? 0;
   const strokeWidth = overlay.strokeWidth ?? 0;
   const strokeColor = overlay.strokeColor ?? "#000000";
   const shadowOffsetX = overlay.shadowOffsetX ?? 0;
@@ -197,6 +197,20 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
   // Remove textShadow from animStyle to avoid double-apply
   const { textShadow: _removed, ...cleanAnimStyle } = animStyle as any;
 
+  // Build gradient text styles
+  const useGradient = overlay.useGradient ?? false;
+  const gradientColors = overlay.gradientColors ?? ["#FF6B35", "#FFD700"];
+  const gradientAngle = overlay.gradientAngle ?? 180;
+
+  const gradientTextStyle: React.CSSProperties = useGradient && gradientColors.length >= 2
+    ? {
+        background: `linear-gradient(${gradientAngle}deg, ${gradientColors.join(", ")})`,
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        backgroundClip: "text",
+      }
+    : {};
+
   return (
     <div
       style={{
@@ -237,6 +251,7 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
               ? `${strokeWidth}px ${strokeColor}`
               : undefined,
           textShadow,
+          ...gradientTextStyle,
         }}
       >
         {displayText}
