@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 export interface SchedulerUrlParams {
   model: string | null;
@@ -15,6 +15,13 @@ export function useSchedulerUrlParams() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Keep refs so callbacks are stable (don't change identity on every URL change)
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
   const params: SchedulerUrlParams = {
     model: searchParams.get('model'),
     platform: searchParams.get('platform'),
@@ -22,9 +29,10 @@ export function useSchedulerUrlParams() {
     task: searchParams.get('task'),
   };
 
+  // Stable buildUrl — reads from refs, so no deps needed
   const buildUrl = useCallback(
     (updates: Partial<Record<keyof SchedulerUrlParams, string | null>>) => {
-      const next = new URLSearchParams(searchParams.toString());
+      const next = new URLSearchParams(searchParamsRef.current.toString());
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === undefined || value === '') {
           next.delete(key);
@@ -33,9 +41,9 @@ export function useSchedulerUrlParams() {
         }
       }
       const qs = next.toString();
-      return qs ? `${pathname}?${qs}` : pathname;
+      return qs ? `${pathnameRef.current}?${qs}` : pathnameRef.current;
     },
-    [searchParams, pathname],
+    [],
   );
 
   /** Replace URL (no new history entry) — use for tab/profile/week changes */

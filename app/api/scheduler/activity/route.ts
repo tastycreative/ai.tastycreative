@@ -39,8 +39,22 @@ export async function GET(request: NextRequest) {
   });
 
   const hasMore = logs.length > limit;
-  const items = hasMore ? logs.slice(0, limit) : logs;
-  const nextCursor = hasMore ? items[items.length - 1].id : null;
+  const rawItems = hasMore ? logs.slice(0, limit) : logs;
+  const nextCursor = hasMore ? rawItems[rawItems.length - 1].id : null;
+
+  // Resolve user names server-side (name could be a clerkId)
+  const items = rawItems.map((item) => {
+    const u = item.user;
+    const resolvedName = u
+      ? (u.name && !u.name.startsWith('user_') ? u.name : null) ||
+        [u.firstName, u.lastName].filter(Boolean).join(' ') ||
+        null
+      : null;
+    return {
+      ...item,
+      user: u ? { name: resolvedName, imageUrl: u.imageUrl } : null,
+    };
+  });
 
   return NextResponse.json({ items, nextCursor });
 }

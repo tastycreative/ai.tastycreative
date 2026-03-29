@@ -141,14 +141,14 @@ export function SchedulerGrid() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const LA_TZ = 'America/Los_Angeles';
-  const { selectedProfile, isAllProfiles, loadingProfiles, profiles, setProfileId } = useInstagramProfile();
+  const { profileId: currentProfileId, selectedProfile, isAllProfiles, loadingProfiles, profiles, setProfileId } = useInstagramProfile();
   const { params: urlParams, setParams: setUrlParams, pushParams } = useSchedulerUrlParams();
 
   // ─── URL → initial profile sync (once profiles are loaded) ────────────
   // If ?model= is in the URL, we must resolve it before rendering the grid.
   const hasUrlModel = !!urlParams.model;
   const [profileSynced, setProfileSynced] = useState(!hasUrlModel); // instantly resolved if no URL model
-  const profileSyncedRef = useRef(false);
+  const profileSyncedRef = useRef(!hasUrlModel);
   useEffect(() => {
     if (profileSyncedRef.current || loadingProfiles) return;
     if (!urlParams.model) {
@@ -326,20 +326,23 @@ export function SchedulerGrid() {
   }, [taskLimits, profileDetail?.metadata?.volumeSettings, profileDetail?.pageStrategy]);
 
   // ─── Sync profile name → URL (after initial sync) ──────────────────────
-  const prevProfileNameRef = useRef<string | null>(null);
+  const prevSyncedProfileId = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (loadingProfiles) return;
+    if (loadingProfiles || !profileSyncedRef.current) return;
+    const isFirst = prevSyncedProfileId.current === undefined;
+    // Skip if profile hasn't actually changed
+    if (!isFirst && prevSyncedProfileId.current === currentProfileId) return;
+    prevSyncedProfileId.current = currentProfileId;
+
     const name = selectedProfile && !isAllProfiles ? selectedProfile.name : null;
-    // Skip the first render if we already set it from URL
-    if (prevProfileNameRef.current === null && profileSyncedRef.current) {
-      prevProfileNameRef.current = name;
-      return;
-    }
-    if (name !== prevProfileNameRef.current) {
-      prevProfileNameRef.current = name;
+    // On first run: just set model (preserve task param from URL).
+    // On subsequent changes: set model and clear task.
+    if (isFirst) {
+      setUrlParams({ model: name });
+    } else {
       setUrlParams({ model: name, task: null });
     }
-  }, [selectedProfile, isAllProfiles, loadingProfiles, setUrlParams]);
+  }, [currentProfileId, selectedProfile, isAllProfiles, loadingProfiles, setUrlParams]);
 
   // ─── Task modal URL sync ──────────────────────────────────────────────
   const urlTaskSlot = urlParams.task;
@@ -942,7 +945,9 @@ export function SchedulerGrid() {
       )}
 
       {/* Grid / Dashboard */}
-      {isDashboard ? (
+      {!profileReady ? (
+        <SchedulerGridSkeleton />
+      ) : isDashboard ? (
         <SchedulerDashboard
           profileId={activeProfileId}
           schedulerToday={schedulerToday}
