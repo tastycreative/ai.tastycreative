@@ -15,6 +15,10 @@ import {
   downloadBlob,
   type BlurRegionDef,
 } from "@/lib/gif-maker/gif-renderer";
+import {
+  renderOverlaysToCanvas,
+  preloadStickerImages,
+} from "@/lib/gif-maker/overlay-renderer";
 import type { PreviewPlayerRef } from "./PreviewPlayer";
 import {
   Download,
@@ -86,6 +90,12 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       const everyNthFrame = gifSettings.frameSkip;
 
       let frames: HTMLCanvasElement[];
+
+      // Pre-load any sticker images before capture loop
+      const renderableOverlays = overlays.filter((o) => o.type !== "blur");
+      if (renderableOverlays.length > 0) {
+        await preloadStickerImages(overlays);
+      }
 
       if (needsCanvasExport) {
         // Image/collage timeline: capture by drawing media elements from the player DOM
@@ -172,6 +182,24 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
       }
 
       if (frames.length === 0) throw new Error("No frames captured");
+
+      // Composite overlays (text, stickers, shapes) onto each frame
+      if (renderableOverlays.length > 0) {
+        const step = everyNthFrame || 1;
+        for (let i = 0; i < frames.length; i++) {
+          const frameIndex = i * step;
+          const ctx = frames[i].getContext("2d");
+          if (ctx) {
+            renderOverlaysToCanvas(
+              ctx,
+              overlays,
+              outputWidth,
+              outputHeight,
+              frameIndex
+            );
+          }
+        }
+      }
 
       // Apply loop mode
       let processedFrames: HTMLCanvasElement[];

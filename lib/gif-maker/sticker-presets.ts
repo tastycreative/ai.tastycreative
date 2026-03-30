@@ -13,6 +13,7 @@ export interface StickerCategory {
 }
 
 export const STICKER_CATEGORIES: StickerCategory[] = [
+  { id: "of-flyer", label: "OF Flyer", icon: "🔥" },
   { id: "popular", label: "Popular", icon: "⭐" },
   { id: "love", label: "Love", icon: "❤️" },
   { id: "reactions", label: "Reactions", icon: "😂" },
@@ -30,6 +31,36 @@ function svg(content: string, size = 64): string {
 }
 
 export const STICKER_PRESETS: StickerPreset[] = [
+  // ─── OF Flyer (commonly used in OF GIF flyers) ──────────────────
+  { id: "of-sweat", label: "Sweat Drops", src: "💦", isEmoji: true, category: "of-flyer" },
+  { id: "of-fire", label: "Fire", src: "🔥", isEmoji: true, category: "of-flyer" },
+  { id: "of-peach", label: "Peach", src: "🍑", isEmoji: true, category: "of-flyer" },
+  { id: "of-eggplant", label: "Eggplant", src: "🍆", isEmoji: true, category: "of-flyer" },
+  { id: "of-tongue", label: "Tongue", src: "👅", isEmoji: true, category: "of-flyer" },
+  { id: "of-devil", label: "Devil", src: "😈", isEmoji: true, category: "of-flyer" },
+  { id: "of-hot", label: "Hot Face", src: "🥵", isEmoji: true, category: "of-flyer" },
+  { id: "of-drool", label: "Drooling", src: "🤤", isEmoji: true, category: "of-flyer" },
+  { id: "of-pleading", label: "Pleading", src: "🥺", isEmoji: true, category: "of-flyer" },
+  { id: "of-scream", label: "Screaming", src: "😱", isEmoji: true, category: "of-flyer" },
+  { id: "of-smirk", label: "Smirk", src: "😏", isEmoji: true, category: "of-flyer" },
+  { id: "of-hearteyes", label: "Heart Eyes", src: "😍", isEmoji: true, category: "of-flyer" },
+  { id: "of-kiss", label: "Kiss Mark", src: "💋", isEmoji: true, category: "of-flyer" },
+  { id: "of-moan", label: "Moaning", src: "😩", isEmoji: true, category: "of-flyer" },
+  { id: "of-flushed", label: "Flushed", src: "😳", isEmoji: true, category: "of-flyer" },
+  { id: "of-wink", label: "Wink", src: "😜", isEmoji: true, category: "of-flyer" },
+  { id: "of-cherry", label: "Cherries", src: "🍒", isEmoji: true, category: "of-flyer" },
+  { id: "of-icecream", label: "Ice Cream", src: "🍦", isEmoji: true, category: "of-flyer" },
+  { id: "of-lock", label: "Unlocked", src: "🔓", isEmoji: true, category: "of-flyer" },
+  { id: "of-eyes", label: "Eyes", src: "👀", isEmoji: true, category: "of-flyer" },
+  { id: "of-money", label: "Money Face", src: "🤑", isEmoji: true, category: "of-flyer" },
+  { id: "of-gift", label: "Gift", src: "🎁", isEmoji: true, category: "of-flyer" },
+  { id: "of-crown", label: "Crown", src: "👑", isEmoji: true, category: "of-flyer" },
+  { id: "of-diamond", label: "Diamond", src: "💎", isEmoji: true, category: "of-flyer" },
+  { id: "of-cat", label: "Cat", src: "😺", isEmoji: true, category: "of-flyer" },
+  { id: "of-shush", label: "Shush", src: "🤫", isEmoji: true, category: "of-flyer" },
+  { id: "of-bang", label: "Bang", src: "💥", isEmoji: true, category: "of-flyer" },
+  { id: "of-lollipop", label: "Lollipop", src: "🍭", isEmoji: true, category: "of-flyer" },
+
   // ─── Popular ──────────────────────────────────────────
   { id: "p-fire", label: "Fire", src: "🔥", isEmoji: true, category: "popular" },
   { id: "p-100", label: "100", src: "💯", isEmoji: true, category: "popular" },
