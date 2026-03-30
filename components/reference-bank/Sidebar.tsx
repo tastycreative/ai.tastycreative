@@ -16,13 +16,19 @@ import {
   PanelLeftClose,
   Info,
   HardDrive,
+  Share2,
+  Users,
 } from "lucide-react";
 import { ReferenceFolder, Stats } from "@/lib/reference-bank/api";
+import type { SharedFolder } from "@/lib/hooks/useSharedFolders.query";
 
 interface SidebarProps {
   stats: Stats;
   folders: ReferenceFolder[];
+  sharedFolders: SharedFolder[];
+  ownSharedFolderIds: string[];
   selectedFolderId: string | null;
+  selectedSharedFolderId: string | null;
   showFavoritesOnly: boolean;
   showRecentlyUsed: boolean;
   filterType: "all" | "image" | "video";
@@ -33,6 +39,7 @@ interface SidebarProps {
   dropTargetFolderId: string | null;
   onClose: () => void;
   onSelectFolder: (id: string | null) => void;
+  onSelectSharedFolder: (id: string | null) => void;
   onShowFavorites: () => void;
   onShowRecentlyUsed: () => void;
   onSetFilterType: (type: "all" | "image" | "video") => void;
@@ -40,6 +47,7 @@ interface SidebarProps {
   onCreateFolder: () => void;
   onEditFolder: (folder: ReferenceFolder) => void;
   onDeleteFolder: (folder: ReferenceFolder) => void;
+  onShareFolder: (folder: ReferenceFolder) => void;
   onDropOnFolder: (folderId: string) => void;
   onDragOverFolder: (folderId: string | null) => void;
 }
@@ -47,7 +55,10 @@ interface SidebarProps {
 export const Sidebar = memo(function Sidebar({
   stats,
   folders,
+  sharedFolders,
+  ownSharedFolderIds,
   selectedFolderId,
+  selectedSharedFolderId,
   showFavoritesOnly,
   showRecentlyUsed,
   filterType,
@@ -58,6 +69,7 @@ export const Sidebar = memo(function Sidebar({
   dropTargetFolderId,
   onClose,
   onSelectFolder,
+  onSelectSharedFolder,
   onShowFavorites,
   onShowRecentlyUsed,
   onSetFilterType,
@@ -65,6 +77,7 @@ export const Sidebar = memo(function Sidebar({
   onCreateFolder,
   onEditFolder,
   onDeleteFolder,
+  onShareFolder,
   onDropOnFolder,
   onDragOverFolder,
 }: SidebarProps) {
@@ -271,6 +284,16 @@ export const Sidebar = memo(function Sidebar({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      onShareFolder(folder);
+                    }}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="Share folder"
+                  >
+                    <Share2 className={`w-3 h-3 ${ownSharedFolderIds.includes(folder.id) ? "text-brand-light-pink" : ""}`} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onEditFolder(folder);
                     }}
                     className="p-1 hover:bg-gray-700 rounded transition-colors"
@@ -287,6 +310,9 @@ export const Sidebar = memo(function Sidebar({
                     <Trash2 className="w-3 h-3 text-red-400" />
                   </button>
                 </div>
+                {ownSharedFolderIds.includes(folder.id) && (
+                  <Share2 className="w-3 h-3 text-brand-light-pink/50 shrink-0 group-hover:hidden" />
+                )}
               </div>
             ))}
             {folders.length === 0 && (
@@ -296,6 +322,44 @@ export const Sidebar = memo(function Sidebar({
             )}
           </div>
         </div>
+
+        {/* Shared with you */}
+        {sharedFolders.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-3.5 h-3.5 text-gray-400" />
+              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                Shared with You
+              </h3>
+            </div>
+            <div className="space-y-1">
+              {sharedFolders.map((sf) => (
+                <div
+                  key={sf.id}
+                  onClick={() => onSelectSharedFolder(sf.id)}
+                  className={`group flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer ${
+                    selectedSharedFolderId === sf.id
+                      ? "bg-brand-light-pink/20 text-brand-light-pink"
+                      : "text-gray-400 hover:bg-gray-800"
+                  }`}
+                >
+                  <Folder className="w-4 h-4 shrink-0" style={{ color: sf.color }} />
+                  <div className="flex-1 min-w-0">
+                    <span className="block truncate">{sf.name}</span>
+                    <span className="block text-xs text-gray-500 truncate">
+                      by {sf.sharedBy}
+                    </span>
+                  </div>
+                  {sf.itemCount > 0 && (
+                    <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded shrink-0">
+                      {sf.itemCount}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* File Type Filter */}
         <div className="mt-6">

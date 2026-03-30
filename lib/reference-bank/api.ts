@@ -77,6 +77,7 @@ export interface UploadQueueItem {
   description: string;
   tags: string[];
   folderId: string | null;
+  isSharedFolder?: boolean;
   status: "pending" | "uploading" | "success" | "error" | "duplicate";
   progress: number;
   error?: string;
@@ -232,14 +233,15 @@ export const referenceBankAPI = {
   async getPresignedUrl(
     fileName: string,
     fileType: string,
-    folderId?: string | null
+    folderId?: string | null,
+    isSharedFolder?: boolean
   ): Promise<{ uploadUrl: string; key: string }> {
     return fetchWithRetry<{ uploadUrl: string; key: string }>(
       "/api/reference-bank/presigned-url",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName, fileType, folderId }),
+        body: JSON.stringify({ fileName, fileType, folderId, isSharedFolder }),
       }
     );
   },

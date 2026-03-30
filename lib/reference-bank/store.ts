@@ -458,7 +458,8 @@ export const useReferenceBankStore = create<ReferenceBankState>()(
             const { uploadUrl, key } = await referenceBankAPI.getPresignedUrl(
               queueItem.file.name,
               queueItem.file.type,
-              queueItem.folderId
+              queueItem.folderId,
+              queueItem.isSharedFolder
             );
             updateUploadItem(queueItem.id, { progress: 20 });
 

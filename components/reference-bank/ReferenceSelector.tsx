@@ -16,6 +16,7 @@ import {
   Heart,
   Folder,
   FolderOpen,
+  Users,
 } from "lucide-react";
 import { ReferenceItem, ReferenceFolder } from "@/hooks/useReferenceBank";
 
@@ -87,6 +88,20 @@ export function ReferenceSelector({
   const [folders, setFolders] = useState<ReferenceFolder[]>([]);
   const [stats, setStats] = useState({ total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 });
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Shared folders state
+  const [sharedFolders, setSharedFolders] = useState<Array<{
+    id: string;
+    name: string;
+    color: string;
+    permission: string;
+    sharedBy: string;
+    organizationId: string;
+    orgTeamId?: string | null;
+    itemCount: number;
+  }>>([]);
+  const [selectedSharedFolderId, setSelectedSharedFolderId] = useState<string | null>(null);
+  const [sharedItems, setSharedItems] = useState<ReferenceItem[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -148,8 +163,59 @@ export function ReferenceSelector({
     }
   }, [isOpen, fetchData]);
 
-  // Sort items
-  const sortedItems = [...items].sort((a, b) => {
+  // Fetch shared folders when modal opens
+  const fetchSharedFolders = useCallback(async () => {
+    try {
+      const response = await fetch('/api/reference-bank/shared');
+      if (response.ok) {
+        const data = await response.json();
+        setSharedFolders(data.sharedFolders || []);
+      }
+    } catch (error) {
+      console.error("Error fetching shared folders:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSharedFolders();
+    }
+  }, [isOpen, fetchSharedFolders]);
+
+  // Fetch shared folder items when a shared folder is selected
+  const fetchSharedFolderItems = useCallback(async (folderId: string) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({ folderId });
+      if (filterType !== "all") {
+        params.set("fileType", filterType);
+      }
+      const response = await fetch(`/api/reference-bank/shared?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSharedItems(data.items || []);
+      }
+    } catch (error) {
+      console.error("Error fetching shared folder items:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterType]);
+
+  useEffect(() => {
+    if (selectedSharedFolderId) {
+      fetchSharedFolderItems(selectedSharedFolderId);
+    } else {
+      setSharedItems([]);
+    }
+  }, [selectedSharedFolderId, fetchSharedFolderItems]);
+
+  // Sort items - use shared items when a shared folder is selected
+  const displayItems = selectedSharedFolderId ? sharedItems : items;
+  const filteredDisplayItems = searchQuery
+    ? displayItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : displayItems;
+  const sortedItems = [...filteredDisplayItems].sort((a, b) => {
     switch (sortBy) {
       case "name":
         return a.name.localeCompare(b.name);
@@ -191,7 +257,8 @@ export function ReferenceSelector({
 
   const handleConfirmSelection = () => {
     if (multiSelect && onSelectMultiple) {
-      const selectedItems = items.filter(item => localSelectedIds.has(item.id));
+      const allAvailableItems = [...items, ...sharedItems];
+      const selectedItems = allAvailableItems.filter(item => localSelectedIds.has(item.id));
       // Track usage for all selected items
       selectedItems.forEach(item => trackUsage(item.id));
       onSelectMultiple(selectedItems);
@@ -281,9 +348,9 @@ export function ReferenceSelector({
           <div className="w-48 border-r border-zinc-200 dark:border-zinc-700 p-3 overflow-y-auto flex-shrink-0">
             <div className="space-y-1">
               <button
-                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(false); }}
+                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(false); setSelectedSharedFolderId(null); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
-                  !selectedFolderId && !showFavoritesOnly 
+                  !selectedFolderId && !showFavoritesOnly && !selectedSharedFolderId
                     ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
                     : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
@@ -294,7 +361,7 @@ export function ReferenceSelector({
               </button>
               
               <button
-                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(true); }}
+                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(true); setSelectedSharedFolderId(null); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                   showFavoritesOnly 
                     ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
@@ -311,7 +378,7 @@ export function ReferenceSelector({
               </button>
               
               <button
-                onClick={() => { setSelectedFolderId("root"); setShowFavoritesOnly(false); }}
+                onClick={() => { setSelectedFolderId("root"); setShowFavoritesOnly(false); setSelectedSharedFolderId(null); }}
                 className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                   selectedFolderId === "root" 
                     ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
@@ -338,7 +405,7 @@ export function ReferenceSelector({
                   {folders.map((folder) => (
                     <button
                       key={folder.id}
-                      onClick={() => { setSelectedFolderId(folder.id); setShowFavoritesOnly(false); }}
+                      onClick={() => { setSelectedFolderId(folder.id); setShowFavoritesOnly(false); setSelectedSharedFolderId(null); }}
                       className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
                         selectedFolderId === folder.id 
                           ? "bg-[#EC67A1]/10 text-[#EC67A1]" 
@@ -350,6 +417,42 @@ export function ReferenceSelector({
                       {folder._count && folder._count.items > 0 && (
                         <span className="text-xs bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                           {folder._count.items}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shared with You */}
+            {sharedFolders.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-xs font-medium text-[#5DC3F8] uppercase tracking-wider mb-2 px-2 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  Shared with You
+                </h4>
+                <div className="space-y-1">
+                  {sharedFolders.map((sf) => (
+                    <button
+                      key={sf.id}
+                      onClick={() => {
+                        setSelectedSharedFolderId(sf.id);
+                        setSelectedFolderId(null);
+                        setShowFavoritesOnly(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${
+                        selectedSharedFolderId === sf.id
+                          ? "bg-[#5DC3F8]/10 text-[#5DC3F8]"
+                          : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      }`}
+                      title={`Shared by ${sf.sharedBy}`}
+                    >
+                      <Folder className="w-4 h-4" style={{ color: sf.color || '#5DC3F8' }} />
+                      <span className="truncate flex-1">{sf.name}</span>
+                      {sf.itemCount > 0 && (
+                        <span className="text-xs bg-[#5DC3F8]/20 text-[#5DC3F8] px-1.5 py-0.5 rounded">
+                          {sf.itemCount}
                         </span>
                       )}
                     </button>
@@ -384,7 +487,7 @@ export function ReferenceSelector({
                     <Library className="w-12 h-12 text-zinc-400 dark:text-zinc-500 mb-3" />
                     <p className="text-header-muted">No references found</p>
                     <p className="text-sm text-zinc-400 dark:text-zinc-500">
-                      {selectedFolderId ? "This folder is empty" : "Upload images to the Reference Bank"}
+                      {selectedSharedFolderId ? "This shared folder is empty" : selectedFolderId ? "This folder is empty" : "Upload images to the Reference Bank"}
                     </p>
                   </>
                 )}

@@ -1923,10 +1923,31 @@ model reference_folders {
   children    reference_folders[] @relation("FolderHierarchy")
   items       reference_items[]
 
+  shares      reference_folder_shares[]
+
   @@unique([clerkId, name, parentId])
   @@index([clerkId])
   @@index([clerkId, parentId])
   @@index([parentId])
+}
+
+/// Tracks which folders are shared with an organization (or specific team within it).
+model reference_folder_shares {
+  id             String            @id @default(cuid())
+  folderId       String
+  organizationId String
+  sharedByClerkId String
+  permission     SharePermission   @default(VIEW)
+  orgTeamId      String?           // null = shared with entire org
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  folder         reference_folders @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, organizationId, orgTeamId])
+  @@index([organizationId])
+  @@index([orgTeamId])
+  @@index([folderId])
+  @@map("reference_folder_shares")
 }
 
 model of_model_assets {
@@ -2757,6 +2778,7 @@ enum PostType {
 
 enum SharePermission {
   VIEW
+  USE
   EDIT
 }
 

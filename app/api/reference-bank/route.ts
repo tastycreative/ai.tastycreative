@@ -180,20 +180,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If folderId is provided, verify it belongs to the user
+    // If folderId is provided, verify access
+    let itemOwnerId = userId;
     if (folderId) {
-      const folder = await prisma.reference_folders.findFirst({
-        where: {
-          id: folderId,
-          clerkId: userId,
-        },
+      // First check if it's the user's own folder
+      const ownFolder = await prisma.reference_folders.findFirst({
+        where: { id: folderId, clerkId: userId },
       });
 
-      if (!folder) {
-        return NextResponse.json(
-          { error: "Folder not found" },
-          { status: 404 }
-        );
+      if (!ownFolder) {
+        // Check if the user has EDIT permission via a share
+        const memberships = await prisma.teamMember.findMany({
+          where: { user: { clerkId: userId } },
+          include: { orgTeamMemberships: { select: { teamId: true } } },
+        });
+        const orgIds = memberships.map((m) => m.organizationId);
+        const teamIds = memberships.flatMap((m) => m.orgTeamMemberships.map((t) => t.teamId));
+
+        const share = await prisma.reference_folder_shares.findFirst({
+          where: {
+            folderId,
+            permission: "EDIT",
+            OR: [
+              { organizationId: { in: orgIds }, orgTeamId: null },
+              ...(teamIds.length > 0 ? [{ orgTeamId: { in: teamIds } }] : []),
+            ],
+          },
+          include: { folder: { select: { clerkId: true } } },
+        });
+
+        if (!share) {
+          return NextResponse.json(
+            { error: "Folder not found or no EDIT permission" },
+            { status: 404 }
+          );
+        }
+        // Use the folder owner's clerkId so the item belongs to the folder owner
+        itemOwnerId = share.folder.clerkId;
       }
     }
 
@@ -205,7 +228,7 @@ export async function POST(req: NextRequest) {
 
     const item = await prisma.reference_items.create({
       data: {
-        clerkId: userId,
+        clerkId: itemOwnerId,
         name,
         description: description || null,
         tags: tags || [],

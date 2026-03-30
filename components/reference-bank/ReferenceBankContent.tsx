@@ -31,6 +31,8 @@ import {
   Instagram,
   GripVertical,
   RefreshCw,
+  Share2,
+  Users,
 } from "lucide-react";
 import { useReferenceBankStore } from "@/lib/reference-bank/store";
 import { invalidateRBQueries } from "@/lib/reference-bank/queryClientBridge";
@@ -59,6 +61,11 @@ import { FolderModal } from "./modals/FolderModal";
 import { MoveModal } from "./modals/MoveModal";
 import { InstagramImportModal } from "./modals/InstagramImportModal";
 import { ConfirmModal } from "./modals/ConfirmModal";
+import { ShareFolderModal } from "./modals/ShareFolderModal";
+import {
+  useSharedFolders,
+  useSharedFolderItems,
+} from "@/lib/hooks/useSharedFolders.query";
 
 export function ReferenceBankContent() {
   // -------------------------------------------------------------------------
@@ -66,12 +73,16 @@ export function ReferenceBankContent() {
   // -------------------------------------------------------------------------
   const { data, isLoading, isFetching } = useReferenceBankData();
   const { data: storageData } = useStorageQuotaQuery();
+  const { data: sharedData } = useSharedFolders();
 
   const items = data?.items ?? [];
   const folders = data?.folders ?? [];
   const stats = data?.stats ?? { total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 };
   const storageUsed = storageData?.used ?? 0;
   const storageLimit = storageData?.limit ?? 5 * 1024 * 1024 * 1024;
+
+  const sharedFolders = sharedData?.sharedFolders ?? [];
+  const ownSharedFolderIds: string[] = sharedData?.ownSharedFolderIds ?? [];
 
   const toggleFavoriteMutation = useToggleFavoriteMutation();
   const deleteItemMutation = useDeleteItemMutation();
@@ -136,6 +147,11 @@ export function ReferenceBankContent() {
   const [pendingFolderDelete, setPendingFolderDelete] = useState<ReferenceFolder | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
+  // Shared folder state
+  const [selectedSharedFolderId, setSelectedSharedFolderId] = useState<string | null>(null);
+  const [shareFolderTarget, setShareFolderTarget] = useState<ReferenceFolder | null>(null);
+  const { data: sharedFolderItemsData, isLoading: sharedItemsLoading } = useSharedFolderItems(selectedSharedFolderId);
+
   // Convert selectedItems Set to array for easier use
   const selectedIds = useMemo(
     () => Array.from(selectedItems || new Set()),
@@ -152,7 +168,10 @@ export function ReferenceBankContent() {
 
   // Filtered and sorted items
   const filteredItems = useMemo(() => {
-    let result = items || [];
+    // If viewing a shared folder, use shared folder items
+    let result = selectedSharedFolderId
+      ? (sharedFolderItemsData?.items ?? [])
+      : (items || []);
 
     // Don't apply folder/favorites/recently used filters here - they're handled by the store's fetchData
     // Only apply local filtering for search and type
@@ -201,6 +220,8 @@ export function ReferenceBankContent() {
     searchQuery,
     filterType,
     sortBy,
+    selectedSharedFolderId,
+    sharedFolderItemsData,
   ]);
 
   // Preview index & navigation (local — uses filteredItems, not store.items)
@@ -398,6 +419,20 @@ export function ReferenceBankContent() {
     }
   }, [pendingFolderDelete, removeFolder, selectedFolderId, setSelectedFolderId]);
 
+  const handleShareFolder = useCallback((folder: ReferenceFolder) => {
+    setShareFolderTarget(folder);
+  }, []);
+
+  const handleSelectSharedFolder = useCallback((folderId: string | null) => {
+    setSelectedSharedFolderId(folderId);
+    // Clear own folder selection when viewing shared folder
+    if (folderId) {
+      setSelectedFolderId(null);
+      setShowFavoritesOnly(false);
+      setShowRecentlyUsed(false);
+    }
+  }, [setSelectedFolderId, setShowFavoritesOnly, setShowRecentlyUsed]);
+
   const handleSaveFolder = useCallback(
     async (data: { name: string; color?: string }) => {
       try {
@@ -476,6 +511,10 @@ export function ReferenceBankContent() {
 
   // Determine current filter state for display
   const getCurrentFilterLabel = () => {
+    if (selectedSharedFolderId) {
+      const sf = sharedFolders.find((f) => f.id === selectedSharedFolderId);
+      return sf ? `Shared: ${sf.name}` : "Shared Folder";
+    }
     if (showFavoritesOnly) return "Favorites";
     if (showRecentlyUsed) return "Recently Used";
     if (currentFolder) return currentFolder.name;
@@ -557,9 +596,9 @@ export function ReferenceBankContent() {
           {/* Navigation */}
           <nav className="space-y-1 mb-6">
             <button
-              onClick={() => setSelectedFolderId(null)}
+              onClick={() => { setSelectedFolderId(null); setSelectedSharedFolderId(null); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                !showFavoritesOnly && !showRecentlyUsed && !selectedFolderId
+                !showFavoritesOnly && !showRecentlyUsed && !selectedFolderId && !selectedSharedFolderId
                   ? "bg-[#EC67A1]/20 text-[#EC67A1] border border-[#EC67A1]/30"
                   : "text-header-muted hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-sidebar-foreground border border-transparent"
               }`}
@@ -572,7 +611,7 @@ export function ReferenceBankContent() {
             </button>
 
             <button
-              onClick={() => setShowFavoritesOnly(true)}
+              onClick={() => { setShowFavoritesOnly(true); setSelectedSharedFolderId(null); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 showFavoritesOnly
                   ? "bg-[#EC67A1]/20 text-[#EC67A1] border border-[#EC67A1]/30"
@@ -587,7 +626,7 @@ export function ReferenceBankContent() {
             </button>
 
             <button
-              onClick={() => setShowRecentlyUsed(true)}
+              onClick={() => { setShowRecentlyUsed(true); setSelectedSharedFolderId(null); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 showRecentlyUsed
                   ? "bg-[#5DC3F8]/20 text-[#5DC3F8] border border-[#5DC3F8]/30"
@@ -624,7 +663,7 @@ export function ReferenceBankContent() {
                       ? "bg-[#EC67A1]/20 text-[#EC67A1] border-[#EC67A1]/30"
                       : "text-header-muted hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-sidebar-foreground border-transparent"
                   }`}
-                  onClick={() => setSelectedFolderId(folder.id)}
+                  onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolderId(null); }}
                   onDragOver={(e) => {
                     e.preventDefault();
                     setDropTargetFolderId(folder.id);
@@ -654,6 +693,16 @@ export function ReferenceBankContent() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        handleShareFolder(folder);
+                      }}
+                      className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-sidebar-foreground"
+                      title="Share folder"
+                    >
+                      <Share2 className={`w-3 h-3 ${ownSharedFolderIds.includes(folder.id) ? "text-[#EC67A1]" : ""}`} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleEditFolder(folder);
                       }}
                       className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-sidebar-foreground"
@@ -670,9 +719,53 @@ export function ReferenceBankContent() {
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
+                  {ownSharedFolderIds.includes(folder.id) && (
+                    <Share2 className="w-3 h-3 text-[#EC67A1]/50 shrink-0 group-hover:hidden" />
+                  )}
                 </div>
               ))}
             </div>
+
+            {/* Shared with you */}
+            {sharedFolders.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-3.5 h-3.5 text-header-muted" />
+                  <span className="text-xs font-medium text-header-muted uppercase tracking-wider">
+                    Shared with You
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {sharedFolders.map((sf) => (
+                    <div
+                      key={sf.id}
+                      onClick={() => handleSelectSharedFolder(sf.id)}
+                      className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer border ${
+                        selectedSharedFolderId === sf.id
+                          ? "bg-[#5DC3F8]/10 text-[#5DC3F8] border-[#5DC3F8]/30"
+                          : "text-header-muted hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-sidebar-foreground border-transparent"
+                      }`}
+                    >
+                      <Folder
+                        className="w-5 h-5 shrink-0"
+                        style={{ color: sf.color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="block truncate text-sm">{sf.name}</span>
+                        <span className="block text-xs text-header-muted/70 truncate">
+                          by {sf.sharedBy}
+                        </span>
+                      </div>
+                      {sf.itemCount > 0 && (
+                        <span className="text-xs text-header-muted shrink-0">
+                          {sf.itemCount}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Storage quota */}
@@ -720,9 +813,9 @@ export function ReferenceBankContent() {
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Breadcrumb / Title */}
             <div className="flex items-center gap-2 min-w-0">
-              {selectedFolderId && (
+              {(selectedFolderId || selectedSharedFolderId) && (
                 <button
-                  onClick={() => setSelectedFolderId(null)}
+                  onClick={() => { setSelectedFolderId(null); setSelectedSharedFolderId(null); }}
                   className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4 text-header-muted hover:text-sidebar-foreground" />
@@ -738,6 +831,8 @@ export function ReferenceBankContent() {
 
             {/* Actions */}
             <div className="flex items-center gap-2 ml-auto">
+              {/* Hide upload when viewing a shared folder without EDIT permission */}
+              {(!selectedSharedFolderId || sharedFolders.find(f => f.id === selectedSharedFolderId)?.permission === 'EDIT') && (
               <button
                 onClick={() => setShowUploadModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white font-medium rounded-lg transition-all shadow-lg shadow-[#EC67A1]/30"
@@ -745,6 +840,7 @@ export function ReferenceBankContent() {
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Upload</span>
               </button>
+              )}
               <button
                 onClick={() => setShowInstagramImportModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] hover:opacity-90 text-white font-medium rounded-lg transition-all shadow-lg shadow-[#E1306C]/20"
@@ -1202,6 +1298,8 @@ export function ReferenceBankContent() {
         <UploadModal
           onClose={() => setShowUploadModal(false)}
           onFilesSelected={async (files) => {
+            const targetFolderId = selectedSharedFolderId || selectedFolderId;
+            const isShared = !!selectedSharedFolderId;
             for (const file of Array.from(files)) {
               addToUploadQueue({
                 id: `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1209,14 +1307,15 @@ export function ReferenceBankContent() {
                 name: file.name,
                 description: "",
                 tags: [],
-                folderId: selectedFolderId,
+                folderId: targetFolderId,
+                isSharedFolder: isShared,
               });
             }
             setShowUploadModal(false);
             // Process the upload queue
             await processUploadQueue();
           }}
-          currentFolderId={selectedFolderId}
+          currentFolderId={selectedSharedFolderId || selectedFolderId}
         />,
         document.body
       )}
@@ -1302,6 +1401,16 @@ export function ReferenceBankContent() {
           isLoading={bulkDeleteMutation.isPending}
           onClose={() => setShowBulkDeleteConfirm(false)}
           onConfirm={handleBulkDelete}
+        />,
+        document.body
+      )}
+
+      {/* Share folder modal */}
+      {shareFolderTarget && createPortal(
+        <ShareFolderModal
+          folderId={shareFolderTarget.id}
+          folderName={shareFolderTarget.name}
+          onClose={() => setShareFolderTarget(null)}
         />,
         document.body
       )}

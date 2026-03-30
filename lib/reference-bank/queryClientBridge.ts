@@ -13,4 +13,5 @@ export function registerQueryClient(qc: QueryClient): void {
 /** Invalidate all reference-bank queries (triggers background refetch). */
 export function invalidateRBQueries(): void {
   _qc?.invalidateQueries({ queryKey: ["reference-bank"] });
+  _qc?.invalidateQueries({ queryKey: ["shared-folders"] });
 }
