@@ -35,6 +35,7 @@ import { SchedulerHistoryCalendar } from './SchedulerHistoryCalendar';
 import { SchedulerImportModal } from './SchedulerImportModal';
 import { SchedulerExportModal } from './SchedulerExportModal';
 import { SchedulerDashboard, SchedulerCalendar } from './SchedulerDashboard';
+import { SchedulerWorkspace } from './SchedulerWorkspace';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 import { type VolumeSettings, getStrategyVolumeTemplate } from '@/lib/scheduler/strategy-volume-templates';
 import { useSchedulerUrlParams } from '@/hooks/useSchedulerUrlParams';
@@ -57,10 +58,10 @@ const PLATFORM_TABS = [
   { key: 'fansly', label: 'Fansly', color: '#c084fc' },
 ] as const;
 
-type PlatformKey = 'dashboard' | 'calendar' | (typeof PLATFORM_TABS)[number]['key'];
+type PlatformKey = 'dashboard' | 'calendar' | 'workspace' | (typeof PLATFORM_TABS)[number]['key'];
 
 const VALID_PLATFORM_KEYS = new Set<string>([
-  'dashboard', 'calendar', ...PLATFORM_TABS.map((t) => t.key),
+  'dashboard', 'calendar', 'workspace', ...PLATFORM_TABS.map((t) => t.key),
 ]);
 
 // ─── Skeleton Loader ─────────────────────────────────────────────────────────
@@ -282,11 +283,13 @@ export function SchedulerGrid() {
   const activeProfileId = selectedProfile && !isAllProfiles ? selectedProfile.id : null;
   const isDashboard = activePlatform === 'dashboard';
   const isCalendar = activePlatform === 'calendar';
+  const isWorkspace = activePlatform === 'workspace';
+  const [workspaceSubTab, setWorkspaceSubTab] = useState<'flagged' | 'missing-amount'>('flagged');
   const { data: weekData, isLoading: weekLoading } = useSchedulerWeek(
     weekStart,
     activeProfileId,
-    isDashboard || isCalendar ? undefined : activePlatform,
-    profileReady && !isDashboard && !isCalendar,
+    isDashboard || isCalendar || isWorkspace ? undefined : activePlatform,
+    profileReady && !isDashboard && !isCalendar && !isWorkspace,
   );
   const { data: configData, isLoading: configLoading } = useSchedulerConfig();
 
@@ -723,7 +726,7 @@ export function SchedulerGrid() {
 
         <div className="flex items-center gap-2">
           {/* Type filter toggles — only on platform tabs */}
-          {!isDashboard && !isCalendar && (
+          {!isDashboard && !isCalendar && !isWorkspace && (
             <div className="flex items-center gap-1 mr-2">
               {TASK_TYPES.map((type) => {
                 const color = TASK_TYPE_COLORS[type];
@@ -833,6 +836,20 @@ export function SchedulerGrid() {
             >
               Calendar
             </button>
+            {/* Workspace tab */}
+            <button
+              onClick={() => setActivePlatform('workspace')}
+              className="text-[10px] font-bold px-3 py-1 rounded-full font-sans transition-all border"
+              style={{
+                background: isWorkspace
+                  ? 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(244,63,94,0.2))'
+                  : 'transparent',
+                color: isWorkspace ? '#f59e0b' : '#888',
+                borderColor: isWorkspace ? 'rgba(245,158,11,0.5)' : 'transparent',
+              }}
+            >
+              Workspace
+            </button>
             <div className="w-px h-3.5 bg-gray-200 dark:bg-[#181828] mx-0.5" />
             {PLATFORM_TABS.map((tab) => {
               const isActive = activePlatform === tab.key;
@@ -895,7 +912,7 @@ export function SchedulerGrid() {
             )}
 
             {/* Import, Export, Clone — only on platform tabs */}
-            {!isDashboard && !isCalendar && (
+            {!isDashboard && !isCalendar && !isWorkspace && (
               <>
                 <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
 
@@ -936,7 +953,7 @@ export function SchedulerGrid() {
       )}
 
       {/* Week navigation — only on platform tabs */}
-      {!isDashboard && !isCalendar && (
+      {!isDashboard && !isCalendar && !isWorkspace && (
         <SchedulerWeekNav
           weekStart={weekStart}
           todayKey={schedulerToday}
@@ -953,6 +970,10 @@ export function SchedulerGrid() {
           schedulerToday={schedulerToday}
           weekStart={weekStart}
           onSwitchPlatform={(p) => setActivePlatform(p as PlatformKey)}
+          onSwitchToWorkspace={(subtab) => {
+            setWorkspaceSubTab(subtab);
+            setActivePlatform('workspace');
+          }}
           taskLimits={effectiveTaskLimits}
           onSavePlatformLimits={handleSavePlatformLimits}
           profileName={selectedProfile?.name}
@@ -960,6 +981,14 @@ export function SchedulerGrid() {
           instagramUsername={selectedProfile?.instagramUsername}
           pageStrategy={profileDetail?.pageStrategy}
           selectedContentTypes={profileDetail?.selectedContentTypes}
+        />
+      ) : isWorkspace ? (
+        <SchedulerWorkspace
+          profileId={activeProfileId}
+          schedulerToday={schedulerToday}
+          weekStart={weekStart}
+          profileName={selectedProfile?.name}
+          defaultTab={workspaceSubTab}
         />
       ) : isCalendar ? (
         <SchedulerCalendar

@@ -52,6 +52,18 @@ export const MM_SUB_TYPE_ICONS: Record<string, string> = {
   'Photo Bump': '📸',
 };
 
+// ─── WP Sub-Types ─────────────────────────────────────────────────────────
+
+export const WP_SUB_TYPES = ['Photo Bump', 'Photo Bump (Permanent)', 'Campaign', 'Unlock'] as const;
+export type WPSubType = (typeof WP_SUB_TYPES)[number];
+
+export const WP_SUB_TYPE_ICONS: Record<string, string> = {
+  'Photo Bump': '📸',
+  'Photo Bump (Permanent)': '📌',
+  'Campaign': '📢',
+  'Unlock': '🔓',
+};
+
 /** Known follow-up sub-types for MM tasks */
 export const FOLLOW_UP_SUB_TYPES = [
   'OG Flyer ⬆',
@@ -81,6 +93,7 @@ export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'folderName', label: 'Folder Name', placeholder: 'Folder name...' },
     { key: 'caption', label: 'Caption', placeholder: 'Caption text...' },
     { key: 'priceInfo', label: 'Price/Info', placeholder: '$0.00 / info' },
+    { key: 'finalAmount', label: 'Final Amount', placeholder: '$0.00' },
   ],
   ST: [
     { key: 'storyPostSchedule', label: 'Story Post Schedule', placeholder: '' },
@@ -178,11 +191,15 @@ export const schedulerKeys = {
   activity: () => [...schedulerKeys.all, 'activity'] as const,
   taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
   lineage: (lineageId: string) => [...schedulerKeys.all, 'lineage', lineageId] as const,
+  lineageEarnings: (lineageId: string) =>
+    [...schedulerKeys.all, 'lineageEarnings', lineageId] as const,
   lineageHistory: (lineageId: string) => [...schedulerKeys.all, 'lineageHistory', lineageId] as const,
   historyCounts: (month: string, profileId: string, platform: string) =>
     [...schedulerKeys.all, 'historyCounts', month, profileId, platform] as const,
   calendarHistory: (date: string, profileId: string, platform: string) =>
     [...schedulerKeys.all, 'calendarHistory', date, profileId, platform] as const,
+  workspace: (filter: string, profileId: string) =>
+    [...schedulerKeys.all, 'workspace', filter, profileId] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
@@ -248,6 +265,41 @@ export function useSchedulerMonth(
     queryKey: schedulerKeys.month(month, profileId ?? ''),
     queryFn: () => fetchMonthTasks(month, profileId),
     enabled: !!user && !!month && enabled,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Fetch tasks for a calendar grid's visible date range (month + leading/trailing days).
+ * Uses the same /api/scheduler/month endpoint with startDate/endDate params.
+ */
+async function fetchCalendarRange(
+  month: string,
+  startDate: string,
+  endDate: string,
+  profileId?: string | null,
+): Promise<WeekResponse> {
+  const params = new URLSearchParams({ month, startDate, endDate });
+  if (profileId) params.set('profileId', profileId);
+  const res = await fetch(`/api/scheduler/month?${params}`);
+  if (!res.ok) throw new Error('Failed to fetch calendar tasks');
+  return res.json();
+}
+
+export function useSchedulerCalendarRange(
+  month: string,
+  startDate: string,
+  endDate: string,
+  profileId?: string | null,
+  enabled: boolean = true,
+) {
+  const { user } = useUser();
+  return useQuery({
+    queryKey: [...schedulerKeys.all, 'calendarRange', month, startDate, endDate, profileId ?? ''],
+    queryFn: () => fetchCalendarRange(month, startDate, endDate, profileId),
+    enabled: !!user && !!month && !!startDate && !!endDate && enabled,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -884,6 +936,33 @@ export function useTaskLineage(lineageId: string | null) {
   });
 }
 
+// ─── Lineage Earnings ──────────────────────────────────────────────────────
+
+export interface LineageEarningsResponse {
+  totalEarnings: number;
+  taskCount: number;
+  filledCount: number;
+  items: { date: string; finalAmount: string }[];
+}
+
+/** Fetch lifetime earnings for a lineage — disabled by default, enable on click */
+export function useLineageEarnings(lineageId: string | null, enabled: boolean = false) {
+  const { user } = useUser();
+
+  return useQuery<LineageEarningsResponse>({
+    queryKey: schedulerKeys.lineageEarnings(lineageId ?? ''),
+    queryFn: async () => {
+      const res = await fetch(`/api/scheduler/lineage/${lineageId}/earnings`);
+      if (!res.ok) throw new Error('Failed to fetch lineage earnings');
+      return res.json();
+    },
+    enabled: !!user && !!lineageId && enabled,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /** Fetch aggregated history across all tasks in a lineage */
 export function useLineageHistory(lineageId: string | null) {
   const { user } = useUser();
@@ -938,6 +1017,42 @@ export function useQueueTaskUpdate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
+  });
+}
+
+// ─── Workspace (Flagged / Missing Amount) ─────────────────────────────────
+
+export interface WorkspacePage {
+  items: SchedulerTask[];
+  nextCursor: string | null;
+  totalCount: number;
+}
+
+export function useWorkspaceTasks(
+  filter: 'flagged' | 'missing-amount',
+  profileId: string | null,
+  today: string,
+  enabled: boolean = true,
+) {
+  const { user } = useUser();
+
+  return useInfiniteQuery<WorkspacePage>({
+    queryKey: schedulerKeys.workspace(filter, profileId ?? ''),
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ filter, limit: '20' });
+      if (profileId) params.set('profileId', profileId);
+      if (today) params.set('today', today);
+      if (pageParam) params.set('cursor', pageParam as string);
+      const res = await fetch(`/api/scheduler/workspace?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch workspace tasks');
+      return res.json();
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!user && enabled,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 }
 

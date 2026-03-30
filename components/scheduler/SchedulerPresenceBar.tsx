@@ -7,7 +7,7 @@ import { useSchedulerPresenceContext } from './SchedulerPresenceContext';
 export function SchedulerPresenceBar() {
   const { members } = useSchedulerPresenceContext();
 
-  if (members.length <= 1) return null;
+  if (members.length === 0) return null;
 
   return (
     <div className="flex items-center gap-1.5">
@@ -15,19 +15,28 @@ export function SchedulerPresenceBar() {
       <div className="flex -space-x-1">
         {members.slice(0, 5).map((m) => {
           const label = m.name || m.clientId;
+          const away = m.isAway;
           return m.imageUrl ? (
             <img
               key={m.clientId}
               src={m.imageUrl}
               alt={label}
-              title={label}
-              className="h-5 w-5 rounded-full object-cover border-2 border-white dark:border-[#07070e]"
+              title={`${label}${away ? ' (away)' : ''}`}
+              className={`h-5 w-5 rounded-full object-cover border-2 transition-opacity ${
+                away
+                  ? 'border-gray-300 dark:border-gray-700 opacity-40 grayscale'
+                  : 'border-white dark:border-[#07070e]'
+              }`}
             />
           ) : (
             <div
               key={m.clientId}
-              className="h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold font-sans bg-brand-dark-pink/10 text-brand-dark-pink border-2 border-white dark:bg-[#ff9a6c20] dark:text-[#ff9a6c] dark:border-[#07070e]"
-              title={label}
+              className={`h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold font-sans border-2 transition-opacity ${
+                away
+                  ? 'bg-gray-100 text-gray-400 border-gray-300 dark:bg-gray-800 dark:text-gray-600 dark:border-gray-700 opacity-40'
+                  : 'bg-brand-dark-pink/10 text-brand-dark-pink border-white dark:bg-[#ff9a6c20] dark:text-[#ff9a6c] dark:border-[#07070e]'
+              }`}
+              title={`${label}${away ? ' (away)' : ''}`}
             >
               {(m.name || '?')[0].toUpperCase()}
             </div>

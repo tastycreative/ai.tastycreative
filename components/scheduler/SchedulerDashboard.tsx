@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, Clock, Zap, Eye, Settings2, DollarSign, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Clock, Zap, Eye, Settings2, DollarSign, Flag, AlertCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   useSchedulerMonth,
+  useSchedulerCalendarRange,
   SchedulerTask,
   useUpdatePodTask,
   TaskLimits,
@@ -55,6 +56,7 @@ interface SchedulerDashboardProps {
   schedulerToday: string;
   weekStart: string;
   onSwitchPlatform: (platform: string) => void;
+  onSwitchToWorkspace?: (subtab: 'flagged' | 'missing-amount') => void;
   taskLimits?: TaskLimits | null;
   onSavePlatformLimits?: (platform: string, typeLimits: Record<string, number>) => void;
   profileName?: string;
@@ -386,6 +388,7 @@ export function SchedulerDashboard({
   schedulerToday,
   weekStart,
   onSwitchPlatform,
+  onSwitchToWorkspace,
   taskLimits,
   onSavePlatformLimits,
   profileName,
@@ -408,6 +411,10 @@ export function SchedulerDashboard({
   // ─── Flagged filter state ───
   const [flagPlatformFilter, setFlagPlatformFilter] = useState<string | null>(null);
   const [flagTypeFilter, setFlagTypeFilter] = useState<string | null>(null);
+
+  // ─── Missing Final Amount filter state ───
+  const [maPlatformFilter, setMaPlatformFilter] = useState<string | null>(null);
+  const [maTypeFilter, setMaTypeFilter] = useState<string | null>(null);
 
   const handleTaskUpdate = useCallback(
     (id: string, data: Partial<SchedulerTask>) => {
@@ -574,6 +581,44 @@ export function SchedulerDashboard({
       return true;
     });
   }, [flaggedSummary, flagPlatformFilter, flagTypeFilter]);
+
+  // ─── Missing Final Amount breakdown (past-date tasks with empty finalAmount) ───
+  const missingAmountSummary = useMemo(() => {
+    const todayStr = schedulerToday; // YYYY-MM-DD (scheduler "today" which advances at 5 PM PDT)
+    const missing = tasks.filter((t) => {
+      // Only Unlock-type tasks have finalAmount
+      const f = (t.fields || {}) as Record<string, string>;
+      if (!(f.type || '').toLowerCase().includes('unlock')) return false;
+      // Task must be on a past date
+      const taskDate = getTaskDate(t);
+      if (taskDate >= todayStr) return false;
+      // finalAmount must be empty (not 0, not set)
+      const fa = f.finalAmount;
+      if (fa !== undefined && fa !== null && fa !== '' && String(fa).trim() !== '') return false;
+      return true;
+    });
+
+    const byPlatform: Record<string, number> = {};
+    for (const t of missing) {
+      byPlatform[t.platform] = (byPlatform[t.platform] || 0) + 1;
+    }
+
+    const byType: Record<string, number> = {};
+    for (const t of missing) {
+      byType[t.taskType] = (byType[t.taskType] || 0) + 1;
+    }
+
+    return { total: missing.length, byPlatform, byType, tasks: missing };
+  }, [tasks, schedulerToday]);
+
+  const filteredMissingAmountTasks = useMemo(() => {
+    if (!missingAmountSummary) return [];
+    return missingAmountSummary.tasks.filter((t) => {
+      if (maPlatformFilter && t.platform !== maPlatformFilter) return false;
+      if (maTypeFilter && t.taskType !== maTypeFilter) return false;
+      return true;
+    });
+  }, [missingAmountSummary, maPlatformFilter, maTypeFilter]);
 
   const monthLabel = useMemo(() => {
     const [y, m] = calendarMonth.split('-').map(Number);
@@ -1105,7 +1150,7 @@ export function SchedulerDashboard({
               </div>
             </div>
 
-            {/* Flagged task chips */}
+            {/* Flagged task chips (limited to 5) */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
@@ -1119,7 +1164,7 @@ export function SchedulerDashboard({
               </div>
               <div className="space-y-0.5 max-h-30 overflow-y-auto">
                 {filteredFlaggedTasks.length > 0 ? (
-                  filteredFlaggedTasks.map((task) => (
+                  filteredFlaggedTasks.slice(0, 5).map((task) => (
                     <TaskChip key={task.id} task={task} onSelect={setSelectedTask} showPlatformLabel />
                   ))
                 ) : (
@@ -1128,11 +1173,180 @@ export function SchedulerDashboard({
                   </p>
                 )}
               </div>
+              {filteredFlaggedTasks.length > 5 && onSwitchToWorkspace && (
+                <button
+                  onClick={() => onSwitchToWorkspace('flagged')}
+                  className="mt-2 text-[10px] font-bold font-sans px-3 py-1 rounded-full border transition-all text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
+                >
+                  View all {flaggedSummary.total} flagged tasks
+                </button>
+              )}
             </div>
           </>
         ) : (
           <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 text-center py-2">
             No flagged tasks this month
+          </p>
+        )}
+      </div>
+
+      {/* ─── Missing Final Amount Summary ─── */}
+      <div className="rounded-xl border p-4 bg-white border-gray-200 dark:bg-[#0a0a14] dark:border-[#111124] space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-rose-500" />
+            <h3 className="text-xs font-bold font-sans text-gray-800 dark:text-zinc-200">
+              Missing Final Amount
+            </h3>
+            <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600">
+              {monthLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {(maPlatformFilter || maTypeFilter) && (
+              <button
+                onClick={() => { setMaPlatformFilter(null); setMaTypeFilter(null); }}
+                className="text-[8px] font-bold font-sans px-1.5 py-0.5 rounded-full border transition-all text-gray-400 border-gray-300 hover:text-gray-600 dark:text-gray-600 dark:border-gray-700 dark:hover:text-gray-400"
+              >
+                Clear filters
+              </button>
+            )}
+            <span className={`text-sm font-bold font-mono ${missingAmountSummary.total > 0 ? 'text-rose-500' : 'text-gray-300 dark:text-gray-700'}`}>
+              {missingAmountSummary.total}
+            </span>
+          </div>
+        </div>
+
+        {missingAmountSummary.total > 0 ? (
+          <>
+            {/* By Platform + By Type row */}
+            <div className="flex flex-wrap gap-4">
+              {/* By Platform */}
+              <div className="flex-1 min-w-35">
+                <div className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600 mb-1.5">
+                  By Platform
+                </div>
+                <div className="flex items-end gap-1.5">
+                  {Object.entries(missingAmountSummary.byPlatform)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([platform, count]) => {
+                      const maxCount = Math.max(...Object.values(missingAmountSummary.byPlatform));
+                      const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const isSelected = maPlatformFilter === platform;
+                      const isDimmed = maPlatformFilter !== null && !isSelected;
+                      return (
+                        <button
+                          key={platform}
+                          onClick={() => setMaPlatformFilter(isSelected ? null : platform)}
+                          className="flex flex-col items-center gap-1 flex-1 transition-all cursor-pointer"
+                          style={{ opacity: isDimmed ? 0.25 : 1 }}
+                        >
+                          <span className="text-[9px] font-bold font-mono text-rose-500">{count}</span>
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{
+                              height: `${Math.max(heightPct * 0.4, 4)}px`,
+                              backgroundColor: PLATFORM_COLORS[platform] || '#888',
+                              opacity: isDimmed ? 0.3 : 0.7,
+                            }}
+                          />
+                          <span
+                            className="text-[8px] font-bold font-sans uppercase"
+                            style={{ color: PLATFORM_COLORS[platform] || '#888' }}
+                          >
+                            {PLATFORM_LABELS[platform] || platform}
+                          </span>
+                          {isSelected && (
+                            <div className="h-0.5 w-full rounded-full" style={{ backgroundColor: PLATFORM_COLORS[platform] || '#888' }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* By Type */}
+              <div className="flex-1 min-w-35">
+                <div className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600 mb-1.5">
+                  By Type
+                </div>
+                <div className="flex items-end gap-1.5">
+                  {Object.entries(missingAmountSummary.byType)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([type, count]) => {
+                      const maxCount = Math.max(...Object.values(missingAmountSummary.byType));
+                      const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const color = TASK_TYPE_COLORS[type] || '#888';
+                      const isSelected = maTypeFilter === type;
+                      const isDimmed = maTypeFilter !== null && !isSelected;
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => setMaTypeFilter(isSelected ? null : type)}
+                          className="flex flex-col items-center gap-1 flex-1 transition-all cursor-pointer"
+                          style={{ opacity: isDimmed ? 0.25 : 1 }}
+                        >
+                          <span className="text-[9px] font-bold font-mono text-rose-500">{count}</span>
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{
+                              height: `${Math.max(heightPct * 0.4, 4)}px`,
+                              backgroundColor: color,
+                              opacity: isDimmed ? 0.3 : 0.7,
+                            }}
+                          />
+                          <span
+                            className="text-[8px] font-bold font-sans"
+                            style={{ color }}
+                          >
+                            {type}
+                          </span>
+                          {isSelected && (
+                            <div className="h-0.5 w-full rounded-full" style={{ backgroundColor: color }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Missing amount task chips (limited to 5) */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-600">
+                  {maPlatformFilter || maTypeFilter ? 'Filtered' : 'All Missing'}
+                </span>
+                {(maPlatformFilter || maTypeFilter) && (
+                  <span className="text-[9px] font-mono text-rose-500">
+                    {filteredMissingAmountTasks.length} of {missingAmountSummary.total}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-0.5 max-h-30 overflow-y-auto">
+                {filteredMissingAmountTasks.length > 0 ? (
+                  filteredMissingAmountTasks.slice(0, 5).map((task) => (
+                    <TaskChip key={task.id} task={task} onSelect={setSelectedTask} showPlatformLabel />
+                  ))
+                ) : (
+                  <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 py-1">
+                    No matches for selected filters
+                  </p>
+                )}
+              </div>
+              {filteredMissingAmountTasks.length > 5 && onSwitchToWorkspace && (
+                <button
+                  onClick={() => onSwitchToWorkspace('missing-amount')}
+                  className="mt-2 text-[10px] font-bold font-sans px-3 py-1 rounded-full border transition-all text-rose-500 border-rose-500/30 hover:bg-rose-500/10"
+                >
+                  View all {missingAmountSummary.total} missing final amounts
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 text-center py-2">
+            No tasks with missing final amount
           </p>
         )}
       </div>
@@ -1165,8 +1379,33 @@ export function SchedulerCalendar({ profileId, schedulerToday, profileName }: Sc
   const today = new Date(schedulerToday + 'T00:00:00Z');
   const [calendarMonth, setCalendarMonth] = useState(() => getMonthKey(today));
 
-  const { data: monthData, isLoading } = useSchedulerMonth(calendarMonth, profileId);
-  const tasks = monthData?.tasks ?? [];
+  // Compute the exact visible date range for the calendar grid
+  const { gridStartDate, gridEndDate } = useMemo(() => {
+    const [year, mon] = calendarMonth.split('-').map(Number);
+    const firstDay = new Date(Date.UTC(year, mon - 1, 1));
+    const lastDay = new Date(Date.UTC(year, mon, 0));
+    const startDow = firstDay.getUTCDay(); // 0=Sun
+
+    // Leading days from previous month
+    const gridStart = new Date(firstDay);
+    gridStart.setUTCDate(gridStart.getUTCDate() - startDow);
+
+    // Trailing days: figure out how many cells remain after the last day
+    const lastDow = lastDay.getUTCDay();
+    const gridEnd = new Date(lastDay);
+    if (lastDow < 6) gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - lastDow));
+
+    return {
+      gridStartDate: gridStart.toISOString().split('T')[0],
+      gridEndDate: gridEnd.toISOString().split('T')[0],
+    };
+  }, [calendarMonth]);
+
+  // Single fetch covering only the visible grid range
+  const { data: calendarData_raw, isLoading } = useSchedulerCalendarRange(
+    calendarMonth, gridStartDate, gridEndDate, profileId,
+  );
+  const tasks = calendarData_raw?.tasks ?? [];
 
   const updateTask = useUpdatePodTask();
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
@@ -1197,6 +1436,17 @@ export function SchedulerCalendar({ profileId, schedulerToday, profileName }: Sc
     const daysInMonth = lastDay.getUTCDate();
     const startDow = firstDay.getUTCDay();
 
+    // Previous month info for leading days
+    const prevMonthLast = new Date(Date.UTC(year, mon - 1, 0));
+    const prevMonthDays = prevMonthLast.getUTCDate();
+    const prevYear = prevMonthLast.getUTCFullYear();
+    const prevMon = prevMonthLast.getUTCMonth() + 1;
+
+    // Next month info for trailing days
+    const nextMonthFirst = new Date(Date.UTC(year, mon, 1));
+    const nextYear = nextMonthFirst.getUTCFullYear();
+    const nextMon = nextMonthFirst.getUTCMonth() + 1;
+
     const taskMap = new Map<string, SchedulerTask[]>();
     for (const t of tasks) {
       const dateKey = getTaskDate(t);
@@ -1204,24 +1454,33 @@ export function SchedulerCalendar({ profileId, schedulerToday, profileName }: Sc
       taskMap.get(dateKey)!.push(t);
     }
 
-    const weeks: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[][] = [];
-    let currentWeek: { date: number | null; dateKey: string; tasks: SchedulerTask[] }[] = [];
+    const weeks: { date: number; dateKey: string; tasks: SchedulerTask[]; isOutsideMonth: boolean }[][] = [];
+    let currentWeek: { date: number; dateKey: string; tasks: SchedulerTask[]; isOutsideMonth: boolean }[] = [];
 
+    // Fill leading days from previous month
     for (let i = 0; i < startDow; i++) {
-      currentWeek.push({ date: null, dateKey: '', tasks: [] });
+      const d = prevMonthDays - startDow + 1 + i;
+      const dateKey = `${prevYear}-${String(prevMon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      currentWeek.push({ date: d, dateKey, tasks: taskMap.get(dateKey) ?? [], isOutsideMonth: true });
     }
 
+    // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      currentWeek.push({ date: d, dateKey, tasks: taskMap.get(dateKey) ?? [] });
+      currentWeek.push({ date: d, dateKey, tasks: taskMap.get(dateKey) ?? [], isOutsideMonth: false });
       if (currentWeek.length === 7) {
         weeks.push(currentWeek);
         currentWeek = [];
       }
     }
+
+    // Fill trailing days from next month
     if (currentWeek.length > 0) {
+      let nextDay = 1;
       while (currentWeek.length < 7) {
-        currentWeek.push({ date: null, dateKey: '', tasks: [] });
+        const dateKey = `${nextYear}-${String(nextMon).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+        currentWeek.push({ date: nextDay, dateKey, tasks: taskMap.get(dateKey) ?? [], isOutsideMonth: true });
+        nextDay++;
       }
       weeks.push(currentWeek);
     }
@@ -1302,7 +1561,7 @@ export function SchedulerCalendar({ profileId, schedulerToday, profileName }: Sc
               <div key={wi} className="grid grid-cols-7 divide-x divide-gray-50 dark:divide-[#111124]">
                 {week.map((cell, ci) => {
                   const isToday = cell.dateKey === schedulerToday;
-                  const isEmpty = cell.date === null;
+                  const isOutside = cell.isOutsideMonth;
                   const visibleTasks = cell.tasks.slice(0, 4);
                   const overflow = cell.tasks.length - 4;
                   const isExpanded = expandedDay === cell.dateKey;
@@ -1313,93 +1572,93 @@ export function SchedulerCalendar({ profileId, schedulerToday, profileName }: Sc
                     <div
                       key={ci}
                       className={`relative min-h-[90px] p-1.5 transition-colors ${
-                        isEmpty
+                        isOutside
                           ? 'bg-gray-50/50 dark:bg-[#07070e]/50'
                           : isToday
                             ? 'bg-brand-mid-pink/5 dark:bg-brand-mid-pink/5'
                             : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]'
                       }`}
                     >
-                      {cell.date !== null && (
-                        <>
-                          <div className="flex items-center justify-between mb-1">
-                            <span
-                              className={`text-[10px] font-bold font-sans ${
-                                isToday
-                                  ? 'text-brand-mid-pink'
-                                  : 'text-gray-500 dark:text-gray-500'
-                              }`}
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={`text-[10px] font-bold font-sans ${
+                            isOutside
+                              ? 'text-gray-300 dark:text-gray-700'
+                              : isToday
+                                ? 'text-brand-mid-pink'
+                                : 'text-gray-500 dark:text-gray-500'
+                          }`}
+                        >
+                          {cell.date}
+                        </span>
+                        {cell.tasks.length > 0 && (
+                          <span className={`text-[8px] font-mono ${isOutside ? 'text-gray-200 dark:text-gray-800' : 'text-gray-300 dark:text-gray-700'}`}>
+                            {cell.tasks.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className={isOutside ? 'opacity-35' : ''}>
+                        <div className="space-y-0.5">
+                          {visibleTasks.map((task) => (
+                            <TaskChip
+                              key={task.id}
+                              task={task}
+                              onSelect={setSelectedTask}
+                            />
+                          ))}
+                          {overflow > 0 && (
+                            <button
+                              onClick={() => setExpandedDay(cell.dateKey)}
+                              className="text-[8px] font-mono text-brand-mid-pink hover:text-brand-light-pink px-1 hover:underline transition-colors cursor-pointer"
                             >
-                              {cell.date}
-                            </span>
-                            {cell.tasks.length > 0 && (
-                              <span className="text-[8px] font-mono text-gray-300 dark:text-gray-700">
-                                {cell.tasks.length}
+                              +{overflow} more
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded day popover */}
+                      {isExpanded && (
+                        <div
+                          ref={expandedRef}
+                          className={`absolute z-50 left-0 right-0 min-w-[200px] max-h-[320px] overflow-y-auto rounded-lg border shadow-xl bg-white border-gray-200 dark:bg-[#0c0c1a] dark:border-[#1a1a2e] p-2 ${
+                            openUpward ? 'bottom-0' : 'top-0'
+                          }`}
+                          style={{ minWidth: '220px' }}
+                        >
+                          <div className="flex items-center justify-between mb-2 sticky top-0 bg-white dark:bg-[#0c0c1a] pb-1 border-b border-gray-100 dark:border-[#111124]">
+                            <span className="text-[10px] font-bold font-sans text-gray-700 dark:text-zinc-300">
+                              {new Date(cell.dateKey + 'T00:00:00Z').toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                timeZone: 'UTC',
+                              })}
+                              <span className="text-gray-400 dark:text-gray-600 ml-1 font-mono font-normal">
+                                ({cell.tasks.length} tasks)
                               </span>
-                            )}
+                            </span>
+                            <button
+                              onClick={() => setExpandedDay(null)}
+                              className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                            >
+                              <X className="h-3 w-3 text-gray-400" />
+                            </button>
                           </div>
                           <div className="space-y-0.5">
-                            {visibleTasks.map((task) => (
+                            {cell.tasks.map((task) => (
                               <TaskChip
                                 key={task.id}
                                 task={task}
-                                onSelect={setSelectedTask}
+                                onSelect={(t) => {
+                                  setExpandedDay(null);
+                                  setSelectedTask(t);
+                                }}
+                                showPlatformLabel
                               />
                             ))}
-                            {overflow > 0 && (
-                              <button
-                                onClick={() => setExpandedDay(cell.dateKey)}
-                                className="text-[8px] font-mono text-brand-mid-pink hover:text-brand-light-pink px-1 hover:underline transition-colors cursor-pointer"
-                              >
-                                +{overflow} more
-                              </button>
-                            )}
                           </div>
-
-                          {/* Expanded day popover */}
-                          {isExpanded && (
-                            <div
-                              ref={expandedRef}
-                              className={`absolute z-50 left-0 right-0 min-w-[200px] max-h-[320px] overflow-y-auto rounded-lg border shadow-xl bg-white border-gray-200 dark:bg-[#0c0c1a] dark:border-[#1a1a2e] p-2 ${
-                                openUpward ? 'bottom-0' : 'top-0'
-                              }`}
-                              style={{ minWidth: '220px' }}
-                            >
-                              <div className="flex items-center justify-between mb-2 sticky top-0 bg-white dark:bg-[#0c0c1a] pb-1 border-b border-gray-100 dark:border-[#111124]">
-                                <span className="text-[10px] font-bold font-sans text-gray-700 dark:text-zinc-300">
-                                  {new Date(cell.dateKey + 'T00:00:00Z').toLocaleDateString('en-US', {
-                                    weekday: 'short',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    timeZone: 'UTC',
-                                  })}
-                                  <span className="text-gray-400 dark:text-gray-600 ml-1 font-mono font-normal">
-                                    ({cell.tasks.length} tasks)
-                                  </span>
-                                </span>
-                                <button
-                                  onClick={() => setExpandedDay(null)}
-                                  className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                                >
-                                  <X className="h-3 w-3 text-gray-400" />
-                                </button>
-                              </div>
-                              <div className="space-y-0.5">
-                                {cell.tasks.map((task) => (
-                                  <TaskChip
-                                    key={task.id}
-                                    task={task}
-                                    onSelect={(t) => {
-                                      setExpandedDay(null);
-                                      setSelectedTask(t);
-                                    }}
-                                    showPlatformLabel
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </>
+                        </div>
                       )}
                     </div>
                   );

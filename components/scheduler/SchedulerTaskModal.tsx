@@ -17,6 +17,8 @@ import {
   Send,
   Flag,
   History,
+  TrendingUp,
+  GitBranch,
 } from 'lucide-react';
 import {
   SchedulerTask,
@@ -28,10 +30,13 @@ import {
   useTaskLineage,
   useTaskHistory,
   useLineageHistory,
+  useLineageEarnings,
   TaskHistoryItem,
   LineageHistoryItem,
   MM_SUB_TYPES,
   MM_SUB_TYPE_ICONS,
+  WP_SUB_TYPES,
+  WP_SUB_TYPE_ICONS,
 } from '@/lib/hooks/useScheduler.query';
 import { TASK_TYPE_COLORS, TaskViewerBanner } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
@@ -105,7 +110,9 @@ export function SchedulerTaskModal({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [sidePanel, setSidePanel] = useState<'history' | 'lineage' | null>(null);
+  const showHistory = sidePanel !== null;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const styleMenuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -125,6 +132,12 @@ export function SchedulerTaskModal({
   const serverFields = (viewingTask.fields || {}) as Record<string, string>;
   const locked = schedulerToday ? isTaskLocked(viewingTask, schedulerToday) : false;
   const hasLineage = !!task.lineageId;
+
+  // ─── Lineage earnings (on-demand) ───
+  const [showEarnings, setShowEarnings] = useState(false);
+  const hasFinalAmountField = viewingTask.taskType === 'WP' ||
+    (serverFields.type || viewingTask.taskName || '').toLowerCase().includes('unlock');
+  const earningsQuery = useLineageEarnings(task.lineageId, showEarnings && hasFinalAmountField && hasLineage);
 
   // ─── Pending (unsaved) field changes ───
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
@@ -171,6 +184,7 @@ export function SchedulerTaskModal({
       setViewingTask(task);
       setPendingChanges({});
       setQueueTargetWeek(null);
+      setShowEarnings(false);
     }
   }, [task]);
 
@@ -228,10 +242,15 @@ export function SchedulerTaskModal({
         onSuccess: () => {
           setQueueTargetWeek(null);
           setPendingChanges({});
+          // Auto-unflag the original task after successful queue
+          const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === (true as unknown as string);
+          if (isFlagged) {
+            onUpdate(task.id, { fields: { ...serverFields, ...pendingChanges, flagged: 'false' } as TaskFields });
+          }
         },
       },
     );
-  }, [queueTargetWeek, serverFields, pendingChanges, task.id, task.dayOfWeek, queueMutation]);
+  }, [queueTargetWeek, serverFields, pendingChanges, task.id, task.dayOfWeek, queueMutation, onUpdate]);
 
   // ─── Field change handlers (local only, no auto-save) ───
   const handleFieldChange = useCallback((key: string, val: string) => {
@@ -473,22 +492,37 @@ export function SchedulerTaskModal({
             >
               <Flag className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
             </button>
+            {/* Lineage toggle */}
+            {hasLineage && (
+              <button
+                onClick={() => setSidePanel((p) => p === 'lineage' ? null : 'lineage')}
+                className={[
+                  'p-1.5 rounded transition-colors',
+                  sidePanel === 'lineage'
+                    ? 'bg-emerald-500/10 text-emerald-500'
+                    : 'text-gray-400 dark:text-gray-600 hover:text-emerald-500 hover:bg-emerald-500/5',
+                ].join(' ')}
+                title={sidePanel === 'lineage' ? 'Hide lineage' : 'Show lineage'}
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+              </button>
+            )}
             {/* History toggle */}
             <button
-              onClick={() => setShowHistory((p) => !p)}
+              onClick={() => setSidePanel((p) => p === 'history' ? null : 'history')}
               className={[
                 'p-1.5 rounded transition-colors',
-                showHistory
+                sidePanel === 'history'
                   ? 'bg-brand-blue/10 text-brand-blue'
                   : 'text-gray-400 dark:text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5',
               ].join(' ')}
-              title={showHistory ? 'Hide history' : 'Show history'}
+              title={sidePanel === 'history' ? 'Hide history' : 'Show history'}
             >
               <History className="h-3.5 w-3.5" />
             </button>
             {onDelete && (
               <button
-                onClick={() => { onDelete(viewingTask.id); onClose(); }}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 title="Delete task"
               >
@@ -536,7 +570,7 @@ export function SchedulerTaskModal({
                   </span>
                   <div className="flex gap-1">
                     {MM_SUB_TYPES.map((st) => {
-                      const active = fields.type === st;
+                      const active = (fields.type || '').toLowerCase() === st.toLowerCase();
                       return (
                         <button
                           key={st}
@@ -567,17 +601,57 @@ export function SchedulerTaskModal({
                 </div>
               )}
 
+              {/* WP Sub-type chip selector */}
+              {viewingTask.taskType === 'WP' && (
+                <div className="flex items-center gap-1.5 pb-1">
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 font-sans min-w-[90px] whitespace-nowrap">
+                    Type
+                  </span>
+                  <div className="flex gap-1 flex-wrap">
+                    {WP_SUB_TYPES.map((st) => {
+                      const active = (fields.type || '').toLowerCase() === st.toLowerCase();
+                      return (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            if (locked) return;
+                            const currentFields = { ...serverFields, ...pendingChanges, type: st } as TaskFields;
+                            onUpdate(viewingTask.id, { fields: currentFields });
+                            setPendingChanges((prev) => {
+                              const { type: _, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full font-sans transition-all border"
+                          style={{
+                            background: active ? typeColor + '20' : 'transparent',
+                            color: active ? typeColor : '#6b6b8a',
+                            borderColor: active ? typeColor + '50' : '#1e1e38',
+                            opacity: locked ? 0.6 : 1,
+                          }}
+                          disabled={locked}
+                        >
+                          <span>{WP_SUB_TYPE_ICONS[st]}</span>
+                          {st}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {fieldDefs
                 .filter((def) => def.key !== 'caption' || !TYPES_WITH_PICKER.has(viewingTask.taskType))
                 .filter((def) => def.key !== 'type') // type rendered as chips above
                 .filter((def) => def.key !== 'subType')
-                .filter((def) => def.key !== 'finalAmount' || (fields.type || '').toLowerCase().includes('unlock'))
+                .filter((def) => def.key !== 'finalAmount' || viewingTask.taskType === 'WP' || (fields.type || '').toLowerCase().includes('unlock'))
                 .map((def) => {
                     const isLockedField = locked && def.key !== 'finalAmount';
                     const isCurrency = def.key === 'price' || def.key === 'finalAmount';
                     return (
                       <ModalFieldRow
                         key={def.key}
+                        fieldKey={def.key}
                         label={def.label}
                         value={fields[def.key] || ''}
                         placeholder={def.placeholder}
@@ -588,6 +662,48 @@ export function SchedulerTaskModal({
                       />
                     );
                 })}
+
+              {/* Lifetime Earnings (unlock tasks with lineage) */}
+              {hasFinalAmountField && hasLineage && (
+                <div className="px-1 py-1.5">
+                  {!showEarnings ? (
+                    <button
+                      onClick={() => setShowEarnings(true)}
+                      className="flex items-center gap-1.5 text-[10px] font-bold font-sans px-2.5 py-1 rounded-md border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                    >
+                      <TrendingUp className="h-3 w-3" />
+                      Lifetime Earnings
+                    </button>
+                  ) : earningsQuery.isLoading ? (
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading...
+                    </div>
+                  ) : earningsQuery.data ? (
+                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold font-sans uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Lifetime Earnings
+                        </span>
+                        <button
+                          onClick={() => setShowEarnings(false)}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                          ${earningsQuery.data.totalEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400">
+                          {earningsQuery.data.filledCount}/{earningsQuery.data.taskCount} filled
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {fieldDefs.length === 0 && viewingTask.taskName && (
                 <div className="text-xs font-mono text-gray-600 dark:text-gray-400 py-1">
@@ -720,28 +836,46 @@ export function SchedulerTaskModal({
         </div>
       </div>
 
-      {/* History sidebar */}
+      {/* Side panel: History or Lineage */}
       {showHistory && (
         <div
           className="w-80 shrink-0 rounded-r-xl border border-l-0 bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e] shadow-2xl flex flex-col overflow-hidden"
-          style={{ borderTopWidth: 3, borderTopColor: typeColor }}
+          style={{ borderTopWidth: 3, borderTopColor: sidePanel === 'lineage' ? '#10b981' : typeColor }}
         >
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-[#111124]">
             <div className="flex items-center gap-1.5">
-              <History className="h-3 w-3 text-brand-blue" />
-              <span className="text-[10px] font-bold tracking-wider font-sans text-gray-500 dark:text-gray-400">
-                {task.lineageId ? 'LINEAGE HISTORY' : 'TASK HISTORY'}
-              </span>
+              {sidePanel === 'lineage' ? (
+                <>
+                  <GitBranch className="h-3 w-3 text-emerald-500" />
+                  <span className="text-[10px] font-bold tracking-wider font-sans text-gray-500 dark:text-gray-400">
+                    LINEAGE TASKS
+                  </span>
+                </>
+              ) : (
+                <>
+                  <History className="h-3 w-3 text-brand-blue" />
+                  <span className="text-[10px] font-bold tracking-wider font-sans text-gray-500 dark:text-gray-400">
+                    {task.lineageId ? 'LINEAGE HISTORY' : 'TASK HISTORY'}
+                  </span>
+                </>
+              )}
             </div>
             <button
-              onClick={() => setShowHistory(false)}
+              onClick={() => setSidePanel(null)}
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5"
             >
               <X className="h-3 w-3 text-gray-400" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {task.lineageId ? (
+            {sidePanel === 'lineage' && task.lineageId ? (
+              <ModalLineageTasks
+                lineageId={task.lineageId}
+                currentTaskId={viewingTask.id}
+                onSelectTask={(t) => setViewingTask(t)}
+                typeColor={typeColor}
+              />
+            ) : task.lineageId ? (
               <ModalLineageHistory lineageId={task.lineageId} />
             ) : (
               <ModalTaskHistory taskId={viewingTask.id} />
@@ -750,6 +884,49 @@ export function SchedulerTaskModal({
         </div>
       )}
       </div>
+
+      {/* Delete confirmation overlay */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-white dark:bg-[#0c0c1a] border border-gray-200 dark:border-[#1a1a2e] rounded-xl shadow-2xl p-5 max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Delete task?</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 justify-end mt-4">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  onDelete!(viewingTask.id);
+                  onClose();
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
@@ -757,6 +934,8 @@ export function SchedulerTaskModal({
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+
+const MULTILINE_KEYS = new Set(['caption', 'captionGuide', 'paywallContent', 'contentPreview', 'contentFlyer']);
 
 function ModalFieldRow({
   label,
@@ -766,6 +945,7 @@ function ModalFieldRow({
   disabled,
   highlight,
   currency,
+  fieldKey,
 }: {
   label: string;
   value: string;
@@ -774,7 +954,9 @@ function ModalFieldRow({
   disabled?: boolean;
   highlight?: boolean;
   currency?: boolean;
+  fieldKey?: string;
 }) {
+  const multiline = fieldKey ? MULTILINE_KEYS.has(fieldKey) : false;
   // For currency fields, strip the $ prefix for local editing
   const toRaw = (v: string) => currency ? v.replace(/^\$/, '').trim() : v;
   const [localVal, setLocalVal] = useState(toRaw(value));
@@ -784,9 +966,8 @@ function ModalFieldRow({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (currency) {
-      // Only allow digits and a single decimal point
       const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
       setLocalVal(cleaned);
     } else {
@@ -819,8 +1000,8 @@ function ModalFieldRow({
   }`;
 
   return (
-    <div className={`flex items-center gap-3 transition-opacity ${disabled ? 'opacity-75' : ''}`}>
-      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-600'}`}>
+    <div className={`flex ${multiline ? 'items-start' : 'items-center'} gap-3 transition-opacity ${disabled ? 'opacity-75' : ''}`}>
+      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${multiline ? 'pt-1.5' : ''} ${highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-600'}`}>
         {label}
       </label>
       {currency ? (
@@ -837,6 +1018,16 @@ function ModalFieldRow({
             className="flex-1 text-xs py-0 bg-transparent outline-none font-mono text-inherit pr-2"
           />
         </div>
+      ) : multiline ? (
+        <textarea
+          value={localVal}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={Math.max(2, Math.min(6, localVal.split('\n').length))}
+          className={`${inputClasses} px-2 resize-none`}
+        />
       ) : (
         <input
           value={localVal}
@@ -1082,6 +1273,124 @@ function HistoryRow({ item }: { item: TaskHistoryItem }) {
 }
 
 // ─── Lineage History Panel (for sidebar) ─────────────────────────────────────
+
+function ModalLineageTasks({
+  lineageId,
+  currentTaskId,
+  onSelectTask,
+  typeColor,
+}: {
+  lineageId: string;
+  currentTaskId: string;
+  onSelectTask: (task: SchedulerTask) => void;
+  typeColor: string;
+}) {
+  const { data, isLoading } = useTaskLineage(lineageId);
+  const tasks = data?.tasks ?? [];
+
+  // Compute total earnings
+  const { total, filledCount } = React.useMemo(() => {
+    let sum = 0;
+    let filled = 0;
+    for (const t of tasks) {
+      const f = (t.fields || {}) as Record<string, string>;
+      const raw = f.finalAmount || '';
+      if (raw) {
+        const parsed = parseFloat(raw.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(parsed)) { sum += parsed; filled++; }
+      }
+    }
+    return { total: Math.round(sum * 100) / 100, filledCount: filled };
+  }, [tasks]);
+
+  if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin text-emerald-500" /></div>;
+  if (tasks.length === 0) return <p className="text-[10px] text-center py-10 font-mono text-gray-400">No lineage tasks found.</p>;
+
+  return (
+    <div>
+      {/* Earnings summary */}
+      <div className="px-3 py-2.5 border-b border-gray-100 dark:border-[#111124] bg-emerald-500/5">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] font-bold font-sans text-emerald-600 dark:text-emerald-400">
+            Total Earnings
+          </span>
+          <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400">
+            {filledCount}/{tasks.length} filled
+          </span>
+        </div>
+        <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+          ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      </div>
+
+      {/* Task list */}
+      {tasks.map((t) => {
+        const f = (t.fields || {}) as Record<string, string>;
+        const ws = new Date(t.weekStartDate);
+        const d = new Date(ws);
+        d.setUTCDate(d.getUTCDate() + t.dayOfWeek);
+        const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        const amount = f.finalAmount || '';
+        const isCurrent = t.id === currentTaskId;
+        const typeName = f.type || t.taskName || '';
+        const isFlagged = f.flagged === 'true' || f.flagged === (true as unknown as string);
+
+        return (
+          <button
+            key={t.id}
+            onClick={() => onSelectTask(t)}
+            className={[
+              'w-full text-left px-3 py-2 border-b border-gray-50 dark:border-[#0c0c1f] transition-colors',
+              isCurrent
+                ? 'bg-emerald-500/10 border-l-2 border-l-emerald-500'
+                : 'hover:bg-gray-50 dark:hover:bg-white/[0.02] border-l-2 border-l-transparent',
+            ].join(' ')}
+          >
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-mono font-bold text-gray-700 dark:text-gray-300">
+                {dateStr}
+              </span>
+              <span
+                className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                style={{
+                  background: (
+                    t.status === 'DONE' ? '#4ade80' :
+                    t.status === 'IN_PROGRESS' ? '#38bdf8' :
+                    t.status === 'SKIPPED' ? '#fbbf24' : '#6b7280'
+                  ) + '18',
+                  color:
+                    t.status === 'DONE' ? '#4ade80' :
+                    t.status === 'IN_PROGRESS' ? '#38bdf8' :
+                    t.status === 'SKIPPED' ? '#fbbf24' : '#6b7280',
+                }}
+              >
+                {t.status}
+              </span>
+            </div>
+            {typeName && (
+              <p className="text-[9px] font-sans text-gray-500 dark:text-gray-400 truncate mb-0.5">
+                {typeName}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold font-mono ${amount ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-700'}`}>
+                {amount ? `${amount}` : '—'}
+              </span>
+              <div className="flex items-center gap-1">
+                {isFlagged && (
+                  <Flag className="h-2.5 w-2.5 text-amber-500" fill="currentColor" />
+                )}
+                {isCurrent && (
+                  <span className="text-[7px] font-bold font-sans uppercase text-emerald-500">Current</span>
+                )}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function ModalLineageHistory({ lineageId }: { lineageId: string }) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useLineageHistory(lineageId);

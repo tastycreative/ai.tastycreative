@@ -11,6 +11,7 @@ export interface PresenceMember {
   name: string;
   imageUrl?: string;
   activeTaskId?: string | null;
+  isAway?: boolean;
 }
 
 interface SchedulerPresenceContextValue {
@@ -80,12 +81,13 @@ export function SchedulerPresenceProvider({
       for (const m of presenceMessages) {
         if (!seen.has(m.clientId)) {
           seen.add(m.clientId);
-          const data = m.data as { name?: string; imageUrl?: string; activeTaskId?: string | null } | undefined;
+          const data = m.data as { name?: string; imageUrl?: string; activeTaskId?: string | null; isAway?: boolean } | undefined;
           unique.push({
             clientId: m.clientId,
             name: data?.name || m.clientId,
             imageUrl: data?.imageUrl,
             activeTaskId: data?.activeTaskId ?? null,
+            isAway: data?.isAway ?? false,
           });
         }
       }
@@ -104,7 +106,7 @@ export function SchedulerPresenceProvider({
     const channel = client.channels.get(`scheduler:profile:${profileId}`);
     channelRef.current = channel;
 
-    const presenceData = { name: displayName, imageUrl: userImageUrl, activeTaskId: activeTaskRef.current };
+    const presenceData = { name: displayName, imageUrl: userImageUrl, activeTaskId: activeTaskRef.current, isAway: document.visibilityState === 'hidden' };
     channel.presence.enter(presenceData).catch(() => {});
 
     const handleSync = () => syncPresence(channel);
@@ -121,6 +123,21 @@ export function SchedulerPresenceProvider({
     };
   }, [profileId, displayName, userImageUrl, syncPresence]);
 
+  // Track tab visibility — broadcast away status
+  useEffect(() => {
+    const handleVisibility = () => {
+      const channel = channelRef.current;
+      if (channel) {
+        channel.presence
+          .update({ name: displayName, imageUrl: userImageUrl, activeTaskId: activeTaskRef.current, isAway: document.visibilityState === 'hidden' })
+          .then(() => syncPresence(channel))
+          .catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [displayName, userImageUrl, syncPresence]);
+
   // Set active task — updates Ably presence data
   const setActiveTask = useCallback(
     (taskId: string | null) => {
@@ -128,7 +145,7 @@ export function SchedulerPresenceProvider({
       const channel = channelRef.current;
       if (channel) {
         channel.presence
-          .update({ name: displayName, imageUrl: userImageUrl, activeTaskId: taskId })
+          .update({ name: displayName, imageUrl: userImageUrl, activeTaskId: taskId, isAway: document.visibilityState === 'hidden' })
           .then(() => syncPresence(channel))
           .catch(() => {});
       }

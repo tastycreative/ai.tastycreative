@@ -33,17 +33,26 @@ export async function GET(request: NextRequest) {
 
   const profileId = request.nextUrl.searchParams.get('profileId');
 
+  // Optional date-range override: if startDate + endDate are provided,
+  // return tasks whose computed date falls within that range instead of the calendar month.
+  // Used by the calendar grid to fetch only the visible date range (including leading/trailing days).
+  const startDateParam = request.nextUrl.searchParams.get('startDate'); // YYYY-MM-DD
+  const endDateParam = request.nextUrl.searchParams.get('endDate');     // YYYY-MM-DD
+
   // Calculate date range: first day of month to last day of month
   // We need to find all weekStartDates that could contain tasks for days in this month
   const [year, mon] = month.split('-').map(Number);
   const monthStart = new Date(Date.UTC(year, mon - 1, 1));
   const monthEnd = new Date(Date.UTC(year, mon, 0)); // last day of month
 
-  // weekStartDate could be up to 6 days before the month starts (if the 1st is a Saturday)
-  // and could be up to the last day of month itself
-  const rangeStart = new Date(monthStart);
+  // If a custom date range is given, expand the DB query range to cover it
+  const filterStart = startDateParam ? new Date(startDateParam + 'T00:00:00Z') : monthStart;
+  const filterEnd = endDateParam ? new Date(endDateParam + 'T00:00:00Z') : monthEnd;
+
+  // weekStartDate could be up to 6 days before the earliest visible date
+  const rangeStart = new Date(filterStart);
   rangeStart.setUTCDate(rangeStart.getUTCDate() - 6);
-  const rangeEnd = new Date(monthEnd);
+  const rangeEnd = new Date(filterEnd);
 
   const tasks = await prisma.schedulerTask.findMany({
     where: {
@@ -57,11 +66,19 @@ export async function GET(request: NextRequest) {
     orderBy: [{ weekStartDate: 'asc' }, { dayOfWeek: 'asc' }, { sortOrder: 'asc' }],
   });
 
-  // Filter to only tasks whose actual date falls within the requested month
+  // Filter to only tasks whose actual date falls within the visible range
   const filtered = tasks.filter((task) => {
     const ws = new Date(task.weekStartDate);
     const taskDate = new Date(ws);
     taskDate.setUTCDate(taskDate.getUTCDate() + task.dayOfWeek);
+
+    if (startDateParam && endDateParam) {
+      // Date-range mode: include if date falls within [startDate, endDate]
+      const taskDateKey = taskDate.toISOString().split('T')[0];
+      return taskDateKey >= startDateParam && taskDateKey <= endDateParam;
+    }
+
+    // Default: filter to the requested month
     const taskMonth = `${taskDate.getUTCFullYear()}-${String(taskDate.getUTCMonth() + 1).padStart(2, '0')}`;
     return taskMonth === month;
   });
