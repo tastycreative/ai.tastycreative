@@ -35,7 +35,7 @@ interface StickerOverlayPropertiesProps {
 export function StickerOverlayProperties({ overlay }: StickerOverlayPropertiesProps) {
   const updateOverlay = useVideoEditorStore((s) => s.updateOverlay);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeCategory, setActiveCategory] = useState("popular");
+  const [activeCategory, setActiveCategory] = useState("of-flyer");
   const [searchQuery, setSearchQuery] = useState("");
 
   const update = (updates: Partial<StickerOverlay>) => {

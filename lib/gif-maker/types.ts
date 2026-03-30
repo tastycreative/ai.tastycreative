@@ -332,6 +332,8 @@ export interface TextOverlay extends OverlayBase {
   shadowOffsetY?: number;
   shadowBlur?: number;
   shadowColor?: string;
+  rotation?: number;                  // degrees, default 0
+  fontStyle?: "normal" | "italic";    // default "normal"
   // Gradient text support
   useGradient?: boolean;
   gradientColors?: [string, string]; // [startColor, endColor]

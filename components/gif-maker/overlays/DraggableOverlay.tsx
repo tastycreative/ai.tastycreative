@@ -70,9 +70,12 @@ export const DraggableOverlay = memo(function DraggableOverlay({
 
       const o = overlayRef.current;
       if (dragRef.current.type === "move") {
+        // Allow overlays to extend past edges (e.g. full-width text at x:0)
+        // Clamp so at least 10% of overlay remains visible
+        const minVisible = 10;
         updateOverlay(o.id, {
-          x: Math.max(0, Math.min(100 - o.width, dragRef.current.startOx + dxPct)),
-          y: Math.max(0, Math.min(100 - o.height, dragRef.current.startOy + dyPct)),
+          x: Math.max(-o.width + minVisible, Math.min(100 - minVisible, dragRef.current.startOx + dxPct)),
+          y: Math.max(-o.height + minVisible, Math.min(100 - minVisible, dragRef.current.startOy + dyPct)),
         });
       } else if (dragRef.current.type === "resize") {
         updateOverlay(o.id, {

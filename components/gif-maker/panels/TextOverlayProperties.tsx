@@ -93,6 +93,8 @@ export function TextOverlayProperties({ overlay }: TextOverlayPropertiesProps) {
           fontSize={overlay.fontSize}
           fontWeight={overlay.fontWeight}
           textTransform={textTransform}
+          fontStyle={overlay.fontStyle ?? "normal"}
+          rotation={overlay.rotation ?? 0}
           onUpdate={update}
         />
       </Section>

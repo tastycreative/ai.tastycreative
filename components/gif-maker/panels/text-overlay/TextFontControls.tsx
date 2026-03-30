@@ -26,6 +26,8 @@ interface TextFontControlsProps {
   fontSize: number;
   fontWeight: number;
   textTransform: "none" | "uppercase" | "lowercase";
+  fontStyle?: "normal" | "italic";
+  rotation?: number;
   onUpdate: (updates: Partial<TextOverlay>) => void;
 }
 
@@ -34,6 +36,8 @@ export const TextFontControls = memo(function TextFontControls({
   fontSize,
   fontWeight,
   textTransform,
+  fontStyle = "normal",
+  rotation = 0,
   onUpdate,
 }: TextFontControlsProps) {
   return (
@@ -58,7 +62,7 @@ export const TextFontControls = memo(function TextFontControls({
         <input
           type="range"
           min={12}
-          max={120}
+          max={320}
           value={fontSize}
           onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })}
           className="w-full h-1.5 pro-slider"
@@ -80,7 +84,7 @@ export const TextFontControls = memo(function TextFontControls({
 
       <div className="space-y-1.5">
         <label className="text-xs text-slate-400">Transform</label>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-4 gap-1">
           {([
             { value: "none", label: "Aa" },
             { value: "uppercase", label: "AA" },
@@ -98,7 +102,40 @@ export const TextFontControls = memo(function TextFontControls({
               {opt.label}
             </button>
           ))}
+          <button
+            onClick={() => onUpdate({ fontStyle: fontStyle === "italic" ? "normal" : "italic" })}
+            className={`px-2 py-1.5 text-xs rounded italic font-semibold transition-colors duration-150 ${
+              fontStyle === "italic"
+                ? "bg-indigo-500 text-white"
+                : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100 border border-[#2d3142]"
+            }`}
+          >
+            I
+          </button>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-slate-400">Rotation: {rotation}°</label>
+          {rotation !== 0 && (
+            <button
+              onClick={() => onUpdate({ rotation: 0 })}
+              className="text-[9px] text-slate-500 hover:text-slate-300"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <input
+          type="range"
+          min={-180}
+          max={180}
+          step={1}
+          value={rotation}
+          onChange={(e) => onUpdate({ rotation: Number(e.target.value) })}
+          className="w-full h-1.5 pro-slider"
+        />
       </div>
     </>
   );

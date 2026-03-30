@@ -154,6 +154,8 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
   const lineHeightVal = overlay.lineHeight ?? 1.3;
   const textTransform = overlay.textTransform ?? "none";
   const textOpacity = overlay.opacity ?? 1;
+  const rotation = overlay.rotation ?? 0;
+  const fontStyleVal = overlay.fontStyle ?? "normal";
   const borderRadius = overlay.borderRadius ?? 4;
   const backgroundOpacity = overlay.backgroundOpacity ?? 0;
   const strokeWidth = overlay.strokeWidth ?? 0;
@@ -228,6 +230,7 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
               ? "flex-end"
               : "center",
         opacity: textOpacity,
+        transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
         ...cleanAnimStyle,
       }}
     >
@@ -236,6 +239,7 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
           fontSize: overlay.fontSize,
           fontFamily: overlay.fontFamily,
           fontWeight: overlay.fontWeight,
+          fontStyle: fontStyleVal,
           color: overlay.color,
           backgroundColor: bgColor,
           textAlign: overlay.textAlign,
