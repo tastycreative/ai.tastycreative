@@ -13,6 +13,8 @@ import {
   Image as ImageIcon,
   Copy,
   Check,
+  Hourglass,
+  XCircle,
 } from 'lucide-react';
 import { SchedulerTask, TaskFields, useMergeTaskFields } from '@/lib/hooks/useScheduler.query';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
@@ -336,6 +338,50 @@ export function CopyCaptionButton({ text }: { text: string }) {
   );
 }
 
+// ─── Caption QA Status Indicator ──────────────────────────────────────────────
+
+export function CaptionQAIndicator({ status }: { status?: string }) {
+  if (!status) return null;
+
+  if (status === 'sent_to_qa') {
+    return (
+      <span
+        className="shrink-0 flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400"
+        title="Caption sent to QA for review"
+      >
+        <Hourglass className="h-2 w-2" />
+        QA
+      </span>
+    );
+  }
+
+  if (status === 'approved') {
+    return (
+      <span
+        className="shrink-0 flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400"
+        title="Caption QA approved"
+      >
+        <CheckCircle2 className="h-2 w-2" />
+        QA
+      </span>
+    );
+  }
+
+  if (status === 'rejected') {
+    return (
+      <span
+        className="shrink-0 flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400"
+        title="Caption QA rejected"
+      >
+        <XCircle className="h-2 w-2" />
+        QA
+      </span>
+    );
+  }
+
+  return null;
+}
+
 // ─── Caption Preview (compact inline) ────────────────────────────────────────
 
 export function CaptionPreview({
@@ -350,6 +396,7 @@ export function CaptionPreview({
   const text = fields.captionBankText || fields.caption;
   const isBankCaption = !!fields.captionId;
   const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
+  const captionQAStatus = fields.captionQAStatus;
 
   if (!text) return null;
 
@@ -373,6 +420,7 @@ export function CaptionPreview({
             BANK
           </span>
         )}
+        <CaptionQAIndicator status={captionQAStatus} />
         <CopyCaptionButton text={text} />
       </div>
     </div>

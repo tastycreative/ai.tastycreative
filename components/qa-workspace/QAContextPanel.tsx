@@ -2,7 +2,7 @@
 
 import { memo } from 'react';
 import { AlertCircle, AlertTriangle, X, Info, User2 } from 'lucide-react';
-import type { QAQueueItem } from '@/lib/hooks/useQAQueue.query';
+import type { QAQueueItem, SchedulerQAItem } from '@/lib/hooks/useQAQueue.query';
 
 /* ── helpers ────────────────────────────────────────────────────── */
 
@@ -27,10 +27,17 @@ function parseArray(val: unknown): string[] {
 
 interface QAContextPanelProps {
   item: QAQueueItem | undefined;
+  schedulerItem?: SchedulerQAItem | undefined;
 }
 
-function QAContextPanelComponent({ item }: QAContextPanelProps) {
-  if (!item) {
+function QAContextPanelComponent({ item, schedulerItem }: QAContextPanelProps) {
+  // Resolve profile from either content or scheduler item
+  const profile = item?.modelProfile ?? schedulerItem?.modelProfile ?? null;
+  const modelName = item
+    ? ((item.metadata.model as string) ?? profile?.name ?? 'Unknown')
+    : (schedulerItem?.profileName ?? profile?.name ?? 'Unknown');
+
+  if (!item && !schedulerItem) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-gray-500 dark:text-gray-600">
         Select a ticket to see model context
@@ -38,9 +45,7 @@ function QAContextPanelComponent({ item }: QAContextPanelProps) {
     );
   }
 
-  const profile = item.modelProfile;
   const bible = profile?.modelBible ?? {};
-  const modelName = (item.metadata.model as string) ?? profile?.name ?? 'Unknown';
 
   // Model Bible fields — field names match the ModelBible type in useInstagramProfile.query.ts
   const personality = (bible.personalityDescription as string) ?? '';
@@ -71,10 +76,10 @@ function QAContextPanelComponent({ item }: QAContextPanelProps) {
       {/* Model header */}
       <div className="px-4 py-4 border-b border-gray-200/50 dark:border-white/[0.06] shrink-0">
         <div className="flex items-center gap-3">
-          {profile?.profileImageUrl ? (
+          {(profile?.profileImageUrl || schedulerItem?.profileImage) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={profile.profileImageUrl}
+              src={(profile?.profileImageUrl || schedulerItem?.profileImage)!}
               alt={modelName}
               className="w-11 h-11 rounded-xl object-cover shadow-lg shadow-emerald-500/20"
             />
@@ -210,14 +215,36 @@ function QAContextPanelComponent({ item }: QAContextPanelProps) {
 
         {/* Ticket meta summary (quick-ref) */}
         <div>
-          <SectionLabel>Ticket Quick Ref</SectionLabel>
+          <SectionLabel>Quick Ref</SectionLabel>
           <div className="space-y-1.5 text-[11px]">
-            <MetaRow label="Space" value={item.spaceName} />
-            <MetaRow label="Board Column" value={item.columnName} />
-            <MetaRow label="Priority" value={item.priority} />
-            <MetaRow label="Post Origin" value={(item.metadata.postOrigin as string) ?? ''} />
-            <MetaRow label="Platforms" value={((item.metadata.platforms as string[]) ?? []).join(', ')} />
-            <MetaRow label="Price" value={item.metadata.price != null ? `$${item.metadata.price}` : ''} />
+            {item && (
+              <>
+                <MetaRow label="Space" value={item.spaceName} />
+                <MetaRow label="Board Column" value={item.columnName} />
+                <MetaRow label="Priority" value={item.priority} />
+                <MetaRow label="Post Origin" value={(item.metadata.postOrigin as string) ?? ''} />
+                <MetaRow label="Platforms" value={((item.metadata.platforms as string[]) ?? []).join(', ')} />
+                <MetaRow label="Price" value={item.metadata.price != null ? `$${item.metadata.price}` : ''} />
+              </>
+            )}
+            {schedulerItem && (
+              <>
+                <MetaRow label="Source" value="Scheduler" />
+                <MetaRow label="Task Type" value={schedulerItem.taskType} />
+                <MetaRow label="Platform" value={schedulerItem.platform} />
+                <MetaRow label="Slot" value={schedulerItem.slotLabel} />
+                <MetaRow label="Scheduled" value={schedulerItem.taskDate} />
+                <MetaRow label="Price" value={(schedulerItem.fields.price as string) ?? (schedulerItem.fields.priceInfo as string) ?? ''} />
+                {(schedulerItem.fields.paywallContent as string) && (
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-500">Paywall Content</span>
+                    <div className="mt-1 text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                      {schedulerItem.fields.paywallContent as string}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
