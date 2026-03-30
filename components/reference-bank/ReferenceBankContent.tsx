@@ -65,6 +65,7 @@ import { ShareFolderModal } from "./modals/ShareFolderModal";
 import {
   useSharedFolders,
   useSharedFolderItems,
+  type SharedFolder,
 } from "@/lib/hooks/useSharedFolders.query";
 
 export function ReferenceBankContent() {
@@ -161,7 +162,7 @@ export function ReferenceBankContent() {
   // Local selectAll — uses filteredItems (not store.items) as source of truth
   const selectAll = useCallback(() => {
     useReferenceBankStore.setState({
-      selectedItems: new Set(filteredItems.map((i) => i.id)),
+      selectedItems: new Set(filteredItems.map((i: ReferenceItem) => i.id)),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [/* filteredItems added below after it's declared */]);
@@ -180,15 +181,15 @@ export function ReferenceBankContent() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        (item) =>
+        (item: ReferenceItem) =>
           item.name.toLowerCase().includes(query) ||
-          item.tags?.some((tag) => tag.toLowerCase().includes(query))
+          item.tags?.some((tag: string) => tag.toLowerCase().includes(query))
       );
     }
 
     // Filter by type
     if (filterType !== "all") {
-      result = result.filter((item) =>
+      result = result.filter((item: ReferenceItem) =>
         filterType === "image"
           ? item.fileType === "image" || item.fileType.startsWith("image/")
           : item.fileType === "video" || item.fileType.startsWith("video/")
@@ -225,7 +226,7 @@ export function ReferenceBankContent() {
   ]);
 
   // Preview index & navigation (local — uses filteredItems, not store.items)
-  const previewIndex = filteredItems.findIndex((i) => i.id === previewItem?.id);
+  const previewIndex = filteredItems.findIndex((i: ReferenceItem) => i.id === previewItem?.id);
   const handleNavigatePreview = useCallback(
     (direction: "prev" | "next") => {
       if (previewIndex === -1) return;
@@ -241,7 +242,7 @@ export function ReferenceBankContent() {
   // selectAll is fully defined here (needs filteredItems)
   const handleSelectAll = useCallback(() => {
     useReferenceBankStore.setState({
-      selectedItems: new Set(filteredItems.map((i) => i.id)),
+      selectedItems: new Set(filteredItems.map((i: ReferenceItem) => i.id)),
     });
   }, [filteredItems]);
 
@@ -507,12 +508,12 @@ export function ReferenceBankContent() {
   }, []);
 
   // Get current folder name
-  const currentFolder = folders.find((f) => f.id === selectedFolderId);
+  const currentFolder = folders.find((f: ReferenceFolder) => f.id === selectedFolderId);
 
   // Determine current filter state for display
   const getCurrentFilterLabel = () => {
     if (selectedSharedFolderId) {
-      const sf = sharedFolders.find((f) => f.id === selectedSharedFolderId);
+      const sf = sharedFolders.find((f: SharedFolder) => f.id === selectedSharedFolderId);
       return sf ? `Shared: ${sf.name}` : "Shared Folder";
     }
     if (showFavoritesOnly) return "Favorites";
@@ -736,7 +737,7 @@ export function ReferenceBankContent() {
                   </span>
                 </div>
                 <div className="space-y-1">
-                  {sharedFolders.map((sf) => (
+                  {sharedFolders.map((sf: SharedFolder) => (
                     <div
                       key={sf.id}
                       onClick={() => handleSelectSharedFolder(sf.id)}
@@ -832,7 +833,7 @@ export function ReferenceBankContent() {
             {/* Actions */}
             <div className="flex items-center gap-2 ml-auto">
               {/* Hide upload when viewing a shared folder without EDIT permission */}
-              {(!selectedSharedFolderId || sharedFolders.find(f => f.id === selectedSharedFolderId)?.permission === 'EDIT') && (
+              {(!selectedSharedFolderId || sharedFolders.find((f: SharedFolder) => f.id === selectedSharedFolderId)?.permission === 'EDIT') && (
               <button
                 onClick={() => setShowUploadModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#EC67A1] to-[#F774B9] hover:from-[#E1518E] hover:to-[#EC67A1] text-white font-medium rounded-lg transition-all shadow-lg shadow-[#EC67A1]/30"
@@ -1114,7 +1115,7 @@ export function ReferenceBankContent() {
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {filteredItems.map((item) => (
+              {filteredItems.map((item: ReferenceItem) => (
                 <GridItemCard
                   key={item.id}
                   item={item}
@@ -1131,7 +1132,7 @@ export function ReferenceBankContent() {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredItems.map((item) => (
+              {filteredItems.map((item: ReferenceItem) => (
                 <ListItemRow
                   key={item.id}
                   item={item}
