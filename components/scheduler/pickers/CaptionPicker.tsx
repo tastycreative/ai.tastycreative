@@ -25,6 +25,17 @@ export interface CaptionSelection {
   contentType: string;
   price: number;
   boardItemId: string | null;
+  /** Sexting set folder name (boardTitle); only set for sexting_sets origin */
+  sextingSetName?: string;
+  /** Per-image content items; only set for sexting_sets origin */
+  sextingSetItems?: {
+    id: string;
+    url: string;
+    fileName: string;
+    captionText: string;
+    captionStatus: string;
+    isPosted: boolean;
+  }[];
 }
 
 interface CaptionPickerProps {
@@ -102,39 +113,62 @@ export function CaptionPicker({
           </div>
           {/* GIF preview + caption text side by side */}
           <div className="flex gap-2.5">
-            {selectedCaption?.gifUrl && isImageUrl(selectedCaption.gifUrl) && (
-              <div className="shrink-0 w-20 h-20 rounded-md overflow-hidden border border-gray-700/30 bg-black/20">
-                <img
-                  src={selectedCaption.gifUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed font-mono line-clamp-3">
-                {selectedCaption?.caption || captionOverride}
-              </div>
-              {selectedCaption && (
-                <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
-                  {selectedCaption.contentType && (
-                    <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue border border-brand-blue/20 font-sans font-bold">
-                      {selectedCaption.contentType}
-                    </span>
-                  )}
-                  {selectedCaption.contentCount && (
-                    <span className="text-[7px] text-gray-500 dark:text-gray-500 font-mono">
-                      {selectedCaption.contentCount}
-                    </span>
-                  )}
-                  {selectedCaption.price > 0 && (
-                    <span className="text-[7px] text-green-500 font-mono">
-                      ${selectedCaption.price.toFixed(2)}
-                    </span>
+            {/* Sexting set selected preview */}
+            {selectedCaption?.origin === 'sexting_sets' && selectedCaption.sextingSetItems ? (
+              <>
+                <div className="flex -space-x-1.5">
+                  {selectedCaption.sextingSetItems.slice(0, 3).map((item) => (
+                    <div key={item.id} className="shrink-0 w-10 h-10 rounded overflow-hidden border-2 border-gray-900 bg-black/20">
+                      <img src={item.url} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-sans font-bold text-gray-300 truncate">
+                    {selectedCaption.boardTitle || 'Sexting Set'}
+                  </div>
+                  <div className="text-[8px] text-gray-500 font-mono mt-0.5">
+                    {selectedCaption.sextingSetItems.length} image{selectedCaption.sextingSetItems.length !== 1 ? 's' : ''} with captions · View in preview →
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {selectedCaption?.gifUrl && isImageUrl(selectedCaption.gifUrl) && (
+                  <div className="shrink-0 w-20 h-20 rounded-md overflow-hidden border border-gray-700/30 bg-black/20">
+                    <img
+                      src={selectedCaption.gifUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed font-mono line-clamp-3">
+                    {selectedCaption?.caption || captionOverride}
+                  </div>
+                  {selectedCaption && (
+                    <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
+                      {selectedCaption.contentType && (
+                        <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue border border-brand-blue/20 font-sans font-bold">
+                          {selectedCaption.contentType}
+                        </span>
+                      )}
+                      {selectedCaption.contentCount && (
+                        <span className="text-[7px] text-gray-500 dark:text-gray-500 font-mono">
+                          {selectedCaption.contentCount}
+                        </span>
+                      )}
+                      {selectedCaption.price > 0 && (
+                        <span className="text-[7px] text-green-500 font-mono">
+                          ${selectedCaption.price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -180,9 +214,9 @@ export function CaptionPicker({
         {sourceFilter !== 'bank' && (
           <>
             <span className="text-[7px] text-gray-700 mx-0.5">·</span>
-            {(['', 'otp_ptr', 'wall_post'] as const).map((org) => {
+            {(['', 'otp_ptr', 'wall_post', 'sexting_sets'] as const).map((org) => {
               const active = originFilter === org;
-              const label = org === '' ? 'All' : org === 'otp_ptr' ? 'OTP/PTR' : 'Wall Post';
+              const label = org === '' ? 'All' : org === 'otp_ptr' ? 'OTP/PTR' : org === 'wall_post' ? 'Wall Post' : 'Sexting Set';
               return (
                 <button
                   key={org}
@@ -237,6 +271,8 @@ export function CaptionPicker({
                       contentType: cap.contentType,
                       price: cap.price,
                       boardItemId: cap.boardItemId,
+                      sextingSetName: cap.origin === 'sexting_sets' ? cap.boardTitle : undefined,
+                      sextingSetItems: cap.sextingSetItems,
                     });
                   }
                 }}
@@ -292,24 +328,31 @@ function CaptionCard({
         }`,
       }}
     >
-      {/* GIF thumbnail + caption text */}
-      <div className="flex gap-2 mb-1.5">
-        {caption.gifUrl && (
-          <div className="shrink-0 w-14 h-14 rounded overflow-hidden border border-gray-800/50 bg-black/20">
-            <img
-              src={caption.gifUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-start gap-1">
-            <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed flex-1 font-mono line-clamp-2">
-              {caption.caption}
+      {/* Sexting set card: folder name + thumbnail strip */}
+      {caption.origin === 'sexting_sets' && caption.sextingSetItems ? (
+        <>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex -space-x-2">
+              {caption.sextingSetItems.slice(0, 4).map((item) => (
+                <div key={item.id} className="shrink-0 w-8 h-8 rounded overflow-hidden border-2 border-gray-900 bg-black/20">
+                  <img src={item.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                </div>
+              ))}
+              {caption.sextingSetItems.length > 4 && (
+                <div className="shrink-0 w-8 h-8 rounded overflow-hidden border-2 border-gray-900 bg-gray-800 flex items-center justify-center">
+                  <span className="text-[8px] font-bold text-gray-400">+{caption.sextingSetItems.length - 4}</span>
+                </div>
+              )}
             </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-sans font-bold text-gray-300 truncate">
+                {caption.boardTitle || 'Sexting Set'}
+              </div>
+              <div className="text-[8px] text-gray-500 font-mono">
+                {caption.sextingSetItems.length} image{caption.sextingSetItems.length !== 1 ? 's' : ''} with captions
+              </div>
+            </div>
+            <div className="shrink-0 flex flex-col items-end gap-1">
               {flagged && (
                 <span className="text-[8px] text-amber-500 font-sans font-semibold whitespace-nowrap">
                   🚩 queued
@@ -320,8 +363,41 @@ function CaptionCard({
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <>
+          {/* GIF thumbnail + caption text */}
+          <div className="flex gap-2 mb-1.5">
+            {caption.gifUrl && (
+              <div className="shrink-0 w-14 h-14 rounded overflow-hidden border border-gray-800/50 bg-black/20">
+                <img
+                  src={caption.gifUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-start gap-1">
+                <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed flex-1 font-mono line-clamp-2">
+                  {caption.caption}
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {flagged && (
+                    <span className="text-[8px] text-amber-500 font-sans font-semibold whitespace-nowrap">
+                      🚩 queued
+                    </span>
+                  )}
+                  {selected && (
+                    <Check className="h-3 w-3" style={{ color: typeColor }} />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Metadata row */}
       <div className="flex gap-1 flex-wrap items-center">
@@ -339,7 +415,7 @@ function CaptionCard({
         {/* Origin badge */}
         {caption.origin && caption.origin !== 'general' && caption.origin !== 'manual' && (
           <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-gray-500/10 text-gray-500 border border-gray-500/20 font-sans font-bold uppercase">
-            {caption.origin === 'otp_ptr' ? 'OTP/PTR' : caption.origin.replace('_', ' ')}
+            {caption.origin === 'otp_ptr' ? 'OTP/PTR' : caption.origin === 'sexting_sets' ? 'Sexting Set' : caption.origin.replace('_', ' ')}
           </span>
         )}
         {caption.contentType && (

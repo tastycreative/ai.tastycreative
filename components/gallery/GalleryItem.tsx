@@ -104,19 +104,24 @@ function toDisplayUrl(url: string | null | undefined): string | null | undefined
 }
 
 export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, onArchive, gifsPlaying = false, loadDelay = 0 }: GalleryItemProps) {
-  const { ref: cardRef, inView: rawInView } = useInView({ triggerOnce: true, rootMargin: '200px 0px' });
-  const [staggerReady, setStaggerReady] = React.useState(loadDelay === 0);
+  // triggerOnce observer: once card scrolls into viewport region, start loading its thumbnail
+  const { ref: loadRef, inView: rawInView } = useInView({ triggerOnce: true, rootMargin: '200px 0px' });
+  // Continuous observer: track whether card is currently visible (for GIF playback gating)
+  const { ref: visRef, inView: visibleNow } = useInView({ threshold: 0.1 });
   const [showMenu, setShowMenu] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
+  const [hovered, setHovered] = React.useState(false);
 
-  // Stagger: once this card enters the viewport, wait loadDelay ms before actually loading
-  React.useEffect(() => {
-    if (!rawInView || staggerReady) return;
-    const t = setTimeout(() => setStaggerReady(true), loadDelay);
-    return () => clearTimeout(t);
-  }, [rawInView, loadDelay, staggerReady]);
+  // Merge both refs onto the card element
+  const cardRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      loadRef(node);
+      visRef(node);
+    },
+    [loadRef, visRef],
+  );
 
-  const inView = rawInView && staggerReady;
+  const inView = rawInView;
 
   const revenue = Number(item.revenue) || 0;
   const salesCount = item.salesCount || 0;
@@ -140,6 +145,9 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
     <div
       ref={cardRef}
       className={`group relative bg-zinc-900/50 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-zinc-700/50 transition-all duration-300 ${onClick ? 'cursor-pointer' : ''}`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 400px' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={() => onClick?.(item)}
     >
       {/* Hover Glow */}
@@ -151,8 +159,9 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
           <GifThumbnail
             src={gifUrl!}
             alt={item.title || 'Gallery item'}
-            playing={gifsPlaying}
+            playing={gifsPlaying || hovered}
             inView={inView}
+            visibleNow={visibleNow}
             className="transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgError(true)}
           />
@@ -162,6 +171,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
               src={toDisplayUrl(item.previewUrl) ?? item.previewUrl!}
               alt={item.title || 'Gallery item'}
               loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               onError={() => setImgError(true)}
             />
@@ -173,8 +183,9 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
             <GifThumbnail
               src={resolvedThumb!}
               alt={item.title || 'Gallery item'}
-              playing={gifsPlaying}
+              playing={gifsPlaying || hovered}
               inView={inView}
+              visibleNow={visibleNow}
               className="transition-transform duration-500 group-hover:scale-105"
               onError={() => setImgError(true)}
             />
@@ -183,6 +194,7 @@ export function GalleryItem({ item, onClick, onEdit, onEditType, onPerformance, 
               src={resolvedThumb!}
               alt={item.title || 'Gallery item'}
               loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               onError={() => setImgError(true)}
             />

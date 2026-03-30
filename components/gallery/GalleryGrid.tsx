@@ -79,7 +79,6 @@ export function GalleryGrid({
           onPerformance={onItemPerformance}
           onArchive={onItemArchive}
           gifsPlaying={gifsPlaying}
-          loadDelay={Math.floor(index / 4) * 150}
         />
       ))}
     </div>

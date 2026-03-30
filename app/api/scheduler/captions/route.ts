@@ -46,73 +46,179 @@ export async function GET(request: NextRequest) {
 
     // ── Source 1: Board Tickets (CaptionQueueTicket) ──
     if (sourceFilter === 'all' || sourceFilter === 'ticket') {
+      // 1a. Non-sexting tickets — caption lives on the ticket itself
       const ticketWhere: Record<string, unknown> = {
         profileId,
         organizationId: user.currentOrganizationId,
         captionText: { not: null },
+        // Exclude sexting_sets here — handled separately below
+        ...(originFilter
+          ? { workflowType: originFilter }
+          : {}),
+        ...(!originFilter ? { OR: [{ workflowType: { not: 'sexting_sets' } }, { workflowType: null }] } : {}),
       };
-      if (search) {
+      // When filtering specifically for sexting_sets, skip this non-sexting query
+      const skipNonSexting = originFilter === 'sexting_sets';
+      if (search && !skipNonSexting) {
         ticketWhere.captionText = { contains: search, mode: 'insensitive', not: null };
       }
-      if (originFilter) {
-        ticketWhere.workflowType = originFilter;
+
+      if (!skipNonSexting) {
+        const tickets = await prisma.captionQueueTicket.findMany({
+          where: ticketWhere,
+          select: {
+            id: true,
+            captionText: true,
+            status: true,
+            workflowType: true,
+            contentTypes: true,
+            profileId: true,
+            boardItemId: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 50,
+        });
+
+        // Fetch linked board items
+        const boardItemIds = tickets
+          .map((t) => t.boardItemId)
+          .filter((id): id is string => !!id);
+
+        const boardItems = boardItemIds.length > 0
+          ? await prisma.boardItem.findMany({
+              where: { id: { in: boardItemIds } },
+              select: { id: true, title: true, metadata: true },
+            })
+          : [];
+
+        const boardItemMap = new Map(boardItems.map((b) => [b.id, b]));
+
+        for (const t of tickets) {
+          if (!t.captionText?.trim()) continue;
+          const boardItem = t.boardItemId ? boardItemMap.get(t.boardItemId) : null;
+          const meta = (boardItem?.metadata || {}) as Record<string, unknown>;
+
+          results.push({
+            id: t.id,
+            caption: t.captionText!,
+            source: 'ticket',
+            origin: t.workflowType || 'general',
+            profileId: t.profileId || '',
+            status: t.status,
+            contentTypes: t.contentTypes || [],
+            createdAt: t.createdAt.toISOString(),
+            boardItemId: t.boardItemId || null,
+            gifUrl: (meta.gifUrl as string) || '',
+            gifUrlFansly: (meta.gifUrlFansly as string) || '',
+            contentCount: (meta.contentCount as string) || '',
+            contentLength: (meta.contentLength as string) || '',
+            contentType: (meta.contentType as string) || '',
+            price: meta.price as number ?? 0,
+            driveLink: (meta.driveLink as string) || '',
+            boardTitle: boardItem?.title || '',
+          });
+        }
       }
 
-      const tickets = await prisma.captionQueueTicket.findMany({
-        where: ticketWhere,
-        select: {
-          id: true,
-          captionText: true,
-          status: true,
-          workflowType: true,
-          contentTypes: true,
-          profileId: true,
-          boardItemId: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 50,
-      });
+      // 1b. Sexting set tickets — captions live on per-image CaptionQueueContentItem rows
+      // Group all content items into ONE result per ticket, using the board title (folder name)
+      if (!originFilter || originFilter === 'sexting_sets') {
+        const sextingTicketWhere: Record<string, unknown> = {
+          profileId,
+          organizationId: user.currentOrganizationId,
+          workflowType: 'sexting_sets',
+          contentItems: {
+            some: {
+              captionText: { not: null },
+              ...(search ? { captionText: { contains: search, mode: 'insensitive', not: null } } : {}),
+            },
+          },
+        };
 
-      // Fetch linked board items
-      const boardItemIds = tickets
-        .map((t) => t.boardItemId)
-        .filter((id): id is string => !!id);
-
-      const boardItems = boardItemIds.length > 0
-        ? await prisma.boardItem.findMany({
-            where: { id: { in: boardItemIds } },
-            select: { id: true, title: true, metadata: true },
-          })
-        : [];
-
-      const boardItemMap = new Map(boardItems.map((b) => [b.id, b]));
-
-      for (const t of tickets) {
-        if (!t.captionText?.trim()) continue;
-        const boardItem = t.boardItemId ? boardItemMap.get(t.boardItemId) : null;
-        const meta = (boardItem?.metadata || {}) as Record<string, unknown>;
-
-        results.push({
-          id: t.id,
-          caption: t.captionText!,
-          source: 'ticket',
-          origin: t.workflowType || 'general',
-          profileId: t.profileId || '',
-          status: t.status,
-          contentTypes: t.contentTypes || [],
-          createdAt: t.createdAt.toISOString(),
-          boardItemId: t.boardItemId || null,
-          gifUrl: (meta.gifUrl as string) || '',
-          gifUrlFansly: (meta.gifUrlFansly as string) || '',
-          contentCount: (meta.contentCount as string) || '',
-          contentLength: (meta.contentLength as string) || '',
-          contentType: (meta.contentType as string) || '',
-          price: meta.price as number ?? 0,
-          driveLink: (meta.driveLink as string) || '',
-          boardTitle: boardItem?.title || '',
+        const sextingTickets = await prisma.captionQueueTicket.findMany({
+          where: sextingTicketWhere,
+          select: {
+            id: true,
+            status: true,
+            workflowType: true,
+            contentTypes: true,
+            profileId: true,
+            boardItemId: true,
+            createdAt: true,
+            updatedAt: true,
+            contentItems: {
+              select: {
+                id: true,
+                captionText: true,
+                captionStatus: true,
+                url: true,
+                fileName: true,
+                sortOrder: true,
+                isPosted: true,
+              },
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 20,
         });
+
+        // Fetch linked board items for sexting tickets
+        const sextingBoardItemIds = sextingTickets
+          .map((t) => t.boardItemId)
+          .filter((id): id is string => !!id);
+
+        const sextingBoardItems = sextingBoardItemIds.length > 0
+          ? await prisma.boardItem.findMany({
+              where: { id: { in: sextingBoardItemIds } },
+              select: { id: true, title: true, metadata: true },
+            })
+          : [];
+
+        const sextingBoardItemMap = new Map(sextingBoardItems.map((b) => [b.id, b]));
+
+        for (const t of sextingTickets) {
+          const boardItem = t.boardItemId ? sextingBoardItemMap.get(t.boardItemId) : null;
+          const boardTitle = boardItem?.title || 'Sexting Set';
+          const captionedItems = t.contentItems.filter((ci) => ci.captionText?.trim());
+          if (captionedItems.length === 0) continue;
+
+          // First image as thumbnail, concatenate all captions for preview
+          const firstImage = captionedItems[0];
+          const allCaptions = captionedItems
+            .map((ci, i) => `[${i + 1}] ${ci.captionText}`)
+            .join('\n\n');
+
+          results.push({
+            id: t.id,
+            caption: allCaptions,
+            source: 'ticket',
+            origin: 'sexting_sets',
+            profileId: t.profileId || '',
+            status: t.status,
+            contentTypes: t.contentTypes || [],
+            createdAt: t.createdAt.toISOString(),
+            boardItemId: t.boardItemId || null,
+            gifUrl: firstImage.url || '',
+            gifUrlFansly: '',
+            contentCount: `${captionedItems.length} images`,
+            contentLength: '',
+            contentType: '',
+            price: 0,
+            driveLink: '',
+            boardTitle,
+            sextingSetItems: captionedItems.map((ci) => ({
+              id: ci.id,
+              url: ci.url,
+              fileName: ci.fileName || '',
+              captionText: ci.captionText || '',
+              captionStatus: ci.captionStatus,
+              isPosted: ci.isPosted,
+            })),
+          });
+        }
       }
     }
 
@@ -262,4 +368,12 @@ interface SchedulerCaptionResult {
   usageCount?: number;
   isFavorite?: boolean;
   totalRevenue?: number;
+  sextingSetItems?: {
+    id: string;
+    url: string;
+    fileName: string;
+    captionText: string;
+    captionStatus: string;
+    isPosted: boolean;
+  }[];
 }

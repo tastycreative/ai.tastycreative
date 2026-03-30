@@ -2417,12 +2417,32 @@ model ProfileGroup {
   updatedAt   DateTime             @updatedAt
   userId      String
   members     ProfileGroupMember[]
+  shares      ProfileGroupShare[]
   user        User                 @relation(fields: [userId], references: [clerkId], onDelete: Cascade)
 
   @@unique([userId, name])
   @@index([userId])
   @@index([userId, order])
   @@map("profile_groups")
+}
+
+model ProfileGroupShare {
+  id                String          @id @default(cuid())
+  profileGroupId    String
+  ownerClerkId      String
+  sharedWithClerkId String
+  permission        SharePermission @default(VIEW)
+  sharedBy          String?
+  note              String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  profileGroup      ProfileGroup    @relation(fields: [profileGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([profileGroupId, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([profileGroupId])
+  @@map("profile_group_shares")
 }
 
 model ProfilePin {

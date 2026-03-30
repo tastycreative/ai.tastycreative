@@ -820,8 +820,8 @@ export default function CaptionWorkspace() {
           </div>
         )}
 
-        {/* Main Content - Only show if we have queue items */}
-        {!isLoading && !error && queue.length > 0 && (
+        {/* Main Content - Show if we have queue items OR if search is active (so user can clear search) */}
+        {!isLoading && !error && (queue.length > 0 || (allQueue.length > 0 && searchQuery)) && (
           <>
         {/* Left Panel: Queue - Hidden on mobile, shown with toggle */}
         <div className="hidden lg:flex lg:flex-col h-full overflow-hidden">
@@ -841,6 +841,9 @@ export default function CaptionWorkspace() {
           </ErrorBoundary>
         </div>
 
+        {/* Center + Right Panels: only when filtered queue has items */}
+        {queue.length > 0 ? (
+        <>
         {/* Center Panel: Content Viewer + Editor with Resizable */}
         <div className="flex flex-col h-full min-h-0 overflow-hidden">
           {/* OTP/PTR: rejection banner — shown when PGT Team sent the caption back */}
@@ -950,6 +953,29 @@ export default function CaptionWorkspace() {
             )}
           </div>
         </div>
+        </>
+        ) : searchQuery ? (
+          /* No search results — show message spanning center + right columns */
+          <div className="col-span-1 lg:col-span-2 flex items-center justify-center">
+            <div className="text-center px-4">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-brand-mid-pink/10 flex items-center justify-center">
+                <svg className="w-6 h-6 text-brand-mid-pink" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No matching tickets</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                No tickets match &ldquo;{searchQuery}&rdquo;
+              </p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="px-3 py-1.5 text-xs font-medium text-brand-mid-pink hover:bg-brand-mid-pink/10 rounded-lg transition-colors"
+              >
+                Clear search
+              </button>
+            </div>
+          </div>
+        ) : null}
         </>
         )}
       </div>
