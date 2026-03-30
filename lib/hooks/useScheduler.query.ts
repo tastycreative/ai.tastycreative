@@ -738,6 +738,15 @@ export interface SchedulerCaption {
   usageCount?: number;
   isFavorite?: boolean;
   totalRevenue?: number;
+  // Sexting set — per-image content items (only present for origin='sexting_sets')
+  sextingSetItems?: {
+    id: string;
+    url: string;
+    fileName: string;
+    captionText: string;
+    captionStatus: string;
+    isPosted: boolean;
+  }[];
 }
 
 export type CaptionSourceFilter = 'all' | 'ticket' | 'bank';

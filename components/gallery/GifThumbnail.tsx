@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 interface GifThumbnailProps {
   src: string;
@@ -11,27 +11,40 @@ interface GifThumbnailProps {
   playing?: boolean;
   /** When false, skip loading the GIF entirely (for lazy/viewport gating) */
   inView?: boolean;
+  /** When false, GIF animation is paused even if playing=true (for off-screen cards) */
+  visibleNow?: boolean;
 }
 
 /**
- * GIF thumbnail: GIF always visible as thumbnail.
- * When paused, a canvas overlay freezes the first frame on top.
- * When canvas is blocked (CORS), the animated GIF shows through — still a
- * valid thumbnail, just animated.
- * When playing, canvas hides and the GIF animates freely.
+ * GIF thumbnail with optimised rendering:
+ * - A hidden loader <img> downloads the GIF and captures frame 1 to canvas.
+ * - When paused → canvas shows the frozen first frame (no GIF decode cost).
+ * - When playing AND visible → a second <img> is mounted to animate.
+ * - Off-screen cards show canvas only (no animation decode).
+ * - If canvas capture fails (CORS), falls back to showing the GIF directly as thumbnail.
  */
-export function GifThumbnail({ src, alt, className = '', onError, playing = false, inView = true }: GifThumbnailProps) {
+export function GifThumbnail({
+  src,
+  alt,
+  className = '',
+  onError,
+  playing = false,
+  inView = true,
+  visibleNow = true,
+}: GifThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [canvasReady, setCanvasReady] = useState(false);
   const [canvasFailed, setCanvasFailed] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   useEffect(() => {
     setCanvasReady(false);
     setCanvasFailed(false);
+    setImgLoaded(false);
   }, [src]);
 
-  function drawToCanvas() {
+  const drawToCanvas = useCallback(() => {
     const img = imgRef.current;
     const canvas = canvasRef.current;
     if (!img || !canvas) return;
@@ -52,12 +65,17 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
       ctx.drawImage(img, (cw - sw) / 2, (ch - sh) / 2, sw, sh);
       setCanvasReady(true);
     } catch {
-      // cross-origin taint — fall back to showing the GIF directly
+      // cross-origin taint — canvas won't work, fall through to img fallback
       setCanvasFailed(true);
     }
-  }
+  }, []);
 
-  // Don't load GIF until the card is in the viewport
+  const handleLoad = useCallback(() => {
+    setImgLoaded(true);
+    drawToCanvas();
+  }, [drawToCanvas]);
+
+  // Don't load anything until the card enters the viewport region
   if (!inView) {
     return (
       <div className={`relative w-full h-full overflow-hidden ${className}`}>
@@ -66,9 +84,12 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
     );
   }
 
+  // Should we mount the animated playback <img>?
+  const shouldAnimate = playing && visibleNow;
+
   return (
     <div className={`relative w-full h-full overflow-hidden ${className}`}>
-      {/* Hidden loader — draws first frame to canvas, never visible */}
+      {/* Hidden loader — downloads the GIF once, captures first frame to canvas */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={imgRef}
@@ -76,29 +97,48 @@ export function GifThumbnail({ src, alt, className = '', onError, playing = fals
         alt=""
         aria-hidden
         loading="lazy"
-        onLoad={drawToCanvas}
+        decoding="async"
+        onLoad={handleLoad}
         onError={onError}
         className="absolute w-0 h-0 opacity-0 pointer-events-none"
       />
 
-      {/* Visible GIF — only mounted when playing OR when canvas failed (CORS) as fallback */}
-      {(playing || (canvasReady === false && canvasFailed)) && (
+      {/* Canvas: frozen first frame — visible when paused or off-screen */}
+      <canvas
+        ref={canvasRef}
+        className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${
+          canvasReady && !shouldAnimate ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+
+      {/* Animated GIF — only mounted when playing AND card is visible on screen */}
+      {shouldAnimate && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
+
+      {/* CORS fallback: if canvas failed, show the GIF as a static-ish thumbnail when paused */}
+      {canvasFailed && !shouldAnimate && imgLoaded && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt={alt}
           loading="lazy"
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
         />
       )}
 
-      {/* Canvas: frozen first frame poster, visible when paused */}
-      <canvas
-        ref={canvasRef}
-        className={`absolute inset-0 w-full h-full ${
-          canvasReady && !playing ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
+      {/* Loading placeholder until canvas or image is ready */}
+      {!canvasReady && !canvasFailed && !imgLoaded && (
+        <div className="absolute inset-0 bg-zinc-800/50 animate-pulse" />
+      )}
     </div>
   );
 }

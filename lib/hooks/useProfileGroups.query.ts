@@ -11,6 +11,16 @@ export interface ProfileGroup {
   order: number;
   isCollapsed: boolean;
   memberCount: number;
+  shareCount: number;
+  isSharedWithMe: boolean;
+  isOwner: boolean;
+  permission: 'OWNER' | 'VIEW' | 'USE' | 'EDIT';
+  owner: {
+    clerkId: string;
+    name: string | null;
+    email: string | null;
+    imageUrl: string | null;
+  } | null;
   members: {
     id: string;
     profileId: string;
@@ -22,6 +32,24 @@ export interface ProfileGroup {
       instagramUsername?: string;
     };
   }[];
+}
+
+export interface ProfileGroupShareEntry {
+  id: string;
+  profileGroupId: string;
+  ownerClerkId: string;
+  sharedWithClerkId: string;
+  permission: 'VIEW' | 'USE' | 'EDIT';
+  note?: string;
+  createdAt: string;
+  sharedWithUser: {
+    clerkId: string;
+    name: string | null;
+    email: string | null;
+    imageUrl: string | null;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
 }
 
 // Fetch all groups with members
@@ -209,6 +237,75 @@ export function useDeleteProfileGroup() {
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
+    },
+  });
+}
+
+// Fetch shares for a group
+async function fetchGroupShares(groupId: string): Promise<ProfileGroupShareEntry[]> {
+  const response = await fetch(`/api/profile-groups/${groupId}/shares`);
+  if (!response.ok) throw new Error('Failed to fetch shares');
+  return response.json();
+}
+
+export function useGroupShares(groupId: string | undefined) {
+  return useQuery({
+    queryKey: ['profile-group-shares', groupId],
+    queryFn: () => fetchGroupShares(groupId!),
+    enabled: !!groupId,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Share group with users
+export function useShareProfileGroup() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      userClerkIds,
+      permission = 'VIEW',
+      note,
+    }: {
+      groupId: string;
+      userClerkIds: string[];
+      permission?: 'VIEW' | 'USE' | 'EDIT';
+      note?: string;
+    }) => {
+      const response = await fetch(`/api/profile-groups/${groupId}/shares`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userClerkIds, permission, note }),
+      });
+      if (!response.ok) throw new Error('Failed to share group');
+      return response.json();
+    },
+    onSuccess: (_, { groupId }) => {
+      queryClient.invalidateQueries({ queryKey: ['profile-group-shares', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
+    },
+  });
+}
+
+// Remove a share
+export function useRemoveGroupShare() {
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  return useMutation({
+    mutationFn: async ({ groupId, shareId }: { groupId: string; shareId: string }) => {
+      const response = await fetch(`/api/profile-groups/${groupId}/shares?shareId=${shareId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to remove share');
+      return response.json();
+    },
+    onSuccess: (_, { groupId }) => {
+      queryClient.invalidateQueries({ queryKey: ['profile-group-shares', groupId] });
       queryClient.invalidateQueries({ queryKey: ['profile-groups', user?.id] });
     },
   });

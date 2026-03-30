@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET /api/profile-groups - Fetch all groups for user
+// GET /api/profile-groups - Fetch all groups for user (owned + shared with)
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const groups = await prisma.profileGroup.findMany({
+    // Fetch user's own groups
+    const ownedGroups = await prisma.profileGroup.findMany({
       where: { userId },
       include: {
         members: {
@@ -26,17 +27,71 @@ export async function GET(request: NextRequest) {
           },
           orderBy: { order: 'asc' },
         },
+        shares: {
+          select: { id: true, sharedWithClerkId: true, permission: true },
+        },
       },
       orderBy: { order: 'asc' },
     });
 
-    // Add member count to each group
-    const groupsWithCount = groups.map(group => ({
+    // Fetch groups shared with this user
+    const sharedWithMe = await prisma.profileGroupShare.findMany({
+      where: { sharedWithClerkId: userId },
+      include: {
+        profileGroup: {
+          include: {
+            members: {
+              include: {
+                profile: {
+                  select: {
+                    id: true,
+                    name: true,
+                    profileImageUrl: true,
+                    instagramUsername: true,
+                  },
+                },
+              },
+              orderBy: { order: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    // Get owner info for shared groups
+    const ownerClerkIds = [...new Set(sharedWithMe.map(s => s.ownerClerkId))];
+    const owners = ownerClerkIds.length > 0
+      ? await prisma.user.findMany({
+          where: { clerkId: { in: ownerClerkIds } },
+          select: { clerkId: true, name: true, email: true, imageUrl: true },
+        })
+      : [];
+    const ownerMap = new Map(owners.map(o => [o.clerkId, o]));
+
+    // Format owned groups
+    const formattedOwned = ownedGroups.map(group => ({
       ...group,
       memberCount: group.members.length,
+      shareCount: group.shares.length,
+      isSharedWithMe: false,
+      isOwner: true,
+      permission: 'OWNER' as const,
+      owner: null,
     }));
 
-    return NextResponse.json(groupsWithCount);
+    // Format shared groups
+    const formattedShared = sharedWithMe.map(share => ({
+      ...share.profileGroup,
+      memberCount: share.profileGroup.members.length,
+      shares: [],
+      shareCount: 0,
+      isSharedWithMe: true,
+      isOwner: false,
+      permission: share.permission,
+      owner: ownerMap.get(share.ownerClerkId) || null,
+    }));
+
+    return NextResponse.json([...formattedOwned, ...formattedShared]);
   } catch (error) {
     console.error('Error fetching profile groups:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

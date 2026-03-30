@@ -23,6 +23,11 @@ import {
   LayoutGrid,
   TrendingUp,
   Star,
+  Share2,
+  Shield,
+  Eye,
+  Pencil,
+  Globe,
 } from 'lucide-react';
 import {
   useProfileGroups,
@@ -31,6 +36,10 @@ import {
   useDeleteProfileGroup,
   useAddProfilesToGroup,
   useRemoveProfileFromGroup,
+  useGroupShares,
+  useShareProfileGroup,
+  useRemoveGroupShare,
+  ProfileGroupShareEntry,
 } from '@/lib/hooks/useProfileGroups.query';
 import { useInstagramProfiles, InstagramProfile } from '@/lib/hooks/useInstagramProfiles.query';
 import { toast } from 'sonner';
@@ -78,6 +87,7 @@ export default function ManageGroupsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddProfilesModal, setShowAddProfilesModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
@@ -115,6 +125,11 @@ export default function ManageGroupsPage() {
   const handleAddProfiles = (group: any) => {
     setSelectedGroup(group);
     setShowAddProfilesModal(true);
+  };
+
+  const handleShareGroup = (group: any) => {
+    setSelectedGroup(group);
+    setShowShareModal(true);
   };
 
   const handleAddProfilesToGroup = async (groupId: string) => {
@@ -332,11 +347,26 @@ export default function ManageGroupsPage() {
                     {group.icon || '📁'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 dark:text-white truncate text-sm">
-                      {group.name}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold text-gray-900 dark:text-white truncate text-sm">
+                        {group.name}
+                      </p>
+                      {group.isSharedWithMe && (
+                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-blue/15 text-brand-blue border border-brand-blue/20">
+                          <Share2 className="h-2.5 w-2.5" />
+                          Shared
+                        </span>
+                      )}
+                      {group.isOwner && (group.shareCount ?? 0) > 0 && (
+                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-light-pink/15 text-brand-dark-pink border border-brand-light-pink/20">
+                          <Users className="h-2.5 w-2.5" />
+                          {group.shareCount}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-500">
                       {group.members.length} {group.members.length === 1 ? 'profile' : 'profiles'}
+                      {group.isSharedWithMe && group.owner?.name ? ` · by ${group.owner.name}` : ''}
                     </p>
                   </div>
                   {selectedGroup?.id === group.id && (
@@ -386,37 +416,75 @@ export default function ManageGroupsPage() {
                       {selectedGroup.icon || '📁'}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                        {selectedGroup.name}
-                      </h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                          {selectedGroup.name}
+                        </h2>
+                        {selectedGroup.isSharedWithMe && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-brand-blue/15 text-brand-blue border border-brand-blue/20">
+                            <Share2 className="h-3 w-3" />
+                            Shared with you
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {selectedGroup.members.length} {selectedGroup.members.length === 1 ? 'profile' : 'profiles'} in this group
+                        {selectedGroup.isSharedWithMe && selectedGroup.owner?.name && (
+                          <span> · Owned by <span className="font-medium text-brand-mid-pink">{selectedGroup.owner.name}</span></span>
+                        )}
+                        {selectedGroup.isSharedWithMe && selectedGroup.permission && (
+                          <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                            {selectedGroup.permission === 'VIEW' && <Eye className="h-2.5 w-2.5" />}
+                            {selectedGroup.permission === 'USE' && <Shield className="h-2.5 w-2.5" />}
+                            {selectedGroup.permission === 'EDIT' && <Pencil className="h-2.5 w-2.5" />}
+                            {selectedGroup.permission}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleAddProfiles(selectedGroup)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white rounded-lg hover:shadow-lg hover:shadow-brand-mid-pink/30 transition-all text-sm font-medium"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Add Profiles
-                    </button>
-                    <button
-                      onClick={() => handleEditGroup(selectedGroup)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
-                      title="Edit group"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGroup(selectedGroup)}
-                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                      title="Delete group"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Only owners and EDIT permission can add profiles */}
+                    {(selectedGroup.isOwner || selectedGroup.permission === 'EDIT') && (
+                      <button
+                        onClick={() => handleAddProfiles(selectedGroup)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-mid-pink to-brand-light-pink text-white rounded-lg hover:shadow-lg hover:shadow-brand-mid-pink/30 transition-all text-sm font-medium"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Add Profiles
+                      </button>
+                    )}
+                    {/* Only owners can share */}
+                    {selectedGroup.isOwner && (
+                      <button
+                        onClick={() => handleShareGroup(selectedGroup)}
+                        className="flex items-center gap-2 px-4 py-2 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 border border-brand-blue/20 rounded-lg transition-all text-sm font-medium"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Share
+                      </button>
+                    )}
+                    {/* Only owners can edit */}
+                    {selectedGroup.isOwner && (
+                      <button
+                        onClick={() => handleEditGroup(selectedGroup)}
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                        title="Edit group"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    {/* Only owners can delete */}
+                    {selectedGroup.isOwner && (
+                      <button
+                        onClick={() => handleDeleteGroup(selectedGroup)}
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                        title="Delete group"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -473,13 +541,15 @@ export default function ManageGroupsPage() {
                               </p>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleRemoveProfile(selectedGroup.id, member.profile.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                            title="Remove from group"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
+                          {(selectedGroup.isOwner || selectedGroup.permission === 'EDIT') && (
+                            <button
+                              onClick={() => handleRemoveProfile(selectedGroup.id, member.profile.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                              title="Remove from group"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -545,6 +615,12 @@ export default function ManageGroupsPage() {
           }}
           onAdd={handleAddProfilesToGroup}
           isAdding={addProfilesToGroup.isPending}
+        />
+      )}
+      {showShareModal && selectedGroup && (
+        <ShareGroupModal
+          group={selectedGroup}
+          onClose={() => setShowShareModal(false)}
         />
       )}
     </div>
@@ -1043,6 +1119,317 @@ function AddProfilesModal({
               <>
                 <UserPlus className="h-4 w-4" />
                 Add {selectedProfiles.length} {selectedProfiles.length === 1 ? 'Profile' : 'Profiles'}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ShareGroupModal Component
+function ShareGroupModal({
+  group,
+  onClose,
+}: {
+  group: any;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [permission, setPermission] = useState<'VIEW' | 'USE' | 'EDIT'>('VIEW');
+  const [orgMembers, setOrgMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+
+  const { data: shares, isLoading: loadingShares } = useGroupShares(group.id);
+  const shareGroup = useShareProfileGroup();
+  const removeShare = useRemoveGroupShare();
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  // Fetch org members
+  useEffect(() => {
+    async function fetchMembers() {
+      try {
+        const res = await fetch('/api/organization/members');
+        if (res.ok) {
+          const data = await res.json();
+          setOrgMembers(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch org members:', err);
+      } finally {
+        setLoadingMembers(false);
+      }
+    }
+    fetchMembers();
+  }, []);
+
+  const handleShare = async () => {
+    if (selectedUsers.length === 0) {
+      toast.error('Please select at least one member');
+      return;
+    }
+    try {
+      await shareGroup.mutateAsync({
+        groupId: group.id,
+        userClerkIds: selectedUsers,
+        permission,
+      });
+      toast.success(`Shared with ${selectedUsers.length} member(s)`);
+      setSelectedUsers([]);
+    } catch {
+      toast.error('Failed to share group');
+    }
+  };
+
+  const handleRemoveShare = async (shareId: string) => {
+    try {
+      await removeShare.mutateAsync({ groupId: group.id, shareId });
+      toast.success('Share removed');
+    } catch {
+      toast.error('Failed to remove share');
+    }
+  };
+
+  // Filter out already-shared users and the group owner
+  const sharedClerkIds = new Set(shares?.map(s => s.sharedWithClerkId) || []);
+  const availableMembers = orgMembers.filter(m =>
+    m.clerkId !== group.userId &&
+    !sharedClerkIds.has(m.clerkId) &&
+    (m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     m.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     m.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     m.lastName?.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const toggleUser = (clerkId: string) => {
+    setSelectedUsers(prev =>
+      prev.includes(clerkId) ? prev.filter(id => id !== clerkId) : [...prev, clerkId]
+    );
+  };
+
+  const permissionOptions = [
+    { value: 'VIEW' as const, label: 'View', icon: Eye, desc: 'Can see the group and its profiles' },
+    { value: 'USE' as const, label: 'Use', icon: Shield, desc: 'Can use the group in workflows' },
+    { value: 'EDIT' as const, label: 'Edit', icon: Pencil, desc: 'Can add/remove profiles' },
+  ];
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-[#1a1625] rounded-2xl shadow-2xl w-full max-w-2xl border border-brand-mid-pink/20 dark:border-brand-mid-pink/30 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex-shrink-0 bg-white dark:bg-[#1a1625] border-b border-brand-mid-pink/10 dark:border-brand-mid-pink/20 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-brand-blue/15 rounded-xl flex items-center justify-center">
+                <Share2 className="h-5 w-5 text-brand-blue" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Share &ldquo;{group.name}&rdquo;
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Share this group with your team members
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+          {/* Current Shares */}
+          {loadingShares ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-brand-mid-pink" />
+            </div>
+          ) : shares && shares.length > 0 ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                Shared with ({shares.length})
+              </h3>
+              <div className="space-y-2">
+                {shares.map((share) => (
+                  <div
+                    key={share.id}
+                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0a0a0f] rounded-xl border border-brand-mid-pink/10"
+                  >
+                    {share.sharedWithUser?.imageUrl ? (
+                      <img
+                        src={share.sharedWithUser.imageUrl}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover border-2 border-brand-light-pink/30"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-brand-mid-pink" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                        {share.sharedWithUser?.name || share.sharedWithUser?.email || 'Unknown user'}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {share.sharedWithUser?.email}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-brand-light-pink/10 text-brand-dark-pink border border-brand-light-pink/20">
+                      {share.permission === 'VIEW' && <Eye className="h-3 w-3" />}
+                      {share.permission === 'USE' && <Shield className="h-3 w-3" />}
+                      {share.permission === 'EDIT' && <Pencil className="h-3 w-3" />}
+                      {share.permission}
+                    </span>
+                    <button
+                      onClick={() => handleRemoveShare(share.id)}
+                      disabled={removeShare.isPending}
+                      className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
+                      title="Remove share"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Permission Selector */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+              Permission Level
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {permissionOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPermission(opt.value)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                    permission === opt.value
+                      ? 'border-brand-mid-pink bg-brand-mid-pink/10'
+                      : 'border-brand-mid-pink/10 dark:border-brand-mid-pink/20 hover:border-brand-mid-pink/30'
+                  }`}
+                >
+                  <opt.icon className={`h-5 w-5 ${permission === opt.value ? 'text-brand-mid-pink' : 'text-gray-400'}`} />
+                  <span className={`text-sm font-medium ${permission === opt.value ? 'text-brand-mid-pink' : 'text-gray-600 dark:text-gray-400'}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[10px] text-gray-500 text-center leading-tight">
+                    {opt.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Add Members */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+              Add Members
+            </h3>
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search team members..."
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#0a0a0f] border border-brand-mid-pink/10 dark:border-brand-mid-pink/20 rounded-xl focus:ring-2 focus:ring-brand-mid-pink focus:border-transparent text-sm"
+              />
+            </div>
+
+            {selectedUsers.length > 0 && (
+              <div className="mb-3 px-3 py-2 bg-brand-light-pink/10 dark:bg-brand-light-pink/20 rounded-lg border border-brand-light-pink/30">
+                <p className="text-sm text-brand-dark-pink dark:text-brand-light-pink font-medium">
+                  {selectedUsers.length} member{selectedUsers.length === 1 ? '' : 's'} selected
+                </p>
+              </div>
+            )}
+
+            {loadingMembers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-brand-mid-pink" />
+              </div>
+            ) : availableMembers.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-10 w-10 text-gray-300 dark:text-gray-700 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">
+                  {searchQuery ? 'No members found' : 'All team members already have access'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                {availableMembers.map((member) => (
+                  <label
+                    key={member.clerkId}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedUsers.includes(member.clerkId)
+                        ? 'bg-brand-light-pink/10 border-brand-mid-pink'
+                        : 'border-brand-mid-pink/10 dark:border-brand-mid-pink/20 hover:border-brand-mid-pink/30 hover:bg-gray-50 dark:hover:bg-gray-900/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(member.clerkId)}
+                      onChange={() => toggleUser(member.clerkId)}
+                      className="rounded border-gray-300 text-brand-mid-pink focus:ring-brand-mid-pink"
+                    />
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-light-pink/20 to-brand-blue/20 flex items-center justify-center flex-shrink-0">
+                      <Users className="h-4 w-4 text-brand-mid-pink" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                        {member.name || `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'Unnamed'}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">{member.email}</p>
+                    </div>
+                    {selectedUsers.includes(member.clerkId) && (
+                      <div className="w-6 h-6 bg-brand-mid-pink rounded-full flex items-center justify-center flex-shrink-0">
+                        <Check className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 bg-white dark:bg-[#1a1625] border-t border-brand-mid-pink/10 dark:border-brand-mid-pink/20 p-6 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors font-medium"
+          >
+            Done
+          </button>
+          <button
+            onClick={handleShare}
+            disabled={shareGroup.isPending || selectedUsers.length === 0}
+            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-brand-blue to-brand-blue/80 text-white rounded-xl hover:shadow-xl hover:shadow-brand-blue/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            {shareGroup.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Sharing...
+              </>
+            ) : (
+              <>
+                <Share2 className="h-4 w-4" />
+                Share with {selectedUsers.length || ''} Member{selectedUsers.length !== 1 ? 's' : ''}
               </>
             )}
           </button>

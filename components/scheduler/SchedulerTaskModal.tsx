@@ -19,6 +19,7 @@ import {
   History,
   TrendingUp,
   GitBranch,
+  Images,
 } from 'lucide-react';
 import {
   SchedulerTask,
@@ -141,6 +142,10 @@ export function SchedulerTaskModal({
 
   // ─── Pending (unsaved) field changes ───
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
+  // Sexting set items for preview (not persisted to task fields)
+  const [sextingSetPreview, setSextingSetPreview] = useState<CaptionSelection['sextingSetItems'] | null>(null);
+  const [sextingSetName, setSextingSetName] = useState<string>('');
+  const [sextingSelectedItemId, setSextingSelectedItemId] = useState<string | null>(null);
   const isDirty = Object.keys(pendingChanges).length > 0;
 
   // Merge for display: server + pending
@@ -185,6 +190,9 @@ export function SchedulerTaskModal({
       setPendingChanges({});
       setQueueTargetWeek(null);
       setShowEarnings(false);
+      setSextingSetPreview(null);
+      setSextingSelectedItemId(null);
+      setSextingSetName('');
     }
   }, [task]);
 
@@ -265,6 +273,11 @@ export function SchedulerTaskModal({
       flyerAssetUrl: sel.gifUrl,
       flyerAssetId: sel.boardItemId || '',
     };
+    if (sel.sextingSetName) {
+      patch.caption = sel.captionText;
+      patch.sextingSetName = sel.sextingSetName;
+      patch.contentPreview = sel.sextingSetName;
+    }
     if (sel.contentCount) {
       patch.paywallContent = sel.contentCount + (sel.contentLength ? ` (${sel.contentLength})` : '');
     }
@@ -275,10 +288,17 @@ export function SchedulerTaskModal({
       patch.tag = sel.contentType;
     }
     setPendingChanges((prev) => ({ ...prev, ...patch }));
+    // Store sexting set items for preview (if applicable)
+    setSextingSetPreview(sel.sextingSetItems ?? null);
+    setSextingSelectedItemId(null);
+    setSextingSetName(sel.sextingSetName ?? '');
   }, []);
 
   const handleClearCaption = useCallback(() => {
-    setPendingChanges((prev) => ({ ...prev, captionId: '', captionBankText: '' }));
+    setPendingChanges((prev) => ({ ...prev, captionId: '', captionBankText: '', sextingSetName: '' }));
+    setSextingSetPreview(null);
+    setSextingSelectedItemId(null);
+    setSextingSetName('');
   }, []);
 
   const handleCaptionOverride = useCallback((text: string) => {
@@ -739,7 +759,7 @@ export function SchedulerTaskModal({
 
           {/* Right column: preview + calendar + queue + history */}
           <div ref={calendarRef} className="w-full md:w-80 shrink-0 overflow-y-auto border-t md:border-t-0 border-gray-100 dark:border-[#111124]">
-            <ContentPreview fields={fields} typeColor={typeColor} />
+            <ContentPreview fields={fields} typeColor={typeColor} sextingSetItems={sextingSetPreview} sextingSetName={sextingSetName} selectedItemId={sextingSelectedItemId} onSelectItem={setSextingSelectedItemId} />
             <QueueCalendar
               task={task}
               schedulerToday={schedulerToday || ''}
@@ -1142,24 +1162,112 @@ function PreviewMedia({
 function ContentPreview({
   fields,
   typeColor,
+  sextingSetItems,
+  sextingSetName,
+  selectedItemId,
+  onSelectItem,
 }: {
   fields: Record<string, string>;
   typeColor: string;
+  sextingSetItems?: CaptionSelection['sextingSetItems'] | null;
+  sextingSetName?: string;
+  selectedItemId?: string | null;
+  onSelectItem?: (id: string | null) => void;
 }) {
   const contentVal = fields.contentPreview || fields.contentFlyer || '';
   const flyerUrl = fields.flyerAssetUrl || '';
+  const setSelectedItemId = onSelectItem ?? (() => {});
 
   const hasContentUrl = URL_REGEX.test(contentVal);
   const hasFlyerUrl = URL_REGEX.test(flyerUrl);
   const hasAny = hasContentUrl || hasFlyerUrl;
+  const hasSextingSet = sextingSetItems && sextingSetItems.length > 0;
+  const selectedSetItem = hasSextingSet ? sextingSetItems.find((i) => i.id === selectedItemId) ?? null : null;
 
   return (
     <div className="p-3 border-b border-gray-100 dark:border-[#111124]">
       <span className="text-[9px] font-bold tracking-wider font-sans text-gray-400 block mb-2">PREVIEW</span>
 
       {/* Fixed-height container so layout never shifts */}
-      <div className="h-36">
-        {!hasAny ? (
+      <div className={hasSextingSet ? '' : 'h-36'}>
+        {hasSextingSet ? (
+          /* Sexting set preview: selected image or thumbnail grid */
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Images className="h-3 w-3" style={{ color: typeColor }} />
+              <span className="text-[10px] font-bold font-sans" style={{ color: typeColor }}>
+                {sextingSetName || 'Sexting Set'}
+              </span>
+              <span className="text-[8px] text-gray-500 font-mono">
+                ({sextingSetItems.length} image{sextingSetItems.length !== 1 ? 's' : ''})
+              </span>
+            </div>
+
+            {/* Selected item full preview */}
+            {selectedSetItem ? (
+              <div>
+                <div className="relative rounded-lg overflow-hidden border border-gray-800/50 bg-black/20 mb-1.5">
+                  <img src={selectedSetItem.url} alt="" className="w-full h-auto max-h-44 object-contain bg-black/40" />
+                  <button
+                    onClick={() => setSelectedItemId(null)}
+                    className="absolute top-1.5 right-1.5 p-0.5 rounded-full bg-black/60 hover:bg-black/80 text-gray-300 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="text-[9px] font-sans font-bold text-gray-400 mb-0.5">
+                  {selectedSetItem.fileName || 'Image'}
+                  {selectedSetItem.captionStatus === 'approved' && (
+                    <span className="ml-1.5 text-[7px] px-1 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 font-bold">✓ Approved</span>
+                  )}
+                  {selectedSetItem.captionStatus === 'rejected' && (
+                    <span className="ml-1.5 text-[7px] px-1 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold">✗ Rejected</span>
+                  )}
+                </div>
+                {selectedSetItem.captionText && (
+                  <div className="text-[9px] font-mono text-gray-400 leading-relaxed whitespace-pre-wrap mt-1 max-h-20 overflow-y-auto scrollbar-thin">
+                    {selectedSetItem.captionText}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Thumbnail grid with captions — click to preview */
+              <div className="grid grid-cols-2 gap-1.5 max-h-[220px] overflow-y-auto scrollbar-thin pr-0.5">
+                {sextingSetItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedItemId(item.id)}
+                    className="cursor-pointer rounded-lg overflow-hidden border border-gray-800/50 bg-black/10 hover:border-gray-600 transition-colors group"
+                  >
+                    <div className="relative aspect-square">
+                      <img src={item.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <span className="text-[8px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity">#{idx + 1}</span>
+                      </div>
+                      {item.captionStatus === 'approved' && (
+                        <span className="absolute top-0.5 right-0.5 text-[6px] px-0.5 rounded-full bg-green-500/80 text-white font-bold">✓</span>
+                      )}
+                      {item.captionStatus === 'rejected' && (
+                        <span className="absolute top-0.5 right-0.5 text-[6px] px-0.5 rounded-full bg-red-500/80 text-white font-bold">✗</span>
+                      )}
+                    </div>
+                    {item.captionText ? (
+                      <div className="px-1.5 py-1 bg-black/20">
+                        <p className="text-[8px] font-mono text-gray-400 leading-snug line-clamp-2 whitespace-pre-wrap">
+                          {item.captionText}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="px-1.5 py-1 bg-black/20">
+                        <span className="text-[8px] font-mono text-gray-600 italic">No caption</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : !hasAny ? (
           <div className="flex flex-col items-center justify-center h-full rounded-lg border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02] gap-1.5">
             {fields.captionId ? (
               <>
