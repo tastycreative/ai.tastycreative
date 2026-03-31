@@ -110,7 +110,7 @@ function setTokenCookies(
   const sameSite = 'lax' as const;
 
   response.cookies.set('gdrive_access_token', accessToken, {
-    path: '/api/google-drive',
+    path: '/api/',
     httpOnly: true,
     secure,
     sameSite,
@@ -119,7 +119,7 @@ function setTokenCookies(
 
   if (refreshToken) {
     response.cookies.set('gdrive_refresh_token', refreshToken, {
-      path: '/api/google-drive',
+      path: '/api/',
       httpOnly: true,
       secure,
       sameSite,
