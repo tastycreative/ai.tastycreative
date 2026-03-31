@@ -114,6 +114,9 @@ export const DraggableOverlay = memo(function DraggableOverlay({
         width: `${overlay.width}%`,
         height: `${overlay.height}%`,
         borderRadius,
+        transform: overlay.type === "text" && (overlay as any).rotation
+          ? `rotate(${(overlay as any).rotation}deg)`
+          : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();

@@ -84,10 +84,14 @@ function renderTextOverlay(
   const shadowBlurVal = overlay.shadowBlur ?? 0;
   const shadowColor = overlay.shadowColor ?? "rgba(0,0,0,0.5)";
 
-  // Gradient
+  // Gradient — text and background independent
   const useGradient = overlay.useGradient ?? false;
-  const gradientColors = overlay.gradientColors ?? ["#FF6B35", "#FFD700"];
-  const gradientAngle = overlay.gradientAngle ?? 180;
+  const textGradEnabled = useGradient && (overlay.textGradientEnabled ?? false);
+  const bgGradEnabled = useGradient && (overlay.bgGradientEnabled ?? false);
+  const textGradColors = overlay.textGradientColors ?? ["#00D4FF", "#0077FF"];
+  const textGradAngle = overlay.textGradientAngle ?? 180;
+  const bgGradColors = overlay.bgGradientColors ?? ["#FF6B35", "#FFD700"];
+  const bgGradAngle = overlay.bgGradientAngle ?? 180;
 
   // Resolve display text (typewriter animation)
   let displayText = overlay.text;
@@ -146,8 +150,19 @@ function renderTextOverlay(
   // Vertically center text within the overlay box
   const textStartY = y + (h - totalTextHeight) / 2;
 
-  // Draw background if needed
-  if (backgroundOpacity > 0 && overlay.backgroundColor && overlay.backgroundColor !== "transparent") {
+  // Draw background — gradient background or solid color
+  if (bgGradEnabled && bgGradColors.length >= 2) {
+    ctx.save();
+    ctx.globalAlpha = textOpacity;
+    const bgGrad = createAngledGradient(ctx, bgGradAngle, x, y, w, h);
+    bgGrad.addColorStop(0, bgGradColors[0]);
+    bgGrad.addColorStop(1, bgGradColors[1]);
+    ctx.fillStyle = bgGrad;
+    roundRect(ctx, x, y, w, h, borderRadius * fontScale);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = textOpacity;
+  } else if (backgroundOpacity > 0 && overlay.backgroundColor && overlay.backgroundColor !== "transparent") {
     ctx.save();
     ctx.globalAlpha = textOpacity * backgroundOpacity;
     ctx.fillStyle = overlay.backgroundColor;
@@ -189,18 +204,18 @@ function renderTextOverlay(
       }
     }
 
-    // Fill with gradient or solid color
-    if (useGradient && gradientColors.length >= 2) {
+    // Fill with gradient text or solid color
+    if (textGradEnabled && textGradColors.length >= 2) {
       const grad = createAngledGradient(
         ctx,
-        gradientAngle,
+        textGradAngle,
         textAlignX - maxTextWidth / 2,
         lineY,
         maxTextWidth,
         lineHeight
       );
-      grad.addColorStop(0, gradientColors[0]);
-      grad.addColorStop(1, gradientColors[1]);
+      grad.addColorStop(0, textGradColors[0]);
+      grad.addColorStop(1, textGradColors[1]);
       ctx.fillStyle = grad;
     } else {
       ctx.fillStyle = overlay.color;

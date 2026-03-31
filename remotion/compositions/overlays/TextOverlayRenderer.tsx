@@ -135,7 +135,7 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
     overlay.animation,
     frame,
     fps,
-    overlay.animationDurationFrames
+    overlay.animationDurationFrames || 30
   );
 
   // For typewriter effect, progressively reveal characters
@@ -199,19 +199,20 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
   // Remove textShadow from animStyle to avoid double-apply
   const { textShadow: _removed, ...cleanAnimStyle } = animStyle as any;
 
-  // Build gradient text styles
+  // Build gradient styles — text and background are independent
   const useGradient = overlay.useGradient ?? false;
-  const gradientColors = overlay.gradientColors ?? ["#FF6B35", "#FFD700"];
-  const gradientAngle = overlay.gradientAngle ?? 180;
-
-  const gradientTextStyle: React.CSSProperties = useGradient && gradientColors.length >= 2
-    ? {
-        background: `linear-gradient(${gradientAngle}deg, ${gradientColors.join(", ")})`,
-        WebkitBackgroundClip: "text",
-        WebkitTextFillColor: "transparent",
-        backgroundClip: "text",
-      }
-    : {};
+  const textGradEnabled = useGradient && (overlay.textGradientEnabled ?? false);
+  const bgGradEnabled = useGradient && (overlay.bgGradientEnabled ?? false);
+  const textGradColors = overlay.textGradientColors ?? ["#00D4FF", "#0077FF"];
+  const textGradAngle = overlay.textGradientAngle ?? 180;
+  const bgGradColors = overlay.bgGradientColors ?? ["#FF6B35", "#FFD700"];
+  const bgGradAngle = overlay.bgGradientAngle ?? 180;
+  const textGradValue = textGradEnabled && textGradColors.length >= 2
+    ? `linear-gradient(${textGradAngle}deg, ${textGradColors.join(", ")})`
+    : undefined;
+  const bgGradValue = bgGradEnabled && bgGradColors.length >= 2
+    ? `linear-gradient(${bgGradAngle}deg, ${bgGradColors.join(", ")})`
+    : undefined;
 
   return (
     <div
@@ -230,8 +231,11 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
               ? "flex-end"
               : "center",
         opacity: textOpacity,
-        transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
         ...cleanAnimStyle,
+        transform: [
+          rotation !== 0 ? `rotate(${rotation}deg)` : "",
+          (cleanAnimStyle as any).transform ?? "",
+        ].filter(Boolean).join(" ") || undefined,
       }}
     >
       <div
@@ -240,8 +244,9 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
           fontFamily: overlay.fontFamily,
           fontWeight: overlay.fontWeight,
           fontStyle: fontStyleVal,
-          color: overlay.color,
-          backgroundColor: bgColor,
+          color: textGradEnabled ? "transparent" : overlay.color,
+          backgroundColor: bgGradEnabled ? undefined : bgColor,
+          backgroundImage: bgGradValue,
           textAlign: overlay.textAlign,
           padding: "4px 12px",
           borderRadius,
@@ -251,14 +256,31 @@ export const TextOverlayRenderer: React.FC<TextOverlayRendererProps> = ({
           wordBreak: "break-word",
           maxWidth: "100%",
           WebkitTextStroke:
-            strokeWidth > 0
+            strokeWidth > 0 && !textGradEnabled
               ? `${strokeWidth}px ${strokeColor}`
               : undefined,
           textShadow,
-          ...gradientTextStyle,
         }}
       >
-        {displayText}
+        {textGradEnabled && textGradValue ? (
+          <span
+            style={{
+              backgroundImage: textGradValue,
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              WebkitTextStroke:
+                strokeWidth > 0
+                  ? `${strokeWidth}px ${strokeColor}`
+                  : undefined,
+              paintOrder: "stroke fill",
+            }}
+          >
+            {displayText}
+          </span>
+        ) : (
+          displayText
+        )}
       </div>
     </div>
   );
