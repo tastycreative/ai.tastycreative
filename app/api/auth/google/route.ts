@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       'email',
       'profile',
       'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/spreadsheets',
     ];
 
     // Encode redirect + mode into state so the callback can handle both flows

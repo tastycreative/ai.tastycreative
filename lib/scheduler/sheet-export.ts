@@ -89,7 +89,7 @@ export interface ExportableTask {
 }
 
 /** Build the header row as a 24-element array. */
-function buildHeaderRow(): string[] {
+export function buildHeaderRow(): string[] {
   const row = new Array<string>(TOTAL_COLUMNS).fill('');
   for (const mapping of COLUMN_MAP) {
     const labels = HEADER_LABELS[mapping.type];

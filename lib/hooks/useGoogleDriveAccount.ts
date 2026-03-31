@@ -25,6 +25,8 @@ export function useGoogleDriveAccount() {
 
   const signIn = useCallback(() => {
     return new Promise<GoogleDriveProfile>((resolve, reject) => {
+      // Always clear old cookies first so fresh tokens (with latest scopes) are issued
+      fetch('/api/auth/google/signout', { method: 'POST' }).catch(() => {});
       fetch('/api/auth/google?redirect=/workspace/caption-workspace&mode=popup')
         .then(res => res.json())
         .then(({ authUrl }) => {
