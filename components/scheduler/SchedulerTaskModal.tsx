@@ -19,8 +19,11 @@ import {
   History,
   TrendingUp,
   GitBranch,
+  Hourglass,
+  XCircle,
   Images,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   SchedulerTask,
   TASK_FIELD_DEFS,
@@ -230,8 +233,33 @@ export function SchedulerTaskModal({
     if (!isDirty) return;
     setIsSaving(true);
     const merged = { ...serverFields, ...pendingChanges } as TaskFields;
+    const m = merged as Record<string, unknown>;
+
+    // Detect caption change → send to QA if flagged or already in QA flow
+    const captionChanged = pendingChanges.caption !== undefined ||
+                           pendingChanges.captionBankText !== undefined ||
+                           pendingChanges.captionId !== undefined;
+    const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
+    const alreadyInQA = !!serverFields.captionQAStatus;
+    const shouldSendToQA = captionChanged && (wasFlagged || alreadyInQA);
+
+    if (shouldSendToQA) {
+      m.captionQAStatus = 'sent_to_qa';
+      m.flagged = '';
+      // Keep original _previousCaption from the first send; only set if not already stored
+      if (!serverFields._previousCaption) {
+        const prevCaption = serverFields.captionBankText || serverFields.caption || '';
+        if (prevCaption) m._previousCaption = prevCaption;
+      }
+    }
+
     onUpdate(viewingTask.id, { fields: merged });
     setPendingChanges({});
+
+    if (shouldSendToQA) {
+      toast.info('Caption sent to QA for review', { duration: 4000 });
+    }
+
     setTimeout(() => setIsSaving(false), 400);
   }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate]);
 
@@ -735,11 +763,37 @@ export function SchedulerTaskModal({
             {/* Caption Picker Section */}
             {TYPES_WITH_PICKER.has(viewingTask.taskType) && (
               <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
-                <div className="flex items-center px-3 py-2 border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
                   <span className="text-[11px] font-bold font-sans" style={{ color: typeColor }}>
                     Caption{fields.captionId && fields.flagged ? ' 🚩' : ''}
                   </span>
+                  {/* Caption QA status indicator */}
+                  {fields.captionQAStatus === 'sent_to_qa' && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                      <Hourglass className="h-2.5 w-2.5" />
+                      Pending QA Review
+                    </span>
+                  )}
+                  {fields.captionQAStatus === 'approved' && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      QA Approved
+                    </span>
+                  )}
+                  {fields.captionQAStatus === 'rejected' && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400">
+                      <XCircle className="h-2.5 w-2.5" />
+                      QA Rejected
+                    </span>
+                  )}
                 </div>
+                {/* Rejection reason banner */}
+                {fields.captionQAStatus === 'rejected' && (
+                  <div className="px-3 py-2 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-900/40 text-[10px] text-red-600 dark:text-red-400">
+                    <span className="font-bold">Rejection reason:</span>{' '}
+                    {(fields as Record<string, string>)._qaRejectionReason || 'No reason provided — please update the caption and save again.'}
+                  </div>
+                )}
                 <div className="p-3">
                   <CaptionPicker
                     profileId={viewingTask.profileId}
@@ -778,20 +832,34 @@ export function SchedulerTaskModal({
         <div className="border-t border-gray-100 dark:border-[#111124]">
           {/* Action buttons row — always visible, disabled when not actionable */}
           <div className="px-4 py-2.5 flex items-center justify-end gap-2 border-b border-gray-100 dark:border-[#111124]">
-            {/* Save button */}
-            <button
-              onClick={handleSave}
-              disabled={!isDirty || isSaving}
-              className={[
-                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors',
-                isDirty
-                  ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
-                  : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
-              ].join(' ')}
-            >
-              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              Save
-            </button>
+            {/* Save button — label changes when caption change on flagged task will trigger QA */}
+            {(() => {
+              const captionWillChange = pendingChanges.caption !== undefined ||
+                pendingChanges.captionBankText !== undefined ||
+                pendingChanges.captionId !== undefined;
+              const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
+              const alreadyInQA = !!serverFields.captionQAStatus;
+              const willSendToQA = isDirty && captionWillChange && (wasFlagged || alreadyInQA);
+
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={!isDirty || isSaving}
+                  className={[
+                    'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors',
+                    isDirty
+                      ? willSendToQA
+                        ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
+                        : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
+                      : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
+                  ].join(' ')}
+                >
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : willSendToQA ? <Send className="h-3 w-3" /> : <Save className="h-3 w-3" />}
+                  {willSendToQA ? 'Save & Send to QA' : 'Save'}
+                </button>
+              );
+            })()}
+
 
             {/* Queue button — always visible, disabled when no target selected */}
             <button

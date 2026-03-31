@@ -17,6 +17,7 @@ interface PickerFields {
   flyerAssetId?: string;      // Reference to FlyerAsset
   flyerAssetUrl?: string;     // URL snapshot for display
   flagged?: boolean;          // Caption needs replacement
+  captionQAStatus?: 'sent_to_qa' | 'approved' | 'rejected';  // Caption QA workflow status
 }
 
 export interface MMFields extends PickerFields {
@@ -74,7 +75,7 @@ export const FOLLOW_UP_SUB_TYPES = [
 export const TASK_FIELD_DEFS: Record<string, FieldDef[]> = {
   MM: [
     { key: 'type', label: 'Type', placeholder: 'Photo bump, Unlock...' },
-    { key: 'subType', label: 'Sub-Type', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
+    { key: 'subType', label: 'Style', placeholder: 'OG Flyer ⬆, No Flyer ⬆...' },
     { key: 'time', label: 'Time (PST)', placeholder: '2:30 PM' },
     { key: 'contentPreview', label: 'Content/Preview', placeholder: 'Content description...' },
     { key: 'paywallContent', label: 'Paywall Content', placeholder: 'Paywall content...' },

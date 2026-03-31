@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/nextjs';
 import { boardItemKeys } from './useBoardItems.query';
+import { schedulerKeys } from './useScheduler.query';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -182,6 +183,97 @@ export function useQAComment() {
     mutationFn: postComment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Scheduler Caption QA                                               */
+/* ------------------------------------------------------------------ */
+
+export interface SchedulerQAItem {
+  id: string;
+  source: 'scheduler';
+  taskType: string;
+  slotLabel: string;
+  platform: string;
+  profileId: string | null;
+  profileName: string;
+  profileImage: string | null;
+  caption: string;
+  previousCaption?: string;
+  taskDate: string;
+  weekStartDate: string;
+  dayOfWeek: number;
+  fields: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  modelProfile: QAQueueModelProfile | null;
+}
+
+export const schedulerQAKeys = {
+  all: ['qa-queue', 'scheduler'] as const,
+  list: () => [...schedulerQAKeys.all, 'list'] as const,
+};
+
+async function fetchSchedulerCaptionQA(): Promise<SchedulerQAItem[]> {
+  const response = await fetch('/api/qa-queue/scheduler');
+  if (!response.ok) {
+    throw new Error('Failed to fetch scheduler QA queue');
+  }
+  const data = await response.json();
+  return data.items ?? [];
+}
+
+export function useSchedulerCaptionQA() {
+  const { user } = useUser();
+
+  return useQuery({
+    queryKey: schedulerQAKeys.list(),
+    queryFn: fetchSchedulerCaptionQA,
+    enabled: !!user,
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Scheduler Caption QA Review Mutation                               */
+/* ------------------------------------------------------------------ */
+
+export type SchedulerQAReviewAction = 'approve' | 'reject';
+
+interface SchedulerQAReviewInput {
+  taskId: string;
+  action: SchedulerQAReviewAction;
+  reason?: string;
+}
+
+async function performSchedulerQAReview(input: SchedulerQAReviewInput) {
+  const { taskId, ...body } = input;
+  const response = await fetch(`/api/qa-queue/scheduler/${taskId}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to process scheduler QA review');
+  }
+  return response.json();
+}
+
+export function useSchedulerCaptionReview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: performSchedulerQAReview,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schedulerQAKeys.all });
+      queryClient.invalidateQueries({ queryKey: qaQueueKeys.all });
+      queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
     },
   });
 }

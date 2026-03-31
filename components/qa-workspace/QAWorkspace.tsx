@@ -4,31 +4,52 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQAQueue, type QAQueueItem } from '@/lib/hooks/useQAQueue.query';
+import { useQAQueue, useSchedulerCaptionQA, type QAQueueItem, type SchedulerQAItem } from '@/lib/hooks/useQAQueue.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import QAQueuePanel from './QAQueuePanel';
 import ReviewPanel from './ReviewPanel';
+import SchedulerReviewPanel from './SchedulerReviewPanel';
 import QAContextPanel from './QAContextPanel';
+
+export type QASourceFilter = 'all' | 'content' | 'scheduler';
+
+/** Unified queue item — discriminated by `source` field */
+export type UnifiedQAItem =
+  | (QAQueueItem & { source: 'content' })
+  | SchedulerQAItem;
 
 export default function QAWorkspace() {
   const params = useParams();
   const tenant = params?.tenant as string;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<QASourceFilter>('all');
 
-  const { data: rawQueue, isLoading, error } = useQAQueue();
+  const { data: rawContentQueue, isLoading: isLoadingContent, error: contentError } = useQAQueue();
+  const { data: rawSchedulerQueue, isLoading: isLoadingScheduler } = useSchedulerCaptionQA();
   const { data: orgMembers = [] } = useOrgMembers();
 
-  // ── New‑item notification ───────────────────────────────────
+  const isLoading = isLoadingContent || isLoadingScheduler;
+  const error = contentError;
+
+  // Build unified queue
+  const unifiedQueue = useMemo(() => {
+    const contentItems: UnifiedQAItem[] = (rawContentQueue ?? []).map((item) => ({
+      ...item,
+      source: 'content' as const,
+    }));
+    const schedulerItems: UnifiedQAItem[] = rawSchedulerQueue ?? [];
+    return [...contentItems, ...schedulerItems];
+  }, [rawContentQueue, rawSchedulerQueue]);
+
+  // ── New-item notification ───────────────────────────────────
   const prevCountRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!rawQueue) return;
-    const count = rawQueue.length;
+    const count = unifiedQueue.length;
     if (prevCountRef.current !== null && count > prevCountRef.current) {
       const diff = count - prevCountRef.current;
       toast.info(`${diff} new ticket${diff > 1 ? 's' : ''} in QA queue`, { duration: 4000 });
-      // Play a short notification sound (Web Audio API — no external file needed)
       try {
         const ctx = new AudioContext();
         const osc = ctx.createOscillator();
@@ -42,46 +63,64 @@ export default function QAWorkspace() {
         osc.start();
         osc.stop(ctx.currentTime + 0.25);
       } catch {
-        // AudioContext may not be available — silently ignore
+        // AudioContext may not be available
       }
     }
     prevCountRef.current = count;
-  }, [rawQueue]);
+  }, [unifiedQueue]);
 
-  // Filter queue by search query
+  // Filter queue by source and search query
   const queue = useMemo(() => {
-    if (!rawQueue) return [];
-    if (!searchQuery.trim()) return rawQueue;
-    const q = searchQuery.toLowerCase();
-    return rawQueue.filter((item) => {
-      const meta = item.metadata;
-      const model = (meta.model as string) ?? '';
-      const postOrigin = (meta.postOrigin as string) ?? '';
-      const category = (meta.category as string) ?? '';
-      return (
-        item.title.toLowerCase().includes(q) ||
-        model.toLowerCase().includes(q) ||
-        postOrigin.toLowerCase().includes(q) ||
-        category.toLowerCase().includes(q) ||
-        String(item.itemNo).includes(q)
-      );
-    });
-  }, [rawQueue, searchQuery]);
+    let filtered = unifiedQueue;
 
-  const selectedItem: QAQueueItem | undefined = queue[selectedIndex];
+    // Source filter
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter((item) => item.source === sourceFilter);
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((item) => {
+        if (item.source === 'content') {
+          const meta = item.metadata;
+          const model = (meta.model as string) ?? '';
+          const postOrigin = (meta.postOrigin as string) ?? '';
+          const category = (meta.category as string) ?? '';
+          return (
+            item.title.toLowerCase().includes(q) ||
+            model.toLowerCase().includes(q) ||
+            postOrigin.toLowerCase().includes(q) ||
+            category.toLowerCase().includes(q) ||
+            String(item.itemNo).includes(q)
+          );
+        } else {
+          // Scheduler item
+          return (
+            item.profileName.toLowerCase().includes(q) ||
+            item.taskType.toLowerCase().includes(q) ||
+            item.caption.toLowerCase().includes(q) ||
+            item.platform.toLowerCase().includes(q)
+          );
+        }
+      });
+    }
+
+    return filtered;
+  }, [unifiedQueue, sourceFilter, searchQuery]);
+
+  const selectedItem: UnifiedQAItem | undefined = queue[selectedIndex];
 
   const handleSelectTicket = useCallback((index: number) => {
     setSelectedIndex(index);
   }, []);
 
-  // After a review action removes an item from the queue,
-  // clamp the selected index to the new queue length
   const handleReviewComplete = useCallback(() => {
     setSelectedIndex((prev) => {
-      const maxIndex = Math.max(0, (rawQueue?.length ?? 1) - 2);
+      const maxIndex = Math.max(0, unifiedQueue.length - 2);
       return Math.min(prev, maxIndex);
     });
-  }, [rawQueue]);
+  }, [unifiedQueue]);
 
   const getMemberName = useCallback((id?: string | null) => {
     if (!id) return null;
@@ -89,6 +128,10 @@ export default function QAWorkspace() {
     if (!m) return null;
     return m.name || `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.email;
   }, [orgMembers]);
+
+  // Count by source for filter badges
+  const contentCount = useMemo(() => unifiedQueue.filter((i) => i.source === 'content').length, [unifiedQueue]);
+  const schedulerCount = useMemo(() => unifiedQueue.filter((i) => i.source === 'scheduler').length, [unifiedQueue]);
 
   return (
     <div className="h-[calc(100vh-7rem)] overflow-hidden bg-brand-off-white dark:bg-gray-950 border border-emerald-500/20 rounded-2xl shadow-lg">
@@ -104,7 +147,7 @@ export default function QAWorkspace() {
               <p className="text-[10px] lg:text-xs text-gray-500 dark:text-gray-400">Review captions & flyers</p>
             </div>
             <span className="hidden sm:inline-block px-2 py-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded text-[10px] lg:text-xs font-semibold">
-              {queue.length}{searchQuery && rawQueue ? `/${rawQueue.length}` : ''} to review
+              {queue.length}{searchQuery || sourceFilter !== 'all' ? `/${unifiedQueue.length}` : ''} to review
             </span>
           </div>
         </div>
@@ -128,8 +171,8 @@ export default function QAWorkspace() {
           </div>
         )}
 
-        {/* Empty State */}
-        {!isLoading && !error && (!rawQueue || rawQueue.length === 0) && (
+        {/* Empty State — only when truly zero items (not just filtered empty) */}
+        {!isLoading && !error && unifiedQueue.length === 0 && (
           <div className="col-span-1 lg:col-span-3 flex items-center justify-center py-20">
             <div className="text-center max-w-md px-4">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/10 flex items-center justify-center">
@@ -143,10 +186,10 @@ export default function QAWorkspace() {
           </div>
         )}
 
-        {/* Main Content */}
-        {!isLoading && !error && queue.length > 0 && (
+        {/* Main Content — show panels whenever we have data (even if filtered list is empty, so user can clear filters) */}
+        {!isLoading && !error && unifiedQueue.length > 0 && (
           <>
-            {/* Left Panel: Queue */}
+            {/* Left Panel: Queue (always visible so user can change search/filter) */}
             <div className="hidden lg:flex lg:flex-col h-full overflow-hidden">
               <ErrorBoundary componentName="QA Queue Panel">
                 <QAQueuePanel
@@ -156,6 +199,10 @@ export default function QAWorkspace() {
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   getMemberName={getMemberName}
+                  sourceFilter={sourceFilter}
+                  onSourceFilterChange={setSourceFilter}
+                  contentCount={contentCount}
+                  schedulerCount={schedulerCount}
                 />
               </ErrorBoundary>
             </div>
@@ -163,19 +210,29 @@ export default function QAWorkspace() {
             {/* Center Panel: Review */}
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
               <ErrorBoundary componentName="Review Panel">
-                <ReviewPanel
-                  item={selectedItem}
-                  getMemberName={getMemberName}
-                  onReviewComplete={handleReviewComplete}
-                  tenant={tenant}
-                />
+                {selectedItem?.source === 'scheduler' ? (
+                  <SchedulerReviewPanel
+                    item={selectedItem}
+                    onReviewComplete={handleReviewComplete}
+                  />
+                ) : (
+                  <ReviewPanel
+                    item={selectedItem?.source === 'content' ? selectedItem : undefined}
+                    getMemberName={getMemberName}
+                    onReviewComplete={handleReviewComplete}
+                    tenant={tenant}
+                  />
+                )}
               </ErrorBoundary>
             </div>
 
             {/* Right Panel: Model Context */}
             <div className="hidden lg:flex border-l border-emerald-500/20 flex-col overflow-hidden bg-white dark:bg-gray-900/80">
               <ErrorBoundary componentName="QA Context Panel">
-                <QAContextPanel item={selectedItem} />
+                <QAContextPanel
+                  item={selectedItem?.source === 'content' ? selectedItem : undefined}
+                  schedulerItem={selectedItem?.source === 'scheduler' ? selectedItem : undefined}
+                />
               </ErrorBoundary>
             </div>
           </>

@@ -67,7 +67,7 @@ export async function PATCH(
     Object.keys(body).filter((k) => !['tabId', 'status'].includes(k)).length === 0;
 
   // Allow flag-only or finalAmount-only field changes on locked tasks
-  const LOCKED_EDITABLE_KEYS = new Set(['flagged', 'finalAmount']);
+  const LOCKED_EDITABLE_KEYS = new Set(['flagged', 'finalAmount', 'captionQAStatus']);
   const isAllowedFieldChange = fields !== undefined &&
     Object.keys(body).filter((k) => !['tabId', 'fields', 'mergeFields'].includes(k)).length === 0 &&
     (() => {

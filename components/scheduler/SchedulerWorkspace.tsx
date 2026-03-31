@@ -18,6 +18,7 @@ import { SchedulerTaskModal } from './SchedulerTaskModal';
 import { QueueCalendar } from './QueueCalendar';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
+import { toast } from 'sonner';
 
 // ─── Caption helpers (shared with modal) ──────────────────────────────────────
 
@@ -286,8 +287,30 @@ function TaskDetailPanel({
       }
     }
     if (Object.keys(patch).length === 0) return;
+
+    // Detect caption change → send to QA if flagged or already in QA flow
+    const captionChanged = patch.caption !== undefined ||
+                           patch.captionBankText !== undefined ||
+                           patch.captionId !== undefined;
+    const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
+    const alreadyInQA = !!serverFields.captionQAStatus;
+    const shouldSendToQA = captionChanged && (isFlagged || alreadyInQA);
+
+    if (shouldSendToQA) {
+      patch.captionQAStatus = 'sent_to_qa';
+      patch.flagged = '';
+      if (!serverFields._previousCaption) {
+        const prevCaption = serverFields.captionBankText || serverFields.caption || '';
+        if (prevCaption) patch._previousCaption = prevCaption;
+      }
+    }
+
     onSaveField(task.id, patch);
     setLocalFields({});
+
+    if (shouldSendToQA) {
+      toast.info('Caption sent to QA for review', { duration: 4000 });
+    }
   }, [localFields, serverFields, task.id, onSaveField]);
 
   // Caption picker handlers
@@ -308,9 +331,28 @@ function TaskDetailPanel({
     if (sel.contentType) {
       patch.tag = sel.contentType;
     }
+
+    // Detect caption change → send to QA if flagged or already in QA flow
+    const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
+    const alreadyInQA = !!serverFields.captionQAStatus;
+    const shouldSendToQA = isFlagged || alreadyInQA;
+
+    if (shouldSendToQA) {
+      patch.captionQAStatus = 'sent_to_qa';
+      patch.flagged = '';
+      if (!serverFields._previousCaption) {
+        const prevCaption = serverFields.captionBankText || serverFields.caption || '';
+        if (prevCaption) patch._previousCaption = prevCaption;
+      }
+    }
+
     setLocalFields((prev) => ({ ...prev, ...patch }));
     onSaveField(task.id, patch);
-  }, [task.id, onSaveField]);
+
+    if (shouldSendToQA) {
+      toast.info('Caption sent to QA for review', { duration: 4000 });
+    }
+  }, [task.id, onSaveField, serverFields]);
 
   const handleClearCaption = useCallback(() => {
     const patch = { captionId: '', captionBankText: '' };
