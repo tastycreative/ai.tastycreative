@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Settings, History, CalendarClock, Download, Upload, ChevronDown, Copy } from 'lucide-react';
+import { Settings, History, CalendarClock, Download, Upload, ChevronDown, ChevronLeft, ChevronRight, Copy, Flag } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useSchedulerWeek,
@@ -692,6 +692,71 @@ export function SchedulerGrid() {
     [weekStart, activeProfileId, activePlatform, isDashboard, isCalendar, cloningDay, cloningWeek],
   );
 
+  // ── Clone flags only (to a user-selected week) ──────────────────────────
+  const [showCloneMenu, setShowCloneMenu] = useState(false);
+  const [showCloneFlagsPicker, setShowCloneFlagsPicker] = useState(false);
+  const [cloneFlagsTarget, setCloneFlagsTarget] = useState<string>(() => {
+    // Default to next week
+    const ws = new Date(weekStart + 'T00:00:00Z');
+    ws.setUTCDate(ws.getUTCDate() + 7);
+    return ws.toISOString().split('T')[0];
+  });
+  const [cloningFlags, setCloningFlags] = useState(false);
+  const cloneMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close clone menu on outside click
+  useEffect(() => {
+    if (!showCloneMenu && !showCloneFlagsPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (cloneMenuRef.current && !cloneMenuRef.current.contains(e.target as Node)) {
+        setShowCloneMenu(false);
+        setShowCloneFlagsPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCloneMenu, showCloneFlagsPicker]);
+
+  // Reset target week when source week changes
+  useEffect(() => {
+    const ws = new Date(weekStart + 'T00:00:00Z');
+    ws.setUTCDate(ws.getUTCDate() + 7);
+    setCloneFlagsTarget(ws.toISOString().split('T')[0]);
+  }, [weekStart]);
+
+  const handleCloneFlags = useCallback(async () => {
+    if (cloningFlags) return;
+    setCloningFlags(true);
+    try {
+      const res = await fetch('/api/scheduler/clone-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceWeekStart: weekStart,
+          targetWeekStart: cloneFlagsTarget,
+          profileId: activeProfileId || undefined,
+          platform: !isDashboard && !isCalendar ? activePlatform : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error('Clone flags failed', { description: data.error || 'Server error' });
+      } else if (data.updated === 0) {
+        toast.info(data.message || 'No flags to clone');
+      } else {
+        toast.success(`Flagged ${data.updated} task(s) in target week`);
+      }
+    } catch (err) {
+      console.error('Clone flags failed:', err);
+      toast.error('Clone flags failed', { description: 'Network error' });
+    } finally {
+      setCloningFlags(false);
+      setShowCloneFlagsPicker(false);
+      setShowCloneMenu(false);
+    }
+  }, [weekStart, cloneFlagsTarget, activeProfileId, activePlatform, isDashboard, isCalendar, cloningFlags]);
+
   const showSetup = !configLoading && !config;
   const isLoading = weekLoading || configLoading || !profileReady;
 
@@ -936,16 +1001,110 @@ export function SchedulerGrid() {
 
                 <div className="w-px h-4 bg-gray-200 dark:bg-[#181828]" />
 
-                {/* Clone whole week to next week */}
-                <button
-                  onClick={() => handleCloneToNextWeek(-1)}
-                  disabled={cloningWeek}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/30 hover:border-purple-400/60 hover:bg-purple-500/5 dark:text-purple-400 dark:border-purple-500/25 dark:hover:border-purple-400/50 dark:hover:bg-purple-500/10 disabled:opacity-50"
-                  title="Clone all tasks to next week (skips existing)"
-                >
-                  <Copy className="h-3 w-3" />
-                  {cloningWeek ? 'CLONING...' : 'CLONE WEEK →'}
-                </button>
+                {/* Clone dropdown — Clone Week or Clone Flags */}
+                <div className="relative" ref={cloneMenuRef}>
+                  <button
+                    onClick={() => setShowCloneMenu((v) => !v)}
+                    disabled={cloningWeek || cloningFlags}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/30 hover:border-purple-400/60 hover:bg-purple-500/5 dark:text-purple-400 dark:border-purple-500/25 dark:hover:border-purple-400/50 dark:hover:bg-purple-500/10 disabled:opacity-50"
+                  >
+                    <Copy className="h-3 w-3" />
+                    {cloningWeek ? 'CLONING...' : cloningFlags ? 'CLONING FLAGS...' : 'CLONE'}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {showCloneMenu && !showCloneFlagsPicker && (
+                    <div className="absolute right-0 top-full mt-1 w-56 rounded-xl border bg-white dark:bg-[#0e0e1a] border-gray-200 dark:border-[#252545] shadow-xl z-50 py-1">
+                      <button
+                        onClick={() => { setShowCloneMenu(false); handleCloneToNextWeek(-1); }}
+                        disabled={cloningWeek}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-purple-500 dark:text-purple-400" />
+                        <div>
+                          <div className="font-semibold text-gray-800 dark:text-gray-200">Clone Week</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-500">Clone all tasks to next week</div>
+                        </div>
+                      </button>
+                      <div className="h-px bg-gray-100 dark:bg-[#1a1a2e] mx-2" />
+                      <button
+                        onClick={() => setShowCloneFlagsPicker(true)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                      >
+                        <Flag className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                        <div>
+                          <div className="font-semibold text-gray-800 dark:text-gray-200">Clone Flags Only</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-500">Copy flagged status to another week</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Clone flags — week picker */}
+                  {showCloneFlagsPicker && (
+                    <div className="absolute right-0 top-full mt-1 w-64 rounded-xl border bg-white dark:bg-[#0e0e1a] border-gray-200 dark:border-[#252545] shadow-xl z-50 p-3">
+                      <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                        <Flag className="h-3 w-3 text-amber-500" />
+                        Clone Flags to Week
+                      </div>
+                      {/* Week selector */}
+                      <div className="flex items-center justify-between gap-1 mb-3">
+                        <button
+                          onClick={() => {
+                            const d = new Date(cloneFlagsTarget + 'T00:00:00Z');
+                            d.setUTCDate(d.getUTCDate() - 7);
+                            setCloneFlagsTarget(d.toISOString().split('T')[0]);
+                          }}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5 text-gray-400" />
+                        </button>
+                        <div className="text-xs font-semibold text-gray-800 dark:text-gray-200 text-center">
+                          {(() => {
+                            const ws = new Date(cloneFlagsTarget + 'T00:00:00Z');
+                            const we = new Date(ws);
+                            we.setUTCDate(we.getUTCDate() + 6);
+                            const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                            return `${fmt(ws)} — ${fmt(we)}`;
+                          })()}
+                        </div>
+                        <button
+                          onClick={() => {
+                            const d = new Date(cloneFlagsTarget + 'T00:00:00Z');
+                            d.setUTCDate(d.getUTCDate() + 7);
+                            setCloneFlagsTarget(d.toISOString().split('T')[0]);
+                          }}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                        </button>
+                      </div>
+                      {/* Same-week warning */}
+                      {cloneFlagsTarget === weekStart && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mb-2">
+                          Target week is the same as the current week.
+                        </p>
+                      )}
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowCloneFlagsPicker(false); setShowCloneMenu(false); }}
+                          className="flex-1 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-500 border-gray-200 dark:border-[#252545] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleCloneFlags}
+                          disabled={cloningFlags || cloneFlagsTarget === weekStart}
+                          className="flex-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {cloningFlags ? 'Cloning...' : 'Clone Flags'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
