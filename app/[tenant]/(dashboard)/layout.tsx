@@ -53,6 +53,7 @@ import {
   Building2,
   Search,
   X,
+  Disc3,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressDropdown } from "@/components/GlobalProgressDropdown";
@@ -195,6 +196,11 @@ export default function DashboardLayout({
                     name: "GIF Maker",
                     href: `/${tenant}/gif-maker`,
                     icon: Film,
+                  },
+                  {
+                    name: "Wheel Creator",
+                    href: `/${tenant}/wheel-creator`,
+                    icon: Disc3,
                   },
                   {
                     name: "Content Submissions",

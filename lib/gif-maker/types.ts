@@ -332,10 +332,22 @@ export interface TextOverlay extends OverlayBase {
   shadowOffsetY?: number;
   shadowBlur?: number;
   shadowColor?: string;
+  rotation?: number;                  // degrees, default 0
+  fontStyle?: "normal" | "italic";    // default "normal"
   // Gradient text support
   useGradient?: boolean;
-  gradientColors?: [string, string]; // [startColor, endColor]
-  gradientAngle?: number;            // degrees, default 180 (top-to-bottom)
+  gradientTarget?: "background" | "text"; // which the UI is editing
+  // Text gradient
+  textGradientColors?: [string, string];
+  textGradientAngle?: number;
+  textGradientEnabled?: boolean;
+  // Background gradient
+  bgGradientColors?: [string, string];
+  bgGradientAngle?: number;
+  bgGradientEnabled?: boolean;
+  // Legacy (kept for backward compat)
+  gradientColors?: [string, string];
+  gradientAngle?: number;
 }
 
 export type BlurMode = "gaussian" | "pixelate" | "solid" | "heavy";
