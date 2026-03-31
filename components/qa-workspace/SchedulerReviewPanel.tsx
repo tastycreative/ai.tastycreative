@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import {
   FileText,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   Calendar,
   User,
   Image as ImageIcon,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSchedulerCaptionReview, type SchedulerQAItem } from '@/lib/hooks/useQAQueue.query';
@@ -21,6 +22,75 @@ const TASK_TYPE_COLORS: Record<string, string> = {
   ST: '#c084fc',
   SP: '#fb923c',
 };
+
+/** Compute deadline countdown from taskDate (YYYY-MM-DD) + time field (LA time) */
+function getDeadlineInfo(taskDate: string, timeStr?: string) {
+  const fallback = { label: '—', color: 'text-gray-400', isOverdue: false };
+  if (!taskDate) return fallback;
+
+  try {
+    const d = new Date(taskDate + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return fallback;
+
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth();
+    const day = d.getUTCDate();
+
+    let hours = 23;
+    let minutes = 59;
+    if (timeStr) {
+      const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const ampm = (match[3] || '').toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    }
+
+    // Convert LA time to UTC: guess PDT (UTC-7), verify via Intl, fallback PST (UTC-8)
+    const guess = new Date(Date.UTC(year, month, day, hours + 7, minutes));
+    let deadlineMs = guess.getTime();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        hour: 'numeric',
+        hour12: false,
+      }).formatToParts(guess);
+      const laHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0');
+      if (laHour !== hours % 24) {
+        deadlineMs = Date.UTC(year, month, day, hours + 8, minutes);
+      }
+    } catch {
+      deadlineMs = Date.UTC(year, month, day, hours + 8, minutes);
+    }
+
+    const diffMs = deadlineMs - Date.now();
+    const isOverdue = diffMs <= 0;
+    const absDiffMs = Math.abs(diffMs);
+    const absDiffMin = absDiffMs / (1000 * 60);
+    const absDiffH = absDiffMin / 60;
+
+    let label: string;
+    let color: string;
+    if (isOverdue) {
+      if (absDiffH < 1) label = `${Math.max(1, Math.round(absDiffMin))}m overdue`;
+      else if (absDiffH < 24) label = `${Math.round(absDiffH)}h overdue`;
+      else label = `${Math.floor(absDiffH / 24)}d overdue`;
+      color = 'text-red-500';
+    } else {
+      if (absDiffMin < 60) { label = `${Math.round(absDiffMin)}m left`; color = 'text-red-500'; }
+      else if (absDiffH < 4) { label = `${Math.round(absDiffH)}h left`; color = 'text-orange-500'; }
+      else if (absDiffH < 12) { label = `${Math.round(absDiffH)}h left`; color = 'text-amber-500'; }
+      else { label = absDiffH < 24 ? `${Math.round(absDiffH)}h left` : `${Math.floor(absDiffH / 24)}d left`; color = 'text-emerald-500'; }
+    }
+
+    return { label, color, isOverdue };
+  } catch {
+    return fallback;
+  }
+}
 
 /* ── Main Component ──────────────────────────────────────────── */
 
@@ -79,6 +149,11 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
   const typeColor = TASK_TYPE_COLORS[item.taskType] || '#3a3a5a';
   const fields = item.fields as Record<string, string>;
   const flyerUrl = fields.flyerAssetUrl || fields.contentPreview || fields.contentFlyer;
+  const timeField = fields.time || fields.storyPostSchedule || '';
+  const deadline = useMemo(
+    () => getDeadlineInfo(item.taskDate, timeField),
+    [item.taskDate, timeField],
+  );
 
   return (
     <div className="flex flex-col h-full overflow-auto bg-gray-50 dark:bg-gray-950/50 custom-scrollbar">
@@ -125,6 +200,11 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
           <div className="flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
             <span>{item.taskDate}</span>
+            {timeField && <span className="text-gray-400">@ {timeField}</span>}
+          </div>
+          <div className={`flex items-center gap-1 font-semibold ${deadline.color}`}>
+            <Clock className="w-3.5 h-3.5" />
+            <span>{deadline.label}</span>
           </div>
         </div>
       </div>
@@ -189,6 +269,21 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
 
           </div>
         </div>
+
+        {/* Unlock Paywall Content (for follow-up tasks) */}
+        {fields._unlockPaywallContent && (
+          <div className="rounded-xl border border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-950/30 overflow-hidden">
+            <div className="px-4 py-2 border-b border-purple-200/50 dark:border-purple-500/15 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-purple-400" />
+              <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">Unlock Paywall Content</span>
+            </div>
+            <div className="p-4">
+              <div className="text-sm text-purple-800 dark:text-purple-200 whitespace-pre-wrap break-words leading-relaxed">
+                {fields._unlockPaywallContent}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Task Details — all fields from TASK_FIELD_DEFS */}
         {(() => {

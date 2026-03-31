@@ -251,6 +251,20 @@ export function SchedulerTaskModal({
         const prevCaption = serverFields.captionBankText || serverFields.caption || '';
         if (prevCaption) m._previousCaption = prevCaption;
       }
+      // For follow-up tasks, include the sibling unlock's paywallContent
+      const isFollowUpTask = viewingTask.taskType === 'MM' &&
+        (typeName.includes('follow up') || typeName.includes('follow-up'));
+      if (isFollowUpTask && lineageData?.tasks) {
+        const unlockSibling = lineageData.tasks.find((t) => {
+          const f = (t.fields || {}) as Record<string, string>;
+          const tName = (f.type || t.taskName || '').toLowerCase();
+          return tName.includes('unlock') && f.paywallContent;
+        });
+        if (unlockSibling) {
+          const unlockFields = (unlockSibling.fields || {}) as Record<string, string>;
+          m._unlockPaywallContent = unlockFields.paywallContent;
+        }
+      }
     }
 
     onUpdate(viewingTask.id, { fields: merged });
@@ -261,7 +275,7 @@ export function SchedulerTaskModal({
     }
 
     setTimeout(() => setIsSaving(false), 400);
-  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate]);
+  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate, typeName, lineageData]);
 
   // ─── Queue: create a copy for the selected future week ───
   const handleQueue = useCallback(() => {

@@ -41,6 +41,72 @@ function ageBadgeProps(createdAt: string) {
   return { label: `${d}d`, color: 'text-red-500' };
 }
 
+/** Compute deadline countdown from taskDate (YYYY-MM-DD) + time field (LA time) */
+function deadlineBadgeProps(taskDate: string | undefined, timeStr?: string) {
+  const fallback = { label: '—', color: 'text-gray-400' };
+  if (!taskDate) return fallback;
+
+  try {
+    // taskDate is already the full date like "2026-04-02"
+    const d = new Date(taskDate + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return fallback;
+
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth();
+    const day = d.getUTCDate();
+
+    let hours = 23;
+    let minutes = 59;
+    if (timeStr) {
+      const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const ampm = (match[3] || '').toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    }
+
+    // Convert LA time to UTC: guess PDT (UTC-7), verify via Intl, fallback PST (UTC-8)
+    const guess = new Date(Date.UTC(year, month, day, hours + 7, minutes));
+    let deadlineMs = guess.getTime();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        hour: 'numeric',
+        hour12: false,
+      }).formatToParts(guess);
+      const laHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0');
+      if (laHour !== hours % 24) {
+        deadlineMs = Date.UTC(year, month, day, hours + 8, minutes);
+      }
+    } catch {
+      deadlineMs = Date.UTC(year, month, day, hours + 8, minutes);
+    }
+
+    const diffMs = deadlineMs - Date.now();
+
+    if (diffMs <= 0) {
+      const overH = Math.abs(diffMs) / (1000 * 60 * 60);
+      if (overH < 1) return { label: `${Math.max(1, Math.round(Math.abs(diffMs) / (1000 * 60)))}m over`, color: 'text-red-500' };
+      if (overH < 24) return { label: `${Math.round(overH)}h over`, color: 'text-red-500' };
+      return { label: `${Math.floor(overH / 24)}d over`, color: 'text-red-500' };
+    }
+
+    const diffMin = diffMs / (1000 * 60);
+    const diffH = diffMin / 60;
+    if (diffMin < 60) return { label: `${Math.round(diffMin)}m left`, color: 'text-red-500' };
+    if (diffH < 4) return { label: `${Math.round(diffH)}h left`, color: 'text-orange-500' };
+    if (diffH < 12) return { label: `${Math.round(diffH)}h left`, color: 'text-amber-500' };
+    if (diffH < 24) return { label: `${Math.round(diffH)}h left`, color: 'text-emerald-500' };
+    const days = Math.floor(diffH / 24);
+    return { label: `${days}d left`, color: 'text-emerald-500' };
+  } catch {
+    return fallback;
+  }
+}
+
 /* ── Priority config ──────────────────────────────────────────── */
 
 const PRIORITY_BORDER: Record<string, string> = {
@@ -239,7 +305,8 @@ const SchedulerQueueItemCard = memo(function SchedulerQueueItemCard({
   searchQuery: string;
 }) {
   const typeBadge = SCHEDULER_TYPE_BADGE[item.taskType] ?? { bg: 'bg-gray-500/15 border-gray-500/25', text: 'text-gray-400' };
-  const age = ageBadgeProps(item.updatedAt);
+  const timeField = (item.fields?.time as string) || (item.fields?.storyPostSchedule as string) || '';
+  const deadline = deadlineBadgeProps(item.taskDate, timeField);
   const captionSnippet = item.caption.length > 80 ? item.caption.slice(0, 80) + '...' : item.caption;
 
   return (
@@ -265,8 +332,8 @@ const SchedulerQueueItemCard = memo(function SchedulerQueueItemCard({
             {item.platform}
           </span>
           <span className="flex-1" />
-          <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${age.color}`} title="Time since sent">
-            <Clock className="w-2.5 h-2.5" />{age.label}
+          <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${deadline.color}`} title="Deadline countdown">
+            <Clock className="w-2.5 h-2.5" />{deadline.label}
           </span>
         </div>
 

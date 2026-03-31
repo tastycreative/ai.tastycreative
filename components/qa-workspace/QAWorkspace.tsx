@@ -19,6 +19,32 @@ export type UnifiedQAItem =
   | (QAQueueItem & { source: 'content' })
   | SchedulerQAItem;
 
+/** Get deadline timestamp (ms) for sorting scheduler items — soonest first */
+function getDeadlineMs(taskDate: string, timeStr: string): number {
+  try {
+    const d = new Date(taskDate + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return Infinity;
+
+    let hours = 23;
+    let minutes = 59;
+    if (timeStr) {
+      const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const ampm = (match[3] || '').toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    }
+
+    // Approximate LA→UTC: guess PDT (UTC-7)
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hours + 7, minutes);
+  } catch {
+    return Infinity;
+  }
+}
+
 export default function QAWorkspace() {
   const params = useParams();
   const tenant = params?.tenant as string;
@@ -33,14 +59,18 @@ export default function QAWorkspace() {
   const isLoading = isLoadingContent || isLoadingScheduler;
   const error = contentError;
 
-  // Build unified queue
+  // Build unified queue — scheduler items sorted by deadline (soonest first)
   const unifiedQueue = useMemo(() => {
     const contentItems: UnifiedQAItem[] = (rawContentQueue ?? []).map((item) => ({
       ...item,
       source: 'content' as const,
     }));
-    const schedulerItems: UnifiedQAItem[] = rawSchedulerQueue ?? [];
-    return [...contentItems, ...schedulerItems];
+    const schedulerItems: UnifiedQAItem[] = (rawSchedulerQueue ?? []).slice().sort((a, b) => {
+      const aMs = getDeadlineMs(a.taskDate, (a.fields?.time as string) || '');
+      const bMs = getDeadlineMs(b.taskDate, (b.fields?.time as string) || '');
+      return aMs - bMs; // soonest deadline first
+    });
+    return [...schedulerItems, ...contentItems];
   }, [rawContentQueue, rawSchedulerQueue]);
 
   // ── New-item notification ───────────────────────────────────

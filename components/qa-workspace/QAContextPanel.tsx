@@ -243,6 +243,14 @@ function QAContextPanelComponent({ item, schedulerItem }: QAContextPanelProps) {
                     </div>
                   </div>
                 )}
+                {(schedulerItem.fields._unlockPaywallContent as string) && (
+                  <div>
+                    <span className="text-purple-500 dark:text-purple-400">Unlock Paywall Content</span>
+                    <div className="mt-1 text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                      {schedulerItem.fields._unlockPaywallContent as string}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

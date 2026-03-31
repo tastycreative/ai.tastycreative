@@ -122,12 +122,17 @@ export async function POST(request: NextRequest) {
         const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
         const weekRange = `${fmt(wsDate)} – ${fmt(weDate)}`;
 
-        const title = `${profileName} ${platformLabel} Schedule ${weekRange}`;
+        // Single day: use that day's date; full week: use the range
+        const isSingleDay = dayOfWeek != null;
+        const dayDate = new Date(wsDate);
+        if (isSingleDay) dayDate.setUTCDate(dayDate.getUTCDate() + dayOfWeek);
+        const title = isSingleDay
+          ? `${profileName} ${platformLabel} Schedule ${fmt(dayDate)}`
+          : `${profileName} ${platformLabel} Schedule ${weekRange}`;
 
         send('progress', { step: 'creating', progress: 30, message: 'Creating Google Sheet...' });
 
         // Build sheet tabs
-        const isSingleDay = dayOfWeek != null;
         const sheetProperties = isSingleDay
           ? [{ properties: { title: `Schedule #${SLOT_LABELS[dayOfWeek]}` } }]
           : SLOT_LABELS.map((slot) => ({ properties: { title: `Schedule #${slot}` } }));

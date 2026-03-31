@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Flag, AlertCircle, Loader2, Search, Clock, DollarSign, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send } from 'lucide-react';
+import { Flag, AlertCircle, Loader2, Search, Clock, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send, AlertTriangle, Info } from 'lucide-react';
 import {
   useWorkspaceTasks,
   SchedulerTask,
@@ -9,6 +9,7 @@ import {
   useMergeTaskFields,
   useLineageEarnings,
   useQueueTaskUpdate,
+  useTaskLineage,
   isTaskLocked,
   TASK_FIELD_DEFS,
 } from '@/lib/hooks/useScheduler.query';
@@ -19,6 +20,7 @@ import { QueueCalendar } from './QueueCalendar';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
 import { toast } from 'sonner';
+import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
 
 // ─── Caption helpers (shared with modal) ──────────────────────────────────────
 
@@ -218,6 +220,12 @@ function TaskDetailPanel({
   const [queueTargetWeek, setQueueTargetWeek] = useState<string | null>(null);
   const queueMutation = useQueueTaskUpdate();
 
+  // Detect follow-up type → fetch lineage to get unlock's paywallContent for QA
+  const typeName = (serverFields.type || task.taskName || '').toLowerCase();
+  const isFollowUp = task.taskType === 'MM' &&
+    (typeName.includes('follow up') || typeName.includes('follow-up'));
+  const { data: lineageData } = useTaskLineage(isFollowUp ? task.lineageId : null);
+
   // Lineage earnings — on-demand
   const hasFinalAmountField = task.taskType === 'WP' ||
     (fields.type || task.taskName || '').toLowerCase().includes('unlock');
@@ -286,15 +294,14 @@ function TaskDetailPanel({
         patch[k] = localFields[k];
       }
     }
-    if (Object.keys(patch).length === 0) return;
 
     // Detect caption change → send to QA if flagged or already in QA flow
     const captionChanged = patch.caption !== undefined ||
                            patch.captionBankText !== undefined ||
                            patch.captionId !== undefined;
-    const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
+    const isFlaggedNow = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
     const alreadyInQA = !!serverFields.captionQAStatus;
-    const shouldSendToQA = captionChanged && (isFlagged || alreadyInQA);
+    const shouldSendToQA = captionChanged && (isFlaggedNow || alreadyInQA);
 
     if (shouldSendToQA) {
       patch.captionQAStatus = 'sent_to_qa';
@@ -303,17 +310,58 @@ function TaskDetailPanel({
         const prevCaption = serverFields.captionBankText || serverFields.caption || '';
         if (prevCaption) patch._previousCaption = prevCaption;
       }
+      // For follow-up tasks, include the sibling unlock's paywallContent
+      if (isFollowUp && lineageData?.tasks) {
+        const unlockSibling = lineageData.tasks.find((t) => {
+          const f = (t.fields || {}) as Record<string, string>;
+          const tName = (f.type || t.taskName || '').toLowerCase();
+          return tName.includes('unlock') && f.paywallContent;
+        });
+        if (unlockSibling) {
+          const unlockFields = (unlockSibling.fields || {}) as Record<string, string>;
+          patch._unlockPaywallContent = unlockFields.paywallContent;
+        }
+      }
     }
 
+    // Locked task → queue to future date + unflag original
+    if (locked && queueTargetWeek) {
+      const queueFields = { ...serverFields, ...patch };
+      queueMutation.mutate(
+        {
+          sourceTaskId: task.id,
+          weekStart: queueTargetWeek,
+          dayOfWeek: task.dayOfWeek,
+          fields: queueFields,
+        },
+        {
+          onSuccess: () => {
+            setQueueTargetWeek(null);
+            setLocalFields({});
+            // Unflag the original locked task
+            onUnflag(task.id);
+            if (shouldSendToQA) {
+              toast.info('Caption queued & sent to QA for review', { duration: 4000 });
+            } else {
+              toast.success('Task queued to future date', { duration: 3000 });
+            }
+          },
+        },
+      );
+      return;
+    }
+
+    // Normal (non-locked) save
+    if (Object.keys(patch).length === 0) return;
     onSaveField(task.id, patch);
     setLocalFields({});
 
     if (shouldSendToQA) {
       toast.info('Caption sent to QA for review', { duration: 4000 });
     }
-  }, [localFields, serverFields, task.id, onSaveField]);
+  }, [localFields, serverFields, task.id, locked, queueTargetWeek, queueMutation, onSaveField, onUnflag, isFollowUp, lineageData]);
 
-  // Caption picker handlers
+  // Caption picker handlers — no auto-save, only set local state
   const handleSelectCaption = useCallback((sel: CaptionSelection) => {
     const patch: Record<string, string> = {
       captionId: sel.captionId,
@@ -331,34 +379,12 @@ function TaskDetailPanel({
     if (sel.contentType) {
       patch.tag = sel.contentType;
     }
-
-    // Detect caption change → send to QA if flagged or already in QA flow
-    const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
-    const alreadyInQA = !!serverFields.captionQAStatus;
-    const shouldSendToQA = isFlagged || alreadyInQA;
-
-    if (shouldSendToQA) {
-      patch.captionQAStatus = 'sent_to_qa';
-      patch.flagged = '';
-      if (!serverFields._previousCaption) {
-        const prevCaption = serverFields.captionBankText || serverFields.caption || '';
-        if (prevCaption) patch._previousCaption = prevCaption;
-      }
-    }
-
     setLocalFields((prev) => ({ ...prev, ...patch }));
-    onSaveField(task.id, patch);
-
-    if (shouldSendToQA) {
-      toast.info('Caption sent to QA for review', { duration: 4000 });
-    }
-  }, [task.id, onSaveField, serverFields]);
+  }, []);
 
   const handleClearCaption = useCallback(() => {
-    const patch = { captionId: '', captionBankText: '' };
-    setLocalFields((prev) => ({ ...prev, ...patch }));
-    onSaveField(task.id, patch);
-  }, [task.id, onSaveField]);
+    setLocalFields((prev) => ({ ...prev, captionId: '', captionBankText: '' }));
+  }, []);
 
   const handleCaptionOverride = useCallback((text: string) => {
     const patch = { caption: text, captionId: '', captionBankText: '' };
@@ -370,7 +396,7 @@ function TaskDetailPanel({
   const hasPreviewUrl = URL_REGEX.test(previewUrl);
 
   return (
-    <div className="flex-1 overflow-y-auto p-5">
+    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5">
       {/* Task header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1 min-w-0">
@@ -441,7 +467,7 @@ function TaskDetailPanel({
       {locked && (
         <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px] font-sans">
           <Lock className="h-3.5 w-3.5 shrink-0" />
-          <span>This task&apos;s date has passed. Use <strong>Queue</strong> below to move it to a future date.</span>
+          <span>This task&apos;s date has passed. Select a future date below to queue &amp; send to QA.</span>
         </div>
       )}
 
@@ -472,8 +498,8 @@ function TaskDetailPanel({
         </div>
         {editableFields.map((def) => {
           const isCurrency = def.key === 'price' || def.key === 'finalAmount';
-          // Missing-amount tab: only finalAmount editable; Flagged+locked: only finalAmount editable
-          const isDisabled = def.key !== 'finalAmount' && (isMissingAmountTab || locked);
+          // Missing-amount tab: only finalAmount editable; Flagged+locked: all fields editable
+          const isDisabled = def.key !== 'finalAmount' && isMissingAmountTab;
           return (
             <WorkspaceFieldRow
               key={def.key}
@@ -544,8 +570,8 @@ function TaskDetailPanel({
         </div>
       )}
 
-      {/* Caption Picker — hidden on missing-amount tab and locked flagged tasks */}
-      {TYPES_WITH_PICKER.has(task.taskType) && !locked && !isMissingAmountTab && (
+      {/* Caption Picker — hidden on missing-amount tab only */}
+      {TYPES_WITH_PICKER.has(task.taskType) && !isMissingAmountTab && (
         <div className="mb-4">
           <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
             Caption{fields.captionId && isFlagged ? ' 🚩' : ''}
@@ -565,11 +591,11 @@ function TaskDetailPanel({
         </div>
       )}
 
-      {/* ── Queue section for locked tasks ── */}
+      {/* ── Queue date picker for locked tasks ── */}
       {locked && (
         <div className="mb-4">
           <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-            Queue to Future Date
+            Queue to Future Date {!queueTargetWeek && <span className="text-amber-500">(required)</span>}
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             <QueueCalendar
@@ -581,57 +607,72 @@ function TaskDetailPanel({
               onSelectQueueTarget={setQueueTargetWeek}
             />
           </div>
-          <button
-            onClick={handleQueue}
-            disabled={!queueTargetWeek || queueMutation.isPending}
-            className="mt-3 w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold font-sans border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: queueTargetWeek ? typeColor + '10' : undefined,
-              color: queueTargetWeek ? typeColor : undefined,
-              borderColor: queueTargetWeek ? typeColor + '40' : undefined,
-            }}
-          >
-            {queueMutation.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Send className="h-3 w-3" />
-            )}
-            {queueTargetWeek ? (
-              <>
-                Queue for{' '}
-                {(() => {
-                  const ws = new Date(queueTargetWeek + 'T00:00:00Z');
-                  ws.setUTCDate(ws.getUTCDate() + task.dayOfWeek);
-                  return !isNaN(ws.getTime())
-                    ? ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-                    : queueTargetWeek;
-                })()}
-              </>
-            ) : (
-              'Select a date to queue'
-            )}
-          </button>
+          {queueTargetWeek && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+              <Check className="h-3 w-3" />
+              Queued for{' '}
+              {(() => {
+                const ws = new Date(queueTargetWeek + 'T00:00:00Z');
+                ws.setUTCDate(ws.getUTCDate() + task.dayOfWeek);
+                return !isNaN(ws.getTime())
+                  ? ws.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+                  : queueTargetWeek;
+              })()}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Save button ── */}
-      <button
-        onClick={handleSave}
-        disabled={!hasPendingChanges || isSaving}
-        className={[
-          'w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold font-sans border transition-colors',
-          hasPendingChanges
-            ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
-            : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
-        ].join(' ')}
-      >
-        {isSaving ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <Check className="h-3 w-3" />
-        )}
-        {isSaving ? 'Saving...' : hasPendingChanges ? 'Save Changes' : 'Saved'}
-      </button>
+      {(() => {
+        const captionChanged = localFields.caption !== undefined ||
+                               localFields.captionBankText !== undefined ||
+                               localFields.captionId !== undefined;
+        const alreadyInQA = !!serverFields.captionQAStatus;
+        const willSendToQA = captionChanged && (isFlagged || alreadyInQA);
+        const isQueuing = queueMutation.isPending;
+        const needsQueueDate = locked && !queueTargetWeek;
+        const isDisabled = locked
+          ? needsQueueDate || (!hasPendingChanges && !queueTargetWeek) || isQueuing || isSaving
+          : !hasPendingChanges || isSaving;
+
+        // Button label
+        let btnLabel = 'Saved';
+        if (isQueuing) btnLabel = 'Queuing...';
+        else if (isSaving) btnLabel = 'Saving...';
+        else if (locked && needsQueueDate) btnLabel = 'Select a queue date first';
+        else if (locked && willSendToQA) btnLabel = 'Queue & Send to QA';
+        else if (locked && queueTargetWeek) btnLabel = 'Queue & Save';
+        else if (willSendToQA) btnLabel = 'Save & Send to QA';
+        else if (hasPendingChanges) btnLabel = 'Save Changes';
+
+        const isActive = !isDisabled;
+        const isQAStyle = isActive && (willSendToQA || locked);
+
+        return (
+          <button
+            onClick={handleSave}
+            disabled={isDisabled}
+            className={[
+              'w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold font-sans border transition-colors',
+              isActive
+                ? isQAStyle
+                  ? 'bg-amber-50 text-amber-600 border-amber-300 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
+                  : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
+                : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
+            ].join(' ')}
+          >
+            {isQueuing || isSaving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : isQAStyle && isActive ? (
+              <Send className="h-3 w-3" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )}
+            {btnLabel}
+          </button>
+        );
+      })()}
     </div>
   );
 }
@@ -758,7 +799,7 @@ function FilterSidebar({
   const accentText = activeTab === 'flagged' ? 'text-amber-500' : 'text-rose-500';
 
   return (
-    <div className="border-b border-gray-100 dark:border-gray-800/50">
+    <div className="border-b border-gray-100 dark:border-gray-800/50 shrink-0">
       <button
         onClick={() => setShowFilters(!showFilters)}
         className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -848,6 +889,208 @@ function FilterSidebar({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Model Context Panel ─────────────────────────────────────────────────────
+
+function parseArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.filter(Boolean).map(String);
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+    } catch {
+      return val.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function ModelContextPanel({ profileId }: { profileId: string | null }) {
+  const { data: profile, isLoading } = useInstagramProfile(profileId);
+
+  if (!profileId) {
+    return (
+      <div className="flex items-center justify-center h-full text-xs text-gray-400 dark:text-gray-600">
+        Select a task to see model context
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center h-full text-xs text-gray-400 dark:text-gray-600">
+        Profile not found
+      </div>
+    );
+  }
+
+  const bible = profile.modelBible ?? {};
+  const personality = bible.personalityDescription ?? '';
+  const background = bible.backstory ?? '';
+  const lingo = parseArray(bible.lingoKeywords);
+  const emojis = parseArray(bible.preferredEmojis);
+  const restrictions = [
+    bible.restrictions?.contentLimitations,
+    bible.restrictions?.wallRestrictions,
+    bible.restrictions?.mmExclusions,
+    bible.restrictions?.customsToAvoid,
+  ].filter(Boolean) as string[];
+  const wordingToAvoid = parseArray(bible.restrictions?.wordingToAvoid);
+  const operatorNotes = bible.captionOperatorNotes ?? '';
+  const pageStrategy = profile.pageStrategy ?? '';
+
+  return (
+    <div className="flex flex-col h-full overflow-auto custom-scrollbar">
+      {/* Model header */}
+      <div className="px-4 py-4 border-b border-gray-200/50 dark:border-white/[0.06] shrink-0">
+        <div className="flex items-center gap-3">
+          {profile.profileImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.profileImageUrl}
+              alt={profile.name}
+              className="w-11 h-11 rounded-xl object-cover shadow-lg shadow-amber-500/20"
+            />
+          ) : (
+            <div className="w-11 h-11 rounded-xl bg-amber-500/15 flex items-center justify-center text-base font-bold text-amber-500 shadow-lg shadow-amber-500/20">
+              {profile.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{profile.name}</p>
+            {pageStrategy && (
+              <span className="mt-0.5 inline-block px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded text-[10px] font-semibold">
+                {pageStrategy}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 p-4 space-y-5">
+        {/* Restrictions */}
+        {(restrictions.length > 0 || wordingToAvoid.length > 0) && (
+          <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-500/30 rounded-xl ring-1 ring-red-200 dark:ring-red-800/30 shadow-sm shadow-red-500/5">
+            <div className="text-[11px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <AlertTriangle size={13} className="shrink-0" />
+              Restrictions &amp; Things to Avoid
+            </div>
+            {restrictions.map((r, i) => (
+              <div key={i} className="text-xs text-red-700 dark:text-red-300 py-1 flex items-start gap-2">
+                <X size={11} className="shrink-0 mt-0.5" />
+                <span>{r}</span>
+              </div>
+            ))}
+            {wordingToAvoid.length > 0 && (
+              <div className="mt-2.5 pt-2.5 border-t border-red-200 dark:border-red-700/50">
+                <div className="text-[10px] font-bold text-red-600 dark:text-red-400 mb-1.5 uppercase tracking-wide">
+                  Words / Phrases to Avoid:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {wordingToAvoid.map((word, i) => (
+                    <span
+                      key={i}
+                      className="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700/40 rounded-md text-[10px] font-medium"
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Personality */}
+        {personality && (
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Personality</div>
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/70 rounded-xl text-xs leading-relaxed text-gray-700 dark:text-gray-300 border border-gray-200/50 dark:border-white/[0.06] whitespace-pre-wrap">
+              {personality}
+            </div>
+          </div>
+        )}
+
+        {/* Background */}
+        {background && (
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Background</div>
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/70 rounded-xl text-xs leading-relaxed text-gray-500 dark:text-gray-400 border border-gray-200/50 dark:border-white/[0.06] whitespace-pre-wrap">
+              {background}
+            </div>
+          </div>
+        )}
+
+        {/* Lingo */}
+        {lingo.length > 0 && (
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Lingo &amp; Keywords</div>
+            <div className="flex flex-wrap gap-1.5">
+              {lingo.map((word) => (
+                <span
+                  key={word}
+                  className="px-2 py-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-white/[0.08] rounded-lg text-[11px] text-gray-700 dark:text-gray-300"
+                >
+                  &ldquo;{word}&rdquo;
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Emojis */}
+        {emojis.length > 0 && (
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Preferred Emojis</div>
+            <div className="flex flex-wrap gap-1.5">
+              {emojis.map((emoji) => (
+                <span
+                  key={emoji}
+                  className="px-2 py-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-white/[0.08] rounded-lg text-sm"
+                >
+                  {emoji}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Operator Notes */}
+        {operatorNotes && (
+          <div>
+            <div className="text-[10px] font-semibold text-brand-blue uppercase tracking-wide mb-1.5 flex items-center gap-1">
+              <Info size={11} />
+              Operator Notes
+            </div>
+            <div className="p-3 bg-brand-blue/5 dark:bg-brand-blue/10 border border-brand-blue/15 rounded-xl text-xs leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+              {operatorNotes}
+            </div>
+          </div>
+        )}
+
+        {!personality && !background && restrictions.length === 0 && !operatorNotes && (
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-xl">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={14} className="text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                This model&apos;s context is not fully configured yet.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -990,7 +1233,7 @@ export function SchedulerWorkspace({
   const accentTextColor = activeTab === 'flagged' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
 
   return (
-    <div className={`flex-1 overflow-hidden bg-brand-off-white dark:bg-gray-950 border ${accentBorder} rounded-2xl shadow-lg m-2`}>
+    <div className={`h-[calc(100vh-7rem)] overflow-hidden bg-brand-off-white dark:bg-gray-950 border ${accentBorder} rounded-2xl shadow-lg m-2`}>
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] grid-rows-[56px_1fr] h-full">
         {/* ─── Header ─── */}
         <div className={`col-span-1 lg:col-span-3 px-4 lg:px-6 border-b ${accentBorder} flex items-center justify-between bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl sticky top-0 z-40 rounded-t-2xl`}>
@@ -1087,9 +1330,9 @@ export function SchedulerWorkspace({
         {!activeQuery.isLoading && allItems.length > 0 && (
           <>
             {/* Left Panel: Queue */}
-            <div className="hidden lg:flex lg:flex-col h-full overflow-hidden bg-white dark:bg-gray-900/80">
+            <div className="hidden lg:flex lg:flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-gray-900/80">
               {/* Search */}
-              <div className="p-3 border-b border-gray-100 dark:border-gray-800/50">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800/50 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <input
@@ -1115,7 +1358,7 @@ export function SchedulerWorkspace({
               />
 
               {/* Task queue list */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                 <div className="divide-y divide-gray-50 dark:divide-gray-800/30">
                   {filteredItems.map((task, idx) => (
                     <QueueItem
@@ -1189,110 +1432,9 @@ export function SchedulerWorkspace({
               )}
             </div>
 
-            {/* Right Panel: Summary / Stats */}
-            <div className="hidden lg:flex flex-col h-full overflow-y-auto bg-white dark:bg-gray-900/80">
-              <div className={`px-4 py-3 border-b ${accentBorder}`}>
-                <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100">Summary</h3>
-              </div>
-              <div className="p-4 space-y-4">
-                {/* Total count */}
-                <div className="text-center">
-                  <div className={`text-3xl font-bold font-mono ${activeTab === 'flagged' ? 'text-amber-500' : 'text-rose-500'}`}>
-                    {totalCount}
-                  </div>
-                  <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">
-                    {activeTab === 'flagged' ? 'Flagged Tasks' : 'Missing Final Amounts'}
-                  </div>
-                </div>
-
-                {/* Platform breakdown */}
-                {Object.keys(byPlatform).length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                      By Platform
-                    </div>
-                    <div className="space-y-1.5">
-                      {Object.entries(byPlatform)
-                        .sort(([, a], [, b]) => b - a)
-                        .map(([platform, count]) => {
-                          const pct = totalCount > 0 ? (count / totalCount) * 100 : 0;
-                          return (
-                            <div key={platform}>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <div
-                                    className="h-2 w-2 rounded-full"
-                                    style={{ backgroundColor: PLATFORM_COLORS[platform] || '#888' }}
-                                  />
-                                  <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">
-                                    {PLATFORM_LABELS[platform] || platform}
-                                  </span>
-                                </div>
-                                <span className={`text-[10px] font-bold font-mono ${activeTab === 'flagged' ? 'text-amber-500' : 'text-rose-500'}`}>
-                                  {count}
-                                </span>
-                              </div>
-                              <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${pct}%`,
-                                    backgroundColor: PLATFORM_COLORS[platform] || '#888',
-                                    opacity: 0.7,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Type breakdown */}
-                {Object.keys(byType).length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                      By Type
-                    </div>
-                    <div className="space-y-1.5">
-                      {Object.entries(byType)
-                        .sort(([, a], [, b]) => b - a)
-                        .map(([type, count]) => {
-                          const color = TASK_TYPE_COLORS[type] || '#888';
-                          const pct = totalCount > 0 ? (count / totalCount) * 100 : 0;
-                          return (
-                            <div key={type}>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="h-2 w-2 rounded" style={{ backgroundColor: color }} />
-                                  <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">{type}</span>
-                                </div>
-                                <span className={`text-[10px] font-bold font-mono ${activeTab === 'flagged' ? 'text-amber-500' : 'text-rose-500'}`}>
-                                  {count}
-                                </span>
-                              </div>
-                              <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.7 }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Showing info */}
-                <div className="text-center pt-2 border-t border-gray-100 dark:border-gray-800">
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                    Showing {filteredItems.length} of {allItems.length} loaded
-                    {totalCount > allItems.length && ` (${totalCount} total)`}
-                  </p>
-                </div>
-              </div>
+            {/* Right Panel: Model Context */}
+            <div className="hidden lg:flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-gray-900/80 border-l border-gray-100 dark:border-gray-800/50">
+              <ModelContextPanel profileId={selectedTask?.profileId ?? null} />
             </div>
           </>
         )}
