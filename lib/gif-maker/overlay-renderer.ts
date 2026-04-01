@@ -3,10 +3,119 @@
 import type {
   Overlay,
   TextOverlay,
+  TextAnimation,
   StickerOverlay,
   ShapeOverlay,
   BlurOverlay,
 } from "./types";
+
+// ─── Animation Helpers (canvas equivalents of Remotion interpolate/spring) ───
+
+/** Clamp-extrapolated linear interpolation. */
+function interpolate(
+  value: number,
+  inputRange: [number, number],
+  outputRange: [number, number]
+): number {
+  const [inMin, inMax] = inputRange;
+  const [outMin, outMax] = outputRange;
+  const t = Math.max(0, Math.min(1, (value - inMin) / (inMax - inMin)));
+  return outMin + t * (outMax - outMin);
+}
+
+/** Simple spring physics simulation matching Remotion's spring() output. */
+function springValue(
+  frame: number,
+  fps: number,
+  config: { damping: number; stiffness: number; mass?: number }
+): number {
+  const { damping, stiffness, mass = 1 } = config;
+  const omega = Math.sqrt(stiffness / mass);
+  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+  const t = frame / fps;
+
+  if (zeta < 1) {
+    // Under-damped
+    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
+    return 1 - Math.exp(-zeta * omega * t) * (Math.cos(omegaD * t) + (zeta * omega / omegaD) * Math.sin(omegaD * t));
+  }
+  // Critically/over-damped
+  return 1 - (1 + omega * t) * Math.exp(-omega * t);
+}
+
+interface AnimationTransform {
+  opacity: number;
+  translateX: number;
+  translateY: number;
+  scale: number;
+  blur: number;
+  glowSize: number;
+}
+
+function getCanvasAnimation(
+  animation: TextAnimation,
+  relativeFrame: number,
+  fps: number,
+  durationFrames: number
+): AnimationTransform {
+  const result: AnimationTransform = {
+    opacity: 1, translateX: 0, translateY: 0, scale: 1, blur: 0, glowSize: 0,
+  };
+
+  switch (animation) {
+    case "fade-in":
+      result.opacity = interpolate(relativeFrame, [0, durationFrames], [0, 1]);
+      break;
+    case "slide-up":
+      result.translateY = interpolate(relativeFrame, [0, durationFrames], [30, 0]);
+      result.opacity = interpolate(relativeFrame, [0, durationFrames * 0.5], [0, 1]);
+      break;
+    case "slide-down":
+      result.translateY = interpolate(relativeFrame, [0, durationFrames], [-30, 0]);
+      result.opacity = interpolate(relativeFrame, [0, durationFrames * 0.5], [0, 1]);
+      break;
+    case "slide-left":
+      result.translateX = interpolate(relativeFrame, [0, durationFrames], [30, 0]);
+      result.opacity = interpolate(relativeFrame, [0, durationFrames * 0.5], [0, 1]);
+      break;
+    case "slide-right":
+      result.translateX = interpolate(relativeFrame, [0, durationFrames], [-30, 0]);
+      result.opacity = interpolate(relativeFrame, [0, durationFrames * 0.5], [0, 1]);
+      break;
+    case "scale-in":
+      result.scale = springValue(relativeFrame, fps, { damping: 12, stiffness: 200 });
+      break;
+    case "bounce": {
+      result.scale = springValue(relativeFrame, fps, { damping: 8, stiffness: 300, mass: 0.5 });
+      result.translateY = interpolate(
+        relativeFrame,
+        [0, durationFrames * 0.3],
+        [-20, 0]
+      );
+      break;
+    }
+    case "blur-in":
+      result.blur = interpolate(relativeFrame, [0, durationFrames], [10, 0]);
+      result.opacity = interpolate(relativeFrame, [0, durationFrames], [0, 1]);
+      break;
+    case "glow": {
+      const progress = Math.min(relativeFrame / Math.max(1, durationFrames), 1);
+      result.opacity = interpolate(progress, [0, 0.3], [0, 1]);
+      result.glowSize = interpolate(progress, [0, 0.5], [0, 20]);
+      if (progress > 0.5) result.glowSize = interpolate(progress, [0.5, 1], [20, 10]);
+      break;
+    }
+    case "pop":
+      result.scale = springValue(relativeFrame, fps, { damping: 6, stiffness: 400, mass: 0.4 });
+      break;
+    case "typewriter":
+    case "none":
+    default:
+      break;
+  }
+
+  return result;
+}
 
 /**
  * Render all visible overlays onto a canvas frame.
@@ -18,7 +127,8 @@ export function renderOverlaysToCanvas(
   overlays: Overlay[],
   canvasWidth: number,
   canvasHeight: number,
-  currentFrame: number
+  currentFrame: number,
+  fps: number = 30
 ): void {
   for (const overlay of overlays) {
     // Skip overlays not visible at this frame
@@ -36,7 +146,7 @@ export function renderOverlaysToCanvas(
 
     switch (overlay.type) {
       case "text":
-        renderTextOverlay(ctx, overlay, canvasWidth, canvasHeight, currentFrame);
+        renderTextOverlay(ctx, overlay, canvasWidth, canvasHeight, currentFrame, fps);
         break;
       case "sticker":
         renderStickerOverlay(ctx, overlay, canvasWidth, canvasHeight);
@@ -57,7 +167,8 @@ function renderTextOverlay(
   overlay: TextOverlay,
   canvasWidth: number,
   canvasHeight: number,
-  currentFrame: number
+  currentFrame: number,
+  fps: number
 ): void {
   const x = (overlay.x / 100) * canvasWidth;
   const y = (overlay.y / 100) * canvasHeight;
@@ -93,14 +204,15 @@ function renderTextOverlay(
   const bgGradColors = overlay.bgGradientColors ?? ["#FF6B35", "#FFD700"];
   const bgGradAngle = overlay.bgGradientAngle ?? 180;
 
+  // ── Animation ──
+  const relativeFrame = currentFrame - overlay.startFrame;
+  const animDuration = overlay.animationDurationFrames || 30;
+  const anim = getCanvasAnimation(overlay.animation, relativeFrame, fps, animDuration);
+
   // Resolve display text (typewriter animation)
   let displayText = overlay.text;
   if (overlay.animation === "typewriter") {
-    const relativeFrame = currentFrame - overlay.startFrame;
-    const progress = Math.min(
-      relativeFrame / Math.max(1, overlay.animationDurationFrames),
-      1
-    );
+    const progress = Math.min(relativeFrame / Math.max(1, animDuration), 1);
     const charCount = Math.floor(progress * overlay.text.length);
     displayText = overlay.text.slice(0, charCount);
   }
@@ -111,15 +223,31 @@ function renderTextOverlay(
   if (textTransform === "uppercase") displayText = displayText.toUpperCase();
   else if (textTransform === "lowercase") displayText = displayText.toLowerCase();
 
-  ctx.globalAlpha = textOpacity;
+  // Combine base opacity with animation opacity
+  ctx.globalAlpha = textOpacity * anim.opacity;
 
-  // Apply rotation around overlay center
-  if (rotation !== 0) {
-    const centerX = x + w / 2;
-    const centerY = y + h / 2;
+  // If animation makes it fully transparent, skip rendering
+  if (ctx.globalAlpha <= 0) return;
+
+  // Apply blur-in via canvas filter
+  if (anim.blur > 0) {
+    ctx.filter = `blur(${anim.blur * fontScale}px)`;
+  }
+
+  // Apply rotation + animation transforms around overlay center
+  const centerX = x + w / 2;
+  const centerY = y + h / 2;
+  const hasRotation = rotation !== 0;
+  const hasAnimTransform = anim.scale !== 1 || anim.translateX !== 0 || anim.translateY !== 0;
+
+  if (hasRotation || hasAnimTransform) {
     ctx.translate(centerX, centerY);
-    ctx.rotate((rotation * Math.PI) / 180);
+    if (anim.scale !== 1) ctx.scale(anim.scale, anim.scale);
+    if (hasRotation) ctx.rotate((rotation * Math.PI) / 180);
     ctx.translate(-centerX, -centerY);
+    if (anim.translateX !== 0 || anim.translateY !== 0) {
+      ctx.translate(anim.translateX * fontScale, anim.translateY * fontScale);
+    }
   }
 
   // Font setup
@@ -172,12 +300,18 @@ function renderTextOverlay(
     ctx.globalAlpha = textOpacity;
   }
 
-  // Set shadow
+  // Set shadow (combine with glow animation if active)
   if (shadowOffsetX !== 0 || shadowOffsetY !== 0 || shadowBlurVal !== 0) {
     ctx.shadowOffsetX = shadowOffsetX * fontScale;
     ctx.shadowOffsetY = shadowOffsetY * fontScale;
     ctx.shadowBlur = shadowBlurVal * fontScale;
     ctx.shadowColor = shadowColor;
+  }
+  if (anim.glowSize > 0) {
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.shadowBlur = anim.glowSize * fontScale;
+    ctx.shadowColor = overlay.color;
   }
 
   // Draw each line

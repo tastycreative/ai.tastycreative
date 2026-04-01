@@ -28,7 +28,7 @@ export function FlyerPreviewPanel() {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Render preview
+  // Load image + render preview in single async effect to avoid race conditions
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -36,24 +36,24 @@ export function FlyerPreviewPanel() {
     let cancelled = false;
 
     async function render() {
-      let img: HTMLImageElement | null = null;
       if (modelPhotoSrc) {
         try {
-          img = await loadImage(modelPhotoSrc);
+          const img = await loadImage(modelPhotoSrc);
+          if (cancelled) return;
           modelImgRef.current = img;
         } catch {
+          if (cancelled) return;
           modelImgRef.current = null;
         }
       } else {
         modelImgRef.current = null;
       }
-      if (cancelled) return;
 
       renderFlyer({
         canvas: canvas!,
         prizes: activePrizes,
         theme,
-        modelPhoto: img,
+        modelPhoto: modelImgRef.current,
         modelName,
       });
     }
@@ -68,21 +68,11 @@ export function FlyerPreviewPanel() {
       const exportCanvas = exportCanvasRef.current;
       if (!exportCanvas) return;
 
-      // Reuse cached image if available
-      let img = modelImgRef.current;
-      if (modelPhotoSrc && !img) {
-        try {
-          img = await loadImage(modelPhotoSrc);
-        } catch {
-          // continue without photo
-        }
-      }
-
       renderFlyer({
         canvas: exportCanvas,
         prizes: activePrizes,
         theme,
-        modelPhoto: img,
+        modelPhoto: modelImgRef.current,
         modelName,
       });
 
@@ -96,7 +86,7 @@ export function FlyerPreviewPanel() {
     } finally {
       setExporting(false);
     }
-  }, [activePrizes, theme, modelPhotoSrc, modelName, themeKey]);
+  }, [activePrizes, theme, modelName, themeKey]);
 
   const handleCopyPrizes = useCallback(() => {
     navigator.clipboard.writeText(activePrizes.map((p) => p.label).join('\n')).catch(() => {});
