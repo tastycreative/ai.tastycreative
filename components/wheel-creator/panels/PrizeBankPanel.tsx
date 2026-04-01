@@ -1,14 +1,20 @@
 'use client';
 
+import { useMemo } from 'react';
 import { X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useWheelCreatorStore, selectTheme } from '@/stores/wheel-creator-store';
 import { TIER_ORDER, TIER_META } from '@/lib/wheel-creator/constants';
 
 export function PrizeBankPanel() {
-  const prizes = useWheelCreatorStore((s) => s.prizes);
-  const editingPrizeId = useWheelCreatorStore((s) => s.editingPrizeId);
-  const editingPrizeValue = useWheelCreatorStore((s) => s.editingPrizeValue);
-  const customInput = useWheelCreatorStore((s) => s.customInput);
+  const { prizes, editingPrizeId, editingPrizeValue, customInput } = useWheelCreatorStore(
+    useShallow((s) => ({
+      prizes: s.prizes,
+      editingPrizeId: s.editingPrizeId,
+      editingPrizeValue: s.editingPrizeValue,
+      customInput: s.customInput,
+    }))
+  );
 
   const togglePrize = useWheelCreatorStore((s) => s.togglePrize);
   const startEditPrize = useWheelCreatorStore((s) => s.startEditPrize);
@@ -21,6 +27,16 @@ export function PrizeBankPanel() {
 
   const theme = useWheelCreatorStore(selectTheme);
 
+  // Memoize tier groups to avoid re-filtering on every render
+  const tierGroups = useMemo(
+    () => TIER_ORDER.map((tier) => ({
+      tier,
+      prizes: prizes.filter((p) => p.tier === tier),
+      meta: TIER_META[tier],
+    })).filter((g) => g.prizes.length > 0),
+    [prizes]
+  );
+
   return (
     <div className="flex-1 p-3.5 overflow-y-auto border-r border-gray-800">
       <div className="flex justify-between items-center mb-3.5">
@@ -30,12 +46,7 @@ export function PrizeBankPanel() {
         <div className="text-[11px] text-gray-500">Click to toggle · Double-click to rename</div>
       </div>
 
-      {TIER_ORDER.map((tier) => {
-        const tierPrizes = prizes.filter((p) => p.tier === tier);
-        if (!tierPrizes.length) return null;
-        const tm = TIER_META[tier];
-
-        return (
+      {tierGroups.map(({ tier, prizes: tierPrizes, meta: tm }) => (
           <div key={tier} className="mb-4">
             <div
               className="text-[10px] font-bold uppercase tracking-wider mb-2 pb-1.5"
@@ -93,8 +104,7 @@ export function PrizeBankPanel() {
               ))}
             </div>
           </div>
-        );
-      })}
+      ))}
 
       <div className="mt-4 pt-3.5 border-t border-gray-800">
         <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Add Custom Prize</div>

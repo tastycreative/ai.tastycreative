@@ -44,20 +44,20 @@ export function renderWheel({
     ctx.stroke();
   }
 
-  // Labels
+  // Labels — font calculated once, shadow set once via save/restore
+  const labelFontSize = Math.max(8, Math.min(16, 280 / n));
+  const labelFont = `bold ${labelFontSize}px "Impact", "Arial Black", sans-serif`;
   for (let i = 0; i < n; i++) {
     const mid = rotation - Math.PI / 2 + i * arc + arc / 2;
-    const fontSize = Math.max(8, Math.min(16, 280 / n));
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(mid);
     ctx.textAlign = 'right';
-    ctx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
+    ctx.font = labelFont;
     ctx.fillStyle = prizes[i].tier === 'bonus' ? '#111' : '#fff';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4;
-    ctx.fillText(prizes[i].label, innerR - 14, fontSize / 3);
-    ctx.shadowBlur = 0;
+    ctx.fillText(prizes[i].label, innerR - 14, labelFontSize / 3);
     ctx.restore();
   }
 
@@ -84,10 +84,12 @@ export function renderWheel({
     ctx.stroke();
   });
 
-  // Bulb lights
+  // Bulb lights — use save/restore to batch shadow resets
   const nLights = Math.max(20, Math.round(outerRadius * 0.12));
   const lightR = (innerR + outerRadius) / 2;
   const bulbSize = Math.max(3, outerRadius * 0.018);
+  ctx.save();
+  ctx.shadowBlur = 8;
   for (let i = 0; i < nLights; i++) {
     const a = (i / nLights) * Math.PI * 2;
     const lx = cx + lightR * Math.cos(a);
@@ -97,10 +99,9 @@ export function renderWheel({
     ctx.arc(lx, ly, bulbSize, 0, Math.PI * 2);
     ctx.fillStyle = even ? theme.accent : '#e8e8e8';
     ctx.shadowColor = even ? theme.accent : 'rgba(255,255,255,0.6)';
-    ctx.shadowBlur = 8;
     ctx.fill();
-    ctx.shadowBlur = 0;
   }
+  ctx.restore();
 
   // Hub center
   const hubR = outerRadius * 0.085;
@@ -116,13 +117,13 @@ export function renderWheel({
   ctx.stroke();
 
   ctx.fillStyle = '#fff';
-  ctx.shadowColor = 'transparent';
   ctx.font = `bold ${hubR * 0.7}px "Arial", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Spin', cx, cy);
 
   // Pointer teardrop at top
+  ctx.save();
   const tipY = cy - innerR + 2;
   const baseY = cy - outerRadius - outerRadius * 0.04;
   const pWidth = outerRadius * 0.04;
@@ -135,7 +136,7 @@ export function renderWheel({
   ctx.shadowColor = theme.accent;
   ctx.shadowBlur = 14;
   ctx.fill();
-  ctx.shadowBlur = 0;
+  ctx.restore();
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 1.5;
   ctx.stroke();

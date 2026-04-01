@@ -12,6 +12,7 @@ import { ModelSelector } from '../ModelSelector';
 import { TIER_ORDER, TIER_META, THEMES } from '@/lib/wheel-creator/constants';
 import type { OfModel } from '@/lib/hooks/useOfModels.query';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
+import { convertS3ToCdnUrl, isS3Url } from '@/lib/cdnUtils';
 
 interface VaultFolderWithCount {
   id: string;
@@ -122,7 +123,8 @@ export function ModelSetupPanel() {
   }, []);
 
   const handleSelectVaultImage = useCallback((item: VaultItem) => {
-    setModelPhotoUrl(item.awsS3Url);
+    const url = isS3Url(item.awsS3Url) ? convertS3ToCdnUrl(item.awsS3Url) : item.awsS3Url;
+    setModelPhotoUrl(url);
     setModelPhotoFile(null);
     setPhotoView('default');
   }, [setModelPhotoUrl, setModelPhotoFile]);

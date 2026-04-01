@@ -3,6 +3,7 @@
 import { RefObject, useCallback } from "react";
 import { toast } from "sonner";
 import { useVideoEditorStore } from "@/stores/video-editor-store";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorHistory } from "@/lib/hooks/useEditorHistory";
 import {
   PLATFORM_DIMENSIONS,
@@ -39,28 +40,35 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({ playerRef }: EditorToolbarProps) {
-  const settings = useVideoEditorStore((s) => s.settings);
-  const clips = useVideoEditorStore((s) => s.clips);
-  const overlays = useVideoEditorStore((s) => s.overlays);
-  const totalDurationInFrames = useVideoEditorStore(
-    (s) => s.totalDurationInFrames
-  );
+  // Consolidated state selectors to reduce re-renders
+  const { settings, clips, overlays, totalDurationInFrames, exportState, isCropping } =
+    useVideoEditorStore(
+      useShallow((s) => ({
+        settings: s.settings,
+        clips: s.clips,
+        overlays: s.overlays,
+        totalDurationInFrames: s.totalDurationInFrames,
+        exportState: s.exportState,
+        isCropping: s.isCropping,
+      }))
+    );
+
+  // Action selectors (stable references, don't cause re-renders)
   const setPlatform = useVideoEditorStore((s) => s.setPlatform);
   const setTimelineZoom = useVideoEditorStore((s) => s.setTimelineZoom);
   const setSnapEnabled = useVideoEditorStore((s) => s.setSnapEnabled);
-  const exportState = useVideoEditorStore((s) => s.exportState);
   const setExportState = useVideoEditorStore((s) => s.setExportState);
-  const loopMode = useVideoEditorStore((s) => s.settings.loopMode ?? "forward");
   const updateSettings = useVideoEditorStore((s) => s.updateSettings);
-  const isCropping = useVideoEditorStore((s) => s.isCropping);
   const setIsCropping = useVideoEditorStore((s) => s.setIsCropping);
   const applyCrop = useVideoEditorStore((s) => s.applyCrop);
   const setCropRect = useVideoEditorStore((s) => s.setCropRect);
 
+  const loopMode = settings.loopMode ?? "forward";
+
   // History management
   const { undo, redo, canUndo, canRedo, manualSave, lastSaveTime } = useEditorHistory();
 
-  const activeCollageLayout = useVideoEditorStore((s) => s.settings.activeCollageLayout);
+  const activeCollageLayout = settings.activeCollageLayout;
 
   // Check if timeline needs canvas-based export (images, collage, or multi-slot)
   const hasImageClips = clips.some((c) => c.type === "image");
@@ -195,7 +203,8 @@ export function EditorToolbar({ playerRef }: EditorToolbarProps) {
               overlays,
               outputWidth,
               outputHeight,
-              frameIndex
+              frameIndex,
+              settings.fps
             );
           }
         }

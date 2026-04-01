@@ -52,13 +52,13 @@ export const TextAnimationControls = memo(function TextAnimationControls({
       {animation !== "none" && (
         <div className="space-y-1.5">
           <label className="text-xs text-slate-400">
-            Duration: {animationDurationFrames}f
+            Duration: {animationDurationFrames ?? 30}f
           </label>
           <input
             type="range"
             min={5}
             max={60}
-            value={animationDurationFrames}
+            value={animationDurationFrames ?? 30}
             onChange={(e) => onUpdate({ animationDurationFrames: Number(e.target.value) })}
             className="w-full h-1.5 pro-slider"
           />
