@@ -10,6 +10,18 @@ const SLOT_LABELS = ['1A', '1B', '1C', '1D', '1E', '1F', '1G'];
 const MM_HEADER_FORMULA =
   '="MM Schedule: " & COUNTIF(B2:B995, "*") & ":" & (COUNTIF(B2:B995, "*") - 2 * COUNTIF(I2:I995, "<>")) & ":" & COUNTIF(I2:I995, "<>")';
 
+// Price column indices (0-based) — MM price = col 8 (I), WP priceInfo = col 15 (P)
+const PRICE_COL_INDICES = [8, 15];
+
+/** Strip $, commas, whitespace from a price string and return a number or null */
+function parsePrice(val: string): number | null {
+  if (!val) return null;
+  const cleaned = val.replace(/[$,\s]/g, '').trim();
+  if (!cleaned) return null;
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
 /**
  * POST /api/scheduler/export-to-sheets
  *
@@ -172,6 +184,9 @@ export async function POST(request: NextRequest) {
             requestBody: { values: [[MM_HEADER_FORMULA]] },
           });
 
+          // Write price columns as numbers (USER_ENTERED so Sheets treats them as numeric)
+          await writePriceColumns(sheets, spreadsheetId, tabName, dataRows);
+
           send('progress', { step: 'populated', progress: 80, message: 'Data populated' });
         } else {
           // Full week — 7 tabs
@@ -204,6 +219,9 @@ export async function POST(request: NextRequest) {
               valueInputOption: 'USER_ENTERED',
               requestBody: { values: [[MM_HEADER_FORMULA]] },
             });
+
+            // Write price columns as numbers
+            await writePriceColumns(sheets, spreadsheetId, tabName, dataRows);
 
             const dayProgress = 40 + Math.round(((day + 1) / totalDays) * 45);
             send('progress', {
@@ -246,6 +264,41 @@ export async function POST(request: NextRequest) {
   });
 }
 
+/**
+ * Overwrite price columns with parsed numeric values so Sheets treats them as numbers.
+ * Uses USER_ENTERED so "10.99" becomes a real number, not text.
+ */
+async function writePriceColumns(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  tabName: string,
+  dataRows: string[][],
+) {
+  for (const colIdx of PRICE_COL_INDICES) {
+    // Collect price values for this column (data rows only, skip header = row 2+)
+    const colValues: (number | string)[][] = dataRows.map((row) => {
+      const raw = row[colIdx] ?? '';
+      const num = parsePrice(raw);
+      return [num !== null ? num : ''];
+    });
+
+    // Skip if all empty
+    if (colValues.every(([v]) => v === '')) continue;
+
+    // Column letter: col 8 = I, col 15 = P
+    const colLetter = String.fromCharCode(65 + colIdx);
+    const startRow = 2; // row 1 is header
+    const endRow = startRow + dataRows.length - 1;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${tabName}'!${colLetter}${startRow}:${colLetter}${endRow}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: colValues },
+    });
+  }
+}
+
 /** Build batchUpdate requests for basic formatting (bold header, column widths). */
 function buildFormatRequests(sheetsMeta: { properties?: { sheetId?: number | null } | null }[]) {
   const requests: object[] = [];
@@ -280,6 +333,26 @@ function buildFormatRequests(sheetsMeta: { properties?: { sheetId?: number | nul
         fields: 'gridProperties.frozenRowCount',
       },
     });
+
+    // Currency format on price columns (MM price = col 8, WP priceInfo = col 15)
+    for (const colIdx of PRICE_COL_INDICES) {
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1, // skip header
+            startColumnIndex: colIdx,
+            endColumnIndex: colIdx + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
+            },
+          },
+          fields: 'userEnteredFormat.numberFormat',
+        },
+      });
+    }
 
     // Auto-resize columns
     requests.push({
