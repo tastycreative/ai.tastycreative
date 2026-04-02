@@ -82,19 +82,27 @@ export async function GET() {
           orderBy: { createdAt: 'desc' },
           select: {
             taskId: true,
+            userId: true,
             createdAt: true,
-            user: {
-              select: { name: true, firstName: true, lastName: true, imageUrl: true },
-            },
           },
         })
       : [];
+
+    // Resolve user details for submitters
+    const submitterUserIds = [...new Set(sentHistory.map((h) => h.userId))];
+    const submitterUsers = submitterUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: submitterUserIds } },
+          select: { id: true, name: true, firstName: true, lastName: true, imageUrl: true },
+        })
+      : [];
+    const userMap = new Map(submitterUsers.map((u) => [u.id, u]));
 
     // Keep only the latest entry per task
     const submitterMap = new Map<string, { name: string | null; imageUrl: string | null; at: string }>();
     for (const h of sentHistory) {
       if (!submitterMap.has(h.taskId)) {
-        const u = h.user;
+        const u = userMap.get(h.userId);
         const displayName = u
           ? (u.name && !u.name.startsWith('user_') ? u.name : [u.firstName, u.lastName].filter(Boolean).join(' ') || null)
           : null;
