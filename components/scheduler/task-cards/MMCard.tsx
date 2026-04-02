@@ -25,6 +25,7 @@ import {
   PostedBadge,
   TaskViewerAvatars,
   CaptionQAIndicator,
+  StreakIndicator,
 } from "./shared";
 import { useSchedulerPresenceContext } from "../SchedulerPresenceContext";
 
@@ -42,6 +43,7 @@ export function MMCard({
   autoOpen,
   onModalOpen,
   onModalClose,
+  streak,
 }: TaskCardProps) {
   const [showModal, setShowModal] = useState(false);
   const { setActiveTask } = useSchedulerPresenceContext();
@@ -167,9 +169,10 @@ export function MMCard({
             </div>
           )}
 
-          {/* Bottom status row: QA status + Posted + Presence */}
+          {/* Bottom status row: QA status + Streak + Posted + Presence */}
           <div className="flex items-center gap-1 ml-3.5 mt-0.5">
             <CaptionQAIndicator status={fields.captionQAStatus} />
+            <StreakIndicator streak={streak} />
             {task.status === "DONE" && <PostedBadge />}
             <TaskViewerAvatars taskId={task.id} size="sm" />
           </div>
@@ -183,6 +186,7 @@ export function MMCard({
           schedulerToday={schedulerToday}
           weekStart={weekStart}
           profileName={profileName}
+          streak={streak}
         />
       </>
     );
@@ -229,6 +233,7 @@ export function MMCard({
               </span>
             )}
             <StatusBadge task={task} onUpdate={onUpdate} />
+            <StreakIndicator streak={streak} />
             {expandedIsUnlock && fields.finalAmount && (
               <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                 {fields.finalAmount}
@@ -283,6 +288,7 @@ export function MMCard({
         onDelete={onDelete}
         schedulerToday={schedulerToday}
         weekStart={weekStart}
+        streak={streak}
       />
     </>
   );

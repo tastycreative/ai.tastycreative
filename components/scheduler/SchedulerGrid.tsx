@@ -11,6 +11,8 @@ import {
   useCreateSchedulerTask,
   useDeleteSchedulerTask,
   useUpdateTaskLimits,
+  useTaskStreaks,
+  getTaskStreak,
   SchedulerTask,
   TaskLimits,
 } from '@/lib/hooks/useScheduler.query';
@@ -296,6 +298,7 @@ export function SchedulerGrid() {
   const config = configData?.config ?? null;
   const realTasks = weekData?.tasks ?? [];
   const tasks = realTasks;
+  const { data: streaksData } = useTaskStreaks(tasks);
   const teamNames = config?.teamNames ?? [];
   const rotationOffset = config?.rotationOffset ?? 0;
   const taskLimits = config?.taskLimits ?? null;
@@ -1194,6 +1197,7 @@ export function SchedulerGrid() {
                 onTaskModalOpen={openTaskInUrl}
                 onTaskModalClose={clearTaskParam}
                 isCurrentWeek={isCurrentWeek}
+                streaks={streaksData}
               />
             );
           })}
@@ -1236,6 +1240,7 @@ export function SchedulerGrid() {
                 onTaskModalOpen={openTaskInUrl}
                 onTaskModalClose={clearTaskParam}
                 isCurrentWeek={isCurrentWeek}
+                streaks={streaksData}
               />
             );
           })}

@@ -11,10 +11,12 @@ import {
   Clock,
   Send,
   History,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSchedulerCaptionReview, type SchedulerQAItem } from '@/lib/hooks/useQAQueue.query';
-import { TASK_FIELD_DEFS } from '@/lib/hooks/useScheduler.query';
+import { TASK_FIELD_DEFS, useSiblingTask } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTaskModal } from '@/components/scheduler/SchedulerTaskModal';
 import SchedulerQAHistory from './SchedulerQAHistory';
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -106,6 +108,15 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
   const reviewMutation = useSchedulerCaptionReview();
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showSiblingModal, setShowSiblingModal] = useState(false);
+
+  // Detect follow-up / unlock and fetch sibling
+  const itemTypeName = item ? ((item.fields as Record<string, string>).type || '').toLowerCase() : '';
+  const isFollowUp = item?.taskType === 'MM' &&
+    (itemTypeName.includes('follow up') || itemTypeName.includes('follow-up'));
+  const isUnlock = item?.taskType === 'MM' && itemTypeName.includes('unlock');
+  const { data: siblingData } = useSiblingTask((isFollowUp || isUnlock) ? item?.id ?? null : null);
+  const siblingTask = siblingData?.sibling ?? null;
 
   const handleApprove = useCallback(() => {
     if (!item) return;
@@ -159,6 +170,7 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
   );
 
   return (
+    <>
     <div className="flex flex-col h-full overflow-auto bg-gray-50 dark:bg-gray-950/50 custom-scrollbar">
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-200/50 dark:border-white/[0.06] bg-white dark:bg-gray-900/80 sticky top-0 z-10 backdrop-blur-xl">
@@ -231,6 +243,22 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
           </div>
         )}
       </div>
+
+      {/* Sibling link hint (Follow Up ↔ Unlock) */}
+      {siblingTask && (
+        <button
+          onClick={() => setShowSiblingModal(true)}
+          className="mx-4 mt-3 w-[calc(100%-2rem)] flex items-center gap-2 px-3 py-2 rounded-lg bg-pink-50 dark:bg-pink-900/10 border border-pink-500/20 text-pink-700 dark:text-pink-400 text-[11px] font-sans hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors text-left"
+        >
+          <Link2 className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {isFollowUp
+              ? <>This is a <strong>follow-up</strong> — click to view the Unlock</>
+              : <>This is an <strong>unlock</strong> — click to view the Follow Up</>
+            }
+          </span>
+        </button>
+      )}
 
       {/* Scrollable sections */}
       <div className="flex-1 p-4 lg:p-5 space-y-4">
@@ -420,6 +448,18 @@ function SchedulerReviewPanelComponent({ item, onReviewComplete }: SchedulerRevi
         </div>
       </div>
     </div>
+
+    {/* Sibling task modal */}
+    {siblingTask && (
+      <SchedulerTaskModal
+        task={siblingTask}
+        open={showSiblingModal}
+        onClose={() => setShowSiblingModal(false)}
+        onUpdate={() => {}}
+        weekStart={siblingTask.weekStartDate?.toString().split('T')[0]}
+      />
+    )}
+    </>
   );
 }
 

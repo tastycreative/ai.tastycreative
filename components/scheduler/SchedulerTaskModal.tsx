@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Clock,
@@ -22,6 +22,7 @@ import {
   Hourglass,
   XCircle,
   Images,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -35,6 +36,7 @@ import {
   useTaskHistory,
   useLineageHistory,
   useLineageEarnings,
+  useSiblingTask,
   TaskHistoryItem,
   LineageHistoryItem,
   MM_SUB_TYPES,
@@ -42,7 +44,7 @@ import {
   WP_SUB_TYPES,
   WP_SUB_TYPE_ICONS,
 } from '@/lib/hooks/useScheduler.query';
-import { TASK_TYPE_COLORS, TaskViewerBanner } from './task-cards/shared';
+import { TASK_TYPE_COLORS, TaskViewerBanner, StreakIndicator } from './task-cards/shared';
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { QueueCalendar } from './QueueCalendar';
@@ -99,6 +101,7 @@ interface SchedulerTaskModalProps {
   schedulerToday?: string;
   weekStart?: string;
   profileName?: string;
+  streak?: number;
 }
 
 export function SchedulerTaskModal({
@@ -110,6 +113,7 @@ export function SchedulerTaskModal({
   schedulerToday,
   weekStart,
   profileName,
+  streak,
 }: SchedulerTaskModalProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
@@ -171,6 +175,13 @@ export function SchedulerTaskModal({
   const typeName = (fields.type || viewingTask.taskName || '').toLowerCase();
   const isUnlockOrFollowUp = viewingTask.taskType === 'MM' &&
     (typeName.includes('unlock') || typeName.includes('follow up') || typeName.includes('follow-up'));
+  const isFollowUp = viewingTask.taskType === 'MM' &&
+    (typeName.includes('follow up') || typeName.includes('follow-up'));
+  const isUnlock = viewingTask.taskType === 'MM' && typeName.includes('unlock');
+
+  // Fetch sibling task (Unlock ↔ Follow Up)
+  const { data: siblingData } = useSiblingTask(open && (isFollowUp || isUnlock) ? viewingTask.id : null);
+  const siblingTask = siblingData?.sibling ?? null;
 
   const handleStyleChange = useCallback((newStyle: string) => {
     // Save immediately — the grid's handleUpdate will sync subType to the sibling
@@ -228,9 +239,34 @@ export function SchedulerTaskModal({
     }
   }, [viewingTask.id, task]);
 
+  // ─── Required fields for Unlock tasks ───
+  const UNLOCK_REQUIRED_FIELDS = [
+    { key: 'paywallContent', label: 'Paywall Content' },
+    { key: 'contentPreview', label: 'GIF/Flyer' },
+    { key: 'price', label: 'Price' },
+    { key: 'folderName', label: 'Folder Name' },
+    { key: 'tag', label: 'Tag' },
+    { key: 'time', label: 'Time' },
+    { key: 'captionGuide', label: 'Caption Guide' },
+  ];
+
+  const unlockMissingFields = useMemo(() => {
+    if (!isUnlock) return [];
+    const merged = { ...serverFields, ...pendingChanges } as Record<string, string>;
+    return UNLOCK_REQUIRED_FIELDS.filter((f) => !merged[f.key]?.trim());
+  }, [isUnlock, serverFields, pendingChanges]);
+
   // ─── Explicit save ───
   const handleSave = useCallback(() => {
     if (!isDirty) return;
+
+    // Validate required fields for Unlock tasks
+    if (isUnlock && unlockMissingFields.length > 0) {
+      const names = unlockMissingFields.map((f) => f.label).join(', ');
+      toast.error(`Missing required fields: ${names}`, { duration: 5000 });
+      return;
+    }
+
     setIsSaving(true);
     const merged = { ...serverFields, ...pendingChanges } as TaskFields;
     const m = merged as Record<string, unknown>;
@@ -246,22 +282,14 @@ export function SchedulerTaskModal({
     if (shouldSendToQA) {
       m.captionQAStatus = 'sent_to_qa';
       m.flagged = '';
-      // Keep original _previousCaption from the first send; only set if not already stored
       if (!serverFields._previousCaption) {
         const prevCaption = serverFields.captionBankText || serverFields.caption || '';
         if (prevCaption) m._previousCaption = prevCaption;
       }
       // For follow-up tasks, include the sibling unlock's paywallContent
-      const isFollowUpTask = viewingTask.taskType === 'MM' &&
-        (typeName.includes('follow up') || typeName.includes('follow-up'));
-      if (isFollowUpTask && lineageData?.tasks) {
-        const unlockSibling = lineageData.tasks.find((t) => {
-          const f = (t.fields || {}) as Record<string, string>;
-          const tName = (f.type || t.taskName || '').toLowerCase();
-          return tName.includes('unlock') && f.paywallContent;
-        });
-        if (unlockSibling) {
-          const unlockFields = (unlockSibling.fields || {}) as Record<string, string>;
+      if (isFollowUp && siblingTask) {
+        const unlockFields = (siblingTask.fields || {}) as Record<string, string>;
+        if (unlockFields.paywallContent) {
           m._unlockPaywallContent = unlockFields.paywallContent;
         }
       }
@@ -275,7 +303,7 @@ export function SchedulerTaskModal({
     }
 
     setTimeout(() => setIsSaving(false), 400);
-  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate, typeName, lineageData]);
+  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate, isUnlock, unlockMissingFields, isFollowUp, siblingTask]);
 
   // ─── Queue: create a copy for the selected future week ───
   const handleQueue = useCallback(() => {
@@ -533,6 +561,9 @@ export function SchedulerTaskModal({
               )}
             </div>
 
+            {/* Streak indicator */}
+            <StreakIndicator streak={streak} />
+
             {/* Week label when viewing a non-original task */}
             {!isViewingOriginal && (
               <span className="text-[9px] font-mono text-gray-400 dark:text-gray-600 px-2 py-0.5 rounded bg-gray-50 dark:bg-gray-800">
@@ -775,6 +806,22 @@ export function SchedulerTaskModal({
               )}
             </div>
 
+            {/* Sibling link hint (Follow Up ↔ Unlock) */}
+            {siblingTask && (
+              <button
+                onClick={() => handleSelectLineageTask(siblingTask)}
+                className="mx-4 mb-3 w-[calc(100%-2rem)] flex items-center gap-2 px-3 py-2 rounded-lg bg-pink-50 dark:bg-pink-900/10 border border-pink-500/20 text-pink-700 dark:text-pink-400 text-[11px] font-sans hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors text-left"
+              >
+                <Link2 className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {isFollowUp
+                    ? <>This is a <strong>follow-up</strong> — click to view the Unlock</>
+                    : <>This is an <strong>unlock</strong> — click to view the Follow Up</>
+                  }
+                </span>
+              </button>
+            )}
+
             {/* Caption Picker Section */}
             {TYPES_WITH_PICKER.has(viewingTask.taskType) && (
               <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
@@ -855,23 +902,33 @@ export function SchedulerTaskModal({
               const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
               const alreadyInQA = !!serverFields.captionQAStatus;
               const willSendToQA = isDirty && captionWillChange && (wasFlagged || alreadyInQA);
+              const hasMissing = isUnlock && unlockMissingFields.length > 0;
 
               return (
-                <button
-                  onClick={handleSave}
-                  disabled={!isDirty || isSaving}
-                  className={[
-                    'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors',
-                    isDirty
-                      ? willSendToQA
-                        ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
-                        : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
-                      : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
-                  ].join(' ')}
-                >
-                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : willSendToQA ? <Send className="h-3 w-3" /> : <Save className="h-3 w-3" />}
-                  {willSendToQA ? 'Save & Send to QA' : 'Save'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className={[
+                      'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-bold font-sans border transition-colors',
+                      isDirty
+                        ? hasMissing
+                          ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/40 dark:hover:bg-red-900/30'
+                          : willSendToQA
+                            ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
+                            : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
+                        : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
+                    ].join(' ')}
+                  >
+                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : willSendToQA ? <Send className="h-3 w-3" /> : <Save className="h-3 w-3" />}
+                    {willSendToQA ? 'Save & Send to QA' : 'Save'}
+                  </button>
+                  {isDirty && hasMissing && (
+                    <span className="text-[9px] text-red-500 dark:text-red-400 font-sans">
+                      Missing: {unlockMissingFields.map((f) => f.label).join(', ')}
+                    </span>
+                  )}
+                </div>
               );
             })()}
 

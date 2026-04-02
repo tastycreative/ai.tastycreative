@@ -15,6 +15,7 @@ import {
   Check,
   Hourglass,
   XCircle,
+  Flame,
 } from 'lucide-react';
 import { SchedulerTask, TaskFields, useMergeTaskFields } from '@/lib/hooks/useScheduler.query';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
@@ -65,6 +66,7 @@ export interface TaskCardProps {
   autoOpen?: boolean;
   onModalOpen?: (slotLabel: string) => void;
   onModalClose?: () => void;
+  streak?: number;
 }
 
 // ─── Inline Editable Field Row (expanded mode) ───────────────────────────────
@@ -380,6 +382,28 @@ export function CaptionQAIndicator({ status }: { status?: string }) {
   }
 
   return null;
+}
+
+// ─── Streak Indicator ─────────────────────────────────────────────────────────
+
+export function StreakIndicator({ streak }: { streak?: number }) {
+  if (streak == null || streak < 1) return null;
+
+  const isHot = streak >= 5;
+
+  return (
+    <span
+      className={`shrink-0 flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded ${
+        isHot
+          ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+          : 'bg-amber-50 text-amber-500 dark:bg-amber-500/15 dark:text-amber-400'
+      }`}
+      title={`${streak} week streak — unchanged content`}
+    >
+      <Flame className="h-2 w-2" fill={isHot ? 'currentColor' : 'none'} />
+      {streak}
+    </span>
+  );
 }
 
 // ─── Caption Preview (compact inline) ────────────────────────────────────────

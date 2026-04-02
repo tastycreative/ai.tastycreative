@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clock, Plus, Maximize2, Minimize2, Copy } from 'lucide-react';
-import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, TaskFields } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, TaskFields, StreaksData, getTaskStreak } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
 import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
@@ -238,6 +238,7 @@ interface SchedulerDayColumnProps {
   onTaskModalClose?: () => void;
   /** When false, hides team name, countdown, and live time (only shown for current week) */
   isCurrentWeek?: boolean;
+  streaks?: StreaksData;
 }
 
 export function SchedulerDayColumn({
@@ -266,6 +267,7 @@ export function SchedulerDayColumn({
   onTaskModalOpen,
   onTaskModalClose,
   isCurrentWeek = true,
+  streaks,
 }: SchedulerDayColumnProps) {
   const slotLabel = getSlotForDay(dayIndex);
   const teamColor = TEAM_COLORS[team] || '#3a3a5a';
@@ -739,6 +741,7 @@ export function SchedulerDayColumn({
                           autoOpen={autoOpenTaskId === task.id}
                           onModalOpen={onTaskModalOpen}
                           onModalClose={onTaskModalClose}
+                          streak={getTaskStreak(streaks, task)}
                         />
                       ))}
                     </div>
@@ -937,6 +940,7 @@ export function SchedulerDayColumn({
                           autoOpen={autoOpenTaskId === task.id}
                           onModalOpen={onTaskModalOpen}
                           onModalClose={onTaskModalClose}
+                          streak={getTaskStreak(streaks, task)}
                         />
                       ))}
                     </div>

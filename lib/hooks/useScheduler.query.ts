@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   useQuery,
   useMutation,
@@ -202,6 +203,7 @@ export const schedulerKeys = {
   workspace: (filter: string, profileId: string) =>
     [...schedulerKeys.all, 'workspace', filter, profileId] as const,
   sibling: (taskId: string) => [...schedulerKeys.all, 'sibling', taskId] as const,
+  streaks: (lineageIds: string[]) => [...schedulerKeys.all, 'streaks', ...lineageIds.sort()] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
@@ -1083,6 +1085,56 @@ export function useWorkspaceTasks(
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
   });
+}
+
+// ─── Streaks ──────────────────────────────────────────────────────────────
+
+export type StreaksData = Record<string, Record<string, number>>;
+
+async function fetchStreaks(lineageIds: string[]): Promise<{ streaks: StreaksData }> {
+  const res = await fetch('/api/scheduler/streaks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lineageIds }),
+  });
+  if (!res.ok) throw new Error('Failed to fetch streaks');
+  return res.json();
+}
+
+/** Fetch streak counts for all visible tasks that have a lineageId */
+export function useTaskStreaks(tasks: SchedulerTask[]) {
+  const { user } = useUser();
+
+  const lineageIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of tasks) {
+      if (t.lineageId) ids.add(t.lineageId);
+    }
+    return Array.from(ids);
+  }, [tasks]);
+
+  return useQuery<StreaksData>({
+    queryKey: schedulerKeys.streaks(lineageIds),
+    queryFn: async () => {
+      const { streaks } = await fetchStreaks(lineageIds);
+      return streaks;
+    },
+    enabled: !!user && lineageIds.length > 0,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Get the streak number for a specific task from the streaks data */
+export function getTaskStreak(
+  streaks: StreaksData | undefined,
+  task: SchedulerTask,
+): number | undefined {
+  if (!streaks || !task.lineageId) return undefined;
+  const lineageStreaks = streaks[task.lineageId];
+  if (!lineageStreaks) return undefined;
+  return lineageStreaks[task.id];
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────

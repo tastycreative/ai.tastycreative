@@ -21,13 +21,14 @@ import {
   PostedBadge,
   TaskViewerAvatars,
   CaptionQAIndicator,
+  StreakIndicator,
 } from './shared';
 import { useSchedulerPresenceContext } from '../SchedulerPresenceContext';
 
 const TYPE_COLOR = TASK_TYPE_COLORS['SP'];
 const FIELD_DEFS = TASK_FIELD_DEFS['SP'];
 
-export function SPCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart, profileName, autoOpen, onModalOpen, onModalClose }: TaskCardProps) {
+export function SPCard({ task, team, onUpdate, onDelete, compact, schedulerToday, weekStart, profileName, autoOpen, onModalOpen, onModalClose, streak }: TaskCardProps) {
   const [showModal, setShowModal] = useState(false);
   const { setActiveTask } = useSchedulerPresenceContext();
 
@@ -91,14 +92,15 @@ export function SPCard({ task, team, onUpdate, onDelete, compact, schedulerToday
               {fields.contentFlyer}
             </div>
           )}
-          {/* Bottom status row: QA status + Posted + Presence */}
+          {/* Bottom status row: QA status + Streak + Posted + Presence */}
           <div className="flex items-center gap-1 ml-3.5 mt-0.5">
             <CaptionQAIndicator status={fields.captionQAStatus} />
+            <StreakIndicator streak={streak} />
             {task.status === 'DONE' && <PostedBadge />}
             <TaskViewerAvatars taskId={task.id} size="sm" />
           </div>
         </div>
-        <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
+        <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} streak={streak} />
       </>
     );
   }
@@ -119,6 +121,7 @@ export function SPCard({ task, team, onUpdate, onDelete, compact, schedulerToday
           <div className="flex items-center gap-1.5">
             <TypeBadge task={task} />
             <StatusBadge task={task} onUpdate={onUpdate} />
+            <StreakIndicator streak={streak} />
           </div>
           <div className="flex items-center gap-1">
             <TaskViewerAvatars taskId={task.id} size="md" />
