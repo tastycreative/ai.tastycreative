@@ -201,6 +201,7 @@ export const schedulerKeys = {
     [...schedulerKeys.all, 'calendarHistory', date, profileId, platform] as const,
   workspace: (filter: string, profileId: string) =>
     [...schedulerKeys.all, 'workspace', filter, profileId] as const,
+  sibling: (taskId: string) => [...schedulerKeys.all, 'sibling', taskId] as const,
 };
 
 // ─── Fetch Functions ───────────────────────────────────────────────────────
@@ -942,6 +943,24 @@ export function useTaskLineage(lineageId: string | null) {
     enabled: !!user && !!lineageId,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Fetch the sibling task (Unlock ↔ Follow Up) for an MM task */
+export function useSiblingTask(taskId: string | null) {
+  const { user } = useUser();
+
+  return useQuery<{ sibling: SchedulerTask | null }>({
+    queryKey: schedulerKeys.sibling(taskId ?? ''),
+    queryFn: async () => {
+      const res = await fetch(`/api/scheduler/sibling?taskId=${taskId}`);
+      if (!res.ok) throw new Error('Failed to fetch sibling task');
+      return res.json();
+    },
+    enabled: !!user && !!taskId,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
   });
 }

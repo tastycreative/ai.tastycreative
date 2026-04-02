@@ -122,18 +122,23 @@ export async function PATCH(
   );
 
   const hasStatusChange = changes.some((c) => c.field === 'status');
+  const hasCaptionQA = changes.some((c) => c.action === 'caption_sent_to_qa');
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const taskDayName = dayNames[task.dayOfWeek] || `day ${task.dayOfWeek}`;
   const activityDate = new Date(task.weekStartDate);
   activityDate.setUTCDate(activityDate.getUTCDate() + task.dayOfWeek);
   const taskDateLabel = activityDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const activityAction = hasCaptionQA ? 'CAPTION_SENT_TO_QA' : hasStatusChange ? 'STATUS_CHANGED' : 'UPDATED';
+  const activitySummary = hasCaptionQA
+    ? `Caption sent to QA for ${task.slotLabel} on ${taskDayName}, ${taskDateLabel}`
+    : `Updated ${task.slotLabel} on ${taskDayName}, ${taskDateLabel}`;
   const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
       taskId: task.id,
-      action: hasStatusChange ? 'STATUS_CHANGED' : 'UPDATED',
-      summary: `Updated ${task.slotLabel} on ${taskDayName}, ${taskDateLabel}`,
+      action: activityAction,
+      summary: activitySummary,
     },
   });
 

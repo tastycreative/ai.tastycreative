@@ -10,6 +10,7 @@ import { useExportScheduler, type SchedulerTask } from '@/lib/hooks/useScheduler
 import { useGoogleDriveAccount } from '@/lib/hooks/useGoogleDriveAccount';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SLOT_LABELS = ['#1A', '#1B', '#1C', '#1D', '#1E', '#1F', '#1G'];
 
 type ExportMode = 'week' | 'day';
 
@@ -269,13 +270,16 @@ export function SchedulerExportModal({
                           : 'bg-gray-50 dark:bg-[#0a0a14] border-gray-100 dark:border-[#151528] hover:border-gray-300 dark:hover:border-[#2a2a4e] text-gray-600 dark:text-gray-400'
                       } disabled:opacity-50`}
                     >
-                      <span className={`text-[10px] font-bold ${isSelected ? 'text-brand-light-pink' : ''}`}>
+                      <span className={`text-[10px] font-bold ${isSelected ? 'text-brand-light-pink' : 'text-brand-dark-pink/70 dark:text-brand-light-pink/50'}`}>
+                        {SLOT_LABELS[i]}
+                      </span>
+                      <span className={`text-[9px] font-mono ${isSelected ? 'text-brand-light-pink' : ''}`}>
                         {DAY_NAMES[i]}
                       </span>
-                      <span className={`text-[9px] font-mono mt-0.5 ${isSelected ? 'text-brand-light-pink/70' : 'text-gray-400 dark:text-gray-600'}`}>
+                      <span className={`text-[8px] font-mono ${isSelected ? 'text-brand-light-pink/70' : 'text-gray-400 dark:text-gray-600'}`}>
                         {formatDate(date)}
                       </span>
-                      <span className={`text-[9px] font-mono mt-1 px-1.5 py-0.5 rounded-full ${
+                      <span className={`text-[9px] font-mono mt-0.5 px-1.5 py-0.5 rounded-full ${
                         isSelected
                           ? 'bg-brand-light-pink/20 text-brand-light-pink'
                           : dayTaskCount > 0

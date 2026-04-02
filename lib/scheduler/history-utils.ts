@@ -44,11 +44,18 @@ export function diffTaskChanges(
       const ov = stringify(oldFields[fk]);
       const nv = stringify(newFields[fk]);
       if (ov !== nv) {
+        // Map captionQAStatus transitions to specific action names
+        let action = 'UPDATED';
+        if (fk === 'captionQAStatus') {
+          if (nv === 'sent_to_qa') action = 'caption_sent_to_qa';
+          else if (nv === 'approved') action = 'caption_qa_approved';
+          else if (nv === 'rejected') action = 'caption_qa_rejected';
+        }
         changes.push({
           field: `fields.${fk}`,
           oldValue: ov,
           newValue: nv,
-          action: 'UPDATED',
+          action,
         });
       }
     }

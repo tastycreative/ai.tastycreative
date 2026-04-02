@@ -75,6 +75,7 @@ export function QueueCalendar({
 }: QueueCalendarProps) {
   const today = new Date();
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const hasLineage = !!task.lineageId;
   const { data: lineageData, isLoading: lineageLoading } = useTaskLineage(task.lineageId);
@@ -375,18 +376,46 @@ export function QueueCalendar({
                   <Flag className="h-2.5 w-2.5 text-amber-500 shrink-0" fill="currentColor" />
                 )}
                 <div className="flex-1" />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteMutation.mutate({ id: t.id }, {
-                      onSuccess: () => onDeleteTask?.(t.id),
-                    });
-                  }}
-                  className="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
-                  title="Cancel queued update"
-                >
-                  <Trash2 className="h-2.5 w-2.5 text-red-400" />
-                </button>
+                {confirmDeleteId === t.id ? (
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[8px] font-sans text-red-400">Delete?</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteMutation.mutate({ id: t.id }, {
+                          onSuccess: () => {
+                            setConfirmDeleteId(null);
+                            onDeleteTask?.(t.id);
+                          },
+                        });
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="text-[8px] font-bold font-sans px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 hover:bg-red-500/25 transition-colors"
+                    >
+                      {deleteMutation.isPending ? '...' : 'Yes'}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(null);
+                      }}
+                      className="text-[8px] font-bold font-sans px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10 transition-colors"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDeleteId(t.id);
+                    }}
+                    className="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+                    title="Cancel queued update"
+                  >
+                    <Trash2 className="h-2.5 w-2.5 text-red-400" />
+                  </button>
+                )}
               </div>
             );
           })}

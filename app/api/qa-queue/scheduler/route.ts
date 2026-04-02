@@ -71,6 +71,41 @@ export async function GET() {
 
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
+    // Fetch submitter info — most recent 'caption_sent_to_qa' history entry per task
+    const taskIds = tasks.map((t) => t.id);
+    const sentHistory = taskIds.length > 0
+      ? await prisma.schedulerTaskHistory.findMany({
+          where: {
+            taskId: { in: taskIds },
+            action: 'caption_sent_to_qa',
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            taskId: true,
+            createdAt: true,
+            user: {
+              select: { name: true, firstName: true, lastName: true, imageUrl: true },
+            },
+          },
+        })
+      : [];
+
+    // Keep only the latest entry per task
+    const submitterMap = new Map<string, { name: string | null; imageUrl: string | null; at: string }>();
+    for (const h of sentHistory) {
+      if (!submitterMap.has(h.taskId)) {
+        const u = h.user;
+        const displayName = u
+          ? (u.name && !u.name.startsWith('user_') ? u.name : [u.firstName, u.lastName].filter(Boolean).join(' ') || null)
+          : null;
+        submitterMap.set(h.taskId, {
+          name: displayName,
+          imageUrl: u?.imageUrl ?? null,
+          at: h.createdAt.toISOString(),
+        });
+      }
+    }
+
     // Build response items
     const items = tasks.map((task) => {
       const fields = (task.fields ?? {}) as Record<string, unknown>;
@@ -100,6 +135,7 @@ export async function GET() {
         fields,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
+        submittedBy: submitterMap.get(task.id) ?? null,
         modelProfile: profile
           ? {
               id: profile.id,

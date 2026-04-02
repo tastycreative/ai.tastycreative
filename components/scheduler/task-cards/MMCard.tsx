@@ -24,6 +24,7 @@ import {
   FlagButton,
   PostedBadge,
   TaskViewerAvatars,
+  CaptionQAIndicator,
 } from "./shared";
 import { useSchedulerPresenceContext } from "../SchedulerPresenceContext";
 
@@ -120,7 +121,6 @@ export function MMCard({
                 {label}
               </span>
               <div className="flex items-center gap-0.5 shrink-0 ml-auto">
-                <TaskViewerAvatars taskId={task.id} size="sm" />
                 {locked && (
                   <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />
                 )}
@@ -128,12 +128,11 @@ export function MMCard({
                   flagged={isFlagged}
                   onToggle={() => save("flagged", isFlagged ? "" : "true")}
                 />
-                {task.status === "DONE" && <PostedBadge />}
               </div>
             </div>
             {hasSubType && (
               <div
-                className=" text-[7px] font-bold   ml-[13px]"
+                className="text-[7px] font-bold ml-3.5"
                 style={{ color: TYPE_COLOR }}
               >
                 {fields.subType}
@@ -141,7 +140,7 @@ export function MMCard({
             )}
 
             {(fields.captionBankText || fields.caption) && (
-              <div className="text-[8px] font-mono truncate text-gray-500 ml-[13px] dark:text-gray-600 mt-0.5">
+              <div className="text-[8px] font-mono truncate text-gray-500 ml-3.5 dark:text-gray-600 mt-0.5">
                 {fields.captionBankText || fields.caption}
               </div>
             )}
@@ -149,7 +148,7 @@ export function MMCard({
 
           {/* Row 3: content/preview + price + final amount (finalAmount only for Unlock) */}
           {(fields.contentPreview || fields.price || (isUnlock && fields.finalAmount)) && (
-            <div className="flex items-center gap-1.5 ml-[13px] mt-px">
+            <div className="flex items-center gap-1.5 ml-3.5 mt-px">
               {fields.contentPreview && (
                 <span className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 flex-1 min-w-0">
                   {fields.contentPreview}
@@ -167,6 +166,13 @@ export function MMCard({
               )}
             </div>
           )}
+
+          {/* Bottom status row: QA status + Posted + Presence */}
+          <div className="flex items-center gap-1 ml-3.5 mt-0.5">
+            <CaptionQAIndicator status={fields.captionQAStatus} />
+            {task.status === "DONE" && <PostedBadge />}
+            <TaskViewerAvatars taskId={task.id} size="sm" />
+          </div>
         </div>
         <SchedulerTaskModal
           task={task}

@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useRef, useCallback } from 'react';
-import { Search, FileText, Film, ChevronRight, RotateCcw, Clock, Calendar } from 'lucide-react';
+import { Search, FileText, Film, ChevronRight, RotateCcw, Clock, Calendar, Send } from 'lucide-react';
 import type { QAQueueItem } from '@/lib/hooks/useQAQueue.query';
 import type { UnifiedQAItem, QASourceFilter } from './QAWorkspace';
 
@@ -365,6 +365,21 @@ const SchedulerQueueItemCard = memo(function SchedulerQueueItemCard({
           <span className="flex-1" />
           {isSelected && <ChevronRight className="w-3 h-3 text-emerald-400 shrink-0" />}
         </div>
+
+        {/* Row 4: Submitted by */}
+        {item.submittedBy?.name && (
+          <div className="flex items-center gap-1.5 mt-1.5 text-[9px] text-gray-400 dark:text-gray-500">
+            <Send className="w-2.5 h-2.5 text-brand-blue/60 shrink-0" />
+            <span>by</span>
+            {item.submittedBy.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.submittedBy.imageUrl} alt="" className="w-3.5 h-3.5 rounded-full" />
+            )}
+            <span className="font-medium text-gray-500 dark:text-gray-400 truncate max-w-[100px]">
+              {item.submittedBy.name}
+            </span>
+          </div>
+        )}
       </div>
     </button>
   );

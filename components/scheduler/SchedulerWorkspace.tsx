@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Flag, AlertCircle, Loader2, Search, Clock, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send, AlertTriangle, Info } from 'lucide-react';
+import { Flag, DollarSign, AlertCircle, Loader2, Search, Clock, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send, AlertTriangle, Info, Link2 } from 'lucide-react';
 import {
   useWorkspaceTasks,
   SchedulerTask,
@@ -9,7 +9,7 @@ import {
   useMergeTaskFields,
   useLineageEarnings,
   useQueueTaskUpdate,
-  useTaskLineage,
+  useSiblingTask,
   isTaskLocked,
   TASK_FIELD_DEFS,
 } from '@/lib/hooks/useScheduler.query';
@@ -182,16 +182,22 @@ function TaskDetailPanel({
   onOpenModal,
   onSaveField,
   onUnflag,
+  onTaskUpdate,
   isSaving,
   schedulerToday,
+  weekStart,
+  profileName,
 }: {
   task: SchedulerTask;
   activeTab: 'flagged' | 'missing-amount';
   onOpenModal: () => void;
   onSaveField: (taskId: string, fieldPatch: Record<string, string>) => void;
   onUnflag: (taskId: string) => void;
+  onTaskUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   isSaving: boolean;
   schedulerToday: string;
+  weekStart?: string;
+  profileName?: string;
 }) {
   const serverFields = (task.fields || {}) as Record<string, string>;
   const typeColor = TASK_TYPE_COLORS[task.taskType] || '#888';
@@ -220,11 +226,15 @@ function TaskDetailPanel({
   const [queueTargetWeek, setQueueTargetWeek] = useState<string | null>(null);
   const queueMutation = useQueueTaskUpdate();
 
-  // Detect follow-up type → fetch lineage to get unlock's paywallContent for QA
+  // Detect follow-up type → fetch sibling unlock task
   const typeName = (serverFields.type || task.taskName || '').toLowerCase();
   const isFollowUp = task.taskType === 'MM' &&
     (typeName.includes('follow up') || typeName.includes('follow-up'));
-  const { data: lineageData } = useTaskLineage(isFollowUp ? task.lineageId : null);
+  const { data: siblingData } = useSiblingTask(isFollowUp ? task.id : null);
+  const unlockSibling = siblingData?.sibling ?? null;
+
+
+  const [showSiblingModal, setShowSiblingModal] = useState(false);
 
   // Lineage earnings — on-demand
   const hasFinalAmountField = task.taskType === 'WP' ||
@@ -246,6 +256,7 @@ function TaskDetailPanel({
     setEditingAmount(false);
     setPreviewFailed(false);
     setQueueTargetWeek(null);
+    setShowSiblingModal(false);
   }, [task.id, serverFields.finalAmount]);
 
   // Handle queue
@@ -274,13 +285,14 @@ function TaskDetailPanel({
   const fieldDefs = TASK_FIELD_DEFS[task.taskType] || [];
 
   // Editable field rows (skip caption — handled by picker, skip type — shown in header)
+  // Hide finalAmount on flagged tab since it's not relevant there
   const editableFields = useMemo(() => {
     return fieldDefs
       .filter((def) => def.key !== 'caption')
       .filter((def) => def.key !== 'type')
       .filter((def) => def.key !== 'subType')
-      .filter((def) => def.key !== 'finalAmount' || task.taskType === 'WP' || (fields.type || '').toLowerCase().includes('unlock'));
-  }, [fieldDefs, task.taskType, fields.type]);
+      .filter((def) => def.key !== 'finalAmount' || (isMissingAmountTab && (task.taskType === 'WP' || (fields.type || '').toLowerCase().includes('unlock'))));
+  }, [fieldDefs, task.taskType, fields.type, isMissingAmountTab]);
 
   const handleFieldChange = useCallback((key: string, value: string) => {
     setLocalFields((prev) => ({ ...prev, [key]: value }));
@@ -311,14 +323,9 @@ function TaskDetailPanel({
         if (prevCaption) patch._previousCaption = prevCaption;
       }
       // For follow-up tasks, include the sibling unlock's paywallContent
-      if (isFollowUp && lineageData?.tasks) {
-        const unlockSibling = lineageData.tasks.find((t) => {
-          const f = (t.fields || {}) as Record<string, string>;
-          const tName = (f.type || t.taskName || '').toLowerCase();
-          return tName.includes('unlock') && f.paywallContent;
-        });
-        if (unlockSibling) {
-          const unlockFields = (unlockSibling.fields || {}) as Record<string, string>;
+      if (isFollowUp && unlockSibling) {
+        const unlockFields = (unlockSibling.fields || {}) as Record<string, string>;
+        if (unlockFields.paywallContent) {
           patch._unlockPaywallContent = unlockFields.paywallContent;
         }
       }
@@ -359,7 +366,7 @@ function TaskDetailPanel({
     if (shouldSendToQA) {
       toast.info('Caption sent to QA for review', { duration: 4000 });
     }
-  }, [localFields, serverFields, task.id, locked, queueTargetWeek, queueMutation, onSaveField, onUnflag, isFollowUp, lineageData]);
+  }, [localFields, serverFields, task.id, locked, queueTargetWeek, queueMutation, onSaveField, onUnflag, isFollowUp, unlockSibling]);
 
   // Caption picker handlers — no auto-save, only set local state
   const handleSelectCaption = useCallback((sel: CaptionSelection) => {
@@ -396,6 +403,7 @@ function TaskDetailPanel({
   const hasPreviewUrl = URL_REGEX.test(previewUrl);
 
   return (
+    <>
     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5">
       {/* Task header */}
       <div className="flex items-start justify-between mb-4">
@@ -570,6 +578,17 @@ function TaskDetailPanel({
         </div>
       )}
 
+      {/* Follow-up hint — links to sibling Unlock task */}
+      {isFollowUp && unlockSibling && (
+        <button
+          onClick={() => setShowSiblingModal(true)}
+          className="w-full mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-pink-50 dark:bg-pink-900/10 border border-pink-500/20 text-pink-700 dark:text-pink-400 text-[11px] font-sans hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors text-left"
+        >
+          <Link2 className="h-3.5 w-3.5 shrink-0" />
+          <span>This is a <strong>follow-up</strong> to an Unlock task — click to view the Unlock</span>
+        </button>
+      )}
+
       {/* Caption Picker — hidden on missing-amount tab only */}
       {TYPES_WITH_PICKER.has(task.taskType) && !isMissingAmountTab && (
         <div className="mb-4">
@@ -674,6 +693,20 @@ function TaskDetailPanel({
         );
       })()}
     </div>
+
+    {/* Sibling Unlock modal for follow-up tasks */}
+    {unlockSibling && (
+      <SchedulerTaskModal
+        task={unlockSibling}
+        open={showSiblingModal}
+        onClose={() => setShowSiblingModal(false)}
+        onUpdate={onTaskUpdate}
+        schedulerToday={schedulerToday}
+        weekStart={unlockSibling.weekStartDate?.toString().split('T')[0] || weekStart}
+        profileName={profileName}
+      />
+    )}
+    </>
   );
 }
 
@@ -1127,8 +1160,8 @@ export function SchedulerWorkspace({
   const mergeFields = useMergeTaskFields();
   const { setActiveTask } = useSchedulerPresenceContext();
 
-  const flaggedQuery = useWorkspaceTasks('flagged', profileId, schedulerToday, activeTab === 'flagged');
-  const missingQuery = useWorkspaceTasks('missing-amount', profileId, schedulerToday, activeTab === 'missing-amount');
+  const flaggedQuery = useWorkspaceTasks('flagged', profileId, schedulerToday);
+  const missingQuery = useWorkspaceTasks('missing-amount', profileId, schedulerToday);
 
   const activeQuery = activeTab === 'flagged' ? flaggedQuery : missingQuery;
 
@@ -1242,7 +1275,7 @@ export function SchedulerWorkspace({
               {activeTab === 'flagged' ? (
                 <Flag className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
               ) : (
-                <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
+                <DollarSign className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
               )}
             </div>
             <div>
@@ -1284,7 +1317,7 @@ export function SchedulerWorkspace({
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <AlertCircle className="h-3 w-3" />
+              <DollarSign className="h-3 w-3" />
               Missing Final Amount
               {missingTotal !== undefined && (
                 <span className="text-[8px] font-mono bg-rose-500/15 text-rose-500 px-1.5 py-0.5 rounded-full">
@@ -1313,7 +1346,7 @@ export function SchedulerWorkspace({
                 {activeTab === 'flagged' ? (
                   <Flag className="w-8 h-8 text-amber-500" />
                 ) : (
-                  <AlertCircle className="w-8 h-8 text-rose-500" />
+                  <DollarSign className="w-8 h-8 text-rose-500" />
                 )}
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">All clear!</h3>
@@ -1413,8 +1446,11 @@ export function SchedulerWorkspace({
                   onOpenModal={() => setModalTask(selectedTask)}
                   onSaveField={handleSaveField}
                   onUnflag={handleUnflag}
+                  onTaskUpdate={handleTaskUpdate}
                   isSaving={mergeFields.isPending}
                   schedulerToday={schedulerToday}
+                  weekStart={weekStart}
+                  profileName={profileName}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center">
@@ -1423,7 +1459,7 @@ export function SchedulerWorkspace({
                       {activeTab === 'flagged' ? (
                         <Flag className="w-6 h-6 text-amber-500" />
                       ) : (
-                        <AlertCircle className="w-6 h-6 text-rose-500" />
+                        <DollarSign className="w-6 h-6 text-rose-500" />
                       )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Select a task to view details</p>

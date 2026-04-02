@@ -293,9 +293,10 @@ export function SchedulerTaskModal({
           setQueueTargetWeek(null);
           setPendingChanges({});
           // Auto-unflag the original task after successful queue
+          // Only update the flag — do NOT spread pendingChanges onto the original task
           const isFlagged = serverFields.flagged === 'true' || serverFields.flagged === (true as unknown as string);
           if (isFlagged) {
-            onUpdate(task.id, { fields: { ...serverFields, ...pendingChanges, flagged: 'false' } as TaskFields });
+            onUpdate(task.id, { fields: { ...serverFields, flagged: 'false' } as TaskFields });
           }
         },
       },

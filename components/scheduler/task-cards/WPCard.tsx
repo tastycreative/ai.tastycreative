@@ -20,6 +20,7 @@ import {
   FlagButton,
   PostedBadge,
   TaskViewerAvatars,
+  CaptionQAIndicator,
 } from './shared';
 import { useSchedulerPresenceContext } from '../SchedulerPresenceContext';
 
@@ -74,24 +75,55 @@ export function WPCard({ task, team, onUpdate, onDelete, compact, schedulerToday
           }`}
           style={{ borderLeft: `3px solid ${isFlagged ? '#f59e0b' : TYPE_COLOR}` }}
         >
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: statusOpt.color }} />
-            {fields.time && (
-              <span className="text-[8px] font-mono shrink-0" style={{ color: TYPE_COLOR }}>{fields.time}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 leading-none">
+              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: statusOpt.color }} />
+              {fields.time && (
+                <span className="text-[8px] font-mono shrink-0" style={{ color: TYPE_COLOR }}>{fields.time}</span>
+              )}
+              {label && (
+                <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">{label}</span>
+              )}
+              <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+                {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
+                <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
+              </div>
+            </div>
+
+            {(fields.captionBankText || fields.caption) && (
+              <div className="text-[8px] font-mono truncate text-gray-500 ml-3.5 dark:text-gray-600 mt-0.5">
+                {fields.captionBankText || fields.caption}
+              </div>
             )}
-            {label && (
-              <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">{label}</span>
-            )}
-            <TaskViewerAvatars taskId={task.id} size="sm" />
-            {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
-            <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
-            {task.status === 'DONE' && <PostedBadge />}
           </div>
-          {fields.contentFlyer && (
-            <div className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 ml-[13px] mt-px">
-              {fields.contentFlyer}
+
+          {/* Row 3: content/flyer + price/info + final amount */}
+          {(fields.contentFlyer || fields.priceInfo || fields.finalAmount) && (
+            <div className="flex items-center gap-1.5 ml-3.5 mt-px">
+              {fields.contentFlyer && (
+                <span className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 flex-1 min-w-0">
+                  {fields.contentFlyer}
+                </span>
+              )}
+              {(fields.priceInfo || fields.finalAmount) && (
+                <span className="text-[7px] font-mono shrink-0 ml-auto flex items-center gap-1">
+                  {fields.priceInfo && (
+                    <span className={fields.finalAmount ? 'text-gray-400 dark:text-gray-600 line-through' : 'text-green-600 dark:text-green-500'}>{fields.priceInfo}</span>
+                  )}
+                  {fields.finalAmount && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">{fields.finalAmount}</span>
+                  )}
+                </span>
+              )}
             </div>
           )}
+
+          {/* Bottom status row: QA status + Posted + Presence */}
+          <div className="flex items-center gap-1 ml-3.5 mt-0.5">
+            <CaptionQAIndicator status={fields.captionQAStatus} />
+            {task.status === 'DONE' && <PostedBadge />}
+            <TaskViewerAvatars taskId={task.id} size="sm" />
+          </div>
         </div>
         <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
       </>

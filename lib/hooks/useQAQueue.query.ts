@@ -208,6 +208,7 @@ export interface SchedulerQAItem {
   fields: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  submittedBy: { name: string | null; imageUrl: string | null; at: string } | null;
   modelProfile: QAQueueModelProfile | null;
 }
 

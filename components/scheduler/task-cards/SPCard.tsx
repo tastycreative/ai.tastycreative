@@ -20,6 +20,7 @@ import {
   FlagButton,
   PostedBadge,
   TaskViewerAvatars,
+  CaptionQAIndicator,
 } from './shared';
 import { useSchedulerPresenceContext } from '../SchedulerPresenceContext';
 
@@ -82,16 +83,20 @@ export function SPCard({ task, team, onUpdate, onDelete, compact, schedulerToday
             {label && (
               <span className="text-[8px] font-semibold truncate text-gray-700 dark:text-gray-300 flex-1 min-w-0">{label}</span>
             )}
-            <TaskViewerAvatars taskId={task.id} size="sm" />
             {locked && <Lock className="h-2.5 w-2.5 shrink-0 text-gray-400 dark:text-gray-600" />}
             <FlagButton flagged={isFlagged} onToggle={() => save('flagged', isFlagged ? '' : 'true')} />
-            {task.status === 'DONE' && <PostedBadge />}
           </div>
           {fields.contentFlyer && (
-            <div className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 ml-[13px] mt-px">
+            <div className="text-[7px] font-mono truncate text-gray-400 dark:text-gray-600 ml-3.5 mt-px">
               {fields.contentFlyer}
             </div>
           )}
+          {/* Bottom status row: QA status + Posted + Presence */}
+          <div className="flex items-center gap-1 ml-3.5 mt-0.5">
+            <CaptionQAIndicator status={fields.captionQAStatus} />
+            {task.status === 'DONE' && <PostedBadge />}
+            <TaskViewerAvatars taskId={task.id} size="sm" />
+          </div>
         </div>
         <SchedulerTaskModal task={task} open={showModal} onClose={handleModalClose} onUpdate={onUpdate} onDelete={onDelete} schedulerToday={schedulerToday} weekStart={weekStart} profileName={profileName} />
       </>
