@@ -506,8 +506,8 @@ function TaskDetailPanel({
         </div>
         {editableFields.map((def) => {
           const isCurrency = def.key === 'price' || def.key === 'finalAmount';
-          // Missing-amount tab: only finalAmount editable; Flagged+locked: all fields editable
-          const isDisabled = def.key !== 'finalAmount' && isMissingAmountTab;
+          // Missing-amount tab: only finalAmount & folderName editable; Flagged+locked: all fields editable
+          const isDisabled = def.key !== 'finalAmount' && def.key !== 'folderName' && isMissingAmountTab;
           return (
             <WorkspaceFieldRow
               key={def.key}

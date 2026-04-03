@@ -260,8 +260,8 @@ export function SchedulerTaskModal({
   const handleSave = useCallback(() => {
     if (!isDirty) return;
 
-    // Validate required fields for Unlock tasks
-    if (isUnlock && unlockMissingFields.length > 0) {
+    // Validate required fields for Unlock tasks (skip when locked — only finalAmount & folderName are editable)
+    if (isUnlock && !locked && unlockMissingFields.length > 0) {
       const names = unlockMissingFields.map((f) => f.label).join(', ');
       toast.error(`Missing required fields: ${names}`, { duration: 5000 });
       return;
@@ -740,7 +740,7 @@ export function SchedulerTaskModal({
                 .filter((def) => def.key !== 'subType')
                 .filter((def) => def.key !== 'finalAmount' || viewingTask.taskType === 'WP' || (fields.type || '').toLowerCase().includes('unlock'))
                 .map((def) => {
-                    const isLockedField = locked && def.key !== 'finalAmount';
+                    const isLockedField = locked && def.key !== 'finalAmount' && def.key !== 'folderName';
                     const isCurrency = def.key === 'price' || def.key === 'finalAmount';
                     return (
                       <ModalFieldRow
@@ -751,7 +751,7 @@ export function SchedulerTaskModal({
                         placeholder={def.placeholder}
                         onChange={(val) => handleFieldChange(def.key, val)}
                         disabled={isLockedField}
-                        highlight={locked && def.key === 'finalAmount'}
+                        highlight={locked && (def.key === 'finalAmount' || def.key === 'folderName')}
                         currency={isCurrency}
                       />
                     );
