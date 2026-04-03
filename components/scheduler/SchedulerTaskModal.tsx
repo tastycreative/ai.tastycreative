@@ -303,7 +303,7 @@ export function SchedulerTaskModal({
     }
 
     setTimeout(() => setIsSaving(false), 400);
-  }, [isDirty, serverFields, pendingChanges, viewingTask.id, onUpdate, isUnlock, unlockMissingFields, isFollowUp, siblingTask]);
+  }, [isDirty, locked, serverFields, pendingChanges, viewingTask.id, onUpdate, isUnlock, unlockMissingFields, isFollowUp, siblingTask]);
 
   // ─── Queue: create a copy for the selected future week ───
   const handleQueue = useCallback(() => {
@@ -637,7 +637,7 @@ export function SchedulerTaskModal({
           <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200 dark:border-amber-800/30 flex items-center gap-2">
             <Lock className="h-3 w-3 text-amber-500 shrink-0" />
             <span className="text-[10px] font-sans text-amber-700 dark:text-amber-400 flex-1">
-              This task is locked. Select a future date on the calendar to queue changes.
+              This task is locked. Only <strong>Final Amount</strong> and <strong>Folder Name</strong> can be edited. Select a future date to queue other changes.
             </span>
             {hasLineage && (
               <button
@@ -902,7 +902,7 @@ export function SchedulerTaskModal({
               const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
               const alreadyInQA = !!serverFields.captionQAStatus;
               const willSendToQA = isDirty && captionWillChange && (wasFlagged || alreadyInQA);
-              const hasMissing = isUnlock && unlockMissingFields.length > 0;
+              const hasMissing = isUnlock && !locked && unlockMissingFields.length > 0;
 
               return (
                 <div className="flex flex-col items-end gap-1">

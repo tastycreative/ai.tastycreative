@@ -475,7 +475,7 @@ function TaskDetailPanel({
       {locked && (
         <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px] font-sans">
           <Lock className="h-3.5 w-3.5 shrink-0" />
-          <span>This task&apos;s date has passed. Select a future date below to queue &amp; send to QA.</span>
+          <span>This task&apos;s date has passed. Only <strong>Final Amount</strong> and <strong>Folder Name</strong> can be edited. Select a future date below to queue other changes.</span>
         </div>
       )}
 
