@@ -299,6 +299,17 @@ async function writePriceColumns(
   }
 }
 
+// Separator/empty column indices (0-indexed): A=0, J=9, Q=16, T=19
+const SEPARATOR_COL_INDICES = [0, 9, 16, 19];
+
+// Data column ranges to auto-resize (skip separator columns)
+const DATA_COL_RANGES = [
+  { start: 1, end: 9 },   // MM: B-I (cols 1-8)
+  { start: 10, end: 16 },  // WP: K-P (cols 10-15)
+  { start: 17, end: 19 },  // ST: R-S (cols 17-18)
+  { start: 20, end: 24 },  // SP: U-X (cols 20-23)
+];
+
 /** Build batchUpdate requests for basic formatting (bold header, column widths). */
 function buildFormatRequests(sheetsMeta: { properties?: { sheetId?: number | null } | null }[]) {
   const requests: object[] = [];
@@ -354,17 +365,53 @@ function buildFormatRequests(sheetsMeta: { properties?: { sheetId?: number | nul
       });
     }
 
-    // Auto-resize columns
-    requests.push({
-      autoResizeDimensions: {
-        dimensions: {
-          sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 0,
-          endIndex: 24,
+    // Auto-resize only data columns (skip separator columns)
+    for (const range of DATA_COL_RANGES) {
+      requests.push({
+        autoResizeDimensions: {
+          dimensions: {
+            sheetId,
+            dimension: 'COLUMNS',
+            startIndex: range.start,
+            endIndex: range.end,
+          },
         },
-      },
-    });
+      });
+    }
+
+    // Separator columns: thin width + gray fill on ALL rows (header + data)
+    for (const colIdx of SEPARATOR_COL_INDICES) {
+      // Set narrow width (20px)
+      requests.push({
+        updateDimensionProperties: {
+          range: {
+            sheetId,
+            dimension: 'COLUMNS',
+            startIndex: colIdx,
+            endIndex: colIdx + 1,
+          },
+          properties: { pixelSize: 20 },
+          fields: 'pixelSize',
+        },
+      });
+
+      // Gray fill matching header color
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startColumnIndex: colIdx,
+            endColumnIndex: colIdx + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: { red: 0.72, green: 0.72, blue: 0.72 },
+            },
+          },
+          fields: 'userEnteredFormat.backgroundColor',
+        },
+      });
+    }
   }
 
   return requests;

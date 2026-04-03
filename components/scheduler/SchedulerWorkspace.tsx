@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Flag, DollarSign, AlertCircle, Loader2, Search, Clock, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send, AlertTriangle, Info, Link2 } from 'lucide-react';
+import { Flag, DollarSign, AlertCircle, Loader2, Search, Clock, Eye, ChevronDown, ChevronUp, Check, X, TrendingUp, ImageOff, Lock, Send, AlertTriangle, Info, Link2, CheckCircle2 } from 'lucide-react';
 import {
   useWorkspaceTasks,
   SchedulerTask,
@@ -18,6 +18,7 @@ import { useSchedulerPresenceContext } from './SchedulerPresenceContext';
 import { SchedulerTaskModal } from './SchedulerTaskModal';
 import { QueueCalendar } from './QueueCalendar';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
+import { useFieldReview } from '@/lib/hooks/useFieldReview';
 import { tabId } from '@/lib/hooks/useSchedulerRealtime';
 import { toast } from 'sonner';
 import { useInstagramProfile } from '@/lib/hooks/useInstagramProfile.query';
@@ -163,6 +164,14 @@ function QueueItem({
         <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500">
           {STATUS_LABELS[task.status] || task.status}
         </span>
+        {fields.subType && (
+          <>
+            <span className="text-gray-300 dark:text-gray-700">·</span>
+            <span className="text-[9px] font-sans font-semibold" style={{ color: typeColor }}>
+              {fields.subType}
+            </span>
+          </>
+        )}
         {time && (
           <>
             <span className="text-gray-300 dark:text-gray-700">·</span>
@@ -212,6 +221,9 @@ function TaskDetailPanel({
   const [localFields, setLocalFields] = useState<Record<string, string>>({});
   const fields = { ...serverFields, ...localFields };
 
+  // ─── Field review confirmation (gates QA send after caption/paywall changes) ───
+  const fieldReview = useFieldReview();
+
   const previewUrl = fields.contentPreview || fields.contentFlyer || '';
   const caption = fields.captionBankText || fields.caption || '';
   const price = fields.price || '';
@@ -257,7 +269,8 @@ function TaskDetailPanel({
     setPreviewFailed(false);
     setQueueTargetWeek(null);
     setShowSiblingModal(false);
-  }, [task.id, serverFields.finalAmount]);
+    fieldReview.resetReview();
+  }, [task.id, serverFields.finalAmount, fieldReview]);
 
   // Handle queue
   const handleQueue = useCallback(() => {
@@ -296,7 +309,15 @@ function TaskDetailPanel({
 
   const handleFieldChange = useCallback((key: string, value: string) => {
     setLocalFields((prev) => ({ ...prev, [key]: value }));
-  }, []);
+    // Activate review when paywallContent changes manually (and no review is active yet) — only on flagged tasks
+    if (key === 'paywallContent' && !fieldReview.isReviewActive && isFlagged) {
+      fieldReview.activateReview('paywallContent', fieldDefs.map((d) => d.key));
+    }
+    // Auto-confirm a field when it's edited
+    if (fieldReview.needsReview(key)) {
+      fieldReview.confirmField(key);
+    }
+  }, [fieldReview]);
 
   const handleSave = useCallback(() => {
     // Collect all changed fields
@@ -307,13 +328,13 @@ function TaskDetailPanel({
       }
     }
 
-    // Detect caption change → send to QA if flagged or already in QA flow
+    // Detect caption change → send to QA if flagged or already in QA flow, AND all fields confirmed
     const captionChanged = patch.caption !== undefined ||
                            patch.captionBankText !== undefined ||
                            patch.captionId !== undefined;
     const isFlaggedNow = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
     const alreadyInQA = !!serverFields.captionQAStatus;
-    const shouldSendToQA = captionChanged && (isFlaggedNow || alreadyInQA);
+    const shouldSendToQA = captionChanged && (isFlaggedNow || alreadyInQA) && fieldReview.canSendToQA;
 
     if (shouldSendToQA) {
       patch.captionQAStatus = 'sent_to_qa';
@@ -362,11 +383,12 @@ function TaskDetailPanel({
     if (Object.keys(patch).length === 0) return;
     onSaveField(task.id, patch);
     setLocalFields({});
+    fieldReview.resetReview();
 
     if (shouldSendToQA) {
       toast.info('Caption sent to QA for review', { duration: 4000 });
     }
-  }, [localFields, serverFields, task.id, locked, queueTargetWeek, queueMutation, onSaveField, onUnflag, isFollowUp, unlockSibling]);
+  }, [localFields, serverFields, task.id, locked, queueTargetWeek, queueMutation, onSaveField, onUnflag, isFollowUp, unlockSibling, fieldReview]);
 
   // Caption picker handlers — no auto-save, only set local state
   const handleSelectCaption = useCallback((sel: CaptionSelection) => {
@@ -387,7 +409,15 @@ function TaskDetailPanel({
       patch.tag = sel.contentType;
     }
     setLocalFields((prev) => ({ ...prev, ...patch }));
-  }, []);
+
+    // Caption is the trigger → activate review for other fields (only on flagged tasks)
+    // If paywallContent was the trigger → selecting a caption auto-confirms the caption field
+    if (fieldReview.trigger === 'paywallContent') {
+      fieldReview.confirmField('caption');
+    } else if (isFlagged) {
+      fieldReview.activateReview('caption', fieldDefs.map((d) => d.key));
+    }
+  }, [fieldReview, fieldDefs, isFlagged]);
 
   const handleClearCaption = useCallback(() => {
     setLocalFields((prev) => ({ ...prev, captionId: '', captionBankText: '' }));
@@ -396,8 +426,13 @@ function TaskDetailPanel({
   const handleCaptionOverride = useCallback((text: string) => {
     const patch = { caption: text, captionId: '', captionBankText: '' };
     setLocalFields((prev) => ({ ...prev, ...patch }));
-    // Don't save on every keystroke — will be saved on blur via field row
-  }, []);
+    // If paywallContent was the trigger → typing caption auto-confirms it
+    if (fieldReview.trigger === 'paywallContent') {
+      fieldReview.confirmField('caption');
+    } else if (!fieldReview.isReviewActive && isFlagged) {
+      fieldReview.activateReview('caption', fieldDefs.map((d) => d.key));
+    }
+  }, [fieldReview, fieldDefs, isFlagged]);
 
   const accentBorder = activeTab === 'flagged' ? 'border-amber-500/30' : 'border-rose-500/30';
   const hasPreviewUrl = URL_REGEX.test(previewUrl);
@@ -499,6 +534,29 @@ function TaskDetailPanel({
         )}
       </div>
 
+      {/* Field review banner */}
+      {fieldReview.isReviewActive && (
+        <div className={`mb-4 flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-sans ${
+          fieldReview.canSendToQA
+            ? 'bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-800/40 text-green-700 dark:text-green-400'
+            : 'bg-amber-50 dark:bg-amber-900/10 border-amber-300 dark:border-amber-800/40 text-amber-700 dark:text-amber-400'
+        }`}>
+          {fieldReview.canSendToQA ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>All fields confirmed. Ready for QA.</span>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {fieldReview.trigger === 'caption' ? 'Caption' : 'Paywall content'} changed &mdash; {fieldReview.unconfirmedFields.length} field{fieldReview.unconfirmedFields.length !== 1 ? 's' : ''} need{fieldReview.unconfirmedFields.length === 1 ? 's' : ''} review before sending to QA
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Editable field rows */}
       <div className="mb-4 space-y-1.5">
         <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
@@ -519,6 +577,8 @@ function TaskDetailPanel({
               highlight={def.key === 'finalAmount' && !finalAmount}
               disabled={isDisabled}
               onChange={(val) => handleFieldChange(def.key, val)}
+              needsReview={fieldReview.needsReview(def.key)}
+              onMarkAsSame={fieldReview.needsReview(def.key) ? () => fieldReview.confirmField(def.key) : undefined}
             />
           );
         })}
@@ -592,10 +652,25 @@ function TaskDetailPanel({
       {/* Caption Picker — hidden on missing-amount tab only */}
       {TYPES_WITH_PICKER.has(task.taskType) && !isMissingAmountTab && (
         <div className="mb-4">
-          <div className="text-[10px] font-bold font-sans uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-            Caption{fields.captionId && isFlagged ? ' 🚩' : ''}
+          <div className={`flex items-center gap-2 text-[10px] font-bold font-sans uppercase tracking-wider mb-1.5 ${
+            fieldReview.needsReview('caption') ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'
+          }`}>
+            <span>Caption{fields.captionId && isFlagged ? ' 🚩' : ''}</span>
+            {fieldReview.needsReview('caption') && (
+              <button
+                onClick={() => fieldReview.confirmField('caption')}
+                className="shrink-0 flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                title="Mark as same"
+              >
+                <Check className="h-2.5 w-2.5" />
+              </button>
+            )}
           </div>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 bg-gray-50 dark:bg-gray-900/50">
+          <div className={`rounded-lg border p-3 ${
+            fieldReview.needsReview('caption')
+              ? 'border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10'
+              : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'
+          }`}>
             <CaptionPicker
               profileId={task.profileId}
               captionCategory={getCaptionCategory(task.taskType, fields.type)}
@@ -648,7 +723,9 @@ function TaskDetailPanel({
                                localFields.captionBankText !== undefined ||
                                localFields.captionId !== undefined;
         const alreadyInQA = !!serverFields.captionQAStatus;
-        const willSendToQA = captionChanged && (isFlagged || alreadyInQA);
+        const wantsSendToQA = captionChanged && (isFlagged || alreadyInQA);
+        const blockedByReview = wantsSendToQA && !fieldReview.canSendToQA;
+        const willSendToQA = wantsSendToQA && fieldReview.canSendToQA;
         const isQueuing = queueMutation.isPending;
         const needsQueueDate = locked && !queueTargetWeek;
         const isDisabled = locked
@@ -666,30 +743,37 @@ function TaskDetailPanel({
         else if (hasPendingChanges) btnLabel = 'Save Changes';
 
         const isActive = !isDisabled;
-        const isQAStyle = isActive && (willSendToQA || locked);
+        const isQAStyle = isActive && (willSendToQA || locked) && !blockedByReview;
 
         return (
-          <button
-            onClick={handleSave}
-            disabled={isDisabled}
-            className={[
-              'w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold font-sans border transition-colors',
-              isActive
-                ? isQAStyle
-                  ? 'bg-amber-50 text-amber-600 border-amber-300 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
-                  : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
-                : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
-            ].join(' ')}
-          >
-            {isQueuing || isSaving ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : isQAStyle && isActive ? (
-              <Send className="h-3 w-3" />
-            ) : (
-              <Check className="h-3 w-3" />
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={handleSave}
+              disabled={isDisabled}
+              className={[
+                'w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold font-sans border transition-colors',
+                isActive
+                  ? isQAStyle
+                    ? 'bg-amber-50 text-amber-600 border-amber-300 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/40 dark:hover:bg-amber-900/30'
+                    : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/40 dark:hover:bg-green-900/30'
+                  : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed dark:bg-gray-900/20 dark:text-gray-600 dark:border-gray-800/40',
+              ].join(' ')}
+            >
+              {isQueuing || isSaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : isQAStyle && isActive ? (
+                <Send className="h-3 w-3" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              {btnLabel}
+            </button>
+            {blockedByReview && (
+              <span className="text-[9px] text-amber-500 dark:text-amber-400 font-sans text-center">
+                Confirm {fieldReview.unconfirmedFields.length} field{fieldReview.unconfirmedFields.length !== 1 ? 's' : ''} to send to QA
+              </span>
             )}
-            {btnLabel}
-          </button>
+          </div>
         );
       })()}
     </div>
@@ -723,6 +807,8 @@ function WorkspaceFieldRow({
   fieldKey,
   disabled,
   onChange,
+  needsReview,
+  onMarkAsSame,
 }: {
   label: string;
   value: string;
@@ -732,6 +818,8 @@ function WorkspaceFieldRow({
   fieldKey?: string;
   disabled?: boolean;
   onChange: (val: string) => void;
+  needsReview?: boolean;
+  onMarkAsSame?: () => void;
 }) {
   const multiline = fieldKey ? WS_MULTILINE_KEYS.has(fieldKey) : false;
   const toRaw = (v: string) => currency ? v.replace(/^\$/, '').trim() : v;
@@ -770,13 +858,15 @@ function WorkspaceFieldRow({
 
   const borderClasses = disabled
     ? 'bg-gray-100 border-gray-200 text-gray-400 dark:bg-gray-900/30 dark:border-gray-800 dark:text-gray-600'
-    : highlight
-      ? 'bg-rose-50 border-rose-300 text-rose-800 focus-within:border-rose-500 dark:bg-rose-950/20 dark:border-rose-800/40 dark:text-rose-300'
-      : 'bg-gray-50 border-gray-200 text-gray-800 focus-within:border-brand-blue dark:bg-gray-900/50 dark:border-gray-800 dark:text-gray-300 dark:focus-within:border-brand-blue';
+    : needsReview
+      ? 'bg-amber-50 border-amber-300 text-amber-800 focus-within:border-amber-500 dark:bg-amber-950/20 dark:border-amber-800/40 dark:text-amber-300'
+      : highlight
+        ? 'bg-rose-50 border-rose-300 text-rose-800 focus-within:border-rose-500 dark:bg-rose-950/20 dark:border-rose-800/40 dark:text-rose-300'
+        : 'bg-gray-50 border-gray-200 text-gray-800 focus-within:border-brand-blue dark:bg-gray-900/50 dark:border-gray-800 dark:text-gray-300 dark:focus-within:border-brand-blue';
 
   return (
     <div className={`flex ${multiline ? 'items-start' : 'items-center'} gap-3`}>
-      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${multiline ? 'pt-1.5' : ''} ${highlight ? 'text-rose-500' : 'text-gray-400 dark:text-gray-600'}`}>
+      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${multiline ? 'pt-1.5' : ''} ${needsReview ? 'text-amber-500' : highlight ? 'text-rose-500' : 'text-gray-400 dark:text-gray-600'}`}>
         {label}
       </label>
       {multiline ? (
@@ -801,6 +891,15 @@ function WorkspaceFieldRow({
             className={`flex-1 bg-transparent outline-none text-xs font-mono text-inherit ${disabled ? 'cursor-not-allowed' : ''}`}
           />
         </div>
+      )}
+      {needsReview && onMarkAsSame && (
+        <button
+          onClick={onMarkAsSame}
+          className="shrink-0 flex items-center justify-center h-6 w-6 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+          title="Mark as same"
+        >
+          <Check className="h-3 w-3" />
+        </button>
       )}
     </div>
   );

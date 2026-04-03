@@ -23,6 +23,8 @@ import {
   XCircle,
   Images,
   Link2,
+  Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -48,6 +50,7 @@ import { TASK_TYPE_COLORS, TaskViewerBanner, StreakIndicator } from './task-card
 import { formatTimeInTz, formatDuration } from '@/lib/scheduler/time-helpers';
 import { CaptionPicker, type CaptionSelection } from './pickers/CaptionPicker';
 import { QueueCalendar } from './QueueCalendar';
+import { useFieldReview } from '@/lib/hooks/useFieldReview';
 
 function getCaptionCategory(taskType: string, subType?: string): string {
   if (taskType === 'MM') {
@@ -155,6 +158,9 @@ export function SchedulerTaskModal({
   const [sextingSelectedItemId, setSextingSelectedItemId] = useState<string | null>(null);
   const isDirty = Object.keys(pendingChanges).length > 0;
 
+  // ─── Field review confirmation (gates QA send after caption/paywall changes) ───
+  const fieldReview = useFieldReview();
+
   // Merge for display: server + pending
   const fields = { ...serverFields, ...pendingChanges };
   const isFlagged = fields.flagged === 'true' || fields.flagged === true as unknown as string;
@@ -207,8 +213,9 @@ export function SchedulerTaskModal({
       setSextingSetPreview(null);
       setSextingSelectedItemId(null);
       setSextingSetName('');
+      fieldReview.resetReview();
     }
-  }, [task]);
+  }, [task, fieldReview]);
 
   // Also update viewingTask if the parent task data refreshes (same ID, new data)
   useEffect(() => {
@@ -271,13 +278,13 @@ export function SchedulerTaskModal({
     const merged = { ...serverFields, ...pendingChanges } as TaskFields;
     const m = merged as Record<string, unknown>;
 
-    // Detect caption change → send to QA if flagged or already in QA flow
+    // Detect caption change → send to QA if flagged or already in QA flow, AND all fields confirmed
     const captionChanged = pendingChanges.caption !== undefined ||
                            pendingChanges.captionBankText !== undefined ||
                            pendingChanges.captionId !== undefined;
     const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
     const alreadyInQA = !!serverFields.captionQAStatus;
-    const shouldSendToQA = captionChanged && (wasFlagged || alreadyInQA);
+    const shouldSendToQA = captionChanged && (wasFlagged || alreadyInQA) && fieldReview.canSendToQA;
 
     if (shouldSendToQA) {
       m.captionQAStatus = 'sent_to_qa';
@@ -297,13 +304,14 @@ export function SchedulerTaskModal({
 
     onUpdate(viewingTask.id, { fields: merged });
     setPendingChanges({});
+    fieldReview.resetReview();
 
     if (shouldSendToQA) {
       toast.info('Caption sent to QA for review', { duration: 4000 });
     }
 
     setTimeout(() => setIsSaving(false), 400);
-  }, [isDirty, locked, serverFields, pendingChanges, viewingTask.id, onUpdate, isUnlock, unlockMissingFields, isFollowUp, siblingTask]);
+  }, [isDirty, locked, serverFields, pendingChanges, viewingTask.id, onUpdate, isUnlock, unlockMissingFields, isFollowUp, siblingTask, fieldReview]);
 
   // ─── Queue: create a copy for the selected future week ───
   const handleQueue = useCallback(() => {
@@ -334,7 +342,15 @@ export function SchedulerTaskModal({
   // ─── Field change handlers (local only, no auto-save) ───
   const handleFieldChange = useCallback((key: string, val: string) => {
     setPendingChanges((prev) => ({ ...prev, [key]: val.trim() }));
-  }, []);
+    // Activate review when paywallContent changes manually (and no review is active yet) — only on flagged tasks
+    if (key === 'paywallContent' && !fieldReview.isReviewActive && isFlagged) {
+      fieldReview.activateReview('paywallContent', fieldDefs.map((d) => d.key));
+    }
+    // Auto-confirm a field when it's edited
+    if (fieldReview.needsReview(key)) {
+      fieldReview.confirmField(key);
+    }
+  }, [fieldReview]);
 
   const handleSelectCaption = useCallback((sel: CaptionSelection) => {
     const patch: Record<string, string> = {
@@ -363,7 +379,15 @@ export function SchedulerTaskModal({
     setSextingSetPreview(sel.sextingSetItems ?? null);
     setSextingSelectedItemId(null);
     setSextingSetName(sel.sextingSetName ?? '');
-  }, []);
+
+    // Caption is the trigger → activate review for other fields (only on flagged tasks)
+    // If paywallContent was the trigger → selecting a caption auto-confirms the caption field
+    if (fieldReview.trigger === 'paywallContent') {
+      fieldReview.confirmField('caption');
+    } else if (isFlagged) {
+      fieldReview.activateReview('caption', fieldDefs.map((d) => d.key));
+    }
+  }, [fieldReview, fieldDefs, isFlagged]);
 
   const handleClearCaption = useCallback(() => {
     setPendingChanges((prev) => ({ ...prev, captionId: '', captionBankText: '', sextingSetName: '' }));
@@ -374,7 +398,13 @@ export function SchedulerTaskModal({
 
   const handleCaptionOverride = useCallback((text: string) => {
     setPendingChanges((prev) => ({ ...prev, caption: text, captionId: '', captionBankText: '' }));
-  }, []);
+    // If paywallContent was the trigger → typing caption auto-confirms it
+    if (fieldReview.trigger === 'paywallContent') {
+      fieldReview.confirmField('caption');
+    } else if (!fieldReview.isReviewActive && isFlagged) {
+      fieldReview.activateReview('caption', fieldDefs.map((d) => d.key));
+    }
+  }, [fieldReview, fieldDefs, isFlagged]);
 
   // ─── Close dropdown on outside click ───
   useEffect(() => {
@@ -654,6 +684,29 @@ export function SchedulerTaskModal({
         <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0">
           {/* Left column: task fields */}
           <div className="flex-1 min-w-0 overflow-y-auto md:border-r border-gray-100 dark:border-[#111124]">
+            {/* Field review banner */}
+            {fieldReview.isReviewActive && (
+              <div className={`mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-sans ${
+                fieldReview.canSendToQA
+                  ? 'bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-800/40 text-green-700 dark:text-green-400'
+                  : 'bg-amber-50 dark:bg-amber-900/10 border-amber-300 dark:border-amber-800/40 text-amber-700 dark:text-amber-400'
+              }`}>
+                {fieldReview.canSendToQA ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>All fields confirmed. Ready for QA.</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {fieldReview.trigger === 'caption' ? 'Caption' : 'Paywall content'} changed &mdash; {fieldReview.unconfirmedFields.length} field{fieldReview.unconfirmedFields.length !== 1 ? 's' : ''} need{fieldReview.unconfirmedFields.length === 1 ? 's' : ''} review before sending to QA
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Field rows */}
             <div className="px-4 py-3 space-y-2">
               {/* MM Sub-type chip selector */}
@@ -753,6 +806,8 @@ export function SchedulerTaskModal({
                         disabled={isLockedField}
                         highlight={locked && (def.key === 'finalAmount' || def.key === 'folderName')}
                         currency={isCurrency}
+                        needsReview={fieldReview.needsReview(def.key)}
+                        onMarkAsSame={fieldReview.needsReview(def.key) ? () => fieldReview.confirmField(def.key) : undefined}
                       />
                     );
                 })}
@@ -824,11 +879,28 @@ export function SchedulerTaskModal({
 
             {/* Caption Picker Section */}
             {TYPES_WITH_PICKER.has(viewingTask.taskType) && (
-              <div className="mx-4 mb-3 border rounded-lg overflow-hidden border-gray-200 dark:border-[#111124]">
-                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]">
-                  <span className="text-[11px] font-bold font-sans" style={{ color: typeColor }}>
+              <div className={`mx-4 mb-3 border rounded-lg overflow-hidden ${
+                fieldReview.needsReview('caption')
+                  ? 'border-amber-300 dark:border-amber-800/40'
+                  : 'border-gray-200 dark:border-[#111124]'
+              }`}>
+                <div className={`flex items-center gap-2 px-3 py-2 border-b ${
+                  fieldReview.needsReview('caption')
+                    ? 'border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10'
+                    : 'border-gray-200 dark:border-[#111124] bg-gray-50 dark:bg-[#090912]'
+                }`}>
+                  <span className={`text-[11px] font-bold font-sans ${fieldReview.needsReview('caption') ? 'text-amber-500' : ''}`} style={fieldReview.needsReview('caption') ? undefined : { color: typeColor }}>
                     Caption{fields.captionId && fields.flagged ? ' 🚩' : ''}
                   </span>
+                  {fieldReview.needsReview('caption') && (
+                    <button
+                      onClick={() => fieldReview.confirmField('caption')}
+                      className="shrink-0 flex items-center justify-center h-5 w-5 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                      title="Mark as same"
+                    >
+                      <Check className="h-2.5 w-2.5" />
+                    </button>
+                  )}
                   {/* Caption QA status indicator */}
                   {fields.captionQAStatus === 'sent_to_qa' && (
                     <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
@@ -901,7 +973,9 @@ export function SchedulerTaskModal({
                 pendingChanges.captionId !== undefined;
               const wasFlagged = serverFields.flagged === 'true' || serverFields.flagged === true as unknown as string;
               const alreadyInQA = !!serverFields.captionQAStatus;
-              const willSendToQA = isDirty && captionWillChange && (wasFlagged || alreadyInQA);
+              const wantsSendToQA = isDirty && captionWillChange && (wasFlagged || alreadyInQA);
+              const blockedByReview = wantsSendToQA && !fieldReview.canSendToQA;
+              const willSendToQA = wantsSendToQA && fieldReview.canSendToQA;
               const hasMissing = isUnlock && !locked && unlockMissingFields.length > 0;
 
               return (
@@ -926,6 +1000,11 @@ export function SchedulerTaskModal({
                   {isDirty && hasMissing && (
                     <span className="text-[9px] text-red-500 dark:text-red-400 font-sans">
                       Missing: {unlockMissingFields.map((f) => f.label).join(', ')}
+                    </span>
+                  )}
+                  {blockedByReview && (
+                    <span className="text-[9px] text-amber-500 dark:text-amber-400 font-sans">
+                      Confirm {fieldReview.unconfirmedFields.length} field{fieldReview.unconfirmedFields.length !== 1 ? 's' : ''} to send to QA
                     </span>
                   )}
                 </div>
@@ -1106,6 +1185,8 @@ function ModalFieldRow({
   highlight,
   currency,
   fieldKey,
+  needsReview,
+  onMarkAsSame,
 }: {
   label: string;
   value: string;
@@ -1115,6 +1196,8 @@ function ModalFieldRow({
   highlight?: boolean;
   currency?: boolean;
   fieldKey?: string;
+  needsReview?: boolean;
+  onMarkAsSame?: () => void;
 }) {
   const multiline = fieldKey ? MULTILINE_KEYS.has(fieldKey) : false;
   // For currency fields, strip the $ prefix for local editing
@@ -1154,14 +1237,16 @@ function ModalFieldRow({
   const inputClasses = `flex-1 text-xs py-1 rounded border outline-none font-mono transition-colors ${
     disabled
       ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed dark:bg-[#0c0c18] dark:border-[#1a1a2e] dark:text-gray-400'
-      : highlight
-        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:border-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-300 dark:focus:border-emerald-500'
-        : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]'
+      : needsReview
+        ? 'bg-amber-50 border-amber-300 text-amber-800 focus:border-amber-500 dark:bg-amber-950/20 dark:border-amber-800/40 dark:text-amber-300 dark:focus:border-amber-500'
+        : highlight
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:border-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-300 dark:focus:border-emerald-500'
+          : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#090912] dark:border-[#1a1a2e] dark:text-gray-300 dark:focus:border-[#38bdf8]'
   }`;
 
   return (
     <div className={`flex ${multiline ? 'items-start' : 'items-center'} gap-3 transition-opacity ${disabled ? 'opacity-75' : ''}`}>
-      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${multiline ? 'pt-1.5' : ''} ${highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-600'}`}>
+      <label className={`text-[10px] font-bold font-sans min-w-[90px] whitespace-nowrap ${multiline ? 'pt-1.5' : ''} ${needsReview ? 'text-amber-500' : highlight ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-600'}`}>
         {label}
       </label>
       {currency ? (
@@ -1198,6 +1283,15 @@ function ModalFieldRow({
           disabled={disabled}
           className={`${inputClasses} px-2`}
         />
+      )}
+      {needsReview && onMarkAsSame && (
+        <button
+          onClick={onMarkAsSame}
+          className="shrink-0 flex items-center justify-center h-6 w-6 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+          title="Mark as same"
+        >
+          <Check className="h-3 w-3" />
+        </button>
       )}
     </div>
   );

@@ -308,6 +308,8 @@ const SchedulerQueueItemCard = memo(function SchedulerQueueItemCard({
   const timeField = (item.fields?.time as string) || (item.fields?.storyPostSchedule as string) || '';
   const deadline = deadlineBadgeProps(item.taskDate, timeField);
   const captionSnippet = item.caption.length > 80 ? item.caption.slice(0, 80) + '...' : item.caption;
+  const subType = (item.fields?.subType as string) || '';
+  const taskTypeName = (item.fields?.type as string) || '';
 
   return (
     <button
@@ -328,6 +330,16 @@ const SchedulerQueueItemCard = memo(function SchedulerQueueItemCard({
           <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold tracking-wide ${typeBadge.bg} ${typeBadge.text}`}>
             {item.taskType}
           </span>
+          {taskTypeName && (
+            <span className="text-[9px] font-semibold text-gray-600 dark:text-gray-400">
+              {taskTypeName}
+            </span>
+          )}
+          {subType && (
+            <span className="text-[9px] font-medium text-gray-500 dark:text-gray-500 italic">
+              {subType}
+            </span>
+          )}
           <span className="text-[10px] text-gray-500 dark:text-gray-500 font-mono">
             {item.platform}
           </span>

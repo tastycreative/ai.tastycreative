@@ -83,6 +83,12 @@ const TYPE_COLORS: Record<string, string> = {
   SP: 'FB923C', // orange
 };
 
+/** Check if a task type name indicates a Follow Up task. */
+function isFollowUpType(typeName: string): boolean {
+  const lower = typeName.toLowerCase();
+  return lower.includes('follow up') || lower.includes('follow-up');
+}
+
 export interface ExportableTask {
   taskType: string;
   fields: Record<string, string> | null;
@@ -109,9 +115,10 @@ export function buildHeaderRow(): string[] {
 export function buildDayRows(tasks: ExportableTask[]): string[][] {
   const grouped: Record<string, ExportableTask[]> = { MM: [], WP: [], ST: [], SP: [] };
   for (const task of tasks) {
-    if (grouped[task.taskType]) {
-      grouped[task.taskType].push(task);
-    }
+    if (!grouped[task.taskType]) continue;
+    // Skip MM tasks with no type value
+    if (task.taskType === 'MM' && !task.fields?.type) continue;
+    grouped[task.taskType].push(task);
   }
 
   const maxRows = Math.max(
@@ -131,7 +138,18 @@ export function buildDayRows(tasks: ExportableTask[]): string[][] {
       if (!task?.fields) continue;
       for (let f = 0; f < mapping.fields.length; f++) {
         const fieldKey = mapping.fields[f];
-        row[mapping.startCol + f] = task.fields[fieldKey] ?? '';
+        // For MM Follow Up tasks, write subType back into the contentPreview column
+        // (mirrors the import parser which extracts subType from that column)
+        if (
+          mapping.type === 'MM' &&
+          fieldKey === 'contentPreview' &&
+          task.fields.subType &&
+          isFollowUpType(task.fields.type || '')
+        ) {
+          row[mapping.startCol + f] = task.fields.subType;
+        } else {
+          row[mapping.startCol + f] = task.fields[fieldKey] ?? '';
+        }
       }
     }
     rows.push(row);
