@@ -111,6 +111,29 @@ function isUnlockType(typeName: string): boolean {
   return lower.includes('unlock');
 }
 
+/** Known MM sub-type keywords (case-insensitive, after Unicode normalization) */
+const MM_TYPE_KEYWORDS = ['unlock', 'follow up', 'follow-up', 'photo bump'];
+
+/**
+ * Check if a value is a recognized MM type (Unlock, Follow Up, Photo Bump).
+ */
+function isRecognizedMMType(value: string): boolean {
+  if (!value) return false;
+  const lower = normalizeBoldUnicode(value).toLowerCase();
+  return MM_TYPE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Check if a value looks like a time (e.g. "2:30 PM", "14:30", "3pm").
+ * Used to distinguish real task rows from merged-cell notice text.
+ */
+function looksLikeTime(value: string): boolean {
+  if (!value) return false;
+  const v = value.trim();
+  // Must contain a digit AND either a colon-digit pattern or AM/PM
+  return /\d/.test(v) && (/:\d/.test(v) || /[ap]\.?m/i.test(v));
+}
+
 /**
  * Simple CSV parser that handles quoted fields with commas and newlines.
  */
@@ -212,6 +235,29 @@ export function parseSchedulerSheet(csvText: string): ParsedTask[] {
           if (isMeaningful(val)) {
             cleanedFields[key] = val;
           }
+        }
+
+        // ── Filter out notice/header rows that aren't real tasks ──
+        // Merged cells in Google Sheets CSV export can duplicate the notice
+        // text across every column in the merge range, so counting fields
+        // alone is not reliable. Instead, validate key field values.
+
+        // MM: type must be a recognized sub-type (Unlock, Follow Up, Photo Bump).
+        // Rows with empty type or unrecognized text are notices.
+        if (mapping.type === 'MM' && !isRecognizedMMType(cleanedFields.type || '')) {
+          continue;
+        }
+
+        // WP: must have a type AND a time that looks like a real time value.
+        // Merged-cell notices will have sentence text in the time column.
+        if (mapping.type === 'WP' &&
+            (!isMeaningful(cleanedFields.type || '') || !looksLikeTime(cleanedFields.time || ''))) {
+          continue;
+        }
+
+        // SP: must have a time that looks like a real time value.
+        if (mapping.type === 'SP' && !looksLikeTime(cleanedFields.time || '')) {
+          continue;
         }
 
         const nameKey = TASK_NAME_KEYS[mapping.type] ?? mapping.fields[0];

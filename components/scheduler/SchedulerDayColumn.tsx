@@ -3,22 +3,22 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clock, Plus, Maximize2, Minimize2, Copy } from 'lucide-react';
-import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, TaskFields, StreaksData, getTaskStreak } from '@/lib/hooks/useScheduler.query';
+import { SchedulerTask, TaskLimits, MM_SUB_TYPES, MM_SUB_TYPE_ICONS, WP_SUB_TYPES, WP_SUB_TYPE_ICONS, TaskFields, StreaksData, getTaskStreak } from '@/lib/hooks/useScheduler.query';
 import { SchedulerTaskCard, TASK_TYPES, TASK_TYPE_COLORS } from './SchedulerTaskCard';
+import { SchedulerCreateTaskModal } from './SchedulerCreateTaskModal';
+import { SchedulerTaskModal } from './SchedulerTaskModal';
 import { getSlotForDay, DAY_NAMES, DAY_NAMES_FULL } from '@/lib/scheduler/rotation';
 import { getCurrentTimeDisplay, getCountdownToReset } from '@/lib/scheduler/time-helpers';
 import { getTaskLimit } from '@/lib/scheduler/task-limits';
 
 // ─── Portal-based Add Task Menu ───────────────────────────────────────────────
 function AddTaskMenu({
-  dayIndex,
-  onCreateTask,
+  onSelectType,
   onClose,
   anchorRef,
   align = 'below',
 }: {
-  dayIndex: number;
-  onCreateTask: (dayOfWeek: number, taskType: string, initialFields?: TaskFields) => void;
+  onSelectType: (taskType: string, initialFields?: TaskFields) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   align?: 'below' | 'above';
@@ -71,7 +71,7 @@ function AddTaskMenu({
               <button
                 key={st}
                 onClick={() => {
-                  onCreateTask(dayIndex, 'MM', { type: st } as TaskFields);
+                  onSelectType('MM', { type: st } as TaskFields);
                   onClose();
                 }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -83,11 +83,32 @@ function AddTaskMenu({
             ))}
             <div className="border-b border-gray-100 dark:border-gray-800 my-0.5" />
           </div>
+        ) : type === 'WP' ? (
+          <div key="WP">
+            <div className="px-3 py-1 text-[8px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-600 font-sans">
+              Wall Post
+            </div>
+            {WP_SUB_TYPES.map((st) => (
+              <button
+                key={st}
+                onClick={() => {
+                  onSelectType('WP', { type: st } as TaskFields);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
+                style={{ color: TASK_TYPE_COLORS['WP'] }}
+              >
+                <span className="text-[10px]">{WP_SUB_TYPE_ICONS[st]}</span>
+                {st}
+              </button>
+            ))}
+            <div className="border-b border-gray-100 dark:border-gray-800 my-0.5" />
+          </div>
         ) : (
           <button
             key={type}
             onClick={() => {
-              onCreateTask(dayIndex, type);
+              onSelectType(type);
               onClose();
             }}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left font-sans hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -100,6 +121,52 @@ function AddTaskMenu({
       ))}
     </div>,
     document.body,
+  );
+}
+
+// ─── Clone Confirmation Popover ───────────────────────────────────────────────
+function CloneConfirmPopover({
+  onConfirm,
+  onCancel,
+  taskCount,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  taskCount: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCancel();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onCancel]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 bottom-full mb-2 z-50 w-52 p-3 rounded-lg shadow-xl border bg-white dark:bg-[#0c0c1a] border-gray-200 dark:border-[#1a1a2e]"
+    >
+      <p className="text-[10px] font-sans text-gray-600 dark:text-gray-400 mb-2">
+        Clone <span className="font-bold">{taskCount}</span> task{taskCount !== 1 ? 's' : ''} to next week?
+      </p>
+      <div className="flex items-center gap-1.5 justify-end">
+        <button
+          onClick={onCancel}
+          className="px-2.5 py-1 text-[9px] font-bold rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-2.5 py-1 text-[9px] font-bold rounded bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+        >
+          Clone
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -216,7 +283,7 @@ interface SchedulerDayColumnProps {
   team: string;
   onUpdate: (id: string, data: Partial<SchedulerTask>) => void;
   onDelete: (id: string) => void;
-  onCreateTask: (dayOfWeek: number, taskType: string, initialFields?: TaskFields) => void;
+  onCreateTask: (dayOfWeek: number, taskType: string, initialFields?: TaskFields, lineageId?: string | null) => Promise<SchedulerTask>;
   isToday: boolean;
   timeZone: string;
   weekStart: string;
@@ -230,6 +297,7 @@ interface SchedulerDayColumnProps {
   taskLimits?: TaskLimits | null;
   onUpdateTaskLimits?: (dayIndex: number, type: string, newMax: number | null) => void;
   platform?: string;
+  profileId?: string | null;
   profileName?: string;
   onCloneToNextWeek?: (dayIndex: number) => void;
   cloning?: boolean;
@@ -260,6 +328,7 @@ export function SchedulerDayColumn({
   taskLimits,
   onUpdateTaskLimits,
   platform,
+  profileId,
   profileName,
   onCloneToNextWeek,
   cloning,
@@ -278,6 +347,9 @@ export function SchedulerDayColumn({
   const [countdown, setCountdown] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [createModal, setCreateModal] = useState<{ taskType: string; initialFields?: TaskFields } | null>(null);
+  const [showCloneConfirm, setShowCloneConfirm] = useState(false);
+  const [justCreatedTask, setJustCreatedTask] = useState<SchedulerTask | null>(null);
 
   useEffect(() => {
     if (isNotRunning || !isCurrentWeek) return;
@@ -628,8 +700,7 @@ export function SchedulerDayColumn({
             </button>
             {showAddMenu && (
               <AddTaskMenu
-                dayIndex={dayIndex}
-                onCreateTask={onCreateTask}
+                onSelectType={(type, fields) => setCreateModal({ taskType: type, initialFields: fields })}
                 onClose={() => setShowAddMenu(false)}
                 anchorRef={addBtnRef}
               />
@@ -637,15 +708,24 @@ export function SchedulerDayColumn({
 
             {/* Clone to next week button */}
             {onCloneToNextWeek && totalTasks > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCloneToNextWeek(dayIndex); }}
-                disabled={cloning}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/25 bg-purple-500/5 dark:text-purple-400 dark:border-purple-400/30 dark:bg-purple-500/10 disabled:opacity-50"
-                title="Clone tasks to next week"
-              >
-                <Copy className="h-3 w-3" />
-                {cloning ? 'CLONING...' : 'CLONE →'}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowCloneConfirm(true); }}
+                  disabled={cloning}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide font-sans border transition-all text-purple-500 border-purple-400/25 bg-purple-500/5 dark:text-purple-400 dark:border-purple-400/30 dark:bg-purple-500/10 disabled:opacity-50"
+                  title="Clone tasks to next week"
+                >
+                  <Copy className="h-3 w-3" />
+                  {cloning ? 'CLONING...' : 'CLONE →'}
+                </button>
+                {showCloneConfirm && !cloning && (
+                  <CloneConfirmPopover
+                    onConfirm={() => { setShowCloneConfirm(false); onCloneToNextWeek(dayIndex); }}
+                    onCancel={() => setShowCloneConfirm(false)}
+                    taskCount={totalTasks}
+                  />
+                )}
+              </div>
             )}
 
             {/* Collapse button */}
@@ -751,6 +831,36 @@ export function SchedulerDayColumn({
             </div>
           )}
         </div>
+
+        {/* Create Task Modal */}
+        {createModal && (
+          <SchedulerCreateTaskModal
+            open={!!createModal}
+            onClose={() => setCreateModal(null)}
+            onCreateTask={onCreateTask}
+            onTaskCreated={(task) => setJustCreatedTask(task)}
+            dayIndex={dayIndex}
+            taskType={createModal.taskType}
+            initialFields={createModal.initialFields}
+            date={date}
+            profileId={profileId}
+            dayTasks={tasks}
+          />
+        )}
+
+        {/* Auto-open modal for just-created task */}
+        {justCreatedTask && (
+          <SchedulerTaskModal
+            task={justCreatedTask}
+            open
+            onClose={() => setJustCreatedTask(null)}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            schedulerToday={schedulerToday}
+            weekStart={weekStart}
+            profileName={profileName}
+          />
+        )}
       </div>
     );
   }
@@ -866,8 +976,7 @@ export function SchedulerDayColumn({
               </button>
               {showAddMenu && (
                 <AddTaskMenu
-                  dayIndex={dayIndex}
-                  onCreateTask={onCreateTask}
+                  onSelectType={(type, fields) => setCreateModal({ taskType: type, initialFields: fields })}
                   onClose={() => setShowAddMenu(false)}
                   anchorRef={addBtnRef}
                 />
@@ -961,28 +1070,66 @@ export function SchedulerDayColumn({
               </button>
               {showAddMenu && (
                 <AddTaskMenu
-                  dayIndex={dayIndex}
-                  onCreateTask={onCreateTask}
+                  onSelectType={(type, fields) => setCreateModal({ taskType: type, initialFields: fields })}
                   onClose={() => setShowAddMenu(false)}
                   anchorRef={addBtnRef}
                   align="above"
                 />
               )}
               {onCloneToNextWeek && totalTasks > 0 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onCloneToNextWeek(dayIndex); }}
-                  disabled={cloning}
-                  className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans px-2 py-1 rounded-full border transition-colors text-purple-400 border-purple-300/30 hover:border-purple-400/50 dark:text-purple-400/70 dark:border-purple-500/20 dark:hover:border-purple-400/40 disabled:opacity-50"
-                  title="Clone tasks to next week"
-                >
-                  <Copy className="h-2.5 w-2.5" />
-                  {cloning ? '...' : 'CLONE →'}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowCloneConfirm(true); }}
+                    disabled={cloning}
+                    className="flex items-center gap-1 text-[9px] font-bold tracking-wide font-sans px-2 py-1 rounded-full border transition-colors text-purple-400 border-purple-300/30 hover:border-purple-400/50 dark:text-purple-400/70 dark:border-purple-500/20 dark:hover:border-purple-400/40 disabled:opacity-50"
+                    title="Clone tasks to next week"
+                  >
+                    <Copy className="h-2.5 w-2.5" />
+                    {cloning ? '...' : 'CLONE →'}
+                  </button>
+                  {showCloneConfirm && !cloning && (
+                    <CloneConfirmPopover
+                      onConfirm={() => { setShowCloneConfirm(false); onCloneToNextWeek(dayIndex); }}
+                      onCancel={() => setShowCloneConfirm(false)}
+                      taskCount={totalTasks}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </>
         )}
       </div>
+
+      {/* Create Task Modal */}
+      {createModal && (
+        <SchedulerCreateTaskModal
+          open={!!createModal}
+          onClose={() => setCreateModal(null)}
+          onCreateTask={onCreateTask}
+          onTaskCreated={(task) => setJustCreatedTask(task)}
+          dayIndex={dayIndex}
+          taskType={createModal.taskType}
+          initialFields={createModal.initialFields}
+          date={date}
+          profileId={profileId}
+          dayTasks={tasks}
+        />
+      )}
+
+      {/* Auto-open modal for just-created task */}
+      {justCreatedTask && (
+        <SchedulerTaskModal
+          task={justCreatedTask}
+          open
+          onClose={() => setJustCreatedTask(null)}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          schedulerToday={schedulerToday}
+          weekStart={weekStart}
+          profileName={profileName}
+        />
+      )}
     </div>
   );
 }

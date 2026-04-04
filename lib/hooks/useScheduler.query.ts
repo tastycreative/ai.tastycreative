@@ -470,6 +470,7 @@ export function useCreateSchedulerTask() {
       platform?: string;
       profileId?: string | null;
       tabId?: string;
+      lineageId?: string;
     }) => {
       const res = await fetch('/api/scheduler', {
         method: 'POST',

@@ -17,7 +17,7 @@ const SLOTS = ['1A', '1B', '1C', '1D', '1E', '1F', '1G'] as const;
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const IMPORT_MODES: { key: ImportMode; label: string; desc: string }[] = [
-  { key: 'replace', label: 'Replace All', desc: 'Remove all existing tasks for this week, then import' },
+  { key: 'replace', label: 'Replace All', desc: 'Remove all existing tasks for this week and all cloned tasks, then import' },
   { key: 'append', label: 'Append', desc: 'Keep existing tasks, add imported ones after them' },
   { key: 'replace_by_type', label: 'Replace by Type', desc: 'Only replace tasks whose type (MM/WP/ST/SP) is in the import' },
 ];
@@ -47,6 +47,7 @@ export function SchedulerImportModal({
   const [importMode, setImportMode] = useState<ImportMode | null>(null);
   const [importResult, setImportResult] = useState<{ imported: number; deleted: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   // Inline editing state
   const [editingCell, setEditingCell] = useState<{ slot: string; taskIdx: number; fieldKey: string } | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -156,6 +157,7 @@ export function SchedulerImportModal({
     setImportResult(null);
     setImportError(null);
     setEditingCell(null);
+    setShowReplaceConfirm(false);
     onClose();
   }, [onClose]);
 
@@ -327,7 +329,7 @@ export function SchedulerImportModal({
                           </p>
                           {isSelected && isDestructive && (
                             <p className="text-[10px] mt-1 font-semibold text-red-500 dark:text-red-400">
-                              Warning: This will permanently delete all existing tasks for this week.
+                              Warning: This will permanently delete all existing tasks for this week and all cloned tasks.
                             </p>
                           )}
                         </div>
@@ -536,7 +538,13 @@ export function SchedulerImportModal({
                   Cancel
                 </button>
                 <button
-                  onClick={handleImport}
+                  onClick={() => {
+                    if (importMode === 'replace') {
+                      setShowReplaceConfirm(true);
+                    } else {
+                      handleImport();
+                    }
+                  }}
                   disabled={totalTasks === 0 || importMode === null}
                   className="px-4 py-1.5 rounded-lg text-xs font-bold bg-brand-light-pink text-white hover:bg-brand-mid-pink disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   title={importMode === null ? 'Select an import mode first' : undefined}
@@ -560,6 +568,45 @@ export function SchedulerImportModal({
 
           {(phase === 'input' || phase === 'importing') && <div />}
         </div>
+
+        {/* Replace All confirmation overlay */}
+        {showReplaceConfirm && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[2px] rounded-2xl">
+            <div className="w-full max-w-sm mx-6 p-5 rounded-xl border-2 border-red-400/40 bg-white dark:bg-[#0c0c1a] shadow-2xl space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+                <span className="text-sm font-bold text-red-600 dark:text-red-400">
+                  Replace All Tasks?
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                This will <span className="font-bold text-red-500">permanently delete all existing tasks</span> for
+                this week <span className="font-bold text-red-500">and all cloned tasks</span>. They
+                will be replaced with the {totalTasks} imported task{totalTasks !== 1 ? 's' : ''}.
+              </p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-600">
+                This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setShowReplaceConfirm(false)}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReplaceConfirm(false);
+                    handleImport();
+                  }}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-all"
+                >
+                  Replace All
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body,

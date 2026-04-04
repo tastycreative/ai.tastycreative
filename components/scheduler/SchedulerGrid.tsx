@@ -525,8 +525,8 @@ export function SchedulerGrid() {
   );
 
   const handleCreateTask = useCallback(
-    (dayOfWeek: number, taskType: string, initialFields?: import('@/lib/hooks/useScheduler.query').TaskFields) => {
-      createTask.mutate({
+    (dayOfWeek: number, taskType: string, initialFields?: import('@/lib/hooks/useScheduler.query').TaskFields, lineageId?: string | null) => {
+      return createTask.mutateAsync({
         weekStart,
         dayOfWeek,
         taskType,
@@ -534,6 +534,7 @@ export function SchedulerGrid() {
         platform: activePlatform,
         profileId: activeProfileId,
         tabId,
+        ...(lineageId ? { lineageId } : {}),
       });
     },
     [createTask, weekStart, activePlatform, activeProfileId],
@@ -1190,6 +1191,7 @@ export function SchedulerGrid() {
                 taskLimits={effectiveTaskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
+                profileId={activeProfileId}
                 profileName={selectedProfile?.name}
                 onCloneToNextWeek={handleCloneToNextWeek}
                 cloning={cloningDay !== null || cloningWeek}
@@ -1233,6 +1235,7 @@ export function SchedulerGrid() {
                 taskLimits={effectiveTaskLimits}
                 onUpdateTaskLimits={handleUpdateTaskLimits}
                 platform={activePlatform}
+                profileId={activeProfileId}
                 profileName={selectedProfile?.name}
                 onCloneToNextWeek={handleCloneToNextWeek}
                 cloning={cloningDay !== null || cloningWeek}
