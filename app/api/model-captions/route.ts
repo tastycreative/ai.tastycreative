@@ -257,6 +257,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Caption not found" }, { status: 404 });
     }
 
+    if (!existingCaption.profileId) {
+      return NextResponse.json({ error: "Caption has no profile" }, { status: 400 });
+    }
     const hasAccess = await hasAccessToProfile(
       userId,
       existingCaption.profileId
@@ -364,6 +367,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Caption not found" }, { status: 404 });
     }
 
+    if (!existingCaption.profileId) {
+      return NextResponse.json({ error: "Caption has no profile" }, { status: 400 });
+    }
     const hasAccess = await hasAccessToProfile(
       userId,
       existingCaption.profileId

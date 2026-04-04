@@ -722,8 +722,8 @@ function downloadBlob(blob: Blob, filename: string) {
 export interface SchedulerCaption {
   id: string;
   caption: string;
-  source: 'ticket' | 'bank';
-  origin: string;             // 'otp_ptr' | 'wall_post' | 'manual' | 'general'
+  source: 'ticket' | 'bank' | 'imported';
+  origin: string;             // 'otp_ptr' | 'wall_post' | 'manual' | 'general' | sheet name for imported
   profileId: string;
   status: string;
   contentTypes: string[];
@@ -753,7 +753,7 @@ export interface SchedulerCaption {
   }[];
 }
 
-export type CaptionSourceFilter = 'all' | 'ticket' | 'bank';
+export type CaptionSourceFilter = 'all' | 'ticket' | 'bank' | 'imported';
 
 export function useSchedulerCaptions(
   profileId: string | null,

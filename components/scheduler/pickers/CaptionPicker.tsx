@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, Check, Film } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Search, Check, Film, ChevronDown } from 'lucide-react';
 import {
   useSchedulerCaptions,
   type SchedulerCaption,
@@ -103,7 +103,7 @@ export function CaptionPicker({
               className="text-[8px] font-bold font-sans uppercase tracking-wider"
               style={{ color: typeColor }}
             >
-              {selectedCaption ? 'Selected from board' : 'Custom override'}
+              {selectedCaption ? (selectedCaption.source === 'imported' ? 'Selected from sheets' : selectedCaption.source === 'bank' ? 'Selected from bank' : 'Selected from board') : 'Custom override'}
             </span>
             {selectedCaption?.status === 'revision_requested' && (
               <span className="text-[8px] bg-amber-500/15 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-sans font-semibold">
@@ -188,16 +188,16 @@ export function CaptionPicker({
       {/* Source + Origin filters */}
       <div className="flex items-center gap-1 flex-wrap">
         {/* Source filter */}
-        {(['all', 'ticket', 'bank'] as const).map((src) => {
+        {(['all', 'ticket', 'bank', 'imported'] as const).map((src) => {
           const active = sourceFilter === src;
-          const label = src === 'all' ? 'All' : src === 'ticket' ? 'Board' : 'Bank';
+          const label = src === 'all' ? 'All' : src === 'ticket' ? 'Board' : src === 'bank' ? 'Bank' : 'Sheets';
           return (
             <button
               key={src}
               onClick={() => {
                 setSourceFilter(src);
-                // Reset origin filter when switching to Bank (not applicable)
-                if (src === 'bank') setOriginFilter('');
+                // Reset origin filter when switching to Bank or Imported (not applicable)
+                if (src === 'bank' || src === 'imported') setOriginFilter('');
               }}
               className="text-[8px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
               style={{
@@ -210,8 +210,19 @@ export function CaptionPicker({
             </button>
           );
         })}
+        {/* Sheet filter — only show when source is Imported */}
+        {sourceFilter === 'imported' && (
+          <>
+            <span className="text-[7px] text-gray-700 mx-0.5">·</span>
+            <SheetFilterDropdown
+              value={originFilter}
+              onChange={setOriginFilter}
+              typeColor={typeColor}
+            />
+          </>
+        )}
         {/* Origin filter — only show when source is All or Board */}
-        {sourceFilter !== 'bank' && (
+        {sourceFilter !== 'bank' && sourceFilter !== 'imported' && (
           <>
             <span className="text-[7px] text-gray-700 mx-0.5">·</span>
             {(['', 'otp_ptr', 'wall_post', 'sexting_sets'] as const).map((org) => {
@@ -405,12 +416,12 @@ function CaptionCard({
         <span
           className="text-[7px] px-1.5 py-0.5 rounded-full font-sans font-bold"
           style={{
-            background: caption.source === 'ticket' ? '#c084fc15' : '#fb923c15',
-            color: caption.source === 'ticket' ? '#c084fc' : '#fb923c',
-            border: `1px solid ${caption.source === 'ticket' ? '#c084fc25' : '#fb923c25'}`,
+            background: caption.source === 'ticket' ? '#c084fc15' : caption.source === 'imported' ? '#10b98115' : '#fb923c15',
+            color: caption.source === 'ticket' ? '#c084fc' : caption.source === 'imported' ? '#10b981' : '#fb923c',
+            border: `1px solid ${caption.source === 'ticket' ? '#c084fc25' : caption.source === 'imported' ? '#10b98125' : '#fb923c25'}`,
           }}
         >
-          {caption.source === 'ticket' ? 'Board' : 'Bank'}
+          {caption.source === 'ticket' ? 'Board' : caption.source === 'imported' ? 'Sheets' : 'Bank'}
         </span>
         {/* Origin badge */}
         {caption.origin && caption.origin !== 'general' && caption.origin !== 'manual' && (
@@ -482,6 +493,130 @@ function CaptionOverrideInput({
         rows={2}
         className="w-full text-[10px] px-2.5 py-2 rounded border outline-none font-mono resize-y min-h-[44px] bg-gray-50 border-gray-200 text-gray-800 focus:border-brand-blue dark:bg-[#07070f] dark:border-[#1a1a35] dark:text-gray-300 dark:focus:border-brand-blue/50"
       />
+    </div>
+  );
+}
+
+// ─── Sheet Filter Dropdown (searchable) ─────────────────────────────────────
+
+const IMPORTED_SHEETS = [
+  "Short", "Descriptive", "Bundle", "Winner", "List", "Holiday",
+  "Short (GF)", "Descriptive (GF)", "Bundle (GF)", "List (GF)", "Winner (GF)",
+  "Tip Me CTA", "Tip Me Post", "New Sub", "Expired Sub",
+  "Livestream", "VIP Membership", "Holiday Non-PPV", "1 Fan Tip Campaign", "Games",
+  "DM Funnel", "GIF Bumps", "Renew Post",
+  "Holiday (GF)", "Tip Me Post (GF)", "Tip Me CTA (GF)", "Livestream (GF)",
+  "GIF Bump (GF)", "Holiday Non-PPV (GF)", "Renew Post (GF)",
+  "New Sub (GF)", "Expired Sub (GF)",
+  "GF Non-Explicit", "Public Captions", "Timebound", "SOP Captions",
+];
+
+function SheetFilterDropdown({
+  value,
+  onChange,
+  typeColor,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  typeColor: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    if (!query) return IMPORTED_SHEETS;
+    const q = query.toLowerCase();
+    return IMPORTED_SHEETS.filter((s) => s.toLowerCase().includes(q));
+  }, [query]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[8px] font-bold px-2 py-0.5 rounded-full font-sans transition-all border"
+        style={{
+          color: value ? '#10b981' : '#6b6b8a',
+          borderColor: value ? '#10b98140' : '#1e1e38',
+          background: value ? '#10b98120' : 'transparent',
+        }}
+      >
+        {value || 'All Sheets'}
+        <ChevronDown className="h-2.5 w-2.5" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 w-52 rounded-lg border border-[#1e1e38] bg-[#0a0a1a] shadow-xl overflow-hidden">
+          {/* Search input */}
+          <div className="p-1.5 border-b border-[#1e1e38]">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-gray-600" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search sheets..."
+                className="w-full text-[9px] pl-6 pr-2 py-1 rounded bg-[#07070f] border border-[#1a1a35] text-gray-300 outline-none focus:border-[#10b98150] font-sans placeholder:text-gray-600"
+              />
+            </div>
+          </div>
+
+          {/* Options */}
+          <div className="max-h-48 overflow-y-auto scrollbar-thin">
+            {/* All Sheets option */}
+            <button
+              onClick={() => { onChange(''); setOpen(false); setQuery(''); }}
+              className={`w-full text-left px-3 py-1.5 text-[9px] font-sans transition-colors flex items-center justify-between ${
+                !value ? 'text-[#10b981] bg-[#10b98110]' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+              }`}
+            >
+              All Sheets
+              {!value && <Check className="h-2.5 w-2.5 text-[#10b981]" />}
+            </button>
+
+            {filtered.map((sheet) => {
+              const active = value === sheet;
+              return (
+                <button
+                  key={sheet}
+                  onClick={() => { onChange(sheet); setOpen(false); setQuery(''); }}
+                  className={`w-full text-left px-3 py-1.5 text-[9px] font-sans transition-colors flex items-center justify-between ${
+                    active ? 'text-[#10b981] bg-[#10b98110]' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  }`}
+                >
+                  {sheet}
+                  {active && <Check className="h-2.5 w-2.5 text-[#10b981]" />}
+                </button>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <div className="px-3 py-3 text-[9px] text-gray-600 font-sans text-center">
+                No sheets match &ldquo;{query}&rdquo;
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

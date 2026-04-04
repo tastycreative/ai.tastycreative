@@ -38,7 +38,7 @@ interface SaveCaptionToBankInput {
  */
 export async function saveCaptionToBank(
   input: SaveCaptionToBankInput,
-): Promise<{ id: string; caption: string; profileId: string } | null> {
+): Promise<{ id: string; caption: string; profileId: string | null } | null> {
   const {
     captionText,
     profileId,

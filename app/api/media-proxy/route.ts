@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const ALLOWED_HOSTS = [
   "tastycreative.s3.us-east-1.amazonaws.com",
   "tastycreative.s3.amazonaws.com",
+  "cdn.tastycreative.xyz",
 ];
 
 /**
