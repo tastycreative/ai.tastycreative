@@ -78,6 +78,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Verify user has access to the caption's profile
+    if (!existingCaption.profileId) {
+      return NextResponse.json(
+        { error: "Caption has no profile" },
+        { status: 400 }
+      );
+    }
     const { hasAccess } = await hasAccessToProfile(userId, existingCaption.profileId);
 
     if (!hasAccess) {

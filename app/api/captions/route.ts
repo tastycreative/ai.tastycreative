@@ -85,17 +85,18 @@ export async function GET(request: NextRequest) {
     const favoritesOnly = searchParams.get("favoritesOnly") === "true";
     const captionCategory = searchParams.get("captionCategory");
     const search = searchParams.get("search");
+    const sourceType = searchParams.get("sourceType");
     const sortBy = searchParams.get("sortBy") || "createdAt"; // createdAt, usageCount, lastUsedAt
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
-    if (!profileId) {
+    if (!profileId && !sourceType) {
       return NextResponse.json(
-        { error: "Profile ID is required" },
+        { error: "Profile ID or sourceType is required" },
         { status: 400 }
       );
     }
 
-    const isAllProfiles = profileId === "all";
+    const isAllProfiles = profileId === "all" || !profileId;
 
     // Get user's organization for shared profile access
     const user = await prisma.user.findUnique({
@@ -153,10 +154,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Build the where clause for captions
-    // For shared profiles, we need to query by profileId instead of clerkId
     let captionsWhere: any = {};
 
-    if (isAllProfiles) {
+    if (sourceType === "spreadsheet_import") {
+      // Imported captions are org-scoped, not profile-scoped
+      const orgId = user?.currentOrganizationId;
+      captionsWhere = {
+        sourceType: "spreadsheet_import",
+        ...(orgId ? { organizationId: orgId } : { clerkId: userId }),
+      };
+    } else if (isAllProfiles) {
       // For all profiles mode, get captions from all accessible profiles
       captionsWhere = {
         profileId: { in: accessibleProfileIds },
@@ -180,6 +187,10 @@ export async function GET(request: NextRequest) {
       captionsWhere.caption = { contains: search, mode: 'insensitive' };
     }
 
+    if (sourceType && sourceType !== "spreadsheet_import") {
+      captionsWhere.sourceType = sourceType;
+    }
+
     // Build orderBy based on sortBy parameter
     type SortableFields = 'createdAt' | 'usageCount' | 'lastUsedAt' | 'caption';
     const validSortFields: SortableFields[] = ['createdAt', 'usageCount', 'lastUsedAt', 'caption'];
@@ -197,8 +208,8 @@ export async function GET(request: NextRequest) {
     // Add profileName and isShared to each caption
     const captionsWithProfile = captions.map((caption) => ({
       ...caption,
-      profileName: profileMap[caption.profileId]?.name || "Unknown Profile",
-      isSharedProfile: profileMap[caption.profileId]?.isShared || false,
+      profileName: caption.profileId ? profileMap[caption.profileId]?.name || "Unknown Profile" : "Imported",
+      isSharedProfile: caption.profileId ? profileMap[caption.profileId]?.isShared || false : false,
     }));
 
     return NextResponse.json(captionsWithProfile);
@@ -310,6 +321,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify user has access to the caption's profile
+    if (!existingCaption.profileId) {
+      return NextResponse.json({ error: "Caption has no profile" }, { status: 400 });
+    }
     const { hasAccess } = await hasAccessToProfile(userId, existingCaption.profileId);
 
     if (!hasAccess) {
@@ -382,9 +396,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify user has access to the caption's profile
-    const { hasAccess } = await hasAccessToProfile(userId, existingCaption.profileId);
+    if (!existingCaption.profileId) {
+      return NextResponse.json({ error: "Caption has no profile" }, { status: 400 });
+    }
+    const { hasAccess: hasDeleteAccess } = await hasAccessToProfile(userId, existingCaption.profileId);
 
-    if (!hasAccess) {
+    if (!hasDeleteAccess) {
       return NextResponse.json(
         { error: "Unauthorized to delete this caption" },
         { status: 403 }

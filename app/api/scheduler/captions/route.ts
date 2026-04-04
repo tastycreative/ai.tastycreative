@@ -5,16 +5,17 @@ import { prisma } from '@/lib/database';
 /**
  * GET /api/scheduler/captions
  *
- * Returns captions from TWO sources for a given profile:
+ * Returns captions from THREE sources for a given profile:
  * 1. Board Tickets (CaptionQueueTicket) — workspace captions with paired GIFs
  * 2. Caption Bank (Caption table) — master caption bank per profile
+ * 3. Imported (Caption table, sourceType='spreadsheet_import') — org-scoped imported captions
  *
- * Each result has a `source` field: 'ticket' or 'bank'
+ * Each result has a `source` field: 'ticket' | 'bank' | 'imported'
  *
  * Query params:
  *  - profileId (required): Instagram profile ID
  *  - search: text search in caption text
- *  - source: 'all' (default) | 'ticket' | 'bank'
+ *  - source: 'all' (default) | 'ticket' | 'bank' | 'imported'
  *  - origin: filter by workflowType/sourceType (e.g. 'otp_ptr', 'wall_post')
  */
 export async function GET(request: NextRequest) {
@@ -337,6 +338,62 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Source 3: Imported Captions (Caption table, spreadsheet_import) ──
+    if (sourceFilter === 'all' || sourceFilter === 'imported') {
+      const importedWhere: Record<string, unknown> = {
+        sourceType: 'spreadsheet_import',
+        organizationId: user.currentOrganizationId,
+      };
+      if (search) {
+        importedWhere.caption = { contains: search, mode: 'insensitive' };
+      }
+      if (originFilter) {
+        // originFilter here maps to the sheet name (captionTypes)
+        importedWhere.captionTypes = originFilter;
+      }
+
+      const importedCaptions = await prisma.caption.findMany({
+        where: importedWhere,
+        select: {
+          id: true,
+          caption: true,
+          captionCategory: true,
+          captionTypes: true,
+          captionBanks: true,
+          usageCount: true,
+          isFavorite: true,
+          createdAt: true,
+        },
+        orderBy: [{ isFavorite: 'desc' }, { createdAt: 'desc' }],
+        take: sourceFilter === 'imported' ? 200 : 50,
+      });
+
+      for (const c of importedCaptions) {
+        if (!c.caption?.trim()) continue;
+        results.push({
+          id: `imported_${c.id}`,
+          caption: c.caption,
+          source: 'imported',
+          origin: c.captionTypes || 'spreadsheet_import',
+          profileId,
+          status: 'active',
+          contentTypes: [],
+          createdAt: c.createdAt.toISOString(),
+          boardItemId: null,
+          gifUrl: '',
+          gifUrlFansly: '',
+          contentCount: '',
+          contentLength: '',
+          contentType: c.captionTypes || '',
+          price: 0,
+          driveLink: '',
+          boardTitle: '',
+          usageCount: c.usageCount,
+          isFavorite: c.isFavorite,
+        });
+      }
+    }
+
     return NextResponse.json(results);
   } catch (error) {
     console.error('Error fetching scheduler captions:', error);
@@ -350,7 +407,7 @@ export async function GET(request: NextRequest) {
 interface SchedulerCaptionResult {
   id: string;
   caption: string;
-  source: 'ticket' | 'bank';
+  source: 'ticket' | 'bank' | 'imported';
   origin: string;
   profileId: string;
   status: string;

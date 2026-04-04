@@ -1121,7 +1121,8 @@ model VaultItem {
 model Caption {
   id                  String                 @id @default(cuid())
   clerkId             String
-  profileId           String
+  profileId           String?
+  organizationId      String?
   caption             String
   captionCategory     String
   captionTypes        String
@@ -1146,10 +1147,11 @@ model Caption {
   sourceType          String?
   contentTypes        CaptionToContentType[]
   messageTypes        CaptionToMessageType[]
-  profile             InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile             InstagramProfile?      @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([profileId])
+  @@index([organizationId])
   @@index([clerkId, profileId])
   @@index([isFavorite])
   @@index([lastUsedAt])

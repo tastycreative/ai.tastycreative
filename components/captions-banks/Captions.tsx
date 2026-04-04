@@ -27,6 +27,11 @@ import {
   Share2,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Upload,
+  Database,
+  FileSpreadsheet,
 } from "lucide-react";
 
 interface Caption {
@@ -45,6 +50,16 @@ interface Caption {
   createdAt: string;
   profileName?: string;
   isSharedProfile?: boolean;
+  source: "gallery" | "imported";
+}
+
+interface ImportResult {
+  success: boolean;
+  imported: number;
+  duplicatesSkipped: number;
+  totalProcessed: number;
+  sheetStats: Record<string, number>;
+  message?: string;
 }
 
 interface DuplicateGroup {
@@ -143,6 +158,27 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
   const [dynamicContentTypes, setDynamicContentTypes] = useState<string[]>([]);
   const [dynamicPostOrigins, setDynamicPostOrigins] = useState<string[]>([]);
   const [dynamicPlatforms, setDynamicPlatforms] = useState<string[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "gallery" | "imported">("all");
+  const [selectedSheet, setSelectedSheet] = useState("All");
+  const importedSheets = [
+    "Short", "Descriptive", "Bundle", "Winner", "List", "Holiday",
+    "Short (GF)", "Descriptive (GF)", "Bundle (GF)", "List (GF)", "Winner (GF)",
+    "Tip Me CTA", "Tip Me Post", "New Sub", "Expired Sub",
+    "Livestream", "VIP Membership", "Holiday Non-PPV", "1 Fan Tip Campaign", "Games",
+    "DM Funnel", "GIF Bumps", "Renew Post",
+    "Holiday (GF)", "Tip Me Post (GF)", "Tip Me CTA (GF)", "Livestream (GF)",
+    "GIF Bump (GF)", "Holiday Non-PPV (GF)", "Renew Post (GF)",
+    "New Sub (GF)", "Expired Sub (GF)",
+    "GF Non-Explicit", "Public Captions", "Timebound", "SOP Captions",
+  ];
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 30;
 
   const captionCategories = [
     "Dick rating", "Solo DILDO", "Solo FINGERS", "Solo VIBRATOR", "JOI",
@@ -210,11 +246,22 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
     if (!selectedProfileId) return;
     try {
       setLoading(true);
-      const params = new URLSearchParams({ profileId: selectedProfileId, sortBy, sortOrder, pageSize: "500" });
-      const response = await fetch(`/api/gallery/captions?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        const mapped: Caption[] = (data.captions || []).map((item: Record<string, unknown>) => ({
+
+      // Fetch gallery captions and imported captions in parallel
+      const galleryParams = new URLSearchParams({ profileId: selectedProfileId, sortBy, sortOrder, pageSize: "500" });
+      const importedParams = new URLSearchParams({ sourceType: "spreadsheet_import", sortBy: sortBy === "postedAt" ? "createdAt" : sortBy, sortOrder });
+
+      const [galleryRes, importedRes] = await Promise.all([
+        fetch(`/api/gallery/captions?${galleryParams}`),
+        fetch(`/api/captions?${importedParams}`),
+      ]);
+
+      let galleryCaptions: Caption[] = [];
+      let importedCaptions: Caption[] = [];
+
+      if (galleryRes.ok) {
+        const data = await galleryRes.json();
+        galleryCaptions = (data.captions || []).map((item: Record<string, unknown>) => ({
           id: item.id as string,
           caption: (item.captionUsed as string) || "",
           captionCategory: (item.contentType as string) || "Uncategorized",
@@ -230,19 +277,106 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
           createdAt: item.createdAt as string,
           profileName: (item.profile as { name?: string })?.name || undefined,
           isSharedProfile: false,
+          source: "gallery" as const,
         }));
-        setCaptions(mapped);
         if (data.filters) {
           setDynamicContentTypes(data.filters.contentTypes || []);
           setDynamicPostOrigins(data.filters.postOrigins || []);
           setDynamicPlatforms(data.filters.platforms || []);
         }
       }
+
+      if (importedRes.ok) {
+        const rawData = await importedRes.json();
+        // API returns array directly or { captions: [...] }
+        const items = Array.isArray(rawData) ? rawData : (rawData.captions || []);
+        importedCaptions = items.map((item: Record<string, unknown>) => ({
+          id: item.id as string,
+          caption: (item.caption as string) || "",
+          captionCategory: (item.captionCategory as string) || "Uncategorized",
+          captionTypes: (item.captionTypes as string) || "Unknown",
+          captionBanks: (item.captionBanks as string) || "Unknown",
+          profileId: (item.profileId as string) || "",
+          usageCount: (item.usageCount as number) || 0,
+          isFavorite: (item.isFavorite as boolean) || false,
+          lastUsedAt: (item.lastUsedAt as string) || null,
+          cooldownDays: (item.cooldownDays as number) || 0,
+          notes: (item.notes as string) || null,
+          tags: (item.tags as string) || null,
+          createdAt: item.createdAt as string,
+          profileName: (item.profileName as string) || undefined,
+          isSharedProfile: (item.isSharedProfile as boolean) || false,
+          source: "imported" as const,
+        }));
+      }
+
+      setCaptions([...galleryCaptions, ...importedCaptions]);
     } catch (error) {
       console.error("Failed to fetch captions:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImportXlsx = () => {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/captions/import-xlsx");
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        // Upload is 0-50%, server processing is 50-100%
+        setImportProgress(Math.round((e.loaded / e.total) * 50));
+      }
+    };
+
+    xhr.upload.onload = () => {
+      // Upload done, now waiting for server to process
+      setImportProgress(60);
+      const tick = setInterval(() => {
+        setImportProgress((prev) => {
+          if (prev >= 90) { clearInterval(tick); return 90; }
+          return prev + 5;
+        });
+      }, 500);
+      (xhr as any)._progressTick = tick;
+    };
+
+    xhr.onload = () => {
+      if ((xhr as any)._progressTick) clearInterval((xhr as any)._progressTick);
+      setImportProgress(100);
+      try {
+        const result = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setImportResult(result);
+          if (result.imported > 0) {
+            showToast(`Imported ${result.imported} captions`, "success");
+            fetchCaptions();
+          }
+        } else {
+          showToast(result.error || "Import failed", "error");
+        }
+      } catch {
+        showToast("Failed to parse response", "error");
+      }
+      setImporting(false);
+    };
+
+    xhr.onerror = () => {
+      if ((xhr as any)._progressTick) clearInterval((xhr as any)._progressTick);
+      showToast("Failed to import file", "error");
+      setImporting(false);
+      setImportProgress(0);
+    };
+
+    xhr.send(formData);
   };
 
   const filteredCaptions = captions.filter((caption) => {
@@ -255,8 +389,23 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
     const matchesCategory = selectedCategory === "All" || caption.captionCategory === selectedCategory;
     const matchesType = selectedType === "All" || caption.captionTypes === selectedType;
     const matchesBank = selectedBank === "All" || caption.captionBanks === selectedBank;
-    return matchesSearch && matchesCategory && matchesType && matchesBank;
+    const matchesSource = sourceFilter === "all" || caption.source === sourceFilter;
+    const matchesSheet = selectedSheet === "All" || caption.captionTypes === selectedSheet;
+    return matchesSearch && matchesCategory && matchesType && matchesBank && matchesSource && matchesSheet;
   });
+
+  const totalPages = Math.ceil(filteredCaptions.length / PAGE_SIZE);
+  const paginatedCaptions = filteredCaptions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchDebounce, selectedCategory, selectedType, selectedBank, sourceFilter, selectedSheet, captions]);
+
+  // Reset sheet filter when leaving imported view
+  useEffect(() => {
+    if (sourceFilter !== "imported") setSelectedSheet("All");
+  }, [sourceFilter]);
 
   const handleCopyCaption = async (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -459,6 +608,13 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
+              onClick={() => { setShowImportModal(true); setImportFile(null); setImportResult(null); }}
+              className="h-9 px-4 bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">Import</span>
+            </button>
+            <button
               onClick={() => {
                 const categoryStats = Object.entries(
                   captions.reduce((acc, c) => {
@@ -555,6 +711,29 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
 
           <div className="flex items-center bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg p-0.5">
             <button
+              onClick={() => setSourceFilter("all")}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-mono tracking-[0.05em] transition-colors ${sourceFilter === "all" ? "bg-white dark:bg-white/10 shadow-sm text-gray-900 dark:text-brand-off-white" : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setSourceFilter("gallery")}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-mono tracking-[0.05em] transition-colors flex items-center gap-1 ${sourceFilter === "gallery" ? "bg-white dark:bg-white/10 shadow-sm text-brand-blue" : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+            >
+              <Database className="w-3 h-3" />
+              Gallery
+            </button>
+            <button
+              onClick={() => setSourceFilter("imported")}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-mono tracking-[0.05em] transition-colors flex items-center gap-1 ${sourceFilter === "imported" ? "bg-white dark:bg-white/10 shadow-sm text-emerald-500" : "text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+            >
+              <FileSpreadsheet className="w-3 h-3" />
+              Imported
+            </button>
+          </div>
+
+          <div className="flex items-center bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg p-0.5">
+            <button
               onClick={() => setViewMode("grid")}
               className={`p-2 rounded-md transition-colors ${viewMode === "grid" ? "bg-white dark:bg-white/10 shadow-sm" : ""}`}
             >
@@ -576,7 +755,7 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
         {/* Expanded Filters */}
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/[0.06]">
-            <div className={`grid grid-cols-1 gap-4 ${masterMode ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+            <div className={`grid grid-cols-1 gap-4 ${sourceFilter === "imported" ? "sm:grid-cols-5" : masterMode ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
               {masterMode && (
                 <div>
                   <label className="block font-mono text-[11px] tracking-[0.12em] text-gray-500 dark:text-gray-500 uppercase mb-2">Profile</label>
@@ -623,10 +802,23 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                   {banks.map(bank => <option key={bank} value={bank}>{bank}</option>)}
                 </select>
               </div>
+              {sourceFilter === "imported" && (
+                <div>
+                  <label className="block font-mono text-[11px] tracking-[0.12em] text-emerald-500 dark:text-emerald-400 uppercase mb-2">Sheet</label>
+                  <select
+                    value={selectedSheet}
+                    onChange={(e) => setSelectedSheet(e.target.value)}
+                    className="w-full h-10 px-3 bg-emerald-500/5 dark:bg-emerald-500/[0.06] border border-emerald-500/20 dark:border-emerald-500/15 rounded-lg text-sm text-gray-900 dark:text-brand-off-white focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="All">All Sheets</option>
+                    {importedSheets.map(sheet => <option key={sheet} value={sheet}>{sheet}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
-            {activeFilterCount > 0 && (
+            {(activeFilterCount > 0 || selectedSheet !== "All") && (
               <button
-                onClick={() => { setSelectedCategory("All"); setSelectedType("All"); setSelectedBank("All"); }}
+                onClick={() => { setSelectedCategory("All"); setSelectedType("All"); setSelectedBank("All"); setSelectedSheet("All"); }}
                 className="mt-3 text-sm font-mono text-brand-light-pink hover:text-brand-mid-pink transition-colors tracking-wide"
               >
                 clear all filters
@@ -642,8 +834,8 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
           <Info className="w-5 h-5 text-brand-light-pink flex-shrink-0" />
           <p className="text-sm text-gray-700 dark:text-gray-300">
             {masterMode
-              ? <><span className="font-semibold text-brand-light-pink">Master Caption Bank:</span> Showing captions from gallery items across all profiles. Use the Filter by Profile dropdown to drill into a specific model.</>
-              : <><span className="font-semibold text-brand-light-pink">All Profiles Mode:</span> Viewing gallery captions from all profiles. Select a specific profile to filter.</>
+              ? <><span className="font-semibold text-brand-light-pink">Master Caption Bank:</span> Showing captions from gallery items and spreadsheet imports across all profiles. Use the source filter to separate them, or the Profile dropdown to drill into a specific model.</>
+              : <><span className="font-semibold text-brand-light-pink">All Profiles Mode:</span> Viewing gallery and imported captions from all profiles. Select a specific profile to filter.</>
             }
           </p>
         </div>
@@ -666,6 +858,14 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
         <span className="font-mono text-[11px] tracking-[0.08em] text-gray-400 dark:text-gray-600">
           <span className="text-gray-600 dark:text-gray-400">{captions.length}</span> total
         </span>
+        <span className="font-mono text-[11px] tracking-[0.08em] text-brand-blue/60">
+          <Database className="w-3 h-3 inline mr-0.5" />
+          <span className="text-brand-blue">{captions.filter(c => c.source === "gallery").length}</span> gallery
+        </span>
+        <span className="font-mono text-[11px] tracking-[0.08em] text-emerald-500/60">
+          <FileSpreadsheet className="w-3 h-3 inline mr-0.5" />
+          <span className="text-emerald-500">{captions.filter(c => c.source === "imported").length}</span> imported
+        </span>
         {captions.reduce((acc, c) => acc + c.usageCount, 0) > 0 && (
           <span className="font-mono text-[11px] tracking-[0.08em] text-gray-400 dark:text-gray-600">
             <span className="text-gray-600 dark:text-gray-400">{captions.reduce((acc, c) => acc + c.usageCount, 0)}</span> sales
@@ -685,7 +885,7 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredCaptions.map((caption) => {
+            {paginatedCaptions.map((caption) => {
               const catStyle = getCategoryStyle(caption.captionCategory);
               const long = isLongCaption(caption.caption);
               const expanded = expandedCards.has(caption.id);
@@ -696,12 +896,22 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                 >
                   <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-light-pink to-brand-mid-pink" />
 
-                  {isAllProfiles && caption.profileName && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-light-pink/10 text-brand-light-pink text-[10px] font-mono tracking-[0.05em] rounded-full self-start">
-                      <User className="w-3 h-3" />
-                      {caption.profileName}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isAllProfiles && caption.profileName && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-light-pink/10 text-brand-light-pink text-[10px] font-mono tracking-[0.05em] rounded-full">
+                        <User className="w-3 h-3" />
+                        {caption.profileName}
+                      </span>
+                    )}
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono tracking-[0.05em] rounded-full ${
+                      caption.source === "gallery"
+                        ? "bg-brand-blue/10 text-brand-blue"
+                        : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+                    }`}>
+                      {caption.source === "gallery" ? <Database className="w-3 h-3" /> : <FileSpreadsheet className="w-3 h-3" />}
+                      {caption.source === "gallery" ? "Gallery" : "Imported"}
                     </span>
-                  )}
+                  </div>
 
                   <div className={`font-mono text-[13px] leading-[1.75] text-gray-600 dark:text-gray-300 font-light italic whitespace-pre-wrap break-words ${long && !expanded ? "line-clamp-4" : ""}`}>
                     {caption.caption}
@@ -721,7 +931,7 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                       <span className={`font-mono text-[10px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
                         {caption.captionCategory}
                       </span>
-                      {caption.captionTypes && caption.captionTypes !== "Unknown" && (
+                      {caption.captionTypes && caption.captionTypes !== "Unknown" && caption.captionTypes !== caption.captionCategory && (
                         <span className="font-mono text-[10px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full border bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue border-brand-blue/25">
                           {caption.captionTypes}
                         </span>
@@ -773,6 +983,7 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                 <tr className="border-b border-gray-200 dark:border-white/[0.06] bg-gray-100/50 dark:bg-white/[0.02]">
                   {isAllProfiles && <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Profile</th>}
                   <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Caption</th>
+                  <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Source</th>
                   <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Content Type</th>
                   <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Platform</th>
                   <th className="px-4 py-3 text-left font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase">Posted</th>
@@ -780,7 +991,7 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/[0.04]">
-                {filteredCaptions.map((caption) => (
+                {paginatedCaptions.map((caption) => (
                   <tr key={caption.id} className="group transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                     {isAllProfiles && (
                       <td className="px-4 py-4">
@@ -794,6 +1005,16 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                     )}
                     <td className="px-4 py-4">
                       <p className="text-sm text-gray-900 dark:text-brand-off-white line-clamp-2 font-mono text-[13px] font-light italic">{caption.caption}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono tracking-[0.05em] rounded-full whitespace-nowrap ${
+                        caption.source === "gallery"
+                          ? "bg-brand-blue/10 text-brand-blue"
+                          : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400"
+                      }`}>
+                        {caption.source === "gallery" ? <Database className="w-3 h-3" /> : <FileSpreadsheet className="w-3 h-3" />}
+                        {caption.source === "gallery" ? "Gallery" : "Imported"}
+                      </span>
                     </td>
                     <td className="px-4 py-4">
                       <span className="font-mono text-[10px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full border bg-brand-light-pink/10 text-brand-light-pink border-brand-light-pink/25">
@@ -824,6 +1045,72 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && !loading && (
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-white/[0.06] mt-4">
+            <span className="font-mono text-[11px] tracking-[0.05em] text-gray-400 dark:text-gray-600">
+              Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredCaptions.length)} of {filteredCaptions.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1.5 rounded-lg font-mono text-[11px] border border-gray-200 dark:border-white/[0.08] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                First
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let page: number;
+                if (totalPages <= 5) {
+                  page = i + 1;
+                } else if (currentPage <= 3) {
+                  page = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  page = totalPages - 4 + i;
+                } else {
+                  page = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 rounded-lg font-mono text-[11px] transition-colors ${
+                      currentPage === page
+                        ? "bg-brand-light-pink text-white"
+                        : "border border-gray-200 dark:border-white/[0.08] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1.5 rounded-lg font-mono text-[11px] border border-gray-200 dark:border-white/[0.08] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Last
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -903,6 +1190,175 @@ export function Captions({ masterMode = false }: { masterMode?: boolean } = {}) 
                   <div className="w-8 h-8 border-4 border-brand-light-pink/30 border-t-brand-light-pink rounded-full animate-spin" />
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/[0.1] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-xl flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-brand-off-white">Import Captions</h2>
+                  <p className="text-xs font-mono text-gray-500 tracking-wide">Upload .xlsx spreadsheet</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowImportModal(false); setImportFile(null); setImportResult(null); }} className="p-2 hover:bg-gray-100 dark:hover:bg-white/[0.04] rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+                <>
+
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls"))) {
+                        setImportFile(file);
+                        setImportResult(null);
+                      }
+                    }}
+                    className={`relative rounded-xl p-8 text-center transition-all duration-200 border-2 border-dashed ${
+                      isDragging
+                        ? "border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/[0.08] scale-[1.02]"
+                        : importFile
+                          ? "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/[0.04]"
+                          : "border-gray-300 dark:border-white/[0.12] bg-gray-50 dark:bg-white/[0.03] hover:border-brand-light-pink/40 hover:bg-brand-light-pink/5 dark:hover:bg-brand-light-pink/[0.04]"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }}
+                      className="hidden"
+                      id="xlsx-upload"
+                    />
+                    <label htmlFor="xlsx-upload" className="cursor-pointer block">
+                      {isDragging ? (
+                        <>
+                          <div className="w-14 h-14 bg-emerald-500/15 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <FileSpreadsheet className="w-7 h-7 text-emerald-500 animate-bounce" />
+                          </div>
+                          <p className="text-sm font-semibold text-emerald-500">Drop your file here</p>
+                        </>
+                      ) : importFile ? (
+                        <>
+                          <div className="w-14 h-14 bg-emerald-500/15 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <FileSpreadsheet className="w-7 h-7 text-emerald-500" />
+                          </div>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-brand-off-white">{importFile.name}</p>
+                          <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-1">
+                            {(importFile.size / 1024).toFixed(0)} KB
+                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setImportFile(null); setImportResult(null); }}
+                            className="mt-2 text-[11px] font-mono text-brand-light-pink hover:text-brand-mid-pink transition-colors tracking-wide"
+                          >
+                            remove file
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-14 h-14 bg-gray-100 dark:bg-white/[0.06] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <Upload className="w-7 h-7 text-gray-400 dark:text-gray-500" />
+                          </div>
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Drag & drop your <span className="text-emerald-500 font-semibold">.xlsx</span> file here
+                          </p>
+                          <p className="text-[11px] font-mono text-gray-400 dark:text-gray-600 mt-1.5 tracking-wide">
+                            or click to browse
+                          </p>
+                          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 mt-3 tracking-wide">CST - Post Generation Harvest Caption Bank</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.08] rounded-xl p-4">
+                    <p className="text-[10px] font-mono text-gray-500 dark:text-gray-400 tracking-[0.1em] uppercase mb-2">Sheets to import</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {importedSheets.map(sheet => (
+                        <span key={sheet} className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono rounded-full">{sheet}</span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] font-mono text-gray-400 dark:text-gray-600 mt-2 tracking-wide">Only Edited Caption column is imported. Duplicates are auto-skipped.</p>
+                  </div>
+
+                  {importResult && (
+                    <div className={`rounded-xl p-4 border ${importResult.imported > 0 ? "bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40" : "bg-gray-50 dark:bg-white/[0.03] border-gray-200 dark:border-white/[0.08]"}`}>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{importResult.imported}</p>
+                          <p className="text-[10px] font-mono text-gray-500 tracking-wide">Imported</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{importResult.duplicatesSkipped}</p>
+                          <p className="text-[10px] font-mono text-gray-500 tracking-wide">Skipped</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{importResult.totalProcessed}</p>
+                          <p className="text-[10px] font-mono text-gray-500 tracking-wide">Total</p>
+                        </div>
+                      </div>
+                      {importResult.sheetStats && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/[0.06]">
+                          <p className="text-[10px] font-mono text-gray-500 tracking-[0.1em] uppercase mb-1.5">Per sheet</p>
+                          <div className="space-y-1">
+                            {Object.entries(importResult.sheetStats).filter(([, count]) => count > 0).map(([sheet, count]) => (
+                              <div key={sheet} className="flex items-center justify-between text-[11px] font-mono">
+                                <span className="text-gray-600 dark:text-gray-400">{sheet}</span>
+                                <span className="text-gray-900 dark:text-brand-off-white font-medium">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {importing && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-gray-500 dark:text-gray-400 tracking-wide">
+                          {importProgress < 50 ? "Uploading file..." : importProgress < 90 ? "Processing sheets..." : importProgress < 100 ? "Saving captions..." : "Complete!"}
+                        </span>
+                        <span className="text-emerald-500 font-medium">{importProgress}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 dark:bg-white/[0.08] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${importProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleImportXlsx}
+                    disabled={!importFile || importing || !!importResult}
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    {importing ? (
+                      <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Importing...</>
+                    ) : (
+                      <><Upload className="w-4 h-4" /> Import Captions</>
+                    )}
+                  </button>
+                </>
             </div>
           </div>
         </div>,
