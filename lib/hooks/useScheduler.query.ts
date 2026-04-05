@@ -190,7 +190,7 @@ export const schedulerKeys = {
   month: (month: string, profileId: string) =>
     [...schedulerKeys.all, 'month', month, profileId] as const,
   config: () => [...schedulerKeys.all, 'config'] as const,
-  activity: () => [...schedulerKeys.all, 'activity'] as const,
+  activity: (profileId?: string | null) => [...schedulerKeys.all, 'activity', profileId ?? 'all'] as const,
   taskHistory: (taskId: string) => [...schedulerKeys.all, 'taskHistory', taskId] as const,
   lineage: (lineageId: string) => [...schedulerKeys.all, 'lineage', lineageId] as const,
   lineageEarnings: (lineageId: string) =>
@@ -890,14 +890,15 @@ export function useCalendarHistory(
 
 // ─── Activity ─────────────────────────────────────────────────────────────
 
-export function useSchedulerActivity() {
+export function useSchedulerActivity(profileId?: string | null) {
   const { user } = useUser();
 
   return useInfiniteQuery<ActivityLogPage>({
-    queryKey: schedulerKeys.activity(),
+    queryKey: schedulerKeys.activity(profileId),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30' });
       if (pageParam) params.set('cursor', pageParam as string);
+      if (profileId) params.set('profileId', profileId);
       const res = await fetch(`/api/scheduler/activity?${params}`);
       if (!res.ok) throw new Error('Failed to fetch activity log');
       return res.json();

@@ -8,11 +8,12 @@ import { useSchedulerActivity } from '@/lib/hooks/useScheduler.query';
 interface SchedulerActivityLogProps {
   open: boolean;
   onClose: () => void;
+  profileId?: string | null;
 }
 
-export function SchedulerActivityLog({ open, onClose }: SchedulerActivityLogProps) {
+export function SchedulerActivityLog({ open, onClose, profileId }: SchedulerActivityLogProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useSchedulerActivity();
+    useSchedulerActivity(profileId);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   if (!open) return null;

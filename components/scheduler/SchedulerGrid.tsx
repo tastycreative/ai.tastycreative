@@ -1256,7 +1256,7 @@ export function SchedulerGrid() {
         open={showConfig || showSetup}
         onClose={() => setShowConfig(false)}
       />
-      <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} />
+      <SchedulerActivityLog open={showActivity} onClose={() => setShowActivity(false)} profileId={activeProfileId} />
       <SchedulerHistoryCalendar
         open={showHistory}
         onClose={() => setShowHistory(false)}

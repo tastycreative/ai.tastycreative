@@ -20,10 +20,13 @@ export async function GET(request: NextRequest) {
   const orgId = user.currentOrganizationId;
   const limit = parseInt(request.nextUrl.searchParams.get('limit') || '30', 10);
   const cursor = request.nextUrl.searchParams.get('cursor');
+  const profileId = request.nextUrl.searchParams.get('profileId');
 
   const logs = await prisma.schedulerActivityLog.findMany({
     where: {
       organizationId: orgId,
+      // When a profileId is provided, only show activity for tasks belonging to that profile
+      ...(profileId ? { task: { profileId } } : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: limit + 1,

@@ -141,22 +141,23 @@ export async function POST(request: NextRequest) {
 
   const result = await prisma.schedulerTask.createMany({ data });
 
-  // Activity log
+  // Create change history entries for each imported task
+  const createdTasks = await prisma.schedulerTask.findMany({
+    where: { organizationId: orgId, weekStartDate, slotLabel: { in: slotLabels }, ...(profileId ? { profileId } : {}), ...(platform ? { platform } : {}) },
+    select: { id: true, taskType: true, taskName: true, dayOfWeek: true },
+  });
+
+  // Activity log — link to first imported task so it shows up when filtering by profile
   const modeLabel = mode === 'replace' ? 'replaced all' : mode === 'replace_by_type' ? 'replaced by type' : 'appended';
+  const firstTaskId = createdTasks.length > 0 ? createdTasks[0].id : null;
   const activityLog = await prisma.schedulerActivityLog.create({
     data: {
       organizationId: orgId,
       userId: user.id,
-      taskId: null,
+      taskId: firstTaskId,
       action: 'IMPORTED',
       summary: `Imported ${result.count} tasks (${modeLabel}${deleted > 0 ? `, removed ${deleted} old` : ''}) for week ${weekStart}`,
     },
-  });
-
-  // Create change history entries for each imported task
-  const createdTasks = await prisma.schedulerTask.findMany({
-    where: { organizationId: orgId, slotLabel: { in: slotLabels } },
-    select: { id: true, taskType: true, taskName: true, dayOfWeek: true },
   });
 
   if (createdTasks.length > 0) {
