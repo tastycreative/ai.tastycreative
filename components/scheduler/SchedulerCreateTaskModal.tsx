@@ -161,7 +161,18 @@ export function SchedulerCreateTaskModal({
         next.price = `$${selection.price.toFixed(2)}`;
       }
       if (selection.gifUrl) {
-        next.contentPreview = prev.contentPreview || selection.gifUrl;
+        next.contentPreview = selection.gifUrl;
+      }
+      if (selection.contentType) {
+        next.tag = selection.contentType;
+      }
+      if (selection.contentCount) {
+        next.paywallContent = selection.contentLength
+          ? `${selection.contentCount} (${selection.contentLength})`
+          : selection.contentCount;
+      }
+      if (selection.sextingSetName) {
+        next.folderName = selection.sextingSetName;
       }
       return next;
     });
@@ -173,6 +184,11 @@ export function SchedulerCreateTaskModal({
       delete next.captionId;
       delete next.captionBankText;
       next.caption = '';
+      next.contentPreview = '';
+      next.tag = '';
+      next.paywallContent = '';
+      next.price = '';
+      next.folderName = '';
       return next;
     });
   }, []);

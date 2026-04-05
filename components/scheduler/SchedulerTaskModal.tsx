@@ -360,6 +360,9 @@ export function SchedulerTaskModal({
       flyerAssetUrl: sel.gifUrl,
       flyerAssetId: sel.boardItemId || '',
     };
+    if (sel.gifUrl) {
+      patch.contentPreview = sel.gifUrl;
+    }
     if (sel.sextingSetName) {
       patch.caption = sel.captionText;
       patch.sextingSetName = sel.sextingSetName;
