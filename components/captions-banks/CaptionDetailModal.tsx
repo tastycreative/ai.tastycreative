@@ -121,6 +121,21 @@ export function CaptionDetailModal({
 
             {/* Right: Metadata + Performance */}
             <div className="flex-1 p-6 space-y-6 min-w-[280px]">
+              {/* GIF Preview */}
+              {caption.gifUrl && /^https?:\/\/.+/i.test(caption.gifUrl) && (
+                <div>
+                  <p className="font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase mb-3">Preview</p>
+                  <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-white/[0.06] bg-black/5 dark:bg-black/20">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={caption.gifUrl}
+                      alt="Content preview"
+                      className="w-full h-auto max-h-48 object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Metadata */}
               <div>
                 <p className="font-mono text-[10px] tracking-[0.12em] text-gray-500 uppercase mb-3">Metadata</p>

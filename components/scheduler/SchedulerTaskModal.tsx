@@ -1531,7 +1531,13 @@ function ContentPreview({
                 typeColor={typeColor}
               />
             )}
-           
+            {!hasContentUrl && hasFlyerUrl && (
+              <PreviewMedia
+                url={flyerUrl}
+                label="GIF"
+                typeColor={typeColor}
+              />
+            )}
           </div>
         )}
       </div>

@@ -86,25 +86,33 @@ export function CaptionCard({
         )}
       </div>
 
-      {/* Caption text with fade */}
-      <div className="relative">
-        <div className="font-mono text-[13px] leading-[1.75] text-gray-600 dark:text-gray-300 font-light italic whitespace-pre-wrap break-words max-h-[7rem] overflow-hidden">
-          {parts.map((part, i) =>
-            part.highlighted ? (
-              <span
-                key={i}
-                className="bg-amber-500/20 dark:bg-amber-500/30 rounded-sm px-0.5"
-              >
-                {part.text}
-              </span>
-            ) : (
-              <span key={i}>{part.text}</span>
-            )
+      {/* Caption text with fade + optional GIF thumbnail */}
+      <div className="relative flex gap-3">
+        {caption.gifUrl && (
+          <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-white/[0.08] bg-black/5 dark:bg-black/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={caption.gifUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="relative flex-1 min-w-0">
+          <div className="font-mono text-[13px] leading-[1.75] text-gray-600 dark:text-gray-300 font-light italic whitespace-pre-wrap break-words max-h-[7rem] overflow-hidden">
+            {parts.map((part, i) =>
+              part.highlighted ? (
+                <span
+                  key={i}
+                  className="bg-amber-500/20 dark:bg-amber-500/30 rounded-sm px-0.5"
+                >
+                  {part.text}
+                </span>
+              ) : (
+                <span key={i}>{part.text}</span>
+              )
+            )}
+          </div>
+          {isLongCaption(caption.caption) && (
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 dark:from-gray-950 to-transparent pointer-events-none" />
           )}
         </div>
-        {isLongCaption(caption.caption) && (
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 dark:from-gray-950 to-transparent pointer-events-none" />
-        )}
       </div>
 
       {/* Bottom tags + copy */}

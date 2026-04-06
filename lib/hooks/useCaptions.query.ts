@@ -21,6 +21,7 @@ export interface Caption {
   profileName?: string;
   isSharedProfile?: boolean;
   source: 'gallery' | 'imported';
+  gifUrl?: string | null;
 }
 
 export interface CaptionFilters {
@@ -111,6 +112,7 @@ async function fetchCaptions(params: UseCaptionsParams): Promise<CaptionsData> {
       profileName: (item.profile as { name?: string })?.name || undefined,
       isSharedProfile: false,
       source: 'gallery' as const,
+      gifUrl: ((item.boardMetadata as Record<string, unknown>)?.gifUrl as string) || (/\.(gif|png|jpg|jpeg|webp)(\?|$)/i.test((item.previewUrl as string) || '') ? (item.previewUrl as string) : null),
     }));
     if (data.filters) {
       filters = {
@@ -141,6 +143,7 @@ async function fetchCaptions(params: UseCaptionsParams): Promise<CaptionsData> {
       profileName: (item.profileName as string) || undefined,
       isSharedProfile: (item.isSharedProfile as boolean) || false,
       source: 'imported' as const,
+      gifUrl: (item.gifUrl as string) || null,
     }));
   }
 

@@ -532,12 +532,12 @@ export function ContentDetailsFields({
             )}
           </div>
 
-          {/* Google Drive Link (OTP/PTR — caption workspace context) */}
+          {/* Google Drive Link / Flyer Link (OTP/PTR — caption workspace context) */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-zinc-300 mb-2">
               <span className="flex items-center gap-1.5">
                 <Link2 className="w-3.5 h-3.5 text-brand-blue" />
-                Google Drive Link
+                {contentStyleProp === 'vip' ? 'Flyer Link' : 'Google Drive Link'}
                 {submissionType === 'OTP_PTR' && <span className="text-red-400 text-xs font-normal ml-0.5">*</span>}
               </span>
             </label>
@@ -546,7 +546,7 @@ export function ContentDetailsFields({
                 type="url"
                 value={(metadata.driveLink as string) || ''}
                 onChange={(e) => handleMetadataChange('driveLink', e.target.value)}
-                placeholder="https://drive.google.com/..."
+                placeholder={contentStyleProp === 'vip' ? 'https://...' : 'https://drive.google.com/...'}
                 className="w-full bg-zinc-900/60 border border-zinc-700/50 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 text-white placeholder-zinc-500 rounded-xl px-4 py-3 pr-10 transition-all duration-150"
               />
               {(metadata.driveLink as string) && (
@@ -561,7 +561,11 @@ export function ContentDetailsFields({
                 </a>
               )}
             </div>
-            <p className="text-[11px] text-zinc-500 mt-1">Paste the Drive link so caption writers can reference the content in the caption workspace</p>
+            <p className="text-[11px] text-zinc-500 mt-1">
+              {contentStyleProp === 'vip'
+                ? 'Paste the flyer link for this VIP content'
+                : 'Paste the Drive link so caption writers can reference the content in the caption workspace'}
+            </p>
           </div>
 
           {/* Content Type Dropdown */}

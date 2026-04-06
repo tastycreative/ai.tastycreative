@@ -1137,6 +1137,8 @@ model Caption {
   tags                String?
   originalModelName   String?
   totalRevenue        Decimal                @default(0) @db.Decimal(10, 2)
+  gifUrl              String?
+  gifUrlFansly        String?
   /// Board item ID that this caption originated from
   sourceBoardItemId   String?
   /// Content item ID (CaptionQueueContentItem) — unique per wall-post item to prevent duplicates

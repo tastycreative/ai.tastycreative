@@ -25,6 +25,10 @@ interface SaveCaptionToBankInput {
   sourceContentItemId?: string | null;
   /** For otp_ptr: the CaptionQueueTicket ID (unique per ticket) */
   sourceTicketId?: string | null;
+  /** GIF URL (OnlyFans) from the board item metadata */
+  gifUrl?: string | null;
+  /** GIF URL (Fansly) from the board item metadata */
+  gifUrlFansly?: string | null;
 }
 
 /**
@@ -48,6 +52,8 @@ export async function saveCaptionToBank(
     sourceBoardItemId,
     sourceContentItemId,
     sourceTicketId,
+    gifUrl,
+    gifUrlFansly,
   } = input;
 
   // Guard: don't save empty captions
@@ -104,6 +110,8 @@ export async function saveCaptionToBank(
         sourceBoardItemId,
         sourceContentItemId: sourceContentItemId ?? null,
         sourceTicketId: sourceTicketId ?? null,
+        gifUrl: gifUrl || null,
+        gifUrlFansly: gifUrlFansly || null,
         notes: `Auto-saved from ${sourceType === 'wall_post' ? 'Wall Post' : sourceType === 'sexting_sets' ? 'Sexting Sets' : 'OTP/PTR'} board`,
       },
       select: { id: true, caption: true, profileId: true },
@@ -150,8 +158,12 @@ export async function saveCaptionFromWallPost(params: {
     organizationId: string | null;
   };
   clerkId: string;
+  /** GIF URL (OnlyFans) from board item metadata */
+  gifUrl?: string | null;
+  /** GIF URL (Fansly) from board item metadata */
+  gifUrlFansly?: string | null;
 }): Promise<void> {
-  const { contentItemId, captionText, boardItemCaptionText, ticket, clerkId } = params;
+  const { contentItemId, captionText, boardItemCaptionText, ticket, clerkId, gifUrl, gifUrlFansly } = params;
 
   // Resolve caption text: prefer DB record, fall back to board metadata
   const resolvedCaption = captionText?.trim() || boardItemCaptionText?.trim() || null;
@@ -191,6 +203,8 @@ export async function saveCaptionFromWallPost(params: {
     sourceType: 'wall_post',
     sourceBoardItemId: ticket.boardItemId,
     sourceContentItemId: contentItemId,
+    gifUrl,
+    gifUrlFansly,
   });
 }
 
@@ -263,5 +277,7 @@ export async function saveCaptionFromOtpPtr(params: {
     sourceType: 'otp_ptr',
     sourceBoardItemId: boardItemId,
     sourceTicketId: ticketId,
+    gifUrl: (metadata.gifUrl as string) || null,
+    gifUrlFansly: (metadata.gifUrlFansly as string) || null,
   });
 }
