@@ -112,7 +112,7 @@ async function fetchCaptions(params: UseCaptionsParams): Promise<CaptionsData> {
       profileName: (item.profile as { name?: string })?.name || undefined,
       isSharedProfile: false,
       source: 'gallery' as const,
-      gifUrl: ((item.boardMetadata as Record<string, unknown>)?.gifUrl as string) || (item.previewUrl as string) || null,
+      gifUrl: ((item.boardMetadata as Record<string, unknown>)?.gifUrl as string) || (/\.(gif|png|jpg|jpeg|webp)(\?|$)/i.test((item.previewUrl as string) || '') ? (item.previewUrl as string) : null),
     }));
     if (data.filters) {
       filters = {
