@@ -304,6 +304,8 @@ export async function POST(req: NextRequest, { params }: Params) {
             captionText: entry.captionText,
             ticket: fallbackTicket,
             clerkId: userId,
+            gifUrl: (meta.gifUrl as string) || null,
+            gifUrlFansly: (meta.gifUrlFansly as string) || null,
           });
           savedContentItemIds.add(entry.contentItemId);
         } catch (e) {
@@ -330,6 +332,8 @@ export async function POST(req: NextRequest, { params }: Params) {
                 captionText: ci.captionText,
                 ticket: fallbackTicket,
                 clerkId: userId,
+                gifUrl: (meta.gifUrl as string) || null,
+                gifUrlFansly: (meta.gifUrlFansly as string) || null,
               });
             } catch (e) {
               console.error('[mark-final] Failed to save caption from DB fallback:', e);
@@ -554,6 +558,8 @@ export async function POST(req: NextRequest, { params }: Params) {
             captionText: entry.captionText,
             ticket: fallbackSetsTicket,
             clerkId: userId,
+            gifUrl: (meta.gifUrl as string) || null,
+            gifUrlFansly: (meta.gifUrlFansly as string) || null,
           });
           savedSetsItemIds.add(entry.contentItemId);
         } catch (e) {
@@ -577,6 +583,8 @@ export async function POST(req: NextRequest, { params }: Params) {
                 captionText: ci.captionText,
                 ticket: fallbackSetsTicket,
                 clerkId: userId,
+                gifUrl: (meta.gifUrl as string) || null,
+                gifUrlFansly: (meta.gifUrlFansly as string) || null,
               });
             } catch (e) {
               console.error('[mark-final] Failed to save caption from DB fallback:', e);
