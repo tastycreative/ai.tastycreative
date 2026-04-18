@@ -13,7 +13,7 @@ const isPublicRoute = createRouteMatcher([
   '/forgot-password(.*)',
   '/about(.*)',
   '/pricing(.*)',
-  '/demo(.*)',
+  '/test(.*)',
   '/onboarding/public(.*)', // ✅ Public onboarding form (token-based access)
 ]);
 
