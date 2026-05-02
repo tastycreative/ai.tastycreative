@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { toast } from 'sonner';
 import { AlertTriangle } from 'lucide-react';
 import QueuePanel from './QueuePanel';

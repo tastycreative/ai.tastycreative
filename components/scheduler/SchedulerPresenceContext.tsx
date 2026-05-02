@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import * as Ably from 'ably';
 
 // ─── Types ──────────────────────────────────────────────────────────────────

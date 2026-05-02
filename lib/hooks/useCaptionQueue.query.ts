@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { useRealtimeFallbackInterval } from './useConnectionStatus';
 import { boardItemKeys } from './useBoardItems.query';
 

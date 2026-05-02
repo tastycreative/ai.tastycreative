@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-compat";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const s3Client = new S3Client({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { generateDirectUrl, generateBatchDirectUrls, validateS3Config } from '@/lib/s3DirectAccess';
 
 export async function OPTIONS(request: NextRequest) {

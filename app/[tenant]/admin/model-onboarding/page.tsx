@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import {
   ArrowLeft,
   ArrowRight,

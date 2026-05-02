@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useUser } from "@/lib/clerk-compat-client";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
 import { usePermissions } from "@/lib/hooks/usePermissions.query";

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 import { addSSEClient, removeSSEClient } from '@/lib/post-change-tracker';
 

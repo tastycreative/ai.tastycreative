@@ -24,7 +24,7 @@ import {
   List
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 
 interface LinkedLoRA {
   id: string;

@@ -1,5 +1,5 @@
 // app\api\user\me\route.ts
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/database';
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { toast } from 'sonner';
 import * as Ably from 'ably';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';

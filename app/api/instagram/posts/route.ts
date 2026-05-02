@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@/lib/clerk-compat";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();

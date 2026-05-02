@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 
 // Google Drive folder mapping
 const DRIVE_FOLDERS = {

@@ -1,11 +1,11 @@
 'use client';
 
-import { SignInButton, SignOutButton, SignUpButton, useUser } from '@clerk/nextjs';
+import { SignInButton, SignOutButton, SignUpButton, useUser } from "@/lib/clerk-compat-client";
 
 export function AuthButtons() {
   const { isSignedIn, user } = useUser();
 
-  if (isSignedIn) {
+  if (isSignedIn && user) {
     return (
       <div className="flex items-center space-x-4">
         <span className="text-sm text-gray-300">

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Users, CheckSquare, UserCheck, Calendar, Clock, Zap, FileText, ImageIcon, UserCircle } from 'lucide-react';
 import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';

@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { useApiClient } from "@/lib/apiClient";
 import { toast } from "sonner";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { ModelCaptionBank } from "@/components/model-profile/ModelCaptionBank";
 import { FormDataMappingModal } from "@/components/model-profile/FormDataMappingModal";
 import { MODEL_BIBLE_FIELDS } from "@/lib/model-bible-fields";

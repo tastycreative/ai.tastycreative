@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { useRouter, useParams } from "next/navigation";
 import { useBillingInfo } from "@/lib/hooks/useBilling.query";
 import { useOrganization } from "@/lib/hooks/useOrganization.query";

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useUser } from "@/lib/clerk-compat-client";
 import {
   ChevronLeft,
   ChevronRight,

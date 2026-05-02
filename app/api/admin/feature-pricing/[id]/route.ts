@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 // GET - Get single feature pricing by ID

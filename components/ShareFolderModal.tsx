@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X, UserPlus, Trash2, Users, Eye, Edit3, Mail, Calendar, Shield, Info } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 
 interface ShareFolderModalProps {
   isOpen: boolean;

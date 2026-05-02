@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { getUserImages, deleteImage } from '@/lib/imageStorage';
 
 export async function GET(

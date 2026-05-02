@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { getJobImages } from '@/lib/imageStorage';
 import { getJob } from '@/lib/jobsStorage';
 import { prisma } from '@/lib/database';

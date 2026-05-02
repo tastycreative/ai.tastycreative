@@ -17,7 +17,7 @@ import {
 import { AuthButtons } from "@/components/auth/auth-buttons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Link from "next/link";
-import { SignInButton } from "@clerk/nextjs";
+import { SignInButton } from "@/lib/clerk-compat-client";
 import { PRICING_PLANS } from "@/lib/pricing-data";
 
 export default function LandingPage() {

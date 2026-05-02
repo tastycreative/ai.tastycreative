@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 
 // GET handler to fetch Flux Kontext generation history
 export async function GET(request: NextRequest) {

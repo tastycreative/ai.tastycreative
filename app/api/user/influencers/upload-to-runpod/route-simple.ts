@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 
 export async function POST(request: NextRequest) {
   console.log('🚀 Starting network volume upload API call...');

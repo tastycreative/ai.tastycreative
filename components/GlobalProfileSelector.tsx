@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { useInstagramProfile, Profile, ALL_PROFILES_OPTION } from '@/hooks/useInstagramProfile';
 import { useProfileGroups, useAddProfilesToGroup, useRemoveProfileFromGroup } from '@/lib/hooks/useProfileGroups.query';
 import { useProfilePins, useToggleProfilePin, useReorderProfilePins } from '@/lib/hooks/useProfilePins.query';

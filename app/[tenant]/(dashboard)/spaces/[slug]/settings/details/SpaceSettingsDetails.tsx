@@ -7,7 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { spaceKeys } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers, useTransferOwnership } from '@/lib/hooks/useSpaceMembers.query';
 import { useOrgMembersWithRoles } from '@/lib/hooks/useOrgMembers.query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { Loader2, Save, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

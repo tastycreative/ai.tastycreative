@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import {
   Heart, 
   MessageCircle, 

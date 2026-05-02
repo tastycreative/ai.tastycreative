@@ -1,5 +1,5 @@
 // app\api\feed\profile\upload-image\route.ts
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';

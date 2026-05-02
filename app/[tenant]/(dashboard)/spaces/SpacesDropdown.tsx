@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Layers, ChevronUp, ChevronDown, MoreHorizontal, Clock, ChevronRight, Grid3x3, Settings as SettingsIcon, UserPlus, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { CreateSpaceModal } from './CreateSpaceModal';
 import { AddPeopleModal } from './AddPeopleModal';
 import { useSpaces, useArchiveSpace, useDeleteSpace } from '@/lib/hooks/useSpaces.query';

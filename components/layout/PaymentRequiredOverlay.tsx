@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useOrganization } from '@clerk/nextjs';
+import { useOrganization } from "@/lib/clerk-compat-client";
 
 interface PaymentRequiredOverlayProps {
   tenant: string;

@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 import { redirect } from 'next/navigation';
 import { isAdminForTenant } from '@/lib/adminAuth';
 import OrganizationsTab from '@/components/admin/OrganizationsTab';

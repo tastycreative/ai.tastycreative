@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { FileText, Calendar, DollarSign, Upload, Sparkles, ArrowRight } from 'lucide-react';

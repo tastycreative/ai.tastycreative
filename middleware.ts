@@ -1,127 +1,106 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 
-const isProtectedRoute = createRouteMatcher([
-  '/:tenant/(.*)', // Protect all tenant-based routes (org and personal workspaces)
-  // Removed '/api/webhooks(.*)' - webhooks need to be public for external services
-]);
+const PUBLIC_ROUTES: RegExp[] = [
+  /^\/$/,
+  /^\/login(\/.*)?$/,
+  /^\/register(\/.*)?$/,
+  /^\/forgot-password(\/.*)?$/,
+  /^\/about(\/.*)?$/,
+  /^\/pricing(\/.*)?$/,
+  /^\/test(\/.*)?$/,
+  /^\/onboarding\/public(\/.*)?$/,
+];
 
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/login(.*)',
-  '/register(.*)',
-  '/forgot-password(.*)',
-  '/about(.*)',
-  '/pricing(.*)',
-  '/test(.*)',
-  '/onboarding/public(.*)', // ✅ Public onboarding form (token-based access)
-]);
+const AUTH_ROUTES: RegExp[] = [
+  /^\/login(\/.*)?$/,
+  /^\/register(\/.*)?$/,
+  /^\/forgot-password(\/.*)?$/,
+];
 
-const isAuthRoute = createRouteMatcher([
-  '/login(.*)',
-  '/register(.*)',
-  '/forgot-password(.*)',
-]);
+const PUBLIC_API_ROUTES: RegExp[] = [
+  /^\/api\/auth(\/.*)?$/,
+  /^\/api\/trpc\/hello(\/.*)?$/,
+  /^\/api\/trpc\/getTodos(\/.*)?$/,
+  /^\/api\/debug(\/.*)?$/,
+  /^\/api\/test(\/.*)?$/,
+  /^\/api\/diagnostic(\/.*)?$/,
+  /^\/api\/webhooks(\/.*)?$/,
+  /^\/api\/webhook(\/.*)?$/,
+  /^\/api\/webhook-test(\/.*)?$/,
+  /^\/api\/billing\/webhook$/,
+  /^\/api\/models\/upload-from-training(\/.*)?$/,
+  /^\/api\/training\/jobs(\/.*)?$/,
+  /^\/api\/influencers\/training-complete(\/.*)?$/,
+  /^\/api\/proxy(\/.*)?$/,
+  /^\/api\/instagram(\/.*)?$/,
+  /^\/api\/images\/s3(\/.*)?$/,
+  /^\/api\/google-drive(\/.*)?$/,
+  /^\/api\/auth\/google(\/.*)?$/,
+  /^\/api\/feed(\/.*)?$/,
+  /^\/api\/cron(\/.*)?$/,
+  /^\/api\/sexting-sets(\/.*)?$/,
+  /^\/api\/sexting-sets\/media(\/.*)?$/,
+  /^\/api\/export\/platform-ready$/,
+  /^\/api\/onboarding-invitations\/validate(\/.*)?$/,
+  /^\/api\/onboarding-public(\/.*)?$/,
+  /^\/api\/upload\/profile-image(\/.*)?$/,
+  /^\/api\/spaces\/[^/]+\/webhook\/.+$/,
+];
 
-const isPublicApiRoute = createRouteMatcher([
-  '/api/trpc/hello(.*)',
-  '/api/trpc/getTodos(.*)',
-  '/api/debug(.*)',
-  '/api/test(.*)',
-  '/api/diagnostic(.*)', // ✅ Add diagnostic routes as public
-  '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
-  '/api/webhook(.*)', // ✅ Add singular webhook routes (fps-boost, flux-kontext, etc.)
-  '/api/webhook-test(.*)', // ✅ Also add your test webhook
-  '/api/billing/webhook', // ✅ Stripe billing webhook
-  '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
-  '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler
-  '/api/influencers/training-complete(.*)', // ✅ Add training complete endpoint for RunPod handler
-  '/api/proxy(.*)', // ✅ Add proxy routes as public (needed for image loading)
-  '/api/instagram(.*)', // ✅ Add Instagram API routes as public
-  '/api/images/s3(.*)', // ✅ Add S3 image proxy as public for browser image loading
-  '/api/google-drive(.*)', // ✅ Add Google Drive API routes as public
-  '/api/auth/google(.*)', // ✅ Add Google OAuth routes as public (needed for authentication flow)
-  '/api/feed(.*)', // ✅ Add feed API routes (posts, upload-image)
-  '/api/cron(.*)', // ✅ Add cron routes as public (protected by CRON_SECRET)
-  '/api/sexting-sets(.*)', // ✅ Add sexting sets routes (handle their own auth)
-  '/api/sexting-sets/media(.*)', // ✅ Add sexting sets media proxy as public
-  '/api/export/platform-ready', // ✅ V1a: Platform specs endpoint (GET only returns public config)
-  '/api/onboarding-invitations/validate(.*)', // ✅ Public token validation endpoint
-  '/api/onboarding-public(.*)', // ✅ Public onboarding draft endpoints (token-based)
-  '/api/upload/profile-image(.*)', // ✅ Profile image upload (handles own auth via token or session)
-  '/api/spaces/(.*)/webhook/(.*)', // ✅ Space webhook endpoints (authenticated via x-webhook-secret header)
-]);
+const CUSTOM_AUTH_API_ROUTES: RegExp[] = [
+  /^\/api\/user\/influencers(\/.*)?$/,
+  /^\/api\/sexting-sets(\/.*)?$/,
+];
 
-// ✅ Special handling for API routes that need custom auth
-const isCustomAuthApiRoute = createRouteMatcher([
-  '/api/user/influencers(.*)', // These routes handle their own authentication
-  '/api/sexting-sets(.*)', // Sexting sets routes handle their own authentication
-]);
+const TENANT_PROTECTED: RegExp = /^\/[^/]+\/.+/;
 
-export default clerkMiddleware(async (auth, req) => {
-  // ✅ CRITICAL: Check public API routes FIRST before any auth calls
-  // This prevents Clerk from intercepting webhook requests
-  if (req.nextUrl.pathname.startsWith('/api/')) {
-    // Skip middleware completely for truly public API routes (webhooks, etc.)
-    if (isPublicApiRoute(req)) {
-      return NextResponse.next();
+function matches(path: string, list: RegExp[]) {
+  return list.some((re) => re.test(path));
+}
+
+export default async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/api/")) {
+    if (matches(pathname, PUBLIC_API_ROUTES)) return NextResponse.next();
+    if (matches(pathname, CUSTOM_AUTH_API_ROUTES)) return NextResponse.next();
+  }
+
+  const sessionCookie = getSessionCookie(req);
+  const isAuthed = !!sessionCookie;
+
+  if (isAuthed && matches(pathname, AUTH_ROUTES)) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (isAuthed && pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (matches(pathname, PUBLIC_ROUTES)) {
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/api/")) {
+    if (!isAuthed) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
-    // Skip middleware for routes that handle their own authentication
-    if (isCustomAuthApiRoute(req)) {
-      return NextResponse.next();
-    }
+    return NextResponse.next();
   }
 
-  const { userId } = await auth();
-
-  // If user is logged in and trying to access auth routes, redirect to /dashboard (temp landing)
-  if (userId && isAuthRoute(req)) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+  if (TENANT_PROTECTED.test(pathname) && !isAuthed) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // If user is logged in and accessing homepage, redirect to /dashboard (temp landing)
-  if (userId && req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-
-  // Allow public routes for non-authenticated users
-  if (isPublicRoute(req)) {
-    return;
-  }
-
-  // Protect all org routes
-  if (isProtectedRoute(req)) {
-    await auth.protect();
-  }
-  
-  // Handle API routes
-  if (req.nextUrl.pathname.startsWith('/api/')) {
-    // Skip middleware auth for truly public API routes (including webhooks)
-    if (isPublicApiRoute(req)) {
-      return;
-    }
-
-    // Skip middleware auth for routes that handle their own authentication
-    if (isCustomAuthApiRoute(req)) {
-      return;
-    }
-
-    // For other API routes, check auth but don't call protect() to avoid method issues
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-  }
-});
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
   ],
 };

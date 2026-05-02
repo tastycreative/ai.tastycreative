@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 import { createPortal } from 'react-dom';
 import { Loader2, Heart, MessageCircle, Bookmark, X, ChevronLeft, ChevronRight, Send, User, Camera } from 'lucide-react';
 import { toast } from 'sonner';

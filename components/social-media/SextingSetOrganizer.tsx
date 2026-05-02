@@ -93,7 +93,7 @@ import {
   Send,
   LayoutGrid,
 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useSpaces, type SpaceWithBoards, type SpaceBoardColumn } from "@/lib/hooks/useSpaces.query";
 import { boardItemKeys } from "@/lib/hooks/useBoardItems.query";

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 import { useParams, useRouter } from 'next/navigation';
 import { 
   User, 

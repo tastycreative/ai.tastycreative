@@ -1,6 +1,6 @@
 // app/api/production/my-tasks/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 export async function GET(request: NextRequest) {

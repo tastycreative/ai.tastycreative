@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { useRouter, useParams } from "next/navigation";
 import { useApiClient } from "@/lib/apiClient";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";

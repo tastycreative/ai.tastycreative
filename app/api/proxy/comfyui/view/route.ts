@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 

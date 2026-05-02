@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-compat";
 import { google } from "googleapis";
 
 // Initialize Google Drive API with OAuth2

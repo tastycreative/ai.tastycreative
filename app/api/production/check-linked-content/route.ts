@@ -1,6 +1,6 @@
 // app/api/production/check-linked-content/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 export async function POST(request: NextRequest) {

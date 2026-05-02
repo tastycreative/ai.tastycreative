@@ -1,5 +1,5 @@
 // lib/apiClient.ts - Fixed for proper Clerk authentication
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 
 // Custom fetch function that works with Clerk authentication
 export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { google, type drive_v3 } from 'googleapis';
 import { parseDriveLink } from '@/lib/otp-ptr-caption-status';
 

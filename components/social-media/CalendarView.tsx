@@ -23,7 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { fetchInstagramPosts, type InstagramPost } from "@/lib/instagram-posts";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import WeeklyCalendarView from "./WeeklyCalendarView";

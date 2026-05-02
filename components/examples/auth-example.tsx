@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { trpc } from '@/lib/trpc-client';
 import { useState } from 'react';
 
