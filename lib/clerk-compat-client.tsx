@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { authClient } from "./auth-client";
 
 /**
@@ -63,9 +63,19 @@ export function useUser(): {
   user: ClientUser | null;
 } {
   const { data, isPending } = authClient.useSession();
-  const user = data?.user
-    ? toClientUser(data.user as Parameters<typeof toClientUser>[0])
+  const sessionUser = data?.user as
+    | (Parameters<typeof toClientUser>[0] & { clerkId?: string })
+    | undefined;
+  // Stabilize on identity-defining primitives so consumers depending on `user`
+  // don't see a new reference every render and re-fire effects in a loop.
+  const userKey = sessionUser
+    ? `${sessionUser.clerkId ?? sessionUser.id}|${sessionUser.email ?? ""}|${sessionUser.name ?? ""}|${sessionUser.image ?? ""}`
     : null;
+  const user = useMemo(
+    () => (sessionUser ? toClientUser(sessionUser) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userKey],
+  );
   return {
     isLoaded: !isPending,
     isSignedIn: isPending ? undefined : !!user,
@@ -118,6 +128,17 @@ export function useClerk(): {
 } {
   const { data } = authClient.useSession();
   const router = useRouter();
+  const sessionUser = data?.user as
+    | (Parameters<typeof toClientUser>[0] & { clerkId?: string })
+    | undefined;
+  const userKey = sessionUser
+    ? `${sessionUser.clerkId ?? sessionUser.id}|${sessionUser.email ?? ""}|${sessionUser.name ?? ""}|${sessionUser.image ?? ""}`
+    : null;
+  const user = useMemo(
+    () => (sessionUser ? toClientUser(sessionUser) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userKey],
+  );
   return {
     signOut: async (opts) => {
       await authClient.signOut();
@@ -125,9 +146,7 @@ export function useClerk(): {
     },
     openSignIn: () => router.push("/login"),
     openSignUp: () => router.push("/register"),
-    user: data?.user
-      ? toClientUser(data.user as Parameters<typeof toClientUser>[0])
-      : null,
+    user,
   };
 }
 
