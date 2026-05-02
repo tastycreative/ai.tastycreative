@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-compat";
 import { CopyObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/database";
 

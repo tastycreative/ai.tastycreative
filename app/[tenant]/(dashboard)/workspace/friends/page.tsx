@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useApiClient } from "@/lib/apiClient";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/clerk-compat-client";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   UserPlus,

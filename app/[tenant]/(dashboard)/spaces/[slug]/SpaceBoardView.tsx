@@ -8,7 +8,7 @@ import { useSpaceBySlug, useUpdateSpace } from '@/lib/hooks/useSpaces.query';
 import { useSpaceMembers } from '@/lib/hooks/useSpaceMembers.query';
 import { useOrgMembers } from '@/lib/hooks/useOrgMembers.query';
 import { useOrganization } from '@/lib/hooks/useOrganization.query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { Loader2 } from 'lucide-react';
 import { BoardSkeleton } from '@/components/ui/BoardSkeleton';
 import {

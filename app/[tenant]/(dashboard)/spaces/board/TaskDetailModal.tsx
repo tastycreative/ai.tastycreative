@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { X, Pencil } from 'lucide-react';
 import type { BoardTask } from './BoardTaskCard';
 import { ActivityFeed, type TaskComment, type TaskHistoryEntry } from './ActivityFeed';

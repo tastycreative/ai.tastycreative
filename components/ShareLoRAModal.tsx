@@ -15,7 +15,7 @@ import {
   Shield,
   Info,
 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 
 interface ShareLoRAModalProps {
   isOpen: boolean;

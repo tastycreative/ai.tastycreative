@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import OpenAI from 'openai';
 import { MODEL_BIBLE_FIELDS, VALID_PATHS } from '@/lib/model-bible-fields';
 

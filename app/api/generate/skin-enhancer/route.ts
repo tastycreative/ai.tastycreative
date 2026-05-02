@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { addJob, updateJob, GenerationJob as StoredGenerationJob } from '@/lib/jobsStorage';
 
 // RunPod API configuration for skin enhancement

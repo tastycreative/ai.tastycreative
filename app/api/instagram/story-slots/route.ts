@@ -1,6 +1,6 @@
 // app/api/instagram/story-slots/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@/lib/clerk-compat";
 import { PrismaClient } from "@/lib/generated/prisma";
 import { v4 as uuidv4 } from "uuid";
 

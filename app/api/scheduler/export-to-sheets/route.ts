@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { google } from 'googleapis';
 import { prisma } from '@/lib/database';
 import { buildHeaderRow, buildDayRows, type ExportableTask } from '@/lib/scheduler/sheet-export';

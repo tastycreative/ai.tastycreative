@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';

@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/clerk-compat-client";
 import {
   Upload,
   Users,

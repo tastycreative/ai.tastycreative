@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/database';
 import { sendAllNotifications } from '@/lib/notification-service';
-import { clerkClient } from '@clerk/nextjs/server';
+import { clerkClient } from "@/lib/clerk-compat";
 
 /**
  * Cron job to send reminders for scheduled Instagram posts

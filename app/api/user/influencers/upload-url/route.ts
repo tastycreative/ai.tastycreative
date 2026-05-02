@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-compat";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {

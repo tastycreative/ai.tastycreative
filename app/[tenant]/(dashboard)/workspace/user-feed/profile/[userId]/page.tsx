@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 import { useRouter, useParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import Cropper from 'react-easy-crop';

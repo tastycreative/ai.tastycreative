@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/database';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';

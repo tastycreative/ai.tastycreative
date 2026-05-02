@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 
 // Helper function to get user's subfolder ID
 async function getUserSubfolderId(drive: any, parentFolderId: string, userId: string): Promise<string | null> {

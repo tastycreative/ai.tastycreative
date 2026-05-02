@@ -24,7 +24,7 @@ import {
   Square,
   MapPin,
 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { createPortal } from "react-dom";
 
 type WeeklySlotType = "REEL_1" | "STORY_BATCH" | "FEED_POST";

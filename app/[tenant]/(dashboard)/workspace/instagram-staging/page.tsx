@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { Instagram, Calendar, GitBranch, Clock, Sparkles, Activity, Hash, ListChecks, ImageIcon, User, ChevronDown, Settings, Plus, Edit2, Trash2, X, Save } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import InstagramStagingTool from '@/components/social-media/InstagramStagingTool';
 import CalendarView from '@/components/social-media/CalendarView';
 import ContentPipelineView from '@/components/social-media/ContentPipelineView';

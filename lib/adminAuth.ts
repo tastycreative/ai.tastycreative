@@ -1,5 +1,5 @@
-import { currentUser } from '@clerk/nextjs/server';
-import { auth } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 /**

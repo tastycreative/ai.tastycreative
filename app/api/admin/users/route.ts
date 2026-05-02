@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
-import { clerkClient } from '@clerk/nextjs/server';
+import { clerkClient } from "@/lib/clerk-compat";
 
 export async function GET(request: NextRequest) {
   try {

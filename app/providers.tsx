@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { httpBatchLink } from '@trpc/client';
 import { useState } from 'react';
-import { ClerkProvider } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import { trpc } from '../lib/trpc-client';
 import { ThemeProvider } from '../components/providers/theme-provider';
@@ -44,22 +43,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ClerkProvider
-      afterSignInUrl="/dashboard"
-      afterSignUpUrl="/dashboard"
-      signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/dashboard"
-    >
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <GenerationProvider>
-              {children}
-              <ReactQueryDevtools initialIsOpen={false} />
-            </GenerationProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </trpc.Provider>
-    </ClerkProvider>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <GenerationProvider>
+            {children}
+            <ReactQueryDevtools initialIsOpen={false} />
+          </GenerationProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
   );
 }

@@ -21,7 +21,7 @@ import {
   Info,
 } from "lucide-react";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 
 interface PerformanceTrackerViewProps {
   profileId?: string | null;

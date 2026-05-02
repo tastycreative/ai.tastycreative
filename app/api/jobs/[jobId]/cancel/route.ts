@@ -1,6 +1,6 @@
 // app/api/jobs/[jobId]/cancel/route.ts - Cancel generation job API endpoint
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 export async function POST(

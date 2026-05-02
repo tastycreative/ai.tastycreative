@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 import { canViewQueue, isCreatorRole, type OrgRole } from '@/lib/rbac';
 import { broadcastToOrg } from '@/lib/ably-server';

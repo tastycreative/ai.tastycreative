@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cropper, { Area } from "react-easy-crop";

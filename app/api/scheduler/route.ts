@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, currentUser, clerkClient } from '@clerk/nextjs/server';
+import { auth, currentUser, clerkClient } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 import { broadcastToScheduler } from '@/lib/ably-server';
 import { generateSlotLabel } from '@/lib/scheduler/rotation';

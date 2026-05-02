@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { getBestMediaUrl } from "@/lib/directUrlUtils";
 import { convertS3ToCdnUrl } from "@/lib/cdnUtils";

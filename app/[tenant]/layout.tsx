@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { Loader2 } from "lucide-react";
 
 const ACTIVITY_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes

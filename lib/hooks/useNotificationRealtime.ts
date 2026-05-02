@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback } from 'react';
 import * as Ably from 'ably';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/lib/clerk-compat-client";
 
 let sharedClient: Ably.Realtime | null = null;
 

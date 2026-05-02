@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
-import { clerkClient } from '@clerk/nextjs/server';
+import { clerkClient } from "@/lib/clerk-compat";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   console.log('PATCH /api/admin/users/[id] - Starting request processing');

@@ -7,7 +7,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

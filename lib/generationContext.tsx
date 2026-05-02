@@ -9,7 +9,7 @@ import React, {
   useRef,
 } from "react";
 import * as Ably from "ably";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 
 export interface GenerationJob {
   jobId: string;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { prisma } from '@/lib/database';
 
 // GET /api/scheduler/history?date=2026-03-21&profileId=xxx&platform=free&limit=30&cursor=xxx

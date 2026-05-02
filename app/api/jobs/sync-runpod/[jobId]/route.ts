@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from "@/lib/clerk-compat";
 import { updateJob, getJob } from '@/lib/jobsStorage';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-compat";
 
 // Read a public Google Sheet and extract Instagram URLs from it
 // The sheet must be shared as "Anyone with the link can view"

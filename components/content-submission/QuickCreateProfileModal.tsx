@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { X, UserPlus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { useInstagramProfiles } from '@/lib/hooks/useInstagramProfiles.query';
 
 interface QuickCreateProfileModalProps {

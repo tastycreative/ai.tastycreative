@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Calendar, Trash2, AlertCircle, Loader2, Users, Pencil } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@/lib/clerk-compat-client";
 import { toast } from 'sonner';
 import { useCaptionQueue, useDeleteQueueItem, CaptionQueueItem } from '@/lib/hooks/useCaptionQueue.query';
 import { useOrgRole } from '@/lib/hooks/useOrgRole.query';

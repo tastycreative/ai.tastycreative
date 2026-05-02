@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireOrgAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser } from "@/lib/clerk-compat";
 
 /**
  * GET /api/admin/models/model-presets

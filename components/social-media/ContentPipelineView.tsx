@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 const CalendarIcon = Calendar;
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-compat-client";
 import { createPortal } from "react-dom";
 
 interface ContentPipelineViewProps {
